@@ -1,0 +1,21 @@
+{
+  "language": "js",
+  "cases": [
+    {
+      "input": "<a title=\"x\">&'",
+      "want": "&lt;a title=&quot;x&quot;&gt;&amp;&#39;"
+    },
+    {
+      "input": "&amp;",
+      "want": "&amp;amp;"
+    },
+    {
+      "input": "한글",
+      "want": "한글"
+    },
+    {
+      "input": "",
+      "want": ""
+    }
+  ]
+}

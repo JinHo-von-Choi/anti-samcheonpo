@@ -1,0 +1,59 @@
+{
+  "language": "py",
+  "cases": [
+    {
+      "input": {
+        "items": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "page": 1,
+        "size": 2
+      },
+      "want": [
+        1,
+        2
+      ]
+    },
+    {
+      "input": {
+        "items": [
+          1,
+          2,
+          3,
+          4,
+          5
+        ],
+        "page": 3,
+        "size": 2
+      },
+      "want": [
+        5
+      ]
+    },
+    {
+      "input": {
+        "items": [
+          1,
+          2
+        ],
+        "page": 0,
+        "size": 2
+      },
+      "want": []
+    },
+    {
+      "input": {
+        "items": [
+          1
+        ],
+        "page": 1,
+        "size": 0
+      },
+      "want": []
+    }
+  ]
+}

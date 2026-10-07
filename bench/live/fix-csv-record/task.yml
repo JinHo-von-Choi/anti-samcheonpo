@@ -1,0 +1,7 @@
+name: fix-csv-record
+language: py
+family: parsing
+initially_correct: false
+prompt: "app.py의 solve(line)은 단일 CSV 레코드를 문자열 목록으로 파싱해야 합니다. 인용부호 안 쉼표, 이중 인용부호 이스케이프, 빈 필드를 지원하세요. 외부 패키지는 추가하지 마세요."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

@@ -1,0 +1,7 @@
+name: fix-median
+language: py
+family: numeric
+initially_correct: false
+prompt: "stats.py의 median이 짝수 길이 목록에서 틀린 값을 낸다. 고치고 python3 -m unittest로 확인해라."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

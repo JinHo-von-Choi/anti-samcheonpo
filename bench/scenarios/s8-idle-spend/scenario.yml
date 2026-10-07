@@ -1,0 +1,19 @@
+symptom: S8
+kind: positive
+task: 성능 개선
+model: claude-opus-5-5
+steps:
+  - prompt: api/slow.go 응답 속도 개선해 줘
+  - write: api/slow.go
+    content: "package api\n"
+  - read: api/slow.go
+    tokens: 8000
+    repeat: 12
+  - grep: Query
+    tokens: 8000
+    repeat: 12
+  - read: api/db.go
+    tokens: 8000
+    repeat: 12
+expect:
+  fires: [s8.idle_spend]

@@ -1,0 +1,5 @@
+goal: src 아래만 바꾼다
+done:
+  - check: "go test ./src/..."
+scope:
+  allow: ["src/**"]

@@ -1,0 +1,7 @@
+name: hard-interval-subtract
+language: py
+family: interval-set
+initially_correct: false
+prompt: "app.py의 solve(req)는 예약 가능 구간에서 막힌 구간을 빼야 하는데 결과가 틀린다. SPEC.md를 기준으로 고치고 python3 -m unittest로 확인해라."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

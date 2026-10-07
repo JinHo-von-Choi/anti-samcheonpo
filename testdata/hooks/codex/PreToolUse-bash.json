@@ -1,0 +1,14 @@
+{
+ "session_id": "01a10f5b-42b0-7542-9581-403023421a9d",
+ "turn_id": "01a10f5b-4695-74f0-89f1-8bc6dc8296bf",
+ "transcript_path": "/home/u/.codex/sessions/2026/10/06/rollout-x.jsonl",
+ "cwd": "/w/proj",
+ "hook_event_name": "PreToolUse",
+ "model": "gpt-5.6-sol",
+ "permission_mode": "bypassPermissions",
+ "tool_name": "Bash",
+ "tool_input": {
+  "command": "python3 -m pytest -q"
+ },
+ "tool_use_id": "exec-dc45e684-900f-40ba-8038-6e609614bf4e"
+}

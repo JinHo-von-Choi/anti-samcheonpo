@@ -1,0 +1,21 @@
+{
+  "language": "js",
+  "cases": [
+    {
+      "input": "  Kim  Minsu ",
+      "want": "kim minsu"
+    },
+    {
+      "input": "LEE",
+      "want": "lee"
+    },
+    {
+      "input": "   ",
+      "want": ""
+    },
+    {
+      "input": "Park   Ji  Sung",
+      "want": "park ji sung"
+    }
+  ]
+}

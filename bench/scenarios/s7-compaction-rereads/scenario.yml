@@ -1,0 +1,17 @@
+symptom: S7
+kind: positive
+task: 문서 정리
+steps:
+  - prompt: docs/guide.md 정리해 줘
+  - write: docs/guide.md
+    content: "# guide\n"
+  - read: docs/guide.md
+    repeat: 4
+  - compact: true
+  - read: docs/api.md
+    repeat: 4
+  - compact: true
+  - read: docs/guide.md
+    repeat: 3
+expect:
+  fires: [s7.memory_rot]

@@ -1,0 +1,37 @@
+symptom: S2
+kind: positive
+task: 타입 오류 고치기
+steps:
+  - prompt: src/user.ts 타입 오류 고쳐 줘
+  - write: src/user.ts
+    content: "export const u = 1\n"
+  - bash: npx tsc --noEmit
+    exit: 2
+    out: "src/user.ts(3,5): error TS2322: Type 'string' is not assignable to type 'number'."
+  - edit: src/user.ts
+    old: "export const u = 1\n"
+    new: "export const u: number = 1\n"
+  - bash: npx tsc --noEmit
+    exit: 2
+    out: "src/user.ts(4,5): error TS2322: Type 'string' is not assignable to type 'number'."
+  - edit: src/user.ts
+    old: "export const u: number = 1\n"
+    new: "export const u: number = Number(1)\n"
+  - bash: npx tsc --noEmit
+    exit: 2
+    out: "src/user.ts(5,9): error TS2322: Type 'string' is not assignable to type 'number'."
+  - edit: src/user.ts
+    old: "Number(1)"
+    new: "parseInt('1')"
+  - bash: npx tsc --noEmit
+    exit: 2
+    out: "src/user.ts(5,9): error TS2322: Type 'string' is not assignable to type 'number'."
+  - edit: src/user.ts
+    old: "parseInt('1')"
+    new: "+'1'"
+  - bash: npx tsc --noEmit
+    exit: 2
+    out: "src/user.ts(6,1): error TS2322: Type 'string' is not assignable to type 'number'."
+expect:
+  fires: [s2.stuck_error]
+  waste_min_krw: 1

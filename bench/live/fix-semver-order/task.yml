@@ -1,0 +1,7 @@
+name: fix-semver-order
+language: js
+family: numeric
+initially_correct: false
+prompt: "app.cjs의 solve(versions)는 세 정수 성분의 버전 문자열을 오름차순으로 정렬해 새 배열을 반환합니다. 사전식 정렬 오류를 고치고 입력 배열을 보존하세요. prerelease는 범위 밖입니다."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

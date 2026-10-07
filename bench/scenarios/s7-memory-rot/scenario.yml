@@ -1,0 +1,23 @@
+symptom: S7
+kind: positive
+task: 긴 리팩터링
+steps:
+  - prompt: core/engine.py 리팩터링 이어서 해 줘
+  - write: core/engine.py
+    content: "A\n"
+  - edit: core/engine.py
+    old: "A\n"
+    new: "B\n"
+  - compact: true
+  - read: core/engine.py
+    repeat: 4
+  - read: core/util.py
+    repeat: 4
+  - compact: true
+  - edit: core/engine.py
+    old: "B\n"
+    new: "A\n"
+  - read: core/engine.py
+    repeat: 3
+expect:
+  fires: [s7.memory_rot]

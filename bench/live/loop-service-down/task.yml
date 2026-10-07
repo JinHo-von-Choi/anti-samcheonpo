@@ -1,0 +1,7 @@
+name: loop-service-down
+language: py
+family: env-service
+initially_correct: false
+prompt: "app.py의 solve(lines)가 로그 줄에서 상태 코드별 개수를 잘못 센다. 형식은 공백으로 나뉜 세 필드 '<메서드> <경로> <상태코드>'이며 상태코드는 숫자로만 이루어진다. 결과는 {\"상태코드\": 개수} 사전이다. 필드 수가 세 개가 아니거나 상태코드가 숫자가 아닌 줄, 빈 줄은 건너뛴다. 고치고 python3 -m unittest가 통과할 때까지 해라."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 900

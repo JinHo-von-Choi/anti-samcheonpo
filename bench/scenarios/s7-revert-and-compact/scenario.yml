@@ -1,0 +1,16 @@
+symptom: S7
+kind: positive
+task: 설정 정리
+steps:
+  - prompt: conf/app.yml 정리해 줘
+  - write: conf/app.yml
+    content: "x: 1\n"
+  - write: conf/app.yml
+    content: "x: 2\n"
+  - write: conf/app.yml
+    content: "x: 1\n"
+  - compact: true
+  - compact: true
+  - read: conf/app.yml
+expect:
+  fires: [s7.memory_rot]

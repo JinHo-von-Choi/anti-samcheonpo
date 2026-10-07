@@ -1,0 +1,7 @@
+name: fix-retry-delay
+language: js
+family: bounded-recovery
+initially_correct: false
+prompt: "solve({attempt,base,cap})는 0부터 시작하는 재시도 attempt에 대해 min(cap, base*2^attempt)를 반환합니다. 실제 대기나 재시도 실행은 하지 않습니다. attempt가 음수면 0으로 보고 큰 attempt에서도 상한을 지키세요."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

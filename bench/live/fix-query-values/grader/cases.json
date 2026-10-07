@@ -1,0 +1,32 @@
+{
+  "language": "js",
+  "cases": [
+    {
+      "input": {
+        "query": "x=a+b&x=%ED%95%9C&x=&y=z",
+        "key": "x"
+      },
+      "want": [
+        "a b",
+        "한",
+        ""
+      ]
+    },
+    {
+      "input": {
+        "query": "key=a%3Db",
+        "key": "key"
+      },
+      "want": [
+        "a=b"
+      ]
+    },
+    {
+      "input": {
+        "query": "other=1",
+        "key": "missing"
+      },
+      "want": []
+    }
+  ]
+}

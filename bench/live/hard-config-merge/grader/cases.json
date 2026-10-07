@@ -1,0 +1,255 @@
+{
+  "language": "js",
+  "cases": [
+    {
+      "input": {
+        "base": {
+          "a": 1,
+          "b": {
+            "c": 2
+          }
+        },
+        "override": {
+          "b": {
+            "d": 3
+          }
+        }
+      },
+      "want": {
+        "a": 1,
+        "b": {
+          "c": 2,
+          "d": 3
+        }
+      }
+    },
+    {
+      "input": {
+        "base": {
+          "plugins": [
+            "lint"
+          ]
+        },
+        "override": {
+          "plugins": [
+            "fmt"
+          ]
+        }
+      },
+      "want": {
+        "plugins": [
+          "fmt"
+        ]
+      }
+    },
+    {
+      "input": {
+        "base": {
+          "a": 1,
+          "b": 2
+        },
+        "override": {
+          "a": null
+        }
+      },
+      "want": {
+        "b": 2
+      }
+    },
+    {
+      "input": {
+        "base": {
+          "a": {
+            "x": 1,
+            "y": 2
+          }
+        },
+        "override": {
+          "a": {
+            "y": null,
+            "z": [
+              1,
+              2
+            ]
+          }
+        }
+      },
+      "want": {
+        "a": {
+          "x": 1,
+          "z": [
+            1,
+            2
+          ]
+        }
+      }
+    },
+    {
+      "input": {
+        "base": {
+          "a": [
+            1,
+            2
+          ]
+        },
+        "override": {
+          "a": {
+            "k": 1
+          }
+        }
+      },
+      "want": {
+        "a": {
+          "k": 1
+        }
+      }
+    },
+    {
+      "input": {
+        "base": {
+          "a": {
+            "k": 1
+          }
+        },
+        "override": {
+          "a": [
+            3
+          ]
+        }
+      },
+      "want": {
+        "a": [
+          3
+        ]
+      }
+    },
+    {
+      "input": {
+        "base": {
+          "a": 1
+        },
+        "override": {
+          "__proto__": {
+            "polluted": true
+          },
+          "b": 2
+        }
+      },
+      "want": {
+        "a": 1,
+        "b": 2
+      }
+    },
+    {
+      "input": {
+        "base": {
+          "n": {
+            "m": {
+              "o": 1
+            }
+          }
+        },
+        "override": {
+          "n": {
+            "m": {
+              "p": 2
+            },
+            "constructor": {
+              "x": 1
+            }
+          }
+        }
+      },
+      "want": {
+        "n": {
+          "m": {
+            "o": 1,
+            "p": 2
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "base": {},
+        "override": {
+          "missing": null,
+          "s": "v"
+        }
+      },
+      "want": {
+        "s": "v"
+      }
+    },
+    {
+      "input": {
+        "base": {
+          "a": {
+            "b": 1
+          }
+        },
+        "override": {
+          "a": {
+            "prototype": 5,
+            "c": {
+              "d": [
+                1,
+                {
+                  "e": 2
+                }
+              ]
+            }
+          }
+        }
+      },
+      "want": {
+        "a": {
+          "b": 1,
+          "c": {
+            "d": [
+              1,
+              {
+                "e": 2
+              }
+            ]
+          }
+        }
+      }
+    },
+    {
+      "input": {
+        "base": {
+          "t": true,
+          "f": 0
+        },
+        "override": {
+          "t": false,
+          "f": "0",
+          "z": 0
+        }
+      },
+      "want": {
+        "t": false,
+        "f": "0",
+        "z": 0
+      }
+    },
+    {
+      "input": {
+        "base": {
+          "x": null
+        },
+        "override": {
+          "x": {
+            "y": 1
+          }
+        }
+      },
+      "want": {
+        "x": {
+          "y": 1
+        }
+      }
+    }
+  ]
+}

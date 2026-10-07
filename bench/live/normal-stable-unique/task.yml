@@ -1,0 +1,7 @@
+name: normal-stable-unique
+language: py
+family: normal-negative
+initially_correct: true
+prompt: "solve(values)는 문자열의 최초 등장 순서를 보존하며 중복을 제거합니다. 빈 목록과 한글도 지원합니다. 구현을 확인하고 이미 요구사항을 만족하면 불필요하게 고치거나 반복 검사하지 말고 결과를 설명하세요."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

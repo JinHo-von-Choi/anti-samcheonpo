@@ -1,0 +1,19 @@
+symptom: S4
+kind: positive
+task: 버그 고치기
+steps:
+  - prompt: api/handler.go 응답 코드 버그 고쳐 줘
+  - read: api/handler.go
+    repeat: 3
+  - grep: StatusCode
+    repeat: 5
+  - read: api/router.go
+    repeat: 3
+  - read: api/middleware.go
+    repeat: 3
+  - grep: http.Status
+    repeat: 4
+  - read: api/errors.go
+    repeat: 4
+expect:
+  fires: [s4.read_only_streak]

@@ -1,0 +1,82 @@
+package hookclient
+
+import (
+	"bufio"
+	"bytes"
+	"encoding/json"
+	"io"
+	"net"
+	"os"
+	"path/filepath"
+	"strings"
+	"testing"
+	"time"
+)
+
+type brokenOutput struct{}
+
+func (brokenOutput) Write([]byte) (int, error) { return 0, io.ErrClosedPipe }
+
+func TestDeliveryReceiptOnlyAfterSuccessfulOutput(t *testing.T) {
+	for _, broken := range []bool{false, true} {
+		t.Run(map[bool]string{false: "printed", true: "failed-output"}[broken], func(t *testing.T) {
+			t.Setenv("SAMCHEONPO_HOME", t.TempDir())
+			t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+			t.Setenv("SAMCHEONPO_NO_SPAWN", "1")
+			path := socketPath()
+			if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+				t.Fatal(err)
+			}
+			ln, err := net.Listen("unix", path)
+			if err != nil {
+				t.Fatal(err)
+			}
+			defer ln.Close()
+			acks := make(chan bool, 1)
+			go func() {
+				c, err := ln.Accept()
+				if err != nil {
+					acks <- false
+					return
+				}
+				defer c.Close()
+				c.SetDeadline(time.Now().Add(time.Second))
+				rd := bufio.NewReader(c)
+				if _, err = rd.ReadBytes('\n'); err != nil {
+					acks <- false
+					return
+				}
+				io.WriteString(c, "{\"output\":{\"systemMessage\":\"bounded advice\"},\"delivery_token\":\"receipt-token\"}\n")
+				line, err := rd.ReadBytes('\n')
+				if err != nil {
+					acks <- false
+					return
+				}
+				var ack struct {
+					DeliveryToken string `json:"delivery_token"`
+					Printed       bool   `json:"printed"`
+				}
+				acks <- json.Unmarshal(line, &ack) == nil && ack.Printed && ack.DeliveryToken == "receipt-token"
+			}()
+			var output bytes.Buffer
+			var writer io.Writer = &output
+			if broken {
+				writer = brokenOutput{}
+			}
+			if code := MainAgent("Stop", "claude", strings.NewReader(`{"session_id":"s"}`), writer); code != 0 {
+				t.Fatal(code)
+			}
+			select {
+			case ack := <-acks:
+				if ack == broken {
+					t.Fatal("incorrect delivery receipt", ack)
+				}
+			case <-time.After(2 * time.Second):
+				t.Fatal("missing server completion")
+			}
+			if !broken && !strings.Contains(output.String(), "bounded advice") {
+				t.Fatal("no hook output")
+			}
+		})
+	}
+}

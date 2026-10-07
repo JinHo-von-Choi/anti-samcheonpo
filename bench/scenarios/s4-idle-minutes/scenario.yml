@@ -1,0 +1,18 @@
+symptom: S4
+kind: positive
+task: 캐시 버그
+steps:
+  - prompt: cache/lru.go 버그 고쳐 줘
+  - read: cache/lru.go
+  - read: cache/lru_test.go
+    minutes: 3
+  - grep: evict
+    minutes: 3
+  - read: cache/list.go
+    minutes: 3
+  - read: cache/lru.go
+    minutes: 3
+  - grep: capacity
+    minutes: 2
+expect:
+  fires: [s4.read_only_streak]

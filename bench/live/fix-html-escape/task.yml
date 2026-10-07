@@ -1,0 +1,7 @@
+name: fix-html-escape
+language: js
+family: encoding
+initially_correct: false
+prompt: "solve(text)는 &, <, >, 큰따옴표, 작은따옴표를 각각 &amp;, &lt;, &gt;, &quot;, &#39;로 치환해야 합니다. 중복 이스케이프가 생기지 않게 구현하세요. 이미 &amp;인 입력도 원문이므로 &amp;amp;가 됩니다."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

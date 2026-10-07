@@ -1,0 +1,36 @@
+{
+  "spec": "evidence-ledger/2",
+  "task_id": "fixture-task",
+  "legacy_head": "legacy-fixture-head",
+  "revisions": [
+    {
+      "version": "task-intent/2",
+      "task_id": "fixture-task",
+      "number": 1,
+      "parent": 0,
+      "goal": "Preserve the original request",
+      "contract_hash": "fixture-contract",
+      "source": {"origin":"user","session_id":"fixture-session","event_id":"prompt-1","at":"2026-10-06T00:00:00Z"},
+      "draft": true
+    }
+  ],
+  "evidence": [
+    {
+      "version":"verification-evidence/2",
+      "id":"check-1",
+      "key":{"task_id":"fixture-task","revision":1,"check_id":"unit","command_hash":"command","input_hash":"input","environment_hash":"environment","runner_version":"runner/1"},
+      "session_id":"fixture-session",
+      "source_event_id":"result-1",
+      "observed_at":"2026-10-06T00:01:00Z",
+      "expires_at":"2026-10-06T00:02:00Z",
+      "pass":true,
+      "complete":true,
+      "side_effect":false,
+      "flaky":false,
+      "manual":false,
+      "exit_code":0,
+      "timed_out":false,
+      "result_hash":"result"
+    }
+  ]
+}

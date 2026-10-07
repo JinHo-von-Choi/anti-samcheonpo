@@ -1,0 +1,4 @@
+[삼천포] 관찰: {{if .same_files}}같은 파일 묶음({{.files}})을 {{.attempts}}번 고쳤지만 모두 같은 계열의 실패로 끝났다{{else}}서로 다른 접근 {{.strategies}}가지(바꾼 파일 묶음이 서로 다름)가 모두 같은 계열의 실패로 끝났다{{end}}{{if .error}} ({{.error}}){{end}}.
+근거: {{if .same_files}}마지막 검증 이벤트 {{.evidence}}, 실패 수가 줄지 않았다{{else}}각 접근의 마지막 검증 이벤트 {{.evidence}}{{end}}.
+비용: {{.cost_summary}}
+계약: 목표는 {{.goal}}이다. 지금까지의 접근 범위로는 이 실패를 넘지 못했다.{{if .handoff}} 인수인계 문서가 {{.handoff}}에 있다.{{end}}

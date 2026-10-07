@@ -1,0 +1,12 @@
+{
+  "hooks": {
+    "SessionStart": [{ "hooks": [{ "type": "command", "command": "samcheonpo hook SessionStart", "timeout": 5 }] }],
+    "UserPromptSubmit": [{ "hooks": [{ "type": "command", "command": "samcheonpo hook UserPromptSubmit", "timeout": 5 }] }],
+    "PreToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "samcheonpo hook PreToolUse", "timeout": 5 }] }],
+    "PostToolUse": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "samcheonpo hook PostToolUse", "timeout": 5 }] }],
+    "PostToolUseFailure": [{ "matcher": "*", "hooks": [{ "type": "command", "command": "samcheonpo hook PostToolUseFailure", "timeout": 5 }] }],
+    "Stop": [{ "hooks": [{ "type": "command", "command": "samcheonpo hook Stop", "timeout": 160 }] }],
+    "PreCompact": [{ "hooks": [{ "type": "command", "command": "samcheonpo hook PreCompact", "timeout": 5 }] }],
+    "SessionEnd": [{ "hooks": [{ "type": "command", "command": "samcheonpo hook SessionEnd", "timeout": 35 }] }]
+  }
+}

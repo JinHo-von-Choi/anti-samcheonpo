@@ -1,0 +1,18 @@
+{
+ "input": "input.jsonl",
+ "agent": "claude",
+ "expect": {
+  "rules": [
+   "s1.identical_rerun@L1"
+  ],
+  "not_rules": [
+   "s2.stuck_error"
+  ],
+  "contract_state": "draft",
+  "total_tokens": 333,
+  "bucket_tokens": {
+   "other": 111,
+   "waste": 222
+  }
+ }
+}

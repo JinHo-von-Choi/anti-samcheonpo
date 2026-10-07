@@ -1,0 +1,25 @@
+symptom: normal
+kind: negative
+task: 설정 로더 추가
+steps:
+  - prompt: app/config.py에 환경변수 로더를 추가해 줘
+  - read: app/main.py
+  - read: app/settings.py
+  - read: app/db.py
+  - grep: getenv
+  - read: app/util.py
+  - read: README.md
+  - read: app/routes.py
+  - grep: Config
+  - read: app/models.py
+  - read: tests/test_main.py
+  - read: pyproject.toml
+  - grep: load
+  - write: app/config.py
+    content: "import os\n\ndef load():\n    return dict(os.environ)\n"
+  - bash: pytest -q
+    out: "5 passed"
+  - msg: 로더를 추가했고 시험 5개가 통과했습니다.
+expect:
+  not_fires: [s4.read_only_streak]
+  max_level: 0

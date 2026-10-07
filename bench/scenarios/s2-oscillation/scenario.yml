@@ -1,0 +1,21 @@
+symptom: S2
+kind: positive
+task: 정렬 버그
+steps:
+  - prompt: lib/sort.py 정렬 순서 버그 고쳐 줘
+  - write: lib/sort.py
+    content: "def order(xs):\n    return sorted(xs)\n"
+  - edit: lib/sort.py
+    old: "sorted(xs)"
+    new: "sorted(xs, reverse=True)"
+  - bash: pytest
+    exit: 1
+    out: "FAILED tests/test_sort.py::test_order\n1 failed"
+  - edit: lib/sort.py
+    old: "sorted(xs, reverse=True)"
+    new: "sorted(xs)"
+  - bash: pytest
+    exit: 1
+    out: "FAILED tests/test_sort.py::test_desc\n1 failed"
+expect:
+  fires: [s2.oscillation]

@@ -1,0 +1,39 @@
+# samcheonpo rule data, version 1. Extends the built-in rules; a user file at
+# ~/.samcheonpo/rules.yml or <project>/.samcheonpo/rules.yml is merged on top.
+# Every list carries cases that must and must not match (samcheonpo rules check).
+version: 1
+verify_commands:
+  patterns:
+    - '^(?:bazel|bazelisk)\s+(?:test|build)\b'
+    - '^(?:deno)\s+(?:test|check|lint)\b'
+    - '^(?:mix)\s+(?:test|compile)\b'
+    - '^(?:sbt)\s+(?:test|compile)\b'
+    - '^(?:stack|cabal)\s+(?:test|build)\b'
+  cases:
+    match: ["bazel test //...", "deno test", "mix test", "sbt test", "cabal build"]
+    no_match: ["bazel query //...", "deno run main.ts", "mix deps.get"]
+failed_tests:
+  # capture group 1 is the test name
+  patterns:
+    - '^\s*not ok \d+ - (.+)$'
+    - '^\s*\d+\) (.+) FAILED$'
+    - '^FAIL: (\S+) \(\S+\)$'
+  cases:
+    match: ["not ok 3 - parses dates", "  2) LoginSpec FAILED", "FAIL: test_add (tests.test_calc.AddTest)"]
+    no_match: ["ok 3 - parses dates", "all tests passed"]
+forced_prompts:
+  # prompts injected by auto-continue tools rather than typed by the user
+  patterns:
+    - '^Stop hook feedback'
+    - '(?i)\[system reminder[^\]]*todo continuation'
+    - '(?i)^continue working on the remaining todos'
+    - '(?i)ralph loop iteration'
+  cases:
+    match: ["Stop hook feedback:\n남은 일이 있습니다", "[SYSTEM REMINDER - TODO CONTINUATION] 3 todos remain", "Ralph loop iteration 4 of 100"]
+    no_match: ["계속해 줘", "continue please"]
+auto_continue_files:
+  # state files of auto-continue tools; read only, used to tell the user how to stop them
+  - path: .claude/ralph-loop.local.md
+    stop: "/cancel-ralph"
+  - path: .opencode/ralph-loop.local.md
+    stop: "/cancel-ralph 또는 oh-my-opencode의 todo-continuation 훅 비활성화"

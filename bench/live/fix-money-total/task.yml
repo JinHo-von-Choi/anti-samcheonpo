@@ -1,0 +1,7 @@
+name: fix-money-total
+language: py
+family: numeric
+initially_correct: false
+prompt: "app.py의 solve(prices)는 십진 문자열 가격 목록을 합산해 소수 두 자리 문자열을 반환해야 합니다. 부동소수점 오차 없이 빈 목록과 음수도 처리하고 입력은 바꾸지 마세요."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

@@ -1,0 +1,33 @@
+{
+  "language": "js",
+  "cases": [
+    {
+      "input": "Hello World",
+      "want": "hello-world"
+    },
+    {
+      "input": "  Rust & Go!  ",
+      "want": "rust-go"
+    },
+    {
+      "input": "already-slug",
+      "want": "already-slug"
+    },
+    {
+      "input": "A--B__C",
+      "want": "a-b-c"
+    },
+    {
+      "input": "123 abc",
+      "want": "123-abc"
+    },
+    {
+      "input": "---",
+      "want": ""
+    },
+    {
+      "input": "",
+      "want": ""
+    }
+  ]
+}

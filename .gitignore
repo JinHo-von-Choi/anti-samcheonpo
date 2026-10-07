@@ -1,0 +1,23 @@
+# internal plans, work gates and experiment logs
+/GATES.md
+/docs/plans/
+/docs/implementation-plan.md
+/docs/benchmarks/pilot-*.md
+
+# local tool and harness state
+/.serena/
+/.unlazy/
+.samcheonpo/
+/.samcheonpo.yml
+
+# local experiment configuration, results and labels
+/bench/ab.yml
+/ab-results.jsonl
+/*.jsonl
+/labels/
+
+# build outputs
+/bin/
+/dist/
+*.test
+*.out

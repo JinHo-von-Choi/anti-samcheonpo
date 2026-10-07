@@ -1,0 +1,7 @@
+name: hard-duration
+language: js
+family: duration
+initially_correct: false
+prompt: "app.cjs의 solve(text)는 기간 문자열을 밀리초 정수로 바꾼다. 일부 입력에서 값이 틀리고 잘못된 입력을 거부하지 않는다. SPEC.md대로 고치고 node test_app.cjs로 확인하세요."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

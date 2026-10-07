@@ -1,0 +1,8 @@
+{"timestamp":"2026-08-01T10:00:00.000Z","type":"session_meta","payload":{"id":"cx2","cwd":"/w/old"}}
+{"timestamp":"2026-08-01T10:00:00.100Z","type":"turn_context","payload":{"cwd":"/w/old","model":"gpt-5.5"}}
+{"timestamp":"2026-08-01T10:00:01.000Z","type":"response_item","payload":{"type":"message","role":"user","content":[{"type":"input_text","text":"고쳐"}]}}
+{"timestamp":"2026-08-01T10:00:02.000Z","type":"response_item","payload":{"type":"function_call","name":"shell","call_id":"f1","arguments":"{\"command\":[\"bash\",\"-lc\",\"go test ./...\"]}"}}
+{"timestamp":"2026-08-01T10:00:03.000Z","type":"response_item","payload":{"type":"function_call_output","call_id":"f1","output":"{\"output\":\"--- FAIL: TestX (0.00s)\\nFAIL\",\"metadata\":{\"exit_code\":1}}"}}
+{"timestamp":"2026-08-01T10:00:04.000Z","type":"response_item","payload":{"type":"custom_tool_call","name":"apply_patch","call_id":"f2","input":"*** Begin Patch\n*** Update File: x.go\n@@\n-a\n+b\n*** Add File: y.go\n+package y\n*** End Patch"}}
+{"timestamp":"2026-08-01T10:00:05.000Z","type":"response_item","payload":{"type":"custom_tool_call_output","call_id":"f2","output":"Done"}}
+{"timestamp":"2026-08-01T10:00:06.000Z","type":"event_msg","payload":{"type":"token_count","info":{"total_token_usage":{"input_tokens":500,"cached_input_tokens":100,"output_tokens":40,"total_tokens":540}}}}

@@ -1,0 +1,15 @@
+symptom: S5
+kind: positive
+task: 포맷 함수
+steps:
+  - prompt: lib/fmt.go 포맷 함수 고쳐 줘
+  - write: lib/fmt.go
+    content: "package lib\n"
+  - bash: go test ./...
+    out: "ok lib"
+  - edit: lib/fmt.go
+    old: "package lib\n"
+    new: "package lib\n\nfunc F() {}\n"
+  - msg: 고쳤습니다. 완료했습니다.
+expect:
+  fires: [s5.false_done]

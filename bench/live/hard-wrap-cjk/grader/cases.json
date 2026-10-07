@@ -1,0 +1,162 @@
+{
+  "language": "py",
+  "cases": [
+    {
+      "input": {
+        "text": "the quick brown fox",
+        "width": 10
+      },
+      "want": [
+        "the quick",
+        "brown fox"
+      ]
+    },
+    {
+      "input": {
+        "text": "한국어 줄바꿈은 폭이 두 칸이다",
+        "width": 10
+      },
+      "want": [
+        "한국어",
+        "줄바꿈은",
+        "폭이 두",
+        "칸이다"
+      ]
+    },
+    {
+      "input": {
+        "text": "well-known state-of-the-art tools",
+        "width": 12
+      },
+      "want": [
+        "well-known",
+        "state-of-the",
+        "-art tools"
+      ]
+    },
+    {
+      "input": {
+        "text": "first\n\nthird  line\n   ",
+        "width": 8
+      },
+      "want": [
+        "first",
+        "",
+        "third",
+        "line",
+        ""
+      ]
+    },
+    {
+      "input": {
+        "text": "supercalifragilistic is long",
+        "width": 6
+      },
+      "want": [
+        "superc",
+        "alifra",
+        "gilist",
+        "ic is",
+        "long"
+      ]
+    },
+    {
+      "input": {
+        "text": "ＡＢＣＤＥ fullwidth",
+        "width": 5
+      },
+      "want": [
+        "ＡＢ",
+        "ＣＤ",
+        "Ｅ",
+        "fullw",
+        "idth"
+      ]
+    },
+    {
+      "input": {
+        "text": "café café café",
+        "width": 10
+      },
+      "want": [
+        "café café",
+        "café"
+      ]
+    },
+    {
+      "input": {
+        "text": "abcdéf gh",
+        "width": 5
+      },
+      "want": [
+        "abcdé",
+        "f gh"
+      ]
+    },
+    {
+      "input": {
+        "text": "日本語のテキストを折り返す",
+        "width": 7
+      },
+      "want": [
+        "日本語",
+        "のテキ",
+        "ストを",
+        "折り返",
+        "す"
+      ]
+    },
+    {
+      "input": {
+        "text": "mix 漢字abc 한글",
+        "width": 6
+      },
+      "want": [
+        "mix",
+        "漢字ab",
+        "c 한글"
+      ]
+    },
+    {
+      "input": {
+        "text": "",
+        "width": 4
+      },
+      "want": [
+        ""
+      ]
+    },
+    {
+      "input": {
+        "text": "  lead and trail  ",
+        "width": 20
+      },
+      "want": [
+        "lead and trail"
+      ]
+    },
+    {
+      "input": {
+        "text": "aa bb cc dd",
+        "width": 5
+      },
+      "want": [
+        "aa bb",
+        "cc dd"
+      ]
+    },
+    {
+      "input": {
+        "text": "x 가나다라마바사 y",
+        "width": 5
+      },
+      "want": [
+        "x",
+        "가나",
+        "다라",
+        "마바",
+        "사 y"
+      ]
+    }
+  ]
+}

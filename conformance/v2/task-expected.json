@@ -1,0 +1,10 @@
+{
+  "spec": "evidence-ledger/2",
+  "task_id": "fixture-task",
+  "legacy_head": "legacy-fixture-head",
+  "rows": [
+    {"kind":"intent","data":"{\"spec\":\"evidence-ledger/2\",\"kind\":\"intent\",\"task_id\":\"fixture-task\",\"revision\":1,\"payload_hash\":\"cadd9d08f35dbec7b090285db69923d3\"}","chain":"108254fe18d99b16842ea0f1d6090224857819dcad02f6982c69d916234aae32"},
+    {"kind":"verification","data":"{\"spec\":\"evidence-ledger/2\",\"kind\":\"verification\",\"task_id\":\"fixture-task\",\"revision\":1,\"payload_hash\":\"6a4a91cba12e05566cdb5a1a374626b1\"}","chain":"2a25a432bd657a9c2da200ee6276ecb863fbeb6bad8e059557542bb60d7b2c53"}
+  ],
+  "head": "2a25a432bd657a9c2da200ee6276ecb863fbeb6bad8e059557542bb60d7b2c53"
+}

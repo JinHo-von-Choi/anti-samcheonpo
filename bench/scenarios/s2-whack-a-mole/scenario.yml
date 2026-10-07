@@ -1,0 +1,32 @@
+symptom: S2
+kind: positive
+task: 마이그레이션 오류
+steps:
+  - prompt: db/migrate.py 오류 고쳐 줘
+  - write: db/migrate.py
+    content: "v1\n"
+  - bash: pytest
+    exit: 1
+    out: "FAILED tests/t.py::a\nFAILED tests/t.py::b\nFAILED tests/t.py::c\nE   KeyError: 'id'"
+  - write: db/migrate.py
+    content: "v2\n"
+  - bash: pytest
+    exit: 1
+    out: "FAILED tests/t.py::a\nFAILED tests/t.py::b\nFAILED tests/t.py::d\nE   ValueError: bad row"
+  - write: db/migrate.py
+    content: "v3\n"
+  - bash: pytest
+    exit: 1
+    out: "FAILED tests/t.py::a\nFAILED tests/t.py::e\nFAILED tests/t.py::d\nE   TypeError: NoneType"
+  - write: db/migrate.py
+    content: "v4\n"
+  - bash: pytest
+    exit: 1
+    out: "FAILED tests/t.py::f\nFAILED tests/t.py::e\nFAILED tests/t.py::d\nE   IndexError: list index out of range"
+  - write: db/migrate.py
+    content: "v5\n"
+  - bash: pytest
+    exit: 1
+    out: "FAILED tests/t.py::f\nFAILED tests/t.py::g\nFAILED tests/t.py::d\nE   AttributeError: no attr x"
+expect:
+  fires: [s2.whack_a_mole]

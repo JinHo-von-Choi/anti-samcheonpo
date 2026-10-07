@@ -1,0 +1,22 @@
+symptom: S2
+kind: positive
+task: 임포트 오류 고치기
+steps:
+  - prompt: app/server.py 실행 오류 고쳐 줘
+  - write: app/server.py
+    content: "import flask\n"
+  - bash: python3 -m pytest tests
+    exit: 1
+    out: "Traceback (most recent call last):\n  File \"/w/app/server.py\", line 1, in <module>\n    import flask\nModuleNotFoundError: No module named 'flask'"
+  - write: app/server.py
+    content: "import flask as f\n"
+  - bash: python3 -m pytest tests
+    exit: 1
+    out: "Traceback (most recent call last):\n  File \"/w/app/server.py\", line 1, in <module>\n    import flask as f\nModuleNotFoundError: No module named 'flask'"
+  - write: app/server.py
+    content: "from flask import Flask\n"
+  - bash: python3 -m pytest tests
+    exit: 1
+    out: "Traceback (most recent call last):\n  File \"/w/app/server.py\", line 1, in <module>\n    from flask import Flask\nModuleNotFoundError: No module named 'flask'"
+expect:
+  fires: [s2.stuck_error]

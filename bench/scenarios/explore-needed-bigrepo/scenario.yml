@@ -1,0 +1,26 @@
+symptom: normal
+kind: negative
+task: 결제 모듈 버그 위치 찾고 고치기
+steps:
+  - prompt: pay/charge.go에서 금액 반올림 버그 고쳐 줘
+  - grep: Round
+  - read: pay/charge.go
+  - read: pay/money.go
+  - read: pay/charge_test.go
+  - grep: amount
+  - read: pay/fee.go
+  - read: pay/tax.go
+  - grep: math.Round
+  - read: pay/currency.go
+  - read: pay/refund.go
+  - read: pay/util.go
+  - read: pay/doc.go
+  - read: pay/errors.go
+  - read: pay/types.go
+  - write: pay/charge.go
+    content: "package pay\n\nfunc Charge(a int64) int64 { return a }\n"
+  - bash: go test ./pay/...
+    out: "ok  pay 0.02s"
+expect:
+  not_fires: [s4.read_only_streak]
+  max_level: 0

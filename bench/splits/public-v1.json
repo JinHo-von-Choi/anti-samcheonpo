@@ -1,0 +1,30 @@
+{
+  "version":"split/2",
+  "purpose":"public_regression",
+  "calibration":["fix-median","fix-money-total","fix-semver-order","fix-csv-record","fix-query-values","fix-html-escape","hard-wrap-cjk","hard-alloc-cents","hard-toposort","hard-duration","hard-interval-subtract","hard-config-merge","loop-config-override","loop-missing-module","loop-contradictory-test","loop-service-down"],
+  "holdout":["fix-merge-ranges","fix-pagination","fix-cart-discount","fix-retry-delay","normal-stable-unique","normal-word-counts"],
+  "groups":{
+    "fix-median":{"repository":"fixture-median","family":"numeric"},
+    "fix-money-total":{"repository":"fixture-money","family":"numeric"},
+    "fix-semver-order":{"repository":"fixture-semver","family":"numeric"},
+    "fix-csv-record":{"repository":"fixture-csv","family":"parsing"},
+    "fix-query-values":{"repository":"fixture-query","family":"parsing"},
+    "fix-html-escape":{"repository":"fixture-html","family":"encoding"},
+    "fix-merge-ranges":{"repository":"fixture-ranges","family":"algorithm"},
+    "fix-pagination":{"repository":"fixture-page","family":"boundary"},
+    "fix-cart-discount":{"repository":"fixture-cart","family":"multi-file"},
+    "fix-retry-delay":{"repository":"fixture-retry","family":"bounded-recovery"},
+    "normal-stable-unique":{"repository":"fixture-unique","family":"normal-negative"},
+    "normal-word-counts":{"repository":"fixture-words","family":"normal-negative"},
+    "hard-wrap-cjk":{"repository":"fixture-wrap","family":"text-layout"},
+    "hard-alloc-cents":{"repository":"fixture-alloc","family":"allocation"},
+    "hard-toposort":{"repository":"fixture-topo","family":"graph"},
+    "hard-duration":{"repository":"fixture-duration","family":"duration"},
+    "hard-interval-subtract":{"repository":"fixture-intervals","family":"interval-set"},
+    "hard-config-merge":{"repository":"fixture-merge","family":"config-merge"},
+    "loop-config-override":{"repository":"fixture-config-override","family":"misleading-error"},
+    "loop-missing-module":{"repository":"fixture-missing-module","family":"env-missing-module"},
+    "loop-contradictory-test":{"repository":"fixture-contradictory","family":"contradictory-test"},
+    "loop-service-down":{"repository":"fixture-service-down","family":"env-service"}
+  }
+}

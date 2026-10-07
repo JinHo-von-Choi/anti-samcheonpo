@@ -1,0 +1,16 @@
+{
+ "input": "input.jsonl",
+ "agent": "claude",
+ "contract": "contract.yml",
+ "expect": {
+  "rules": [
+   "s3.out_of_scope@L1"
+  ],
+  "contract_state": "accepted",
+  "grade": "estimated",
+  "total_tokens": 222,
+  "bucket_tokens": {
+   "progress": 222
+  }
+ }
+}

@@ -1,0 +1,7 @@
+name: fix-cart-discount
+language: js
+family: multi-file
+initially_correct: false
+prompt: "app.cjs의 solve(cart)는 상품의 priceCents*qty 합에서 discountPercent를 할인한 정수 센트를 반환해야 합니다. math.cjs를 함께 확인해 퍼센트 단위 오류를 고치세요. 0.5센트는 올림하고 입력은 보존하세요."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

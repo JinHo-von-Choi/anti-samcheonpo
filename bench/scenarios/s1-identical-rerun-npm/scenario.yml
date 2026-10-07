@@ -1,0 +1,18 @@
+symptom: S1
+kind: positive
+task: 로그인 폼 검증 고치기
+steps:
+  - prompt: src/login/form.ts 검증 로직 고쳐 줘
+  - write: src/login/form.ts
+    content: "export const validate = (s: string) => s.length > 0\n"
+  - bash: npm test 2>&1 | tail -30
+    exit: 1
+    out: "FAIL src/login/form.test.ts\n  ✕ rejects empty email (5 ms)\nTests: 1 failed, 4 passed"
+  - bash: npm test
+    exit: 1
+    out: "FAIL src/login/form.test.ts\n  ✕ rejects empty email (5 ms)\nTests: 1 failed, 4 passed"
+  - bash: CI=1 npm test 2>&1
+    exit: 1
+    out: "FAIL src/login/form.test.ts\n  ✕ rejects empty email (5 ms)\nTests: 1 failed, 4 passed"
+expect:
+  fires: [s1.identical_rerun]

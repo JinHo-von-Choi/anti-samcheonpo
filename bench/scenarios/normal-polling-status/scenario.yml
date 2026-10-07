@@ -1,0 +1,16 @@
+symptom: normal
+kind: negative
+task: 배포 상태 확인
+steps:
+  - prompt: deploy/status.md 갱신하고 git 상태 확인
+  - write: deploy/status.md
+    content: "# status\n"
+  - bash: git status
+    out: "modified: deploy/status.md"
+  - bash: git diff
+    out: "+# status"
+  - bash: git log -1
+    out: "abc"
+  - msg: 상태 파일을 갱신했습니다.
+expect:
+  max_level: 0

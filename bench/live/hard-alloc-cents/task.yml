@@ -1,0 +1,7 @@
+name: hard-alloc-cents
+language: js
+family: allocation
+initially_correct: false
+prompt: "app.cjs의 solve(req)가 금액을 나눈 합이 원래 금액과 맞지 않는 경우가 있다. SPEC.md의 배분 규칙대로 고치고 node test_app.cjs로 확인하세요."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

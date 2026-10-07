@@ -1,0 +1,2 @@
+- {input: "Hello World", want: "hello-world"}
+- {input: "  Rust & Go!  ", want: "rust-go"}

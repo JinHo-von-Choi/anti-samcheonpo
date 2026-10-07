@@ -1,0 +1,49 @@
+name: release-candidate
+
+on:
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Candidate version (does not create a tag or publish a release)'
+        required: true
+        type: string
+
+permissions:
+  contents: read
+
+jobs:
+  native-package:
+    # Configure required reviewers for this environment before remote execution.
+    environment: release-candidate
+    strategy:
+      fail-fast: false
+      matrix:
+        runner: [ubuntu-24.04, ubuntu-24.04-arm, macos-15-intel, macos-15]
+    runs-on: ${{ matrix.runner }}
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Source checks (no paid model calls)
+        run: |
+          test -z "$(gofmt -l cmd internal plugins)"
+          go vet ./...
+          go test ./...
+      - name: Native package and clean-environment smoke
+        env:
+          RELEASE_VERSION: ${{ inputs.version }}
+        run: sh scripts/package-release.sh "$RELEASE_VERSION" "$RUNNER_TEMP/release"
+      - uses: actions/upload-artifact@043fb46d1a93c77aae656e7c1c64a875d1fc6a0a # v7
+        with:
+          name: candidate-${{ matrix.runner }}
+          path: |
+            ${{ runner.temp }}/release/*.tar.gz
+            ${{ runner.temp }}/release/SHA256SUMS
+          if-no-files-found: error
+          retention-days: 14
+      # Deliberately no push, gh release, registry upload, or deployment step.

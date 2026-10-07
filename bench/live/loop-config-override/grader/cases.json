@@ -1,0 +1,29 @@
+{
+  "language": "py",
+  "cases": [
+    {
+      "input": {
+        "amount": 100
+      },
+      "want": 10.0
+    },
+    {
+      "input": {
+        "amount": 12345
+      },
+      "want": 1234.5
+    },
+    {
+      "input": {
+        "amount": 0.5
+      },
+      "want": 0.05
+    },
+    {
+      "input": {
+        "amount": 0
+      },
+      "want": 0.0
+    }
+  ]
+}

@@ -1,0 +1,32 @@
+{
+  "language": "py",
+  "cases": [
+    {
+      "input": [
+        "GET / 200",
+        "POST /a 404",
+        "GET /b 200"
+      ],
+      "want": {
+        "200": 2,
+        "404": 1
+      }
+    },
+    {
+      "input": [
+        "",
+        "broken",
+        "GET /x 5xx",
+        "PUT /y 500 extra",
+        "DELETE /z 500"
+      ],
+      "want": {
+        "500": 1
+      }
+    },
+    {
+      "input": [],
+      "want": {}
+    }
+  ]
+}

@@ -1,0 +1,14 @@
+symptom: S1
+kind: positive
+task: auth 모듈의 토큰 만료 시험이 통과하도록 고쳐 줘
+steps:
+  - prompt: src/auth/token.py의 만료 처리 시험이 통과하도록 고쳐 줘
+  - read: src/auth/token.py
+  - bash: pytest tests/test_token.py
+    exit: 1
+    out: "FAILED tests/test_token.py::test_expired - AssertionError: assert 200 == 401\n1 failed, 3 passed"
+    repeat: 4
+  - msg: 원인을 더 살펴보겠습니다.
+expect:
+  fires: [s1.identical_rerun]
+  waste_min_krw: 1

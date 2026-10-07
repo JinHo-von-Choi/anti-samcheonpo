@@ -1,0 +1,20 @@
+symptom: normal
+kind: negative
+task: e2e 확인
+config:
+  nondeterministic_commands: ["npm run e2e"]
+steps:
+  - prompt: web/app.ts 수정 뒤 e2e 확인해 줘
+  - write: web/app.ts
+    content: "export const app = 1\n"
+  - bash: npm run e2e
+    exit: 1
+    out: "Error: timeout waiting for server"
+  - bash: npm run e2e
+    exit: 1
+    out: "Error: timeout waiting for server"
+  - bash: npm run e2e
+    out: "all passed"
+expect:
+  not_fires: [s1.identical_rerun]
+  max_level: 0

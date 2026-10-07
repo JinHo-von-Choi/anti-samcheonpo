@@ -1,0 +1,38 @@
+# Shared cases for the S5 bypass rules. Both implementations must report
+# exactly the listed kinds (before -> after of one test file).
+- name: skip-pytest
+  before: "def test_a():\n    assert f() == 1\n"
+  after: "@pytest.mark.skip\ndef test_a():\n    assert f() == 1\n"
+  kinds: [skip_added]
+- name: xit-jest
+  before: "it('adds', () => {\n  expect(add(1, 1)).toBe(2)\n})\n"
+  after: "xit('adds', () => {\n  expect(add(1, 1)).toBe(2)\n})\n"
+  kinds: [test_removed, skip_added]
+- name: assertion-removed
+  before: "def test_a():\n    assert f() == 1\n    assert g() == 2\n"
+  after: "def test_a():\n    assert f() == 1\n"
+  kinds: [assertion_weakened]
+- name: assert-true
+  before: "def test_a():\n    assert f() == 1\n"
+  after: "def test_a():\n    assert True\n"
+  kinds: [assertion_weakened]
+- name: test-function-removed
+  before: "func TestA(t *testing.T) {\n\tt.Errorf(\"x\")\n}\nfunc TestB(t *testing.T) {\n\tt.Errorf(\"y\")\n}\n"
+  after: "func TestA(t *testing.T) {\n\tt.Errorf(\"x\")\n}\n"
+  kinds: [test_removed, assertion_weakened]
+- name: ignore-added
+  before: "def test_a():\n    assert f() == 1\n"
+  after: "def test_a():  # noqa\n    assert f() == 1\n"
+  kinds: [ignore_added]
+- name: junit-disabled
+  before: "@Test\nvoid adds() {\n  assertEquals(2, add(1, 1));\n}\n"
+  after: "@Disabled\n@Test\nvoid adds() {\n  assertEquals(2, add(1, 1));\n}\n"
+  kinds: [skip_added]
+- name: harmless-rename
+  before: "def test_a():\n    assert f() == 1\n"
+  after: "def test_a():\n    result = f()\n    assert result == 1\n"
+  kinds: []
+- name: added-test
+  before: "def test_a():\n    assert f() == 1\n"
+  after: "def test_a():\n    assert f() == 1\n\ndef test_b():\n    assert f() != 2\n"
+  kinds: []

@@ -1,0 +1,16 @@
+{
+ "input": "input.jsonl",
+ "agent": "codex",
+ "same_verdicts_as": "claude-identical-rerun",
+ "expect": {
+  "rules": [
+   "s1.identical_rerun@L1"
+  ],
+  "contract_state": "draft",
+  "total_tokens": 333,
+  "bucket_tokens": {
+   "other": 111,
+   "waste": 222
+  }
+ }
+}

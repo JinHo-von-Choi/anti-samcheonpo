@@ -1,0 +1,7 @@
+name: fix-merge-ranges
+language: py
+family: algorithm
+initially_correct: false
+prompt: "app.py의 solve(ranges)는 [시작,끝] 폐구간들을 정렬하고 겹치거나 맞닿는 구간을 합쳐 반환해야 합니다. 음수·빈 목록을 지원하고 원본 목록은 수정하지 마세요."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

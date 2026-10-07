@@ -1,0 +1,36 @@
+{
+  "language": "js",
+  "cases": [
+    {
+      "input": {
+        "items": [
+          {
+            "priceCents": 100,
+            "qty": 3
+          }
+        ],
+        "discountPercent": 20
+      },
+      "want": 240
+    },
+    {
+      "input": {
+        "items": [
+          {
+            "priceCents": 101,
+            "qty": 1
+          }
+        ],
+        "discountPercent": 50
+      },
+      "want": 51
+    },
+    {
+      "input": {
+        "items": [],
+        "discountPercent": 10
+      },
+      "want": 0
+    }
+  ]
+}

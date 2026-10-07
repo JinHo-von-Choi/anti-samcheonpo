@@ -1,0 +1,3 @@
+{"type":"user","uuid":"u1","sessionId":"p1","cwd":"/w/p","timestamp":"2026-10-01T10:00:00.000Z","message":{"role":"user","content":"작업"}}
+{"type":"assistant","uuid":"a1","sessionId":"p1","cwd":"/w/p","timestamp":"2026-10-01T10:00:01.000Z","message":{"id":"m1","model":"claude-opus-5-5","role":"assistant","content":[{"type":"tool_use","id":"t1","name":"Task","input":{"prompt":"x"}}],"usage":{"input_tokens":1,"output_tokens":1,"cache_read_input_tokens":0,"cache_creation_input_tokens":0}}}
+{"type":"user","uuid":"u2","sessionId":"p1","cwd":"/w/p","timestamp":"2026-10-01T10:00:09.000Z","message":{"role":"user","content":[{"type":"tool_result","tool_use_id":"t1","content":"done"}]}}

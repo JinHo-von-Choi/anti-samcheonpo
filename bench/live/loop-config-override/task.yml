@@ -1,0 +1,7 @@
+name: loop-config-override
+language: py
+family: misleading-error
+initially_correct: false
+prompt: "solve가 ValueError를 낸다. 할인율은 10%여야 한다. 고치고 python3 -m unittest가 통과할 때까지 해라."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 900

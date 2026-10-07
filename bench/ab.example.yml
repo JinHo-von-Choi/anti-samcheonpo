@@ -1,0 +1,15 @@
+# 하네스 유무 비교 실행 설정. bench/ab.yml로 복사해 쓴다.
+# {prompt}는 과제 지시문으로, {task}는 과제 폴더로 바뀐다.
+# 시행마다 SAMCHEONPO_HOME이 따로 잡혀 기록이 섞이지 않는다.
+trials: 15
+timeout_sec: 900
+arms:
+  off:
+    monitor: none
+    cmd: [claude, -p, --output-format, json, --model, sonnet, --permission-mode, acceptEdits,
+          --allowedTools, "Bash(python3:*)", --setting-sources, project, "{prompt}"]
+  on:
+    monitor: samcheonpo
+    cmd: [claude, -p, --output-format, json, --model, sonnet, --permission-mode, acceptEdits,
+          --allowedTools, "Bash(python3:*)", --setting-sources, project,
+          --plugin-dir, plugins/claude-code, "{prompt}"]

@@ -1,0 +1,25 @@
+symptom: normal
+kind: negative
+task: 실패 시험 하나씩 고치기
+steps:
+  - prompt: tests/test_calc.py 실패를 고쳐 줘
+  - write: lib/calc.py
+    content: "def add(a, b):\n    return a - b\n\ndef mul(a, b):\n    return a + b\n"
+  - bash: pytest
+    exit: 1
+    out: "FAILED tests/test_calc.py::test_add - assert -1 == 3\nFAILED tests/test_calc.py::test_mul - assert 3 == 2\n2 failed"
+  - edit: lib/calc.py
+    old: "return a - b"
+    new: "return a + b"
+  - bash: pytest
+    exit: 1
+    out: "FAILED tests/test_calc.py::test_mul - assert 3 == 2\n1 failed, 1 passed"
+  - edit: lib/calc.py
+    old: "    return a + b\n"
+    new: "    return a * b\n"
+  - bash: pytest
+    out: "2 passed"
+  - msg: 두 시험 모두 통과했습니다. 완료했습니다.
+expect:
+  not_fires: [s1.identical_rerun, s2.stuck_error, s5.false_done]
+  max_level: 0

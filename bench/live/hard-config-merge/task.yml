@@ -1,0 +1,7 @@
+name: hard-config-merge
+language: js
+family: config-merge
+initially_correct: false
+prompt: "app.cjs의 solve(req)는 기본 설정에 사용자 설정을 덮어쓴 결과를 만든다. SPEC.md와 다르게 동작하니 SPEC.md대로 고치고 node test_app.cjs로 확인하세요."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

@@ -1,0 +1,17 @@
+symptom: S8
+kind: positive
+task: 리팩터링
+model: claude-opus-5-5
+steps:
+  - prompt: lib/core.go 리팩터링
+  - write: lib/core.go
+    content: "package lib\n"
+  - msg: 진행합니다.
+    tokens: 500
+    minutes: 1
+    repeat: 16
+  - msg: 대량 분석 중입니다.
+    tokens: 90000
+    repeat: 3
+expect:
+  fires: [s8.velocity]

@@ -1,0 +1,21 @@
+# 영수증의 과금·행동 표시
+
+`receipt <session> --billing unknown|api|subscription`의 기본값은 `unknown`이다. 명시한 과금 유형은 `user_declared` 출처이며 결제 확인 결과가 아니다. 에이전트의 한도 보고로 구독형 결제를 추정하지 않는다.
+
+## 금액과 누락
+
+- `billing.api_equivalent_micro_krw`: 관측된 토큰의 단가 환산액. 사용량이 없거나 단가가 하나라도 누락되면 `null`이다. 알려진 사용량 0과 미계측을 구분한다.
+- `billing.observed_tokens`: 계측한 토큰 합계. 미계측은 `null`이다.
+- `billing.actual_charge_micro_krw`, `billing.verified_savings_micro_krw`: 현재는 항상 `null`. 청구서나 독립 비교 효과를 수집하지 않으므로 현금 지출·절감 주장을 하지 않는다.
+- `billing.price_coverage`, `price_version`, `usage_source`, `usage_complete`, `missing`: 단가와 사용량 기록의 범위 및 한계. 파싱된 기록의 완전성은 실제 모든 호출의 수집이나 청구서 일치를 보장하지 않는다.
+- `billing.quota`: 에이전트가 보고한 사용률과 시간 창. 두 필드가 모두 유효해야 표시한다. 명시적 0%는 유효하지만 사용률 누락은 0%가 아니다. 새로 보고된 값이 불완전하면 이전 값을 현재 값처럼 유지하지 않는다.
+
+기존 금액 필드는 호환성을 위해 남긴다. 새 소비자는 `unit` (`won`, `tokens`, `unknown`)과 nullable `billing` 필드를 함께 읽어야 한다. `unknown`의 기존 숫자 0은 실제 무료 사용을 뜻하지 않는다. 금액이 표시돼도 계측분일 뿐이며, 미수집 비용의 상한이 아니다.
+
+## 행동 요약
+
+`action`은 `facts`, `estimates`, `unknowns`, `next_action`으로 구성한다. 상세 판정 근거는 기존 `--evidence` 출력으로 제공한다. 메시지 출력 확인은 에이전트가 읽었거나 처방을 실행했다는 증거가 아니다. 관찰창에서 경고가 재발하지 않은 경우도 해결·인과 효과로 표시하지 않는다.
+
+`--share`는 행동의 자유 텍스트와 근거를 제거해 경로·작업 내용 노출을 줄인다. `--share --format json`도 단일 JSON이며 뒤에 검증 문구를 붙이지 않는다. 이 변경은 기존 v1 봉인의 정규 이벤트와 해시를 바꾸지 않는다.
+
+현재 CLI 영수증은 원본 transcript를 다시 분석한다. 원본이 없는 세션의 완전한 재구성과 작업 개정 간 근거 승계는 E8의 별도 범위다. 이 규약과 단위 검증만으로 실제 비용 절감이나 비개발자의 이해도가 입증되지는 않는다.

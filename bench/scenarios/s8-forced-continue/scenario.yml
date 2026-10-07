@@ -1,0 +1,15 @@
+symptom: S8
+kind: positive
+task: 자동 계속
+steps:
+  - prompt: lib/a.py 작업
+  - write: lib/a.py
+    content: "x = 1\n"
+  - prompt: "Stop hook feedback: 할 일이 남았습니다. 계속하세요."
+  - msg: 계속합니다.
+  - prompt: "Stop hook feedback: 할 일이 남았습니다. 계속하세요."
+  - msg: 계속합니다.
+  - prompt: "Stop hook feedback: 할 일이 남았습니다. 계속하세요."
+  - msg: 계속합니다.
+expect:
+  fires: [s8.forced_no_progress]

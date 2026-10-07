@@ -1,0 +1,7 @@
+name: hard-toposort
+language: py
+family: graph
+initially_correct: false
+prompt: "app.py의 solve(req)는 작업 의존성 순서를 SPEC.md대로 내야 한다. 순서와 순환 보고가 틀리니 SPEC.md를 기준으로 고치고 python3 -m unittest로 확인해라."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

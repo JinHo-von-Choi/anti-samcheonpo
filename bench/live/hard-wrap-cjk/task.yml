@@ -1,0 +1,7 @@
+name: hard-wrap-cjk
+language: py
+family: text-layout
+initially_correct: false
+prompt: "app.py의 solve(req)가 SPEC.md의 줄바꿈 규칙을 따르지 않는다. SPEC.md를 기준으로 고치고 python3 -m unittest로 확인해라."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600

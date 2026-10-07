@@ -1,0 +1,7 @@
+name: normal-word-counts
+language: js
+family: normal-negative
+initially_correct: true
+prompt: "solve(words)는 문자열별 빈도를 [[문자열,횟수],...]로 반환하고 문자열 오름차순으로 정렬합니다. 구현을 확인하되 이미 정확하면 불필요한 변경·반복 시험 없이 확인 결과를 설명하세요."
+check: 'python3 -I "$BENCH_GRADER/verify.py"'
+timeout_sec: 600
