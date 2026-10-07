@@ -201,6 +201,8 @@ func Load(projectDir string) (Config, string, error) {
 		userPush := c.Notify.Push
 		userJudge := c.Detectors.S3.Judge
 		userExperiment := c.Experiment.Enabled
+		userDetectors, userLevels := c.Detectors, c.Levels
+		userLevels.PauseOn = append([]string(nil), c.Levels.PauseOn...)
 		userMode := c.Rollout.Mode
 		userEscalate := c.Rollout.EscalateMaxBlocks
 		userShadow := append([]string(nil), c.Rollout.ShadowRules...)
@@ -234,6 +236,7 @@ func Load(projectDir string) (Config, string, error) {
 				}
 			}
 			c.Experiment.Enabled = userExperiment && c.Experiment.Enabled
+			loosenOnly(&c.Detectors, &c.Levels, userDetectors, userLevels)
 			rank := map[string]int{"shadow": 0, "recommend": 1, "validated": 2}
 			if rank[c.Rollout.Mode] > rank[userMode] {
 				c.Rollout.Mode = userMode
@@ -266,6 +269,57 @@ func Load(projectDir string) (Config, string, error) {
 		c.Detectors.Overrides = map[string]int{}
 	}
 	return c, Hash(c), nil
+}
+
+// loosenOnly keeps project thresholds from being stricter than the user's:
+// for each "smaller fires sooner" value the larger one wins, more stop blocks
+// and new pause triggers are dropped. Detector overrides come from the
+// user's own feedback and are never taken from a project file.
+func loosenOnly(d *Detectors, l *Levels, ud Detectors, ul Levels) {
+	atLeast := func(v *int, u int) {
+		if *v < u {
+			*v = u
+		}
+	}
+	atLeastF := func(v *float64, u float64) {
+		if *v < u {
+			*v = u
+		}
+	}
+	atLeast64 := func(v *int64, u int64) {
+		if *v < u {
+			*v = u
+		}
+	}
+	atLeast(&d.S1.RepeatNudgeAt, ud.S1.RepeatNudgeAt)
+	atLeastF(&d.S1.Ratio, ud.S1.Ratio)
+	atLeastF(&d.S1.TestBloat, ud.S1.TestBloat)
+	atLeast(&d.S2.Nudge, ud.S2.Nudge)
+	atLeast(&d.S2.Notify, ud.S2.Notify)
+	atLeast(&d.S2.Pause, ud.S2.Pause)
+	atLeast(&d.S2.WhackAttempts, ud.S2.WhackAttempts)
+	atLeast(&d.S3.NotifyFiles, ud.S3.NotifyFiles)
+	atLeast(&d.S4.MaxReads, ud.S4.MaxReads)
+	atLeast(&d.S4.MaxMinutes, ud.S4.MaxMinutes)
+	atLeast(&d.S4.RereadCount, ud.S4.RereadCount)
+	atLeast(&d.S7.Compactions, ud.S7.Compactions)
+	atLeastF(&d.S8.VelocityMultiplier, ud.S8.VelocityMultiplier)
+	atLeast64(&d.S8.VelocityFloorKRWPerMin, ud.S8.VelocityFloorKRWPerMin)
+	atLeast64(&d.S8.IdleSpendFloorKRW, ud.S8.IdleSpendFloorKRW)
+	atLeastF(&d.S8.IdleSpendBudgetRatio, ud.S8.IdleSpendBudgetRatio)
+	atLeast(&d.S8.IdleMinToolEvents, ud.S8.IdleMinToolEvents)
+	d.Overrides = ud.Overrides
+	atLeast(&l.NudgeCooldownEvents, ul.NudgeCooldownEvents)
+	if l.MaxStopBlocks > ul.MaxStopBlocks {
+		l.MaxStopBlocks = ul.MaxStopBlocks
+	}
+	var pause []string
+	for _, p := range l.PauseOn {
+		if slices.Contains(ul.PauseOn, p) {
+			pause = append(pause, p)
+		}
+	}
+	l.PauseOn = pause
 }
 
 // Hash returns a stable hash of the effective configuration.

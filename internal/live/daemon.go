@@ -133,8 +133,22 @@ func Run(dbPath string, idle time.Duration) error {
 			}
 			continue
 		}
+		if !samePeerUser(c) {
+			// another OS user must not read decisions or forge answers
+			_ = c.Close()
+			continue
+		}
 		d.serving.Add(1)
-		go func() { defer d.serving.Done(); d.serve(c) }()
+		go func() {
+			defer d.serving.Done()
+			defer func() {
+				if r := recover(); r != nil {
+					fmt.Fprintf(os.Stderr, "samcheonpo: 요청 처리 중 오류: %v\n", r)
+					_ = c.Close()
+				}
+			}()
+			d.serve(c)
+		}()
 	}
 	d.serving.Wait()
 	d.ending.Wait()
@@ -154,6 +168,9 @@ func Run(dbPath string, idle time.Duration) error {
 	return finalErr
 }
 
+// maxQuietWithSessions bounds how long open sessions keep an idle daemon.
+const maxQuietWithSessions = 6 * time.Hour
+
 func (d *Daemon) idleWatch() {
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
@@ -164,8 +181,19 @@ func (d *Daemon) idleWatch() {
 		case <-t.C:
 		}
 		d.mu.Lock()
-		idle := time.Since(d.last) > d.Idle
+		quiet := time.Since(d.last)
+		open := 0
+		for _, s := range d.sessions {
+			s.mu.Lock()
+			if !s.closed {
+				open++
+			}
+			s.mu.Unlock()
+		}
 		d.mu.Unlock()
+		// a live session keeps its state (rollback points, advice) until it
+		// ends; a session that never sent SessionEnd is released after 6 hours
+		idle := quiet > d.Idle && (open == 0 || quiet > maxQuietWithSessions)
 		if idle {
 			d.ln.Close()
 			return

@@ -350,10 +350,25 @@ func (s *Session) worker() {
 				}
 			}
 		}
-		sigs := s.observe(ev)
+		sigs := s.observeSafe(ev)
 		s.mu.Unlock()
 		j.done <- sigs
 	}
+}
+
+// observeSafe is observe that survives a panic in one session: the event
+// is counted as unprocessed, which marks the observation incomplete (no
+// intervention, "확인 불가"), and the daemon keeps serving other sessions.
+// Called with s.mu held.
+func (s *Session) observeSafe(ev *event.Event) (sigs []detect.Signal) {
+	defer func() {
+		if r := recover(); r != nil {
+			s.queueRejected.Add(1)
+			fmt.Fprintf(os.Stderr, "samcheonpo: 세션 %s 사건 처리 중 오류: %v\n", s.ID, r)
+			sigs = nil
+		}
+	}()
+	return s.observe(ev)
 }
 
 func (s *Session) observe(ev *event.Event) []detect.Signal {
