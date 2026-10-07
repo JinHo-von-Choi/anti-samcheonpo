@@ -69,6 +69,9 @@ type Contract struct {
 	Forbid []string `yaml:"forbid" json:"forbid"`
 	// Explore marks the contract as a research task (S4 is not raised).
 	Explore bool `yaml:"explore,omitempty" json:"explore,omitempty"`
+	// SimplifyTests licenses deliberate test simplification: the assertion
+	// guard stands down for test edits while this is set.
+	SimplifyTests bool `yaml:"simplify_tests,omitempty" json:"simplify_tests,omitempty"`
 }
 
 // State is the acceptance state (stored in .samcheonpo/contract.state.json).

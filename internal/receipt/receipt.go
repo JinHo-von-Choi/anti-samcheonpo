@@ -358,6 +358,8 @@ func kindName(k string) string {
 		return "시험 함수 삭제"
 	case "skip_added":
 		return "skip 추가"
+	case "assertion_mutilation":
+		return "단언문 무력화"
 	case "assertion_weakened":
 		return "단언 약화"
 	case "literal_replaced":

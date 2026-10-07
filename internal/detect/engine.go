@@ -67,6 +67,7 @@ type Engine struct {
 	cooldownLevel map[string]Level
 	escalate      map[string]Level
 	nextID        int
+	guard         *AssertionGuard
 }
 
 // State is the per-session detector state.
@@ -203,7 +204,8 @@ type editHist struct {
 // NewEngine creates an engine.
 func NewEngine(cfg config.Config, c *contract.Contract, accepted bool, mode, root, session, firstPrompt string) *Engine {
 	e := &Engine{Cfg: cfg, Contract: c, Accepted: accepted, Mode: mode, Root: root, Session: session, FirstPrompt: firstPrompt,
-		cooldownUntil: map[string]int64{}, cooldownLevel: map[string]Level{}, escalate: map[string]Level{}}
+		cooldownUntil: map[string]int64{}, cooldownLevel: map[string]Level{}, escalate: map[string]Level{},
+		guard: NewAssertionGuard()}
 	e.St = &State{
 		bySeq: map[int64]*event.Event{}, ProgressSeqs: map[int64]bool{}, GrowthSeqs: map[int64]bool{}, envStreak: map[string]*streak{}, stuckCmd: map[string]bool{}, lastRun: map[string]runMark{}, reviews: map[string]int{}, hiding: map[string]map[string]bool{}, lastFail: map[string]failMark{}, Wasted: map[int64]string{}, Estimated: map[int64]bool{},
 		verify: map[string]*vcEntry{}, errStreak: map[string]*streak{}, fileHist: map[string][]hist{},
@@ -1334,6 +1336,23 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 					continue
 				}
 				s := Signal{Detector: "S3", Rule: "s3.protected_path", Confidence: 1.0, Level: L3, Facts: map[string]any{"path": p}}
+				return true, &s
+			}
+		}
+	}
+	// S5: a test write about to delete assertions, replace them with
+	// literals, or silence the file with a skip marker is stopped before it
+	// lands. An accepted contract that licenses test simplification, and
+	// files this session created, are exempt.
+	if ev.Category == event.CatProduce && (ev.Tool == event.ToolWrite || ev.Tool == event.ToolEdit) &&
+		!(e.Contract != nil && e.Accepted && e.Contract.SimplifyTests) {
+		for _, pf := range ev.Patch {
+			if pf.Deleted || st.created[pf.Path] || contains(ev.Created, pf.Path) {
+				continue
+			}
+			if v := e.guard.InspectPatch(pf.Path, pf.Added, pf.Removed); v.Blocked {
+				s := Signal{Detector: "S5", Rule: "s5.test_weakening", Confidence: 0.8, Level: L1,
+					Facts: map[string]any{"path": pf.Path, "kind": string(v.Kind), "reason": v.Reason, "blocked": true}}
 				return true, &s
 			}
 		}
