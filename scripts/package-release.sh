@@ -27,7 +27,7 @@ CGO_ENABLED=0 go build -mod=readonly -trimpath -ldflags "$release_ldflags" -o "$
 test "$("$release_stage/samcheonpo-hook" --version)" = "$release_version"
 test "$("$release_stage/samcheonpo" --version)" = "samcheonpo version $release_version"
 SAMCHEONPO_SMOKE_BIN="$release_stage/samcheonpo" go test ./internal/install -run '^TestCleanEnvironmentBinarySmoke$' -count=1
-cp README.md docs/getting-started.md docs/support-matrix.md "$release_stage/"
+cp LICENSE README.md README.en.md docs/getting-started.md docs/support-matrix.md "$release_stage/"
 {
   printf 'version=%s\nos=%s\narch=%s\n' "$release_version" "$release_os" "$release_arch"
   printf 'commit=%s\n' "$(git rev-parse --verify HEAD)"
@@ -37,7 +37,7 @@ cp README.md docs/getting-started.md docs/support-matrix.md "$release_stage/"
   printf 'publication=not performed\n'
 } > "$release_stage/BUILD.txt"
 release_name="samcheonpo_${release_version}_${release_os}_${release_arch}.tar.gz"
-tar -czf "$release_output/$release_name" -C "$release_stage" samcheonpo samcheonpo-hook README.md getting-started.md support-matrix.md BUILD.txt
+tar -czf "$release_output/$release_name" -C "$release_stage" samcheonpo samcheonpo-hook LICENSE README.md README.en.md getting-started.md support-matrix.md BUILD.txt
 (
   cd "$release_output"
   if command -v sha256sum >/dev/null 2>&1; then
