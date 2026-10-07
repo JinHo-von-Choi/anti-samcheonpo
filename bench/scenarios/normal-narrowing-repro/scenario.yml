@@ -1,0 +1,17 @@
+symptom: normal
+kind: negative
+task: 실패 재현 범위 좁히기
+steps:
+  - prompt: tests/test_parse.py 실패 원인을 찾아 줘
+  - bash: pytest
+    exit: 1
+    out: "FAILED tests/test_parse.py::test_date - ValueError: bad month\n1 failed, 20 passed"
+  - bash: pytest tests/test_parse.py
+    exit: 1
+    out: "FAILED tests/test_parse.py::test_date - ValueError: bad month\n1 failed, 4 passed"
+  - bash: pytest tests/test_parse.py::test_date -x -vv
+    exit: 1
+    out: "FAILED tests/test_parse.py::test_date - ValueError: bad month\n1 failed"
+expect:
+  not_fires: [s1.identical_rerun]
+  max_level: 0

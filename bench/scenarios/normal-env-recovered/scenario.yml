@@ -1,0 +1,16 @@
+symptom: normal
+kind: negative
+task: DB가 다시 뜬 뒤의 재시도
+steps:
+  - prompt: 주문 저장 시험이 실패하는 이유를 찾아 줘
+  - bash: pytest tests/test_orders.py
+    exit: 1
+    out: "E   psycopg.OperationalError: connection failed: connection refused\nFAILED tests/test_orders.py::test_save\n1 failed"
+  - bash: pytest tests/test_orders.py
+    out: "3 passed"
+  - bash: pytest tests/test_orders.py
+    exit: 1
+    out: "E   psycopg.OperationalError: connection failed: connection refused\nFAILED tests/test_orders.py::test_save\n1 failed"
+expect:
+  not_fires: [s2.environment, s2.stuck_error, s1.identical_rerun]
+  max_level: 0

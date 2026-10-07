@@ -554,6 +554,16 @@ type failMark struct {
 // reruns cannot fix it. Transient network failures get more attempts.
 func (e *Engine) environment(ev *event.Event, sigs *[]Signal) {
 	st := e.St
+	if ev.Tool == event.ToolShell && ev.ExitCode != nil && *ev.ExitCode == 0 && runID(ev) != "" {
+		// the environment recovered for this run: a later failure starts over
+		for key := range st.envStreak {
+			if strings.HasSuffix(key, "|"+runID(ev)) {
+				delete(st.envStreak, key)
+			}
+		}
+		delete(st.lastFail, runID(ev))
+		return
+	}
 	if ev.Tool != event.ToolShell || ev.ExitCode == nil || *ev.ExitCode <= 0 || runID(ev) == "" {
 		return
 	}
