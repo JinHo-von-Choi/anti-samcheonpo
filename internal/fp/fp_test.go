@@ -116,7 +116,8 @@ func TestExecFPKeepsWhatMakesRunsDifferent(t *testing.T) {
 	for _, c := range [][4]string{
 		{"pytest -q", "", "pytest -q", ""},
 		{"pytest -q 2>&1 | tail -20", "", "pytest -q", ""},
-		{"timeout 60 pytest -q", "", "pytest -q", ""},
+		{"A=1 A=2 pytest", "", "A=2 pytest", ""},
+		{"npx --yes jest", "", "jest", ""},
 		{"cd svc && pytest -q", "", "pytest -q", "svc"},
 		{"B=2 A=1 pytest", "", "A=1 B=2 pytest", ""},
 		{"cd ./svc && pytest", "", "cd svc && pytest", ""},
@@ -131,6 +132,10 @@ func TestExecFPKeepsWhatMakesRunsDifferent(t *testing.T) {
 		{"npm test", "a", "npm test", "b"},
 		{"pytest tests/test_a.py", "", "pytest tests/test_b.py", ""},
 		{`pytest -k "a b"`, "", "pytest -k a b", ""},
+		{"timeout 60 pytest -q", "", "pytest -q", ""},
+		{"timeout 60 pytest -q", "", "timeout 5 pytest -q", ""},
+		{`grep "a  b" f`, "", `grep "a b" f`, ""},
+		{"A=1 A=2 pytest", "", "A=1 pytest", ""},
 	} {
 		x, _ := ExecFP(c[0], c[1])
 		y, _ := ExecFP(c[2], c[3])

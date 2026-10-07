@@ -160,6 +160,16 @@ func (p *Parser) add(ev *event.Event) {
 	p.sess.Events = append(p.sess.Events, ev)
 }
 
+// setExecDir recomputes the execution identity for the directory the
+// command ran in; a directory outside the project keeps its absolute path.
+func (p *Parser) setExecDir(ev *event.Event, dir string) {
+	d := p.rel(dir)
+	if d == "." {
+		d = ""
+	}
+	ev.ExecFP, ev.ExecCertain = fp.ExecFP(ev.Cmd, d)
+}
+
 func (p *Parser) rel(path string) string {
 	path = strings.TrimPrefix(path, "file://")
 	if path == "" {
@@ -351,6 +361,7 @@ func (p *Parser) item(pl map[string]any, ts time.Time, ref string) {
 			if d := p.rel(cwd); d != "." {
 				ev.Dir = d
 			}
+			p.setExecDir(ev, cwd)
 		}
 		out, _ := it["aggregated_output"].(string)
 		if out == "" {
@@ -503,6 +514,12 @@ func (p *Parser) responseItem(pl map[string]any, ptype string, ts time.Time, ref
 				cmd, _ = args["cmd"].(string)
 			}
 			ev = p.shellEvent(cmd, ts, ref, name)
+			for _, k := range []string{"workdir", "cwd"} {
+				if wd, ok := args[k].(string); ok && wd != "" {
+					p.setExecDir(ev, wd)
+					break
+				}
+			}
 		case "apply_patch":
 			input, _ := pl["input"].(string)
 			if input == "" {

@@ -361,7 +361,14 @@ func (p *Parser) toolUse(b block, ts time.Time, ref string, side bool) *event.Ev
 		ev.Cmd = str("command")
 		ev.CmdNorm, ev.Dir = fp.NormalizeCmd(ev.Cmd)
 		ev.CmdFP = fp.CmdFP(ev.CmdNorm)
-		ev.ExecFP, ev.ExecCertain = fp.ExecFP(ev.Cmd, p.shellDir())
+		dir := p.shellDir()
+		if wd := str("workdir"); wd != "" {
+			// hosts that pass the directory with the call (Codex exec_command)
+			if dir = p.rel(wd); dir == "." {
+				dir = ""
+			}
+		}
+		ev.ExecFP, ev.ExecCertain = fp.ExecFP(ev.Cmd, dir)
 		ev.Summary = "shell: " + trunc(ev.CmdNorm, 100)
 	case event.ToolRead:
 		ev.Paths = []string{p.rel(str("file_path"))}

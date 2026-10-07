@@ -44,33 +44,45 @@ var opaqueLead = map[string]bool{"eval": true, "source": true, ".": true, "expor
 
 // ExecFP is the identity used to decide that two shell runs are the same
 // execution. Unlike CmdFP (display and statistics), it keeps the effective
-// directory and the leading environment assignments NormalizeCmd drops. dir is
-// the shell's directory relative to the project ("" for the root). certain is
-// false when the command uses constructs whose effect the text does not show;
-// such runs must never be blocked as repeats.
+// directory, the leading environment assignments (last value wins), the
+// timeout limit and whitespace inside quotes, all of which NormalizeCmd drops
+// or folds. dir is the shell's directory relative to the project ("" for the
+// root). certain is false when the command uses constructs whose effect the
+// text does not show; such runs must never be blocked as repeats.
 func ExecFP(cmd, dir string) (id string, certain bool) {
-	s := strings.TrimSpace(cmd)
-	var env []string
+	s := protectQuoted(strings.TrimSpace(cmd))
+	env := map[string]string{}
+	var wrappers []string
 	for i := 0; i < 4; i++ {
 		before := s
 		if m := envPrefixRe.FindString(s); m != "" {
-			env = append(env, assignRe.FindAllString(m, -1)...)
+			for _, a := range assignRe.FindAllString(m, -1) {
+				k, v, _ := strings.Cut(a, "=")
+				env[k] = v
+			}
 			s = s[len(m):]
 		}
 		if m := cdPrefixRe.FindStringSubmatch(s); m != nil {
-			d := strings.Trim(m[1], `'"`)
+			d := strings.Trim(restoreQuoted(m[1]), `'"`)
 			if strings.HasPrefix(d, "/") || strings.HasPrefix(d, "~") || strings.Contains(d, "$") {
 				return "", false
 			}
 			dir = path.Join(dir, d)
 			s = s[len(m[0]):]
 		}
-		s = strings.TrimSpace(timeoutRe.ReplaceAllString(s, ""))
+		if m := timeoutRe.FindString(s); m != "" {
+			// a time limit changes what the run can show; npx --yes does not
+			if w := strings.Fields(m); len(w) > 0 && w[0] == "timeout" {
+				wrappers = append(wrappers, strings.Join(w, " "))
+			}
+			s = strings.TrimSpace(s[len(m):])
+		}
 		if s == before {
 			break
 		}
 	}
 	norm, _ := NormalizeCmd(s)
+	norm = restoreQuoted(norm)
 	if norm == "" {
 		return "", false
 	}
@@ -83,8 +95,49 @@ func ExecFP(cmd, dir string) (id string, certain bool) {
 	if dir = path.Clean(dir); dir == ".." || strings.HasPrefix(dir, "../") {
 		certain = false
 	}
-	sort.Strings(env)
-	return Hash("exec/1", dir, strings.Join(env, "\x00"), norm), certain
+	if dir == "." {
+		dir = ""
+	}
+	keys := make([]string, 0, len(env))
+	for k := range env {
+		keys = append(keys, k)
+	}
+	sort.Strings(keys)
+	parts := make([]string, 0, len(keys))
+	for _, k := range keys {
+		parts = append(parts, k+"="+env[k])
+	}
+	return Hash("exec/2", dir, strings.Join(parts, "\x00"), strings.Join(wrappers, "\x00"), norm), certain
+}
+
+// Whitespace inside quotes is meaningful ("a  b" is not "a b"). It is
+// replaced by private markers while the command is normalized, then put back.
+const quotedSpace, quotedTab = "\x01", "\x02"
+
+func protectQuoted(s string) string {
+	var b strings.Builder
+	var quote rune
+	for _, r := range s {
+		switch {
+		case quote != 0 && r == quote:
+			quote = 0
+			b.WriteRune(r)
+		case quote != 0 && r == ' ':
+			b.WriteString(quotedSpace)
+		case quote != 0 && r == '\t':
+			b.WriteString(quotedTab)
+		case quote == 0 && (r == '\'' || r == '"'):
+			quote = r
+			b.WriteRune(r)
+		default:
+			b.WriteRune(r)
+		}
+	}
+	return b.String()
+}
+
+func restoreQuoted(s string) string {
+	return strings.NewReplacer(quotedSpace, " ", quotedTab, "\t").Replace(s)
 }
 
 // cosmetic final pipe stages that only trim or filter output.

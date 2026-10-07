@@ -5,6 +5,7 @@ import (
 	"testing"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 )
 
 func td(p string) string { return filepath.Join("..", "..", "..", "testdata", "codex", p) }
@@ -81,5 +82,21 @@ func TestLegacyMode(t *testing.T) {
 	}
 	if total.In+total.CacheRead+total.Out != 540 {
 		t.Errorf("token sum %+v", total)
+	}
+}
+
+func TestExecIdentityFollowsWorkdir(t *testing.T) {
+	p := &Parser{root: "/w/proj"}
+	a := &event.Event{Tool: event.ToolShell, Cmd: "npm test"}
+	b := &event.Event{Tool: event.ToolShell, Cmd: "npm test"}
+	c := &event.Event{Tool: event.ToolShell, Cmd: "npm test"}
+	p.setExecDir(a, "/w/proj/service-a")
+	p.setExecDir(b, "/w/proj/service-b")
+	p.setExecDir(c, "/w/proj")
+	if a.ExecFP == b.ExecFP || !a.ExecCertain || !b.ExecCertain {
+		t.Fatalf("the same command in different workdirs is a different run: %+v %+v", a, b)
+	}
+	if id, _ := fp.ExecFP("npm test", ""); c.ExecFP != id {
+		t.Fatal("the project root workdir equals running at the root")
 	}
 }
