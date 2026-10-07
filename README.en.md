@@ -340,3 +340,10 @@ The research experiment mode (`experiment: {enabled: true}`) is off by default. 
 ## License
 
 [MIT](LICENSE)
+
+---
+
+<p align="center">
+  Made by <a href="mailto:jinho.von.choi@nerdvana.kr">Jinho Choi</a> &nbsp;|&nbsp;
+  <a href="https://buymeacoffee.com/jinho.von.choi">Buy me a coffee</a>
+</p>

@@ -329,3 +329,10 @@ swarm:
 ## 라이선스
 
 [MIT](LICENSE)
+
+---
+
+<p align="center">
+  Made by <a href="mailto:jinho.von.choi@nerdvana.kr">Jinho Choi</a> &nbsp;|&nbsp;
+  <a href="https://buymeacoffee.com/jinho.von.choi">Buy me a coffee</a>
+</p>
