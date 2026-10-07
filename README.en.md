@@ -93,11 +93,11 @@ It follows five principles.
 
 ### Release archive (Linux x86-64)
 
-Download `samcheonpo_0.2.1_linux_amd64.tar.gz` and `SHA256SUMS` from [Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases).
+Download `samcheonpo_0.2.2_linux_amd64.tar.gz` and `SHA256SUMS` from [Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases).
 
 ```bash
 sha256sum -c SHA256SUMS
-tar -xzf samcheonpo_0.2.1_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.2.2_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -109,8 +109,8 @@ Keep the primary binary `samcheonpo` beside `samcheonpo-hook` inside that same f
 Requires Go 1.27 or later. Linux x86-64 is the only platform verified by actually running it so far.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.2.1
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.2.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.2.2
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.2.2
 ```
 
 Native Windows is not supported (WSL is unverified).
