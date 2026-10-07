@@ -149,14 +149,14 @@ samcheonpo doctor
 
 ### 소스에서 설치 (macOS·Linux arm64 등)
 
-Go 1.27 이상이 필요합니다. 실제 실행을 확인한 환경은 Linux x86-64뿐입니다.
+Go 1.27 이상이 필요합니다. 실제 에이전트 실행을 확인한 환경은 Linux x86-64뿐이며, macOS와 Windows의 확인 범위는 아래 지원 범위 표에 있습니다.
 
 ```bash
 go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.3.0
 go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.3.0
 ```
 
-Windows 네이티브는 지원하지 않습니다(WSL은 미검증).
+Windows는 빌드와 순수 패키지 시험까지 확인했고, 에이전트 연결은 아직 검증하지 않았습니다.
 
 ---
 
@@ -299,10 +299,11 @@ swarm:
 
 | 환경 | 상태 |
 | --- | --- |
-| Linux x86-64 | 실제 설치·제거·훅 지연(p95 10ms 이내) 확인 |
-| macOS · Linux arm64 | 소스 설치 가능, 실제 실행 미확인 |
-| WSL | 미확인 |
-| Windows 네이티브 | 미지원 |
+| Linux x86-64 | 실제 설치·제거·훅 지연(p95 10ms 이내)·실제 에이전트 실행 확인 |
+| macOS | 소스 설치. GitHub Actions의 macOS 러너에서 데몬·훅·되돌리기를 포함한 전체 시험과 적합성 사례 통과. 실제 에이전트 실행은 미확인 |
+| Linux arm64 | 소스 설치 가능, 실제 실행 미확인 |
+| Windows | 소스 설치. GitHub Actions의 Windows 러너에서 빌드와 탐지·원장·계약 같은 플랫폼 중립 패키지 시험 통과. 데몬·훅 연결은 미검증이며 훅 명령은 Git Bash를 전제 |
+| WSL | Linux 실행 파일로 미확인 |
 
 ---
 

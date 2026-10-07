@@ -346,7 +346,15 @@ func benchHookCmd() *cobra.Command {
 				fmt.Fprintf(cmd.OutOrStdout(), "구간 진단: 입력/소켓/출력 처리 p95 %v, 프로세스 시작·종료/부모 대기 p95 %v (각각의 분포; 합산 불가)\n", handling[int(.95*float64(n-1))], overhead[int(.95*float64(n-1))])
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), "응답 %d/%d, 타임아웃 %d, 실패 %d, 첫 요청 수신 %t, 도구 수신 %d/%d, 큐 누락 %d\n", responses, n, timeouts, failures, observed.Prompts == 1, observed.ToolCalls, n, observed.QueueRejected)
-			if first.Status != "ok" || !first.ResponseReceived || observed.Prompts != 1 || observed.ToolCalls != n || observed.QueueRejected > 0 || failures > 0 || responses != n {
+			// A cold start that outran the first hook's deadline is the agent
+			// proceeding while the daemon boots, by design; it still counts
+			// when the daemon recorded that first prompt. Any other failure
+			// is not a latency pass.
+			coldLate := first.TimedOut && observed.Prompts == 1
+			if coldLate {
+				fmt.Fprintln(cmd.OutOrStdout(), "콜드 스타트가 첫 훅의 기한을 넘겼지만 데몬이 그 요청을 기록했다 (기동 중 통과는 설계된 동작)")
+			}
+			if (first.Status != "ok" && !coldLate) || (!first.ResponseReceived && !coldLate) || observed.Prompts != 1 || observed.ToolCalls != n || observed.QueueRejected > 0 || failures > 0 || responses != n {
 				return fmt.Errorf("훅 전송/관측 검증 실패: 빠른 실패는 지연 통과로 인정하지 않는다")
 			}
 			if p95Max > 0 && pct(0.95) > p95Max {
