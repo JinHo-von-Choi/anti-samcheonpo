@@ -32,6 +32,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/judge"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/notify"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/patch"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/policy"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/recovery"
@@ -89,6 +90,7 @@ type Session struct {
 	shell           map[string]bool           // running shell tool ids
 	pending         []string                  // nudges waiting for the next hook response
 	pendingDraft    string                    // latest draft awaiting capability confirmation
+	anchorDue       bool                      // a compaction happened; the next readable response repeats the contract anchor
 	userMsg         []string                  // user messages waiting (systemMessage)
 	stopBlocks      int
 	// advised holds escalation keys (revision, rule, pattern, target) whose
@@ -106,11 +108,15 @@ type Session struct {
 	lastPrimary       *detect.Signal
 	unresolved        *detect.Signal
 	rb                rollbackState
+	golden            *patch.GoldenStateManager
 	checks            map[string]CheckResult
 	firstPrompt       string
 	prompts           int
 	lastActive        time.Time
 	notifier          *notify.Notifier
+	hud               *notify.HUDManager
+	daemon            *Daemon // nil outside a daemon (tests, audit)
+	swarmReported     int64   // microKRW already reported to the swarm registry
 	closed            bool
 	watchCost         int64
 	judgeBudget       judge.Budget
@@ -200,6 +206,7 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 	s.eng = detect.NewEngine(cfg, s.engineContract(), s.acc.State == contract.StateAccepted, "live", root, id, "")
 	s.eng.FirstPrompt = s.firstPrompt
 	s.notifier = notify.New(cfg)
+	s.hud = notify.NewHUDManager()
 	if jc := cfg.Detectors.S3.Judge; jc.Provider != "" && (cfg.Privacy.ExternalJudge || isLocal(jc.BaseURL)) {
 		if j, err := judge.New(judge.Config{Provider: jc.Provider, Model: jc.Model, BaseURL: jc.BaseURL, APIKeyEnv: jc.APIKeyEnv, LocalOnly: !cfg.Privacy.ExternalJudge}); err == nil {
 			s.judge = j
@@ -386,7 +393,7 @@ func (s *Session) observe(ev *event.Event) []detect.Signal {
 	lastProgress := s.eng.St.LastProgress
 	sigs := s.eng.Observe(ev)
 	if s.eng.St.LastProgress != lastProgress && s.eng.St.LastProgress == ev.Seq && detect.ExecutedVerify(ev) && ev.ExitCode != nil && *ev.ExitCode == 0 {
-		s.snapshotProgress(ev.Seq)
+		s.snapshotProgress(ev.Seq, ev.CmdNorm)
 	}
 	if s.usage == nil && ev.Kind == event.KindTool && ev.Tool != "checkpoint" {
 		// agents without a Claude transcript report usage after the calls
@@ -502,6 +509,7 @@ func (s *Session) deliver(sigs []detect.Signal) {
 			s.record(v, channel)
 		}
 	}
+	s.broadcastHUD()
 }
 
 // adviceKey is called with s.mu held. It scopes advice to the current intent
@@ -635,6 +643,9 @@ func (s *Session) takePendingFor(hook string, ack *ackSlot) (string, string) {
 	canInject := hook == "PreToolUse" && s.caps.InjectPre || hook == "PostToolUse" && s.caps.InjectPost || hook == "UserPromptSubmit" && s.caps.PromptInject || hook == "StopBlock" && s.caps.BlockStop
 	var a, u string
 	if canInject {
+		if anchor := s.takeAnchor(true); anchor != "" {
+			s.pending = append([]string{anchor}, s.pending...)
+		}
 		for _, m := range s.pending {
 			if key := s.pendingRule[m]; key != "" {
 				s.noteAdvice(ack, key)
@@ -782,11 +793,12 @@ func (s *Session) checkpoint(mid bool) []CheckResult {
 	s.persistEvent(ev)
 	if newly {
 		s.eng.CheckpointProgress(ev)
-		s.snapshotProgress(ev.Seq)
+		s.snapshotProgress(ev.Seq, ev.Summary)
 	}
 	if s.db != nil {
 		s.recordStorageError(s.db.InsertProgress(s.ID, ev.Seq, met, total, res))
 	}
+	s.broadcastHUD()
 	return res
 }
 
@@ -813,44 +825,8 @@ func (s *Session) criteria() (int, int) {
 func (s *Session) Statusline() string {
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	st := s.eng.St
-	var parts []string
-	if n := s.queueRejected.Load(); n > 0 {
-		parts = append(parts, fmt.Sprintf("[관측 큐 포화: %d건 미처리]", n))
-	}
-	if s.storageErr != nil {
-		parts = append(parts, "[기록 저장 실패]")
-	}
-	if s.Cfg.Experiment.Enabled {
-		parts = append(parts, "[실험 모드: 일부 안내 보류]")
-	}
-	if n := s.preLate.Load(); n > 0 {
-		parts = append(parts, fmt.Sprintf("[실행 전 판정 시간 초과 %d건: 그 판정은 전달되지 않았을 수 있음]", n))
-	}
-	met, total := s.criteria()
-	if total > 0 {
-		parts = append(parts, fmt.Sprintf("진척 %d/%d", met, total))
-	} else if len(st.ProgressSeqs) > 0 {
-		parts = append(parts, "진척 추정")
-	} else {
-		parts = append(parts, "진척 측정 불가")
-	}
-	tokens, unpriced, waste, _ := s.measuredUsage()
-	if tokens == 0 || unpriced > 0 {
-		parts = append(parts, "공회전 비용 미확인")
-	} else {
-		parts = append(parts, "공회전 API환산 "+contract.Comma(cost.Won(st.TotalMicro-st.ProgressMark))+"원")
-	}
-	pct := 0
-	if st.TotalMicro > 0 {
-		pct = int(waste * 100 / st.TotalMicro)
-	}
-	if tokens == 0 || unpriced > 0 || st.TotalMicro == 0 {
-		parts = append(parts, "헛짓 비율 미확인")
-	} else {
-		parts = append(parts, fmt.Sprintf("헛짓 %d%% (계측분)", pct))
-	}
-	return "[" + s.stateLabel(met, total) + "] " + strings.Join(parts, " · ")
+	h := s.hudState()
+	return "[" + h.StatusText + "] " + h.Summary
 }
 
 // stateLabel condenses the session into one of four states a non-developer

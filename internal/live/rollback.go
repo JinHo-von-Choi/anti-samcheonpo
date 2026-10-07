@@ -262,7 +262,7 @@ func (s *Session) trackAfter(call string, paths []string) {
 // snapshotProgress keeps the agent-touched files as they are at a progress
 // point a passing check confirmed (estimated progress from writes alone is
 // not a safe point to return to). Called with s.mu held.
-func (s *Session) snapshotProgress(seq int64) {
+func (s *Session) snapshotProgress(seq int64, reason string) {
 	s.rb.init()
 	root, err := os.OpenRoot(s.Root)
 	if err != nil {
@@ -278,6 +278,7 @@ func (s *Session) snapshotProgress(seq int64) {
 		s.keep(s.rb.snapshot, rel, f)
 	}
 	s.rb.snapshotSeq = seq
+	s.goldenCapture(seq, reason)
 }
 
 type rollbackItem struct {
@@ -288,8 +289,12 @@ type rollbackItem struct {
 	target  fileState
 }
 
-// rollbackPlan lists what a rollback would do and its plan ID. Called with
-// s.mu held.
+// targetFn names the content a path returns to; ok is false with the reason
+// when the plan has nothing to return it to.
+type targetFn func(rel string) (target fileState, ok bool, reason string)
+
+// rollbackPlan lists what a rollback to the last confirmed progress would do
+// and its plan ID. Called with s.mu held.
 func (s *Session) rollbackPlan() (todo, skipped []rollbackItem, id string) {
 	s.rb.init()
 	seen := map[string]bool{}
@@ -303,6 +308,22 @@ func (s *Session) rollbackPlan() (todo, skipped []rollbackItem, id string) {
 			paths = append(paths, rel)
 		}
 	}
+	target := func(rel string) (fileState, bool, string) {
+		if t, ok := s.rb.snapshot[rel]; ok {
+			return t, true, ""
+		}
+		if t, ok := s.rb.baseline[rel]; ok {
+			return t, true, ""
+		}
+		return fileState{}, false, "되돌릴 기준 내용이 없음"
+	}
+	return s.planWith(paths, target, "rollback-plan", fmt.Sprint(s.rb.snapshotSeq))
+}
+
+// planWith builds a plan over paths: a file is restored only when it still
+// holds what the agent last wrote, so a person's later edit is never
+// overwritten. Called with s.mu held.
+func (s *Session) planWith(paths []string, target targetFn, salt ...string) (todo, skipped []rollbackItem, id string) {
 	sort.Strings(paths)
 	root, err := os.OpenRoot(s.Root)
 	if err != nil {
@@ -318,12 +339,9 @@ func (s *Session) rollbackPlan() (todo, skipped []rollbackItem, id string) {
 			skipped = append(skipped, rollbackItem{Path: rel, Reason: why})
 			continue
 		}
-		target, ok := s.rb.snapshot[rel]
+		target, ok, why := target(rel)
 		if !ok {
-			target, ok = s.rb.baseline[rel]
-		}
-		if !ok {
-			skipped = append(skipped, rollbackItem{Path: rel, Reason: "되돌릴 기준 내용이 없음"})
+			skipped = append(skipped, rollbackItem{Path: rel, Reason: why})
 			continue
 		}
 		cur, err := readState(root, rel)
@@ -346,7 +364,7 @@ func (s *Session) rollbackPlan() (todo, skipped []rollbackItem, id string) {
 		parts = append(parts, rel, action, cur.hash(), target.hash())
 	}
 	if len(todo) > 0 {
-		id = fp.Hash(append([]string{"rollback-plan", fmt.Sprint(s.rb.snapshotSeq)}, parts...)...)[:8]
+		id = fp.Hash(append(salt, parts...)...)[:8]
 	}
 	return todo, skipped, id
 }
@@ -358,17 +376,33 @@ func (s *Session) rollbackBasis() string {
 	return "AI가 이 세션에서 처음 쓰기 전 상태(아직 확인된 진척 없음)"
 }
 
-// rollback previews (arg "") or applies (arg "apply <plan ID>") a rollback.
-// Applying needs the ID of a preview that is still valid, so what the user
-// saw is exactly what is written. Called without s.mu.
+// rollback previews (arg "") or applies (arg "apply <plan ID>") a rollback to
+// the last confirmed progress. "golden ..." addresses a recorded passing
+// point instead. Applying needs the ID of a preview that is still valid, so
+// what the user saw is exactly what is written. Called without s.mu.
 func (s *Session) rollback(arg string) (string, error) {
+	fields := strings.Fields(arg)
+	if len(fields) > 0 && fields[0] == "golden" {
+		return s.goldenRollback(fields[1:])
+	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	todo, skipped, id := s.rollbackPlan()
-	fields := strings.Fields(arg)
-	apply := len(fields) > 0 && fields[0] == "apply"
+	apply, applyID := false, ""
+	if len(fields) > 0 && fields[0] == "apply" {
+		apply = true
+		if len(fields) > 1 {
+			applyID = fields[1]
+		}
+	}
+	return s.runRollback(todo, skipped, id, s.rollbackBasis(), "rollback", apply, applyID, s.rb.snapshotSeq)
+}
+
+// runRollback renders a plan and, when apply names its ID, writes it. Called
+// with s.mu held.
+func (s *Session) runRollback(todo, skipped []rollbackItem, id, basis, command string, apply bool, applyID string, basisSeq int64) (string, error) {
 	var b strings.Builder
-	fmt.Fprintf(&b, "되돌리기 기준: %s\n", s.rollbackBasis())
+	fmt.Fprintf(&b, "되돌리기 기준: %s\n", basis)
 	if len(todo) == 0 {
 		b.WriteString("되돌릴 파일이 없다.\n")
 	}
@@ -385,11 +419,11 @@ func (s *Session) rollback(arg string) (string, error) {
 	b.WriteString("셸 명령으로 바뀐 파일은 대상이 아니다.\n")
 	if !apply || len(todo) == 0 {
 		if len(todo) > 0 {
-			fmt.Fprintf(&b, "미리보기다. 이대로 되돌리려면 /samcheonpo:rollback apply %s 를 실행한다.\n", id)
+			fmt.Fprintf(&b, "미리보기다. 이대로 되돌리려면 /samcheonpo:%s apply %s 를 실행한다.\n", command, id)
 		}
 		return b.String(), nil
 	}
-	if len(fields) < 2 || fields[1] != id {
+	if applyID != id {
 		b.WriteString("적용하지 않았다: 계획 ID가 없거나 미리본 뒤 파일이 바뀌었다. 위 내용을 확인하고 표시된 ID로 다시 실행한다.\n")
 		fmt.Fprintf(&b, "현재 계획 ID: %s\n", id)
 		return b.String(), nil
@@ -442,7 +476,7 @@ func (s *Session) rollback(arg string) (string, error) {
 		restored, _ := json.Marshal(done)
 		skip, _ := json.Marshal(skipped)
 		_, err := s.db.Exec(`INSERT INTO rollback(session_id, at, basis_seq, restored, skipped, failed) VALUES (?,?,?,?,?,?)`,
-			s.ID, time.Now().UTC().Format(time.RFC3339Nano), s.rb.snapshotSeq, string(restored), string(skip), strings.Join(failed, "\n"))
+			s.ID, time.Now().UTC().Format(time.RFC3339Nano), basisSeq, string(restored), string(skip), strings.Join(failed, "\n"))
 		s.recordStorageError(err)
 	}
 	fmt.Fprintf(&b, "%d개 파일을 되돌렸다.\n", len(done))

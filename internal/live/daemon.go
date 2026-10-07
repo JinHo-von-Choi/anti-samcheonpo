@@ -76,6 +76,7 @@ type Daemon struct {
 	serving      sync.WaitGroup
 	ending       sync.WaitGroup
 	done         chan struct{}
+	swarm        swarmRegistry
 }
 
 // Run starts the daemon (blocking). It exits after Idle without requests.
@@ -219,6 +220,9 @@ func (d *Daemon) serve(c net.Conn) {
 		resp.Error = "잘못된 요청: " + err.Error()
 	} else if req.V != ProtocolVersion {
 		resp.Error = fmt.Sprintf("지원하지 않는 프로토콜 버전 %d", req.V)
+	} else if req.Event == "HUDStream" {
+		d.streamHUD(c, req)
+		return
 	} else {
 		var err error
 		resp.Output, resp.Text, slot, err = d.handleAck(req)
@@ -335,6 +339,18 @@ func (d *Daemon) handleWith(req Request, slot *ackSlot) (json.RawMessage, string
 			return nil, "", nil
 		}
 		return nil, s.Statusline(), nil
+	case "HUD":
+		var in struct {
+			SessionID string `json:"session_id"`
+			Root      string `json:"root"`
+		}
+		_ = json.Unmarshal(req.Payload, &in)
+		s := d.latest(in.Root, in.SessionID)
+		if s == nil {
+			return nil, "", nil
+		}
+		b, err := json.Marshal(s.hudPayload())
+		return b, "", err
 	case "Command":
 		var in CommandInput
 		if err := json.Unmarshal(req.Payload, &in); err != nil {
@@ -394,7 +410,12 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.daemon = d
 	d.sessions[id] = s
+	if l := s.taskLink; l != nil && l.ParentSessionID != "" {
+		// an explicit handoff link is lineage evidence
+		d.swarm.register(id, l.ParentSessionID, l.IncludesChildren, d.treeLimitLocked(s, l.ParentSessionID))
+	}
 	return s, nil
 }
 
@@ -590,6 +611,9 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 			// Released for this goal revision, rule and target only; another
 			// target or a new goal is judged afresh.
 			s.released[s.adviceKey(*v)] = true
+			if frozen, _ := v.Facts["frozen"].(bool); frozen {
+				s.eng.ReleaseFreeze()
+			}
 		} else {
 			delete(s.advised, s.adviceKey(*v)) // "just this once": advise again before blocking
 		}
@@ -611,9 +635,6 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		v := s.lastPrimary
 		if v != nil {
 			s.acknowledgeRecovery(v.ID)
-			if frozen, _ := v.Facts["frozen"].(bool); frozen {
-				s.eng.ReleaseFreeze()
-			}
 		}
 		ctx := s.msgContext()
 		s.mu.Unlock()

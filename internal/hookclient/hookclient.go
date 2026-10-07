@@ -6,6 +6,7 @@ package hookclient
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"io"
 	"net"
 	"os"
@@ -210,27 +211,52 @@ func spawnDaemon() {
 
 // Query sends a non-hook request (statusline, command) and returns the text.
 func Query(event string, payload any, timeout time.Duration) (string, string, bool) {
+	resp, ok := query(event, payload, timeout)
+	if !ok {
+		return "", "", false
+	}
+	return resp.Text, resp.Error, true
+}
+
+// QueryOutput sends one request and returns the daemon's raw output field. It
+// is for commands that answer with a document (the HUD state) rather than a
+// line of text.
+func QueryOutput(event string, payload any, timeout time.Duration) (json.RawMessage, error) {
+	resp, ok := query(event, payload, timeout)
+	switch {
+	case !ok:
+		return nil, errors.New("데몬에 연결할 수 없다")
+	case resp.Error != "":
+		return nil, errors.New(resp.Error)
+	}
+	return resp.Output, nil
+}
+
+type queryResponse struct {
+	Text   string          `json:"text"`
+	Error  string          `json:"error"`
+	Output json.RawMessage `json:"output"`
+}
+
+func query(event string, payload any, timeout time.Duration) (queryResponse, bool) {
+	var resp queryResponse
 	conn, err := net.DialTimeout("unix", socketPath(), ConnectTimeout*4)
 	if err != nil {
-		return "", "", false
+		return resp, false
 	}
 	defer conn.Close()
 	_ = conn.SetDeadline(time.Now().Add(timeout))
 	p, _ := json.Marshal(payload)
 	req, _ := json.Marshal(map[string]any{"v": 1, "event": event, "payload": json.RawMessage(p)})
 	if _, err := conn.Write(append(req, '\n')); err != nil {
-		return "", "", false
+		return resp, false
 	}
 	line, err := bufio.NewReader(conn).ReadBytes('\n')
 	if err != nil {
-		return "", "", false
-	}
-	var resp struct {
-		Text  string `json:"text"`
-		Error string `json:"error"`
+		return resp, false
 	}
 	if json.Unmarshal(line, &resp) != nil {
-		return "", "", false
+		return resp, false
 	}
-	return resp.Text, resp.Error, true
+	return resp, true
 }

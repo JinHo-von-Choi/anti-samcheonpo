@@ -33,6 +33,9 @@ type HookInput struct {
 	LastMessage    string          `json:"last_assistant_message"`
 	Source         string          `json:"source"`
 	Trigger        string          `json:"trigger"`
+	// ParentSessionID is lineage a plugin states when it spawned this session
+	// for another one; it is evidence only when the plugin sends it.
+	ParentSessionID string `json:"parent_session_id"`
 	// Deadline is the hook client's wait limit, set by the daemon.
 	Deadline time.Time `json:"-"`
 	// Ack collects what this response tells the agent; it is recorded as
@@ -170,6 +173,17 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 	}
 	switch name {
 	case "SessionStart":
+		if in.Source == "compact" {
+			s.mu.Lock()
+			s.markCompaction()
+			s.mu.Unlock()
+		}
+		if in.ParentSessionID != "" && in.ParentSessionID != in.SessionID {
+			d.mu.Lock()
+			limit := d.treeLimitLocked(s, in.ParentSessionID)
+			d.mu.Unlock()
+			d.swarm.register(in.SessionID, in.ParentSessionID, false, limit)
+		}
 		return nil, s, nil
 	case "Usage":
 		s.onUsage(in)
@@ -193,6 +207,7 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 		ev := &event.Event{Kind: event.KindCompact, TS: time.Now(), Summary: "compact", Basis: "live"}
 		s.mu.Lock()
 		s.parser.AddEvent(ev)
+		s.markCompaction()
 		s.mu.Unlock()
 		s.enqueue(ev, 0)
 		return nil, s, nil
@@ -405,6 +420,11 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 			deny, sig = true, pre
 		}
 	}
+	if !deny {
+		if pre := s.swarmPre(); pre != nil {
+			deny, sig = true, pre
+		}
+	}
 	ctx := s.msgContext()
 	seq, tool, execFP, certain, norm := ev.Seq, ev.Tool, ev.ExecFP, ev.ExecCertain, ev.CmdNorm
 	s.mu.Unlock()
@@ -462,6 +482,7 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 	s.mu.Lock()
 	lp := v
 	s.lastPrimary = &lp // the user can keep/steer the verdict they just saw
+	defer s.broadcastHUD()
 	route, escalated := s.routeFor(v)
 	if route != "block" || !s.caps.BlockPre {
 		if route == "block" {

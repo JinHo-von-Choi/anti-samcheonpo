@@ -28,6 +28,7 @@ type Config struct {
 	Experiment               Experiment  `yaml:"experiment" json:"experiment"`
 	Checkpoint               Checkpoint  `yaml:"checkpoint" json:"checkpoint"`
 	Rollout                  Rollout     `yaml:"rollout" json:"rollout"`
+	Swarm                    Swarm       `yaml:"swarm" json:"swarm"`
 	// IronLaws links the iron-laws checker (path empty: look it up on PATH).
 	IronLaws struct {
 		Enabled bool   `yaml:"enabled" json:"enabled"`
@@ -103,6 +104,13 @@ type Detectors struct {
 	} `yaml:"s8_cost" json:"s8"`
 	// Overrides raises per-rule thresholds after confirmed false positives.
 	Overrides map[string]int `yaml:"overrides" json:"overrides"`
+}
+
+// Swarm bounds a tree of delegated sessions (a session and the sessions it
+// spawned or handed work to) by one shared budget. TreeKRW 0 means no shared
+// limit; an accepted contract budget on the tree's root still applies.
+type Swarm struct {
+	TreeKRW int64 `yaml:"tree_krw" json:"tree_krw"`
 }
 
 // ContractCfg configures contract confirmation.
@@ -206,6 +214,7 @@ func Load(projectDir string) (Config, string, error) {
 		userMode := c.Rollout.Mode
 		userEscalate := c.Rollout.EscalateMaxBlocks
 		userShadow := append([]string(nil), c.Rollout.ShadowRules...)
+		userTreeKRW := c.Swarm.TreeKRW
 		userRules := make(map[string]string, len(c.Rollout.ValidatedRules))
 		for rule, digest := range c.Rollout.ValidatedRules {
 			userRules[rule] = digest
@@ -243,6 +252,10 @@ func Load(projectDir string) (Config, string, error) {
 			}
 			if c.Rollout.EscalateMaxBlocks > userEscalate {
 				c.Rollout.EscalateMaxBlocks = userEscalate
+			}
+			// A repository may tighten the shared budget, never widen it.
+			if userTreeKRW > 0 && (c.Swarm.TreeKRW <= 0 || c.Swarm.TreeKRW > userTreeKRW) {
+				c.Swarm.TreeKRW = userTreeKRW
 			}
 			for _, rule := range userShadow {
 				if !slices.Contains(c.Rollout.ShadowRules, rule) {
@@ -366,6 +379,9 @@ notify:
 privacy:
   external_judge: false
   store_raw_text: false
+# shared budget (KRW) for a tree of parent and child sessions; 0: contract budget only
+swarm:
+  tree_krw: 0
 # research only: randomly withholds some advice to measure its effect
 experiment:
   enabled: false

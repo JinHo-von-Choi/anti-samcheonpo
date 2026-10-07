@@ -29,6 +29,25 @@ type HUDState struct {
 	PresetCommands []string `json:"preset_commands"`
 	// IsBlocked reports whether execution is halted pending approval.
 	IsBlocked bool `json:"is_blocked"`
+	// Summary is the status line body after the status text: progress, idle
+	// spend and waste share, with "미확인" where measurement is incomplete.
+	Summary string `json:"summary,omitempty"`
+	// Progress is the progress part alone ("진척 1/2", "진척 추정", "진척 측정 불가").
+	Progress string `json:"progress,omitempty"`
+	// IdleKRW is the API-equivalent spend since the last confirmed progress;
+	// UsageUnknown is true when it could not be measured, and then IdleKRW,
+	// WasteKRW and WastePercentage are 0 without meaning no spend.
+	IdleKRW      int64 `json:"idle_krw"`
+	UsageUnknown bool  `json:"usage_unknown"`
+	// Requested and Current quote the request and what the agent is doing now.
+	Requested string `json:"requested,omitempty"`
+	Current   string `json:"current,omitempty"`
+	// Observation is the latest finding in plain words, empty when none stands.
+	Observation string `json:"observation,omitempty"`
+	// TreeKRW and TreeLimitKRW are the spend and budget of the lineage tree
+	// this session belongs to; both 0 when the session is not in a bounded tree.
+	TreeKRW      int64 `json:"tree_krw,omitempty"`
+	TreeLimitKRW int64 `json:"tree_limit_krw,omitempty"`
 }
 
 // HUDPayload is the JSON serialised form broadcast to HUD subscribers.
