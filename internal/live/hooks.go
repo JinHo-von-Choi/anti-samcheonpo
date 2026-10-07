@@ -187,6 +187,7 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 		s.enqueue(ev, 0)
 		return nil, s, nil
 	case "SessionEnd":
+		s.flushTurn()
 		s.mu.Lock()
 		endBudget := s.caps.SessionEndBudget
 		s.mu.Unlock()
@@ -222,6 +223,7 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 }
 
 func (s *Session) onPrompt(in HookInput) json.RawMessage {
+	s.flushTurn()
 	s.mu.Lock()
 	ev := &event.Event{Kind: event.KindPrompt, TS: time.Now(), Summary: "prompt", Text: in.Prompt, Basis: "live"}
 	ev.Forced = rules.Current().ForcedPrompts.Match(strings.TrimSpace(in.Prompt))
@@ -302,9 +304,22 @@ func (s *Session) buildTool(in HookInput) *event.Event {
 	return ev
 }
 
-// flushAwaiting finalizes earlier calls that never received a post-tool hook
-// (Codex apply_patch, calls the agent abandoned): they are kept for cost but
-// marked as not executed, so they count neither as writes nor as checks.
+// flushTurn closes, at a turn boundary, the calls that never received a
+// post-tool hook (Codex apply_patch, calls the agent abandoned). Calls of one
+// turn may run in parallel, so a new pre-tool hook is no evidence that an
+// earlier call ended.
+func (s *Session) flushTurn() {
+	s.mu.Lock()
+	stale := s.flushAwaiting("")
+	s.mu.Unlock()
+	for _, ev := range stale {
+		s.enqueue(ev, 0)
+	}
+}
+
+// flushAwaiting finalizes earlier calls that never received a post-tool hook:
+// they are kept for cost but marked as not executed, so they count neither as
+// writes nor as checks. A late result for a flushed call is ignored.
 func (s *Session) flushAwaiting(except string) []*event.Event {
 	var out []*event.Event
 	for id, ev := range s.awaiting {
@@ -312,6 +327,7 @@ func (s *Session) flushAwaiting(except string) []*event.Event {
 			continue
 		}
 		delete(s.awaiting, id)
+		s.flushed[id] = true
 		delete(s.shell, id)
 		x := -1
 		ev.ExitCode = &x
@@ -340,12 +356,6 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 	deadline := preDeadline(in.Deadline)
 	s.mu.Lock()
 	s.loadContract()
-	stale := s.flushAwaiting(in.ToolUseID)
-	s.mu.Unlock()
-	for _, ev := range stale {
-		s.enqueue(ev, 0)
-	}
-	s.mu.Lock()
 	ev := s.buildTool(in)
 	if ev.Tool == event.ToolShell && userOnlyCommand(ev.Cmd) {
 		// refused whatever the rollout stage: this protects the user's own
@@ -484,6 +494,11 @@ func intPtr(i int) *int { return &i }
 
 func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 	s.mu.Lock()
+	if s.flushed[in.ToolUseID] {
+		// already recorded once as a call without a result
+		s.mu.Unlock()
+		return nil
+	}
 	ev := s.byTool[in.ToolUseID]
 	if ev == nil {
 		ev = s.buildTool(in)
@@ -623,6 +638,7 @@ func (s *Session) onContractWritten() json.RawMessage {
 }
 
 func (s *Session) onStop(in HookInput) json.RawMessage {
+	s.flushTurn()
 	s.pollUsage()
 	s.mu.Lock()
 	shadow := s.Cfg.Rollout.Mode == "shadow"

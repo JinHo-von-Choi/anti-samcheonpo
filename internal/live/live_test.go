@@ -1231,3 +1231,31 @@ func TestAgentShellCannotRunUserOnlyCommands(t *testing.T) {
 		t.Fatalf("slash command path: %q %q %v", text, errText, ok)
 	}
 }
+
+func TestParallelToolCallsAreCountedOnce(t *testing.T) {
+	h := startDaemon(t)
+	h.send("UserPromptSubmit", map[string]any{"prompt": "src/a.py 고쳐 줘"})
+	read := func(id string) map[string]any {
+		return map[string]any{"tool_name": "Read", "tool_use_id": id, "tool_input": map[string]any{"file_path": filepath.Join(h.proj, "src", "a.py")}}
+	}
+	// two calls issued together, results arriving afterwards
+	h.send("PreToolUse", read("p1"))
+	h.send("PreToolUse", read("p2"))
+	for _, id := range []string{"p1", "p2"} {
+		in := read(id)
+		in["tool_response"] = map[string]any{"type": "text"}
+		h.send("PostToolUse", in)
+	}
+	time.Sleep(300 * time.Millisecond)
+	text, _, ok := hookclient.Query("ObservationStatus", map[string]any{"session_id": "sess-1"}, 2*time.Second)
+	var st struct {
+		Observed int `json:"observed_events"`
+	}
+	if !ok || json.Unmarshal([]byte(text), &st) != nil {
+		t.Fatalf("status: %q", text)
+	}
+	// the prompt plus two tool calls
+	if st.Observed != 3 {
+		t.Fatalf("parallel calls are observed once each: %d events", st.Observed)
+	}
+}

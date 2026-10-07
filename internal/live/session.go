@@ -85,6 +85,7 @@ type Session struct {
 	usageTargets    map[string][]*event.Event // plugin message id -> calls its usage belongs to
 	usageSeen       map[string]event.Usage    // plugin message id -> usage already attributed
 	awaiting        map[string]*event.Event   // pre-tool events still waiting for a result
+	flushed         map[string]bool           // calls closed at a turn boundary without a result
 	shell           map[string]bool           // running shell tool ids
 	pending         []string                  // nudges waiting for the next hook response
 	pendingDraft    string                    // latest draft awaiting capability confirmation
@@ -147,7 +148,7 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 		return nil, err
 	}
 	s := &Session{ID: id, Agent: agent, Root: root, Transcript: transcript, Cfg: cfg, CfgHash: config.Hash(cfg), db: db, prices: prices, caps: caps,
-		byTool: map[string]*event.Event{}, msgEvents: map[string]*event.Event{}, usageTargets: map[string][]*event.Event{}, usageSeen: map[string]event.Usage{}, awaiting: map[string]*event.Event{}, shell: map[string]bool{}, checks: map[string]CheckResult{}, advised: map[string]bool{}, failedEdits: map[string]ledger.FailedAttempt{}, pendingRule: map[string]string{}, released: map[string]bool{}, queue: make(chan *job, 256), workerDone: make(chan struct{}), lastActive: time.Now()}
+		byTool: map[string]*event.Event{}, msgEvents: map[string]*event.Event{}, usageTargets: map[string][]*event.Event{}, usageSeen: map[string]event.Usage{}, awaiting: map[string]*event.Event{}, flushed: map[string]bool{}, shell: map[string]bool{}, checks: map[string]CheckResult{}, advised: map[string]bool{}, failedEdits: map[string]ledger.FailedAttempt{}, pendingRule: map[string]string{}, released: map[string]bool{}, queue: make(chan *job, 256), workerDone: make(chan struct{}), lastActive: time.Now()}
 	s.applyOverrides()
 	s.parser = claude.NewParser(transcript)
 	s.parser.Session.ID = id

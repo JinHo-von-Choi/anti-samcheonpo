@@ -18,14 +18,19 @@ import (
 )
 
 // Timeouts per hook event. Stop runs the contract checkpoint and SessionEnd
-// writes the receipt, so they wait longer than per-tool hooks.
-func timeoutFor(event string) time.Duration {
+// writes the receipt, so they wait longer than per-tool hooks. Claude Code
+// gives SessionEnd hooks 35 seconds (plugin setting) and the daemon budgets
+// 30; Codex and the opencode forwarder stop a hook after about 3 seconds.
+func timeoutFor(event, agent string) time.Duration {
 	switch event {
 	case "PreToolUse":
 		return 15 * time.Millisecond
 	case "Stop":
 		return 150 * time.Second
 	case "SessionEnd":
+		if agent == "claude" {
+			return 30 * time.Second
+		}
 		return 2500 * time.Millisecond
 	}
 	return 50 * time.Millisecond
@@ -137,7 +142,7 @@ func runAgent(event, agent string, stdin io.Reader, stdout, diagnostics io.Write
 		return pass()
 	}
 	defer conn.Close()
-	deadline := time.Now().Add(timeoutFor(event))
+	deadline := time.Now().Add(timeoutFor(event, agent))
 	_ = conn.SetDeadline(deadline)
 	// The daemon bounds its own work by this deadline: a decision computed
 	// after the client gave up is never printed.

@@ -113,7 +113,18 @@ func TestRequestCarriesClientDeadline(t *testing.T) {
 	start := time.Now()
 	MainAgent("PreToolUse", "claude", strings.NewReader(`{"session_id":"s"}`), io.Discard)
 	d := time.UnixMilli(<-got)
-	if d.Before(start) || d.After(start.Add(timeoutFor("PreToolUse")+50*time.Millisecond)) {
+	if d.Before(start) || d.After(start.Add(timeoutFor("PreToolUse", "claude")+50*time.Millisecond)) {
 		t.Fatalf("deadline %v not within the PreToolUse wait from %v", d, start)
+	}
+}
+
+func TestSessionEndWaitMatchesHostBudget(t *testing.T) {
+	if timeoutFor("SessionEnd", "claude") < 25*time.Second {
+		t.Fatal("Claude Code allows the receipt to be written; the client must wait for it")
+	}
+	for _, agent := range []string{"codex", "opencode", "cursor", "agy"} {
+		if timeoutFor("SessionEnd", agent) >= 3*time.Second {
+			t.Fatalf("%s stops hooks after about 3 seconds", agent)
+		}
 	}
 }
