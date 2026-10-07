@@ -33,6 +33,8 @@ type HookInput struct {
 	LastMessage    string          `json:"last_assistant_message"`
 	Source         string          `json:"source"`
 	Trigger        string          `json:"trigger"`
+	// Deadline is the hook client's wait limit, set by the daemon.
+	Deadline time.Time `json:"-"`
 	// Usage carries plugin-reported token usage (agents without a transcript).
 	MessageID string `json:"message_id"`
 	Model     string `json:"model"`
@@ -317,7 +319,22 @@ func (s *Session) flushAwaiting(except string) []*event.Event {
 	return out
 }
 
+// preHookBudget mirrors the hook client's PreToolUse wait for a request that
+// carries no deadline; preMargin leaves time to encode and write the reply.
+const (
+	preHookBudget = 15 * time.Millisecond
+	preMargin     = 2 * time.Millisecond
+)
+
+func preDeadline(d time.Time) time.Time {
+	if d.IsZero() {
+		return time.Now().Add(preHookBudget)
+	}
+	return d
+}
+
 func (s *Session) onPreTool(in HookInput) json.RawMessage {
+	deadline := preDeadline(in.Deadline)
 	s.mu.Lock()
 	s.loadContract()
 	stale := s.flushAwaiting(in.ToolUseID)
@@ -346,13 +363,11 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 		}
 	}
 	ctx := s.msgContext()
-	category, seq, tool, cmd := ev.Category, ev.Seq, ev.Tool, ev.Cmd
+	seq, tool, cmd := ev.Seq, ev.Tool, ev.Cmd
 	s.mu.Unlock()
 	if !deny && s.queueRejected.Load() == 0 {
-		if pre := s.ironLawsPre(in, category, seq); pre != nil {
-			deny, sig = true, pre
-		} else if tool == event.ToolShell {
-			if pre := s.evidencePre(cmd, seq); pre != nil {
+		if tool == event.ToolShell {
+			if pre := s.evidencePre(cmd, seq, deadline); pre != nil {
 				deny, sig = true, pre
 			}
 		}
@@ -423,6 +438,9 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 	if escalated {
 		s.escalations++
 		reason = escalationNote + "\n" + reason
+	}
+	if time.Now().After(deadline) {
+		s.preLate.Add(1)
 	}
 	delete(s.shell, ev.CallID)
 	ev.ExitCode = intPtr(-1) // blocked, never executed

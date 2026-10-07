@@ -391,7 +391,7 @@ func TestDraftRequestKeepsAgentWorkingAndShowsCardToUser(t *testing.T) {
 	}
 }
 
-func TestIronLawsRepeatIsBlockedBeforeTheWrite(t *testing.T) {
+func TestIronLawsAdviceNeverBlocksTheNextWrite(t *testing.T) {
 	h := startDaemon(t)
 	fake := `#!/bin/sh
 file="$2"; out=""
@@ -431,15 +431,10 @@ printf ']}' >> "$out"
 	if !delivered {
 		t.Fatal("the iron-laws advice reaches the agent")
 	}
-	d := write("w2", "src/io.py", "SWALLOW = 1\nSWALLOW = 2\n")
-	if d == nil || !strings.Contains(d["permissionDecisionReason"].(string), "권고가 이미 전달됐는데 반복") {
-		t.Fatalf("writing the advised pattern again into the same file is blocked before it runs: %v", d)
-	}
-	if d := write("w3", "src/io.py", "SWALLOW = 1\nprint(1)\n"); d != nil {
-		t.Fatalf("a write that adds no finding is allowed: %v", d)
-	}
-	if d := write("w4", "src/other.py", "SWALLOW = 3\n"); d != nil {
-		t.Fatalf("another file has no advice yet: %v", d)
+	// The external checker cannot finish within the hook client's wait, so
+	// a repeat is reported after the write and never blocked before it.
+	if d := write("w2", "src/io.py", "SWALLOW = 1\nSWALLOW = 2\n"); d != nil {
+		t.Fatalf("a pre-write block nobody receives must not be issued: %v", d)
 	}
 }
 
@@ -1057,26 +1052,58 @@ func TestIronLaws(t *testing.T) {
 	}
 }
 
-func TestProposedContent(t *testing.T) {
-	root := t.TempDir()
-	_ = os.WriteFile(filepath.Join(root, "a.py"), []byte("x = 1\ny = 1\n"), 0o644)
-	in := func(tool string, input map[string]any) HookInput {
-		b, _ := json.Marshal(input)
-		return HookInput{ToolName: tool, ToolInput: b}
+// sendBy sends a hook request carrying an explicit client deadline.
+func (h *harness) sendBy(event string, payload map[string]any, deadline time.Time) map[string]any {
+	h.t.Helper()
+	payload["hook_event_name"] = event
+	payload["cwd"] = h.proj
+	if _, ok := payload["session_id"]; !ok {
+		payload["session_id"] = "sess-1"
 	}
-	if rel, c, ok := proposedContent(root, in("Edit", map[string]any{"file_path": filepath.Join(root, "a.py"), "old_string": "y = 1", "new_string": "y = 2"})); !ok || rel != "a.py" || c != "x = 1\ny = 2\n" {
-		t.Fatalf("edit: %q %q %v", rel, c, ok)
+	conn, err := net.DialTimeout("unix", SocketPath(), time.Second)
+	if err != nil {
+		h.t.Fatal(err)
 	}
-	if _, c, ok := proposedContent(root, in("Edit", map[string]any{"file_path": "a.py", "old_string": "1", "new_string": "9", "replace_all": true})); !ok || c != "x = 9\ny = 9\n" {
-		t.Fatalf("replace all with a relative path: %q %v", c, ok)
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
+	p, _ := json.Marshal(payload)
+	req, _ := json.Marshal(map[string]any{"v": 1, "agent": "claude", "event": event, "deadline_unix_ms": deadline.UnixMilli(), "payload": json.RawMessage(p)})
+	_, _ = conn.Write(append(req, '\n'))
+	line, err := bufio.NewReader(conn).ReadBytes('\n')
+	if err != nil {
+		h.t.Fatal(err)
 	}
-	if _, _, ok := proposedContent(root, in("Edit", map[string]any{"file_path": "a.py", "old_string": "missing", "new_string": "z"})); ok {
-		t.Fatal("an edit that would fail is not reproduced")
+	var resp Response
+	_ = json.Unmarshal(line, &resp)
+	out := map[string]any{}
+	if len(resp.Output) > 0 {
+		_ = json.Unmarshal(resp.Output, &out)
 	}
-	if _, _, ok := proposedContent(root, in("Write", map[string]any{"file_path": "/etc/passwd", "content": "x"})); ok {
-		t.Fatal("a path outside the project is not checked")
+	return out
+}
+
+func TestBlockDecidedAfterClientDeadlineIsReportedUndelivered(t *testing.T) {
+	h := startDaemon(t)
+	h.declareTestRules("s1.identical_rerun")
+	h.send("UserPromptSubmit", map[string]any{"prompt": "src/a.py 시험 통과시켜 줘"})
+	for i := 0; i < 2; i++ {
+		h.shell(fmt.Sprintf("t%d", i), "pytest -q", "FAILED tests/test_a.py::test_x - assert 1 == 2\n1 failed", 1)
+		time.Sleep(150 * time.Millisecond)
 	}
-	if _, c, ok := proposedContent(root, in("MultiEdit", map[string]any{"file_path": "a.py", "edits": []map[string]any{{"old_string": "x = 1", "new_string": "x = 3"}, {"old_string": "y = 1", "new_string": "y = 4"}}})); !ok || c != "x = 3\ny = 4\n" {
-		t.Fatalf("multi edit: %q %v", c, ok)
+	status := func() string {
+		text, _, _ := hookclient.Query("Statusline", map[string]any{"session_id": "sess-1"}, 2*time.Second)
+		return text
+	}
+	if strings.Contains(status(), "판정 시간 초과") {
+		t.Fatal("no late decision yet")
+	}
+	in := map[string]any{"tool_name": "Bash", "tool_use_id": "t2", "tool_input": map[string]any{"command": "pytest -q"}}
+	out := h.sendBy("PreToolUse", in, time.Now().Add(-time.Second))
+	hs, _ := out["hookSpecificOutput"].(map[string]any)
+	if hs == nil || hs["permissionDecision"] != "deny" {
+		t.Fatalf("the rule still decides to block: %v", out)
+	}
+	if !strings.Contains(status(), "판정 시간 초과 1건") {
+		t.Fatalf("a block decided after the client stopped waiting is reported as possibly undelivered: %q", status())
 	}
 }

@@ -80,3 +80,40 @@ func TestDeliveryReceiptOnlyAfterSuccessfulOutput(t *testing.T) {
 		})
 	}
 }
+
+func TestRequestCarriesClientDeadline(t *testing.T) {
+	t.Setenv("SAMCHEONPO_HOME", t.TempDir())
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("SAMCHEONPO_NO_SPAWN", "1")
+	path := socketPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+		t.Fatal(err)
+	}
+	ln, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer ln.Close()
+	got := make(chan int64, 1)
+	go func() {
+		c, err := ln.Accept()
+		if err != nil {
+			got <- 0
+			return
+		}
+		defer c.Close()
+		line, _ := bufio.NewReader(c).ReadBytes('\n')
+		var req struct {
+			Deadline int64 `json:"deadline_unix_ms"`
+		}
+		_ = json.Unmarshal(line, &req)
+		got <- req.Deadline
+		io.WriteString(c, "{}\n")
+	}()
+	start := time.Now()
+	MainAgent("PreToolUse", "claude", strings.NewReader(`{"session_id":"s"}`), io.Discard)
+	d := time.UnixMilli(<-got)
+	if d.Before(start) || d.After(start.Add(timeoutFor("PreToolUse")+50*time.Millisecond)) {
+		t.Fatalf("deadline %v not within the PreToolUse wait from %v", d, start)
+	}
+}

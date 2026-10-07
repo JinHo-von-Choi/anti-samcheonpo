@@ -137,8 +137,11 @@ func runAgent(event, agent string, stdin io.Reader, stdout, diagnostics io.Write
 		return pass()
 	}
 	defer conn.Close()
-	_ = conn.SetDeadline(time.Now().Add(timeoutFor(event)))
-	req, _ := json.Marshal(map[string]any{"v": 1, "agent": agent, "event": event, "payload": json.RawMessage(payload)})
+	deadline := time.Now().Add(timeoutFor(event))
+	_ = conn.SetDeadline(deadline)
+	// The daemon bounds its own work by this deadline: a decision computed
+	// after the client gave up is never printed.
+	req, _ := json.Marshal(map[string]any{"v": 1, "agent": agent, "event": event, "deadline_unix_ms": deadline.UnixMilli(), "payload": json.RawMessage(payload)})
 	if _, err := conn.Write(append(req, '\n')); err != nil {
 		fail("write_failed", err)
 		return pass()

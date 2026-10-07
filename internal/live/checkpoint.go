@@ -88,14 +88,18 @@ func (r *Runner) RunTaskRevision(checks []contract.Check, mid bool, sideEffect m
 }
 
 func (r *Runner) proofKey(c contract.Check, taskID string, revision uint64) (verification.Key, error) {
+	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+	defer cancel()
+	return r.proofKeyContext(ctx, c, taskID, revision)
+}
+
+func (r *Runner) proofKeyContext(ctx context.Context, c contract.Check, taskID string, revision uint64) (verification.Key, error) {
 	key := verification.Key{TaskID: taskID, Revision: revision, CheckID: c.ID, RunnerVersion: "samcheonpo-check/2"}
 	if c.Reuse == nil || !c.Pure || !c.Reuse.Deterministic || r.WS == nil {
 		return key, fmt.Errorf("완전한 로컬 입력 선언이 없는 검사는 재사용하지 않는다")
 	}
 	b, _ := json.Marshal(c)
 	key.CommandHash = fp.Hash(string(b))
-	ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
-	defer cancel()
 	var err error
 	key.InputHash, err = verification.Fingerprint(ctx, r.Root, c.Reuse.Inputs)
 	if err != nil {
@@ -116,6 +120,12 @@ func (r *Runner) proofKey(c contract.Check, taskID string, revision uint64) (ver
 // the check; callers must separately establish receiver-side acceptance.
 func (r *Runner) CurrentKey(c contract.Check, taskID string, revision uint64) (verification.Key, error) {
 	return r.proofKey(c, taskID, revision)
+}
+
+// CurrentKeyContext is CurrentKey bounded by the caller's deadline; the
+// pre-tool hook uses it so a slow read lets the run through.
+func (r *Runner) CurrentKeyContext(ctx context.Context, c contract.Check, taskID string, revision uint64) (verification.Key, error) {
+	return r.proofKeyContext(ctx, c, taskID, revision)
 }
 
 func (r *Runner) reusable(c contract.Check, taskID string, revision uint64, sessionID string) CheckResult {

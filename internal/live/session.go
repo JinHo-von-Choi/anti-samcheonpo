@@ -65,28 +65,31 @@ type Session struct {
 	queueMu          sync.Mutex
 	queueClosed      bool
 	queueRejected    atomic.Uint64
-	workerDone       chan struct{}
-	storageErr       error
-	finalized        bool
-	receiptPath      string
-	queue            chan *job
-	byTool           map[string]*event.Event
-	msgEvents        map[string]*event.Event // message id -> event holding tool-less usage
-	caps             adapter.Caps
-	judge            judge.Judge
-	judging          bool
-	drifts           int // consecutive drift judgements
-	toolsSinceJudge  int
-	cx               *codex.Tracker
-	sinceTokens      []*event.Event            // calls since the last usage record (codex, plugins)
-	usageTargets     map[string][]*event.Event // plugin message id -> calls its usage belongs to
-	usageSeen        map[string]event.Usage    // plugin message id -> usage already attributed
-	awaiting         map[string]*event.Event   // pre-tool events still waiting for a result
-	shell            map[string]bool           // running shell tool ids
-	pending          []string                  // nudges waiting for the next hook response
-	pendingDraft     string                    // latest draft awaiting capability confirmation
-	userMsg          []string                  // user messages waiting (systemMessage)
-	stopBlocks       int
+	// preLate counts pre-tool decisions that could not finish inside the
+	// hook client's deadline; such a block may never have reached the agent.
+	preLate         atomic.Uint64
+	workerDone      chan struct{}
+	storageErr      error
+	finalized       bool
+	receiptPath     string
+	queue           chan *job
+	byTool          map[string]*event.Event
+	msgEvents       map[string]*event.Event // message id -> event holding tool-less usage
+	caps            adapter.Caps
+	judge           judge.Judge
+	judging         bool
+	drifts          int // consecutive drift judgements
+	toolsSinceJudge int
+	cx              *codex.Tracker
+	sinceTokens     []*event.Event            // calls since the last usage record (codex, plugins)
+	usageTargets    map[string][]*event.Event // plugin message id -> calls its usage belongs to
+	usageSeen       map[string]event.Usage    // plugin message id -> usage already attributed
+	awaiting        map[string]*event.Event   // pre-tool events still waiting for a result
+	shell           map[string]bool           // running shell tool ids
+	pending         []string                  // nudges waiting for the next hook response
+	pendingDraft    string                    // latest draft awaiting capability confirmation
+	userMsg         []string                  // user messages waiting (systemMessage)
+	stopBlocks      int
 	// advised holds escalation keys (revision, rule, pattern, target) whose
 	// advice reached the agent; released holds rules the user marked as false
 	// positives. Both drive policy.Escalate.
@@ -791,6 +794,9 @@ func (s *Session) Statusline() string {
 	}
 	if s.Cfg.Experiment.Enabled {
 		parts = append(parts, "[실험 모드: 일부 안내 보류]")
+	}
+	if n := s.preLate.Load(); n > 0 {
+		parts = append(parts, fmt.Sprintf("[실행 전 판정 시간 초과 %d건: 그 판정은 전달되지 않았을 수 있음]", n))
 	}
 	if met, total := s.criteria(); total > 0 {
 		parts = append(parts, fmt.Sprintf("진척 %d/%d", met, total))

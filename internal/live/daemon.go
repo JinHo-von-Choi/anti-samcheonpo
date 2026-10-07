@@ -41,6 +41,8 @@ type Request struct {
 	Agent   string          `json:"agent"`
 	Event   string          `json:"event"`
 	Payload json.RawMessage `json:"payload"`
+	// DeadlineUnixMs is when the hook client stops waiting (0: older client).
+	DeadlineUnixMs int64 `json:"deadline_unix_ms,omitempty"`
 }
 
 // Response is the reply line. Output is printed verbatim by the hook client.
@@ -305,7 +307,12 @@ func (d *Daemon) handle(req Request) (json.RawMessage, string, error) {
 	}
 	var out json.RawMessage
 	claudeEvent := ""
+	var deadline time.Time
+	if req.DeadlineUnixMs > 0 {
+		deadline = time.UnixMilli(req.DeadlineUnixMs)
+	}
 	for i, ev := range events {
+		inputs[i].Deadline = deadline
 		out, err = d.handleHook(agent, ev, inputs[i])
 		if err != nil {
 			return nil, "", err

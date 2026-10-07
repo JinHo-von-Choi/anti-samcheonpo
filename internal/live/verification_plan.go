@@ -1,6 +1,7 @@
 package live
 
 import (
+	"context"
 	"fmt"
 	"strings"
 	"time"
@@ -60,7 +61,7 @@ func verificationHint(p verification.Plan) string {
 // check whose passing evidence still matches the current inputs and
 // environment. The key is recomputed here (bounded file reads); any
 // mismatch, expiry, missing evidence or error lets the run through.
-func (s *Session) evidencePre(cmd string, seq int64) *detect.Signal {
+func (s *Session) evidencePre(cmd string, seq int64, deadline time.Time) *detect.Signal {
 	norm, _ := fp.NormalizeCmd(cmd)
 	if norm == "" {
 		return nil
@@ -91,8 +92,13 @@ func (s *Session) evidencePre(cmd string, seq int64) *detect.Signal {
 	if check == nil {
 		return nil
 	}
-	key, err := runner.CurrentKey(*check, taskID, revision)
+	ctx, cancel := context.WithDeadline(context.Background(), deadline.Add(-preMargin))
+	defer cancel()
+	key, err := runner.CurrentKeyContext(ctx, *check, taskID, revision)
 	if err != nil {
+		if ctx.Err() != nil {
+			s.preLate.Add(1)
+		}
 		return nil
 	}
 	if ok, _ := verification.Reusable(*evidence, key, time.Now()); !ok {
