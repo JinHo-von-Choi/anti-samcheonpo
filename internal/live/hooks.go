@@ -347,6 +347,23 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 	}
 	s.mu.Lock()
 	ev := s.buildTool(in)
+	if ev.Tool == event.ToolShell && userOnlyCommand(ev.Cmd) {
+		// refused whatever the rollout stage: this protects the user's own
+		// decisions, not a waste estimate
+		s.byTool[ev.CallID] = ev
+		ev.ExitCode = intPtr(-1)
+		blockPre := s.caps.BlockPre
+		s.mu.Unlock()
+		s.enqueue(ev, 0)
+		if !blockPre {
+			return hookOut(additional("PreToolUse", userOnlyReason))
+		}
+		return hookOut(map[string]any{"hookSpecificOutput": map[string]any{
+			"hookEventName":            "PreToolUse",
+			"permissionDecision":       "deny",
+			"permissionDecisionReason": userOnlyReason,
+		}})
+	}
 	if ev.Category == event.CatProduce {
 		s.trackBefore(ev.Paths)
 	}

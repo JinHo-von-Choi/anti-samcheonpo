@@ -1210,3 +1210,24 @@ func TestRerunAfterServiceRecoveryIsNotBlocked(t *testing.T) {
 		t.Fatalf("the rerun after a service recovery must be allowed: %v", hs["permissionDecisionReason"])
 	}
 }
+
+func TestAgentShellCannotRunUserOnlyCommands(t *testing.T) {
+	h := startDaemon(t)
+	h.send("UserPromptSubmit", map[string]any{"prompt": "src/a.py 고쳐 줘"})
+	for i, cmd := range []string{"samcheonpo cmd accept", "samcheonpo cmd keep normal", "samcheonpo cmd rollback apply"} {
+		pre := h.send("PreToolUse", map[string]any{"tool_name": "Bash", "tool_use_id": fmt.Sprintf("u%d", i), "tool_input": map[string]any{"command": cmd}})
+		hs, _ := pre["hookSpecificOutput"].(map[string]any)
+		if hs == nil || hs["permissionDecision"] != "deny" || !strings.Contains(hs["permissionDecisionReason"].(string), "사용자가 슬래시 명령으로") {
+			t.Fatalf("%q from the agent's shell is refused: %v", cmd, pre)
+		}
+	}
+	pre := h.send("PreToolUse", map[string]any{"tool_name": "Bash", "tool_use_id": "u9", "tool_input": map[string]any{"command": "samcheonpo cmd summary"}})
+	if hs, _ := pre["hookSpecificOutput"].(map[string]any); hs != nil && hs["permissionDecision"] == "deny" {
+		t.Fatal("a read-only command stays allowed")
+	}
+	// the user's slash-command path still reaches the daemon
+	text, errText, ok := hookclient.Query("Command", CommandInput{Name: "summary", Root: h.proj}, 5*time.Second)
+	if !ok || errText != "" || !strings.Contains(text, "요청한 일") {
+		t.Fatalf("slash command path: %q %q %v", text, errText, ok)
+	}
+}
