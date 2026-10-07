@@ -378,7 +378,7 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 		}})
 	}
 	if ev.Category == event.CatProduce {
-		s.trackBefore(ev.Paths)
+		s.trackBefore(in, ev.CallID, ev.Paths)
 	}
 	s.awaiting[ev.CallID] = ev
 	s.byTool[ev.CallID] = ev
@@ -528,7 +528,7 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 		s.codexExit(ev)
 	}
 	if ev.Category == event.CatProduce && !failure {
-		s.trackAfter(ev.Paths)
+		s.trackAfter(ev.CallID, ev.Paths)
 	}
 	ev.TS = time.Now()
 	contractWrite := false

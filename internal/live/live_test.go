@@ -10,6 +10,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"syscall"
@@ -1157,13 +1158,20 @@ func TestRollbackRestoresOnlyAgentWritesSinceProgress(t *testing.T) {
 
 	preview := cmd("")
 	if !strings.Contains(preview, "진척이 확인된 시점") || !strings.Contains(preview, "src/a.py: 이전 내용으로 복구") ||
-		!strings.Contains(preview, "src/new_helper.py: AI가 새로 만든 파일이라 삭제") || !strings.Contains(preview, "src/theme/dark.css: 건너뜀") {
+		!strings.Contains(preview, "src/new_helper.py: AI가 새로 만든 파일이라 삭제") || !strings.Contains(preview, "src/theme/dark.css: 대상 아님") {
 		t.Fatalf("preview: %s", preview)
 	}
 	if read("src/a.py") != "x = 3  # rewritten\n" {
 		t.Fatal("a preview changes nothing")
 	}
-	applied := cmd("apply")
+	if out := cmd("apply"); !strings.Contains(out, "적용하지 않았다") || read("src/a.py") != "x = 3  # rewritten\n" {
+		t.Fatalf("apply without the previewed plan ID writes nothing: %s", out)
+	}
+	m := regexp.MustCompile(`rollback apply ([0-9a-f]{8})`).FindStringSubmatch(preview)
+	if m == nil {
+		t.Fatalf("the preview shows the plan ID to apply: %s", preview)
+	}
+	applied := cmd("apply " + m[1])
 	if !strings.Contains(applied, "2개 파일을 되돌렸다") {
 		t.Fatalf("apply: %s", applied)
 	}

@@ -1,5 +1,5 @@
 ---
-description: AI가 바꾼 파일을 마지막 진척 시점으로 되돌리기 (인자 없음: 미리보기, apply: 실행)
+description: AI가 바꾼 파일을 마지막 진척 시점으로 되돌리기 (인자 없음: 미리보기, apply <계획 ID>: 미리본 계획대로 실행)
 allowed-tools: Bash(samcheonpo cmd:*)
 ---
 !`samcheonpo cmd rollback $ARGUMENTS`

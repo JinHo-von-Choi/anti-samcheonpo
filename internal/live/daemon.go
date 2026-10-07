@@ -593,7 +593,7 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 	case "summary":
 		return s.plainSummary(), nil
 	case "rollback":
-		return s.rollback(in.Arg == "apply")
+		return s.rollback(in.Arg)
 	case "check":
 		res := s.checkpoint(false)
 		s.mu.Lock()
