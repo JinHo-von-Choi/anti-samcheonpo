@@ -185,20 +185,21 @@ func (d *Daemon) serve(c net.Conn) {
 	d.last = time.Now()
 	d.mu.Unlock()
 	var req Request
+	var slot *ackSlot
 	resp := Response{V: ProtocolVersion}
 	if err := json.Unmarshal(line, &req); err != nil {
 		resp.Error = "잘못된 요청: " + err.Error()
 	} else if req.V != ProtocolVersion {
 		resp.Error = fmt.Sprintf("지원하지 않는 프로토콜 버전 %d", req.V)
 	} else {
-		out, text, err := d.handle(req)
-		resp.Output, resp.Text = out, text
+		var err error
+		resp.Output, resp.Text, slot, err = d.handleAck(req)
 		if err != nil {
 			resp.Error = err.Error()
 		}
 	}
 	s := d.recoverySession(req, resp.Output)
-	if s != nil {
+	if s != nil || (slot.pending() && len(resp.Output) > 0) {
 		var token [16]byte
 		if _, err := rand.Read(token[:]); err == nil {
 			resp.DeliveryToken = hex.EncodeToString(token[:])
@@ -209,16 +210,18 @@ func (d *Daemon) serve(c net.Conn) {
 	if n, err := c.Write(wire); err != nil || n != len(wire) {
 		return
 	}
-	if s == nil {
-		return
-	}
-	s.markRecoveryOutput(resp.Output, recovery.Emitted)
 	if resp.DeliveryToken == "" {
 		return
 	}
-	// Only recovery-bearing responses request an optional one-way receipt.
-	// Old clients simply close; lack of receipt never becomes delivery proof.
-	_ = c.SetReadDeadline(time.Now().Add(5 * time.Millisecond))
+	if s != nil {
+		s.markRecoveryOutput(resp.Output, recovery.Emitted)
+	}
+	// Responses that carry advice, a block or a recovery request a one-way
+	// receipt. The client sends it after printing; a client that never got
+	// the response (deadline passed, output failed) sends none, and a missing
+	// receipt never becomes delivery proof. This wait runs after the reply
+	// and does not delay the hook.
+	_ = c.SetReadDeadline(time.Now().Add(100 * time.Millisecond))
 	ackLine, err := rd.ReadBytes('\n')
 	if err != nil {
 		return
@@ -228,11 +231,26 @@ func (d *Daemon) serve(c net.Conn) {
 		Printed       bool   `json:"printed"`
 	}
 	if json.Unmarshal(ackLine, &ack) == nil && ack.Printed && ack.DeliveryToken == resp.DeliveryToken {
-		s.markRecoveryOutput(resp.Output, recovery.Delivered)
+		if s != nil {
+			s.markRecoveryOutput(resp.Output, recovery.Delivered)
+		}
+		slot.confirm()
 	}
 }
 
 func (d *Daemon) handle(req Request) (json.RawMessage, string, error) {
+	out, text, _, err := d.handleAck(req)
+	return out, text, err
+}
+
+// handleAck is handle with the delivery slot of a hook response.
+func (d *Daemon) handleAck(req Request) (json.RawMessage, string, *ackSlot, error) {
+	slot := &ackSlot{}
+	out, text, err := d.handleWith(req, slot)
+	return out, text, slot, err
+}
+
+func (d *Daemon) handleWith(req Request, slot *ackSlot) (json.RawMessage, string, error) {
 	switch req.Event {
 	case "Ping":
 		return nil, "pong", nil
@@ -313,6 +331,7 @@ func (d *Daemon) handle(req Request) (json.RawMessage, string, error) {
 	}
 	for i, ev := range events {
 		inputs[i].Deadline = deadline
+		inputs[i].Ack = slot
 		out, err = d.handleHook(agent, ev, inputs[i])
 		if err != nil {
 			return nil, "", err

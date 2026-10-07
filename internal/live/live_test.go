@@ -130,6 +130,7 @@ func (h *harness) send(event string, payload map[string]any) map[string]any {
 	if resp.Error != "" {
 		h.t.Fatalf("%s: %s", event, resp.Error)
 	}
+	ackPrinted(conn, resp)
 	out := map[string]any{}
 	if len(resp.Output) > 0 {
 		_ = json.Unmarshal(resp.Output, &out)
@@ -814,6 +815,7 @@ func (h *harness) sendAgent(agent, event string, payload map[string]any) map[str
 	if resp.Error != "" {
 		h.t.Fatalf("%s: %s", event, resp.Error)
 	}
+	ackPrinted(conn, resp)
 	out := map[string]any{}
 	if len(resp.Output) > 0 {
 		_ = json.Unmarshal(resp.Output, &out)
@@ -1257,5 +1259,62 @@ func TestParallelToolCallsAreCountedOnce(t *testing.T) {
 	// the prompt plus two tool calls
 	if st.Observed != 3 {
 		t.Fatalf("parallel calls are observed once each: %d events", st.Observed)
+	}
+}
+
+// ackPrinted answers a delivery token the way the hook client does after
+// printing the response.
+func ackPrinted(conn net.Conn, resp Response) {
+	if resp.DeliveryToken == "" || len(resp.Output) == 0 {
+		return
+	}
+	b, _ := json.Marshal(map[string]any{"delivery_token": resp.DeliveryToken, "printed": true})
+	_, _ = conn.Write(append(b, '\n'))
+}
+
+// sendLost sends a hook request whose response the client never printed
+// (it gave up or its output failed): no receipt is returned.
+func (h *harness) sendLost(event string, payload map[string]any) map[string]any {
+	h.t.Helper()
+	payload["hook_event_name"] = event
+	payload["cwd"] = h.proj
+	payload["session_id"] = "sess-1"
+	conn, err := net.DialTimeout("unix", SocketPath(), time.Second)
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	defer conn.Close()
+	_ = conn.SetDeadline(time.Now().Add(30 * time.Second))
+	p, _ := json.Marshal(payload)
+	req, _ := json.Marshal(map[string]any{"v": 1, "agent": "claude", "event": event, "payload": json.RawMessage(p)})
+	_, _ = conn.Write(append(req, '\n'))
+	line, err := bufio.NewReader(conn).ReadBytes('\n')
+	if err != nil {
+		h.t.Fatal(err)
+	}
+	var resp Response
+	_ = json.Unmarshal(line, &resp)
+	out := map[string]any{}
+	if len(resp.Output) > 0 {
+		_ = json.Unmarshal(resp.Output, &out)
+	}
+	return out
+}
+
+func TestUndeliveredAdviceIsNotGroundsForABlock(t *testing.T) {
+	h := startDaemon(t)
+	h.send("UserPromptSubmit", map[string]any{"prompt": "src/a.py 시험 통과시켜 줘"})
+	fail := "FAILED tests/test_a.py::test_x - assert 1 == 2\n1 failed"
+	for i := 0; i < 7; i++ {
+		id := fmt.Sprintf("l%d", i)
+		in := map[string]any{"tool_name": "Bash", "tool_use_id": id, "tool_input": map[string]any{"command": "pytest -q"}}
+		pre := h.sendLost("PreToolUse", in)
+		if hs, _ := pre["hookSpecificOutput"].(map[string]any); hs != nil && hs["permissionDecision"] == "deny" {
+			t.Fatalf("run %d was blocked although no advice ever reached the agent: %v", i, hs["permissionDecisionReason"])
+		}
+		in["tool_response"] = map[string]any{"stdout": fail, "stderr": "", "interrupted": false}
+		in["error"] = "Exit code 1\n" + fail
+		h.sendLost("PostToolUseFailure", in)
+		time.Sleep(150 * time.Millisecond)
 	}
 }

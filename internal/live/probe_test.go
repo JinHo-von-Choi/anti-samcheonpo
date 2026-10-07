@@ -87,7 +87,7 @@ func TestSlowVersionProbeDoesNotHoldDaemonOrLoseDraft(t *testing.T) {
 	if finalCaps != adapter.Profiles["claude"].Caps {
 		t.Fatal("capability not applied")
 	}
-	message, _ := next.takePendingFor("PreToolUse")
+	message, _ := next.takePendingFor("PreToolUse", nil)
 	if !strings.Contains(message, "contract.yml") || !strings.Contains(message, "latest cold goal") || strings.Contains(message, "cold task") {
 		t.Fatal("first draft not delivered on supported hook", message)
 	}

@@ -614,7 +614,7 @@ func (s *Session) enqueue(ev *event.Event, wait time.Duration) {
 }
 
 // takePending returns and clears queued agent nudges and user messages.
-func (s *Session) takePendingFor(hook string) (string, string) {
+func (s *Session) takePendingFor(hook string, ack *ackSlot) (string, string) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	canInject := hook == "PreToolUse" && s.caps.InjectPre || hook == "PostToolUse" && s.caps.InjectPost || hook == "UserPromptSubmit" && s.caps.PromptInject || hook == "StopBlock" && s.caps.BlockStop
@@ -622,7 +622,7 @@ func (s *Session) takePendingFor(hook string) (string, string) {
 	if canInject {
 		for _, m := range s.pending {
 			if key := s.pendingRule[m]; key != "" {
-				s.advised[key] = true
+				s.noteAdvice(ack, key)
 			}
 		}
 		clear(s.pendingRule)

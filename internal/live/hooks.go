@@ -35,6 +35,9 @@ type HookInput struct {
 	Trigger        string          `json:"trigger"`
 	// Deadline is the hook client's wait limit, set by the daemon.
 	Deadline time.Time `json:"-"`
+	// Ack collects what this response tells the agent; it is recorded as
+	// delivered only when the hook client confirms it printed the response.
+	Ack *ackSlot `json:"-"`
 	// Usage carries plugin-reported token usage (agents without a transcript).
 	MessageID string `json:"message_id"`
 	Model     string `json:"model"`
@@ -255,7 +258,7 @@ func (s *Session) onPrompt(in HookInput) json.RawMessage {
 	card := s.goalCard(change.Goal)
 	s.mu.Unlock()
 	s.enqueue(ev, 0)
-	nudge, user := s.takePendingFor("UserPromptSubmit")
+	nudge, user := s.takePendingFor("UserPromptSubmit", in.Ack)
 	var ctx []string
 	// Observation-only by default: ask for a draft only when the user turned
 	// drafts on or already keeps a contract file.
@@ -406,7 +409,7 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 		}
 	}
 	if !deny {
-		nudge, user := s.takePendingFor("PreToolUse")
+		nudge, user := s.takePendingFor("PreToolUse", in.Ack)
 		out := map[string]any{}
 		if nudge != "" {
 			out = additional("PreToolUse", nudge)
@@ -460,7 +463,7 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 		s.persistVerdict(v)
 		s.record(v, route)
 		if route == "advice" && s.caps.InjectPre {
-			s.advised[s.adviceKey(v)] = true
+			s.noteAdvice(in.Ack, s.adviceKey(v))
 		}
 		s.mu.Unlock()
 		if route == "observe" {
@@ -469,7 +472,7 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 		return hookOut(additional("PreToolUse", reason))
 	}
 	if escalated {
-		s.escalations++
+		s.noteEscalation(in.Ack)
 		reason = escalationNote + "\n" + reason
 	}
 	if time.Now().After(deadline) {
@@ -545,7 +548,7 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 			return o
 		}
 	}
-	nudge, user := s.takePendingFor("PostToolUse")
+	nudge, user := s.takePendingFor("PostToolUse", in.Ack)
 	s.mu.Lock()
 	stop := s.unresolved != nil && s.unresolved.Level >= detect.L3 && s.unresolved.Seq >= ev.Seq-1
 	var l3 *detect.Signal
@@ -672,7 +675,7 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 	if canBlock && len(unmet) > 0 && blocks < s.Cfg.Levels.MaxStopBlocks && !in.StopHookActive {
 		route = "StopBlock"
 	}
-	nudge, user := s.takePendingFor(route)
+	nudge, user := s.takePendingFor(route, in.Ack)
 	if canBlock && len(unmet) > 0 && blocks < s.Cfg.Levels.MaxStopBlocks && !in.StopHookActive {
 		s.mu.Lock()
 		s.stopBlocks++
