@@ -94,11 +94,11 @@ AI로 일을 시킨다 → 삼천포가 지켜본다 → 헛짓이면 알려 준
 
 ### 릴리스 파일 (Linux x86-64)
 
-[Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases)에서 `samcheonpo_0.2.2_linux_amd64.tar.gz`와 `SHA256SUMS`를 받습니다.
+[Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases)에서 `samcheonpo_0.3.0_linux_amd64.tar.gz`와 `SHA256SUMS`를 받습니다.
 
 ```bash
 sha256sum -c SHA256SUMS
-tar -xzf samcheonpo_0.2.2_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.3.0_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -110,8 +110,8 @@ samcheonpo doctor
 Go 1.27 이상이 필요합니다. 현재 실제 실행을 확인한 환경은 Linux x86-64뿐입니다.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.2.2
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.2.2
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.3.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.3.0
 ```
 
 Windows 네이티브는 지원하지 않습니다(WSL은 미검증).
