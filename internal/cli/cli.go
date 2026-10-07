@@ -641,6 +641,12 @@ func initCmd() *cobra.Command {
 			}
 			cands := contract.Candidates(".")
 			fmt.Fprintf(cmd.OutOrStdout(), "%s를 만들었다.\n", p)
+			switch added, err := ignoreStateDir(".gitignore"); {
+			case err != nil:
+				fmt.Fprintf(cmd.OutOrStdout(), ".gitignore를 고치지 못했다: %v. .samcheonpo/를 직접 넣어 둔다.\n", err)
+			case added:
+				fmt.Fprintln(cmd.OutOrStdout(), ".gitignore에 .samcheonpo/를 넣었다 (수락 기록과 통과 시점 기록이 커밋에 섞이지 않도록).")
+			}
 			if len(cands) > 0 {
 				fmt.Fprintln(cmd.OutOrStdout(), "이 저장소에서 찾은 완료 조건 후보:")
 				for _, c := range cands {
@@ -908,4 +914,28 @@ func debugCmd() *cobra.Command {
 			return analyze.CheckInvariant(r.Session, r.Totals)
 		},
 	}
+}
+
+// ignoreStateDir adds .samcheonpo/ to the project's .gitignore unless an
+// entry already covers it. Without a repository there is nothing to do.
+func ignoreStateDir(path string) (bool, error) {
+	if _, err := os.Stat(".git"); err != nil {
+		return false, nil
+	}
+	b, err := os.ReadFile(path)
+	if err != nil && !os.IsNotExist(err) {
+		return false, err
+	}
+	for _, line := range strings.Split(string(b), "\n") {
+		switch strings.TrimSpace(line) {
+		case ".samcheonpo", ".samcheonpo/", "/.samcheonpo", "/.samcheonpo/", ".samcheonpo/**":
+			return false, nil
+		}
+	}
+	text := string(b)
+	if text != "" && !strings.HasSuffix(text, "\n") {
+		text += "\n"
+	}
+	text += ".samcheonpo/\n"
+	return true, os.WriteFile(path, []byte(text), 0o644)
 }
