@@ -147,6 +147,8 @@ type State struct {
 	strategies   []strategy
 	s6Fired      bool
 	s6SameFired  bool
+	// recoveryUsed marks the one recovery check granted per run and cause.
+	recoveryUsed map[string]bool
 }
 
 // sameFilesAttempts is when repeated failures on the same files suggest a
@@ -201,7 +203,7 @@ func NewEngine(cfg config.Config, c *contract.Contract, accepted bool, mode, roo
 		verify: map[string]*vcEntry{}, errStreak: map[string]*streak{}, fileHist: map[string][]hist{},
 		editHist: map[string][]editHist{}, lineCount: map[string]int{}, highWater: map[string]int{}, created: map[string]bool{},
 		readCount: map[string]int{}, minute: map[int64]int64{}, outScope: map[string]bool{}, guessOut: map[string]int{}, testLits: map[string]int64{},
-		velocityFired: map[int64]bool{}, budgetFired: map[int]bool{}, LastProgress: -1, lastUnknown: -1, attemptFiles: map[string]bool{},
+		velocityFired: map[int64]bool{}, budgetFired: map[int]bool{}, LastProgress: -1, lastUnknown: -1, attemptFiles: map[string]bool{}, recoveryUsed: map[string]bool{},
 	}
 	if c != nil && len(c.Scope.Allow) > 0 {
 		e.St.scopeKnown = true
@@ -392,16 +394,21 @@ func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 				s.lastWS = ev.WSBefore
 				s.seqs = append(s.seqs, ev.Seq)
 				p := e.Cfg.Detectors.S2
+				// a raised nudge threshold shifts the later steps by the same
+				// amount, so the ladder never goes L2 before L1
+				nudge := e.threshold("s2.stuck_error", p.Nudge)
+				shift := nudge - p.Nudge
+				notify, pause := p.Notify+shift, p.Pause+shift
 				var lvl Level = -1
 				switch s.count {
-				case e.threshold("s2.stuck_error", p.Nudge):
+				case nudge:
 					lvl = L1
-				case p.Notify:
+				case notify:
 					lvl = L2
-				case p.Pause:
+				case pause:
 					lvl = L3
 				}
-				if s.count > p.Pause {
+				if s.count > pause {
 					lvl = L3
 				}
 				if lvl >= 0 {
@@ -562,6 +569,11 @@ func (e *Engine) environment(ev *event.Event, sigs *[]Signal) {
 			}
 		}
 		delete(st.lastFail, runID(ev))
+		for key := range st.recoveryUsed {
+			if strings.HasSuffix(key, "|"+runID(ev)) {
+				delete(st.recoveryUsed, key)
+			}
+		}
 		return
 	}
 	if ev.Tool != event.ToolShell || ev.ExitCode == nil || *ev.ExitCode <= 0 || runID(ev) == "" {
@@ -1231,7 +1243,7 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 	st := e.St
 	if ev.Tool == event.ToolShell && ev.Category == event.CatVerify && runID(ev) != "" && blockableRun(ev) && !e.nondeterministic(ev.CmdNorm) {
 		key := runID(ev) + "|" + ev.WSBefore
-		if ent := st.verify[key]; ent != nil && ent.count >= e.threshold("s1.identical_rerun", e.Cfg.Detectors.S1.RepeatNudgeAt)-1 {
+		if ent := st.verify[key]; ent != nil && ent.count >= e.threshold("s1.identical_rerun", e.Cfg.Detectors.S1.RepeatNudgeAt)-1 && !e.recoveryCheck(ev) {
 			last := st.bySeq[ent.seqs[len(ent.seqs)-1]]
 			s := Signal{Detector: "S1", Rule: "s1.identical_rerun", Confidence: 0.95, Level: L1, Evidence: append([]int64(nil), ent.seqs...),
 				Facts: map[string]any{"cmd": ev.CmdNorm, "count": ent.count + 1, "blocked": true}}
@@ -1282,6 +1294,26 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 		}
 	}
 	return false, nil
+}
+
+// recoveryCheck lets one rerun through after the last failure of this run was
+// caused outside the code (service down, missing dependency, permission,
+// network): the workspace fingerprint cannot see a service coming back, so
+// an unchanged fingerprint is no evidence that nothing changed. The check is
+// granted once per run and cause; a success resets it, another failure from
+// the same cause ends it.
+func (e *Engine) recoveryCheck(ev *event.Event) bool {
+	st := e.St
+	lf, ok := st.lastFail[runID(ev)]
+	if !ok || !(fp.External(lf.class) || lf.class == fp.FailTransient) {
+		return false
+	}
+	key := lf.class + "|" + runID(ev)
+	if st.recoveryUsed[key] {
+		return false
+	}
+	st.recoveryUsed[key] = true
+	return true
 }
 
 // threshold returns a configured threshold raised by per-rule overrides.

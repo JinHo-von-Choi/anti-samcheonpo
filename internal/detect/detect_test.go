@@ -923,3 +923,57 @@ func TestVerifyAfterDocsAndReviewRepeat(t *testing.T) {
 		t.Fatal("a review after a change is a new review")
 	}
 }
+
+func TestRecoveryCheckAfterEnvironmentFailure(t *testing.T) {
+	b := newB(t, "x", nil)
+	down := "E   psycopg.OperationalError: connection failed: connection refused\nFAILED tests/test_db.py::test_save\n1 failed"
+	for i := 0; i < 3; i++ {
+		shellFail(b, "pytest -q", down)
+	}
+	if deny, sig := preVerify(b, "pytest -q"); deny {
+		t.Fatalf("the first rerun after an environment-caused failure is a recovery check: %+v", sig)
+	}
+	shellFail(b, "pytest -q", down) // the service is still down
+	if deny, _ := preVerify(b, "pytest -q"); !deny {
+		t.Fatal("after a failed recovery check the unchanged rerun is blocked again")
+	}
+	ok := 0
+	pass := &event.Event{Kind: event.KindTool, Tool: event.ToolShell, Cmd: "pytest -q", CmdNorm: "pytest -q", CmdFP: fp.CmdFP("pytest -q"), Category: event.CatVerify, ExitCode: &ok}
+	b.next(pass)
+	for i := 0; i < 3; i++ {
+		shellFail(b, "pytest -q", down)
+	}
+	if deny, _ := preVerify(b, "pytest -q"); deny {
+		t.Fatal("a success resets the recovery check for a later outage")
+	}
+	// a code failure gets no recovery check
+	c := newB(t, "x", nil)
+	for i := 0; i < 3; i++ {
+		c.verify("pytest -q", 1, []string{"t::a"})
+	}
+	if deny, _ := preVerify(c, "pytest -q"); !deny {
+		t.Fatal("an unchanged rerun of a code failure is still blocked")
+	}
+}
+
+func TestStuckErrorLadderKeepsOrderWhenNudgeIsRaised(t *testing.T) {
+	b := newB(t, "x", nil)
+	b.e.Cfg.Detectors.Overrides = map[string]int{"s2.stuck_error": 2} // nudge 3 -> 6
+	var levels []Level
+	for i := 0; i < 12; i++ {
+		b.write("a.py", fmt.Sprintf("h%d", i), []string{"x"}, nil)
+		for _, s := range b.verify("pytest", 1, []string{"t::x"}) {
+			if s.Rule == "s2.stuck_error" && !s.Suppressed {
+				levels = append(levels, s.Level)
+			}
+		}
+	}
+	for i := 1; i < len(levels); i++ {
+		if levels[i] < levels[i-1] {
+			t.Fatalf("the ladder went backwards: %v", levels)
+		}
+	}
+	if len(levels) == 0 || levels[0] != L1 {
+		t.Fatalf("the first stuck-error step is L1: %v", levels)
+	}
+}

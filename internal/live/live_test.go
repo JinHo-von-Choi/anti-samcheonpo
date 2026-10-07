@@ -1190,3 +1190,23 @@ func TestRollbackRestoresOnlyAgentWritesSinceProgress(t *testing.T) {
 		t.Fatalf("the rollback is recorded in the ledger: %d", n)
 	}
 }
+
+func TestRerunAfterServiceRecoveryIsNotBlocked(t *testing.T) {
+	h := startDaemon(t)
+	h.send("UserPromptSubmit", map[string]any{"prompt": "주문 저장 시험 고쳐 줘"})
+	down := "E   psycopg.OperationalError: connection failed: connection refused\nFAILED tests/test_db.py::test_save\n1 failed"
+	for i := 0; i < 3; i++ {
+		if o := h.shell(fmt.Sprintf("d%d", i), "pytest -q", down, 1); o["hookSpecificOutput"] != nil {
+			if hs, _ := o["hookSpecificOutput"].(map[string]any); hs["permissionDecision"] == "deny" {
+				t.Fatalf("a failing run %d is not blocked yet: %v", i, hs)
+			}
+		}
+		time.Sleep(150 * time.Millisecond)
+	}
+	// the user brings the database back (outside the workspace) and the agent reruns
+	in := map[string]any{"tool_name": "Bash", "tool_use_id": "d3", "tool_input": map[string]any{"command": "pytest -q"}}
+	pre := h.send("PreToolUse", in)
+	if hs, _ := pre["hookSpecificOutput"].(map[string]any); hs != nil && hs["permissionDecision"] == "deny" {
+		t.Fatalf("the rerun after a service recovery must be allowed: %v", hs["permissionDecisionReason"])
+	}
+}
