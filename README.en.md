@@ -29,10 +29,26 @@ The waste follows predictable patterns:
 
 All the while the AI says "almost done". You sit there watching, unaware, while time and money drain away. Samcheonpo is a harness built to cut this **dumb cost**. The name comes from a Korean idiom: when a conversation wanders off somewhere unrelated, it "falls into Samcheonpo". This tool catches the moment your task does.
 
+## At a glance
+
+Samcheonpo sits between the agent and you and judges only by what actually ran. What the AI says is not evidence.
+
+```mermaid
+flowchart LR
+    U[You] -->|request| A[AI agent<br/>Claude Code · Codex · opencode<br/>agy · Hermes · OpenClaw]
+    A -->|commands · edits · test results · tokens| H[Samcheonpo daemon<br/>runs only on your machine]
+    H -->|busywork signal| J{Verdict}
+    J -->|first time| N[Nudge<br/>evidence and next step to the agent]
+    J -->|same busywork repeated| B[Block before it runs<br/>with the reason]
+    J -->|over budget · cause outside the code| S[Stop · hold edits]
+    H -->|plain-language warning · status line · receipt| U
+    U -->|keep · steer · rollback| H
+```
+
 ## How it helps
 
 **1. It watches.**
-It hooks directly into Claude Code, Codex, opencode, Antigravity (agy), Hermes, and OpenClaw to trace edits, commands, test outputs, and spend in real time. It trusts actual runs over agent claims.
+It hooks into the agent to see the commands it runs, the files it edits, the test results and the tokens it spends, in real time. It trusts actual runs over agent claims.
 
 **2. It tells you in plain words.**
 Instead of opaque log notices, it drops concrete warnings (currently Korean; translations below):
@@ -49,7 +65,16 @@ AI가 요청 범위 밖 파일을 고쳤습니다 (src/theme/dark.css, 누적 2�
 
 Each warning ends with one sentence you can paste to the AI as is, followed by the choices (keep now: allow once; keep normal: this call is wrong; steer; summary).
 
-A compact status line starts with one of four states: going well (there is progress evidence), watching, step in now, or unknown (observation is incomplete). No warnings alone is never shown as going well. Then come progress 1/2, idle spend at API rates ₩1,240, and busywork 12% (of what was measured).
+A compact status line starts with one of four states. No warnings alone is never shown as going well.
+
+| State | Meaning |
+| --- | --- |
+| Going well (순조로움) | There is progress evidence such as a passing check, and no warning since |
+| Watching (지켜보는 중) | No progress evidence yet, or one light notice was given |
+| Step in now (지금 끼어드세요) | Repeated busywork or a block stands |
+| Unknown (확인 불가) | Observation is incomplete, so no judgement is possible |
+
+Then come progress 1/2, idle spend at API rates ₩1,240, and busywork 12% (of what was measured).
 
 ```text
 [지켜보는 중] 진척 1/2 · 공회전 API환산 1,240원 · 헛짓 12% (계측분)
@@ -58,12 +83,18 @@ A compact status line starts with one of four states: going well (there is progr
 **3. If ignored, it blocks.**
 At first it only gives the agent a nudge, with the evidence. If the agent gets the same warning in the same session and still repeats the same busywork on the same target, Samcheonpo blocks the next run **before it executes** and returns the reason. If the block was wrong, one `/samcheonpo:keep normal` lifts it.
 
+```mermaid
+flowchart LR
+    O[Observe] --> W[Busywork signal]
+    W -->|first time| N[Nudge<br/>evidence and next step to the agent]
+    N -->|same busywork<br/>on the same target| B[Block before it runs]
+    N -->|behaviour changes| O
+    B -->|you: keep normal| R[Lifted · recorded as a false positive]
+    B -->|cap of 3 per session| O
+```
+
 **4. It lets you look back.**
 Run `samcheonpo audit` across stored Claude Code and Codex logs to see where tokens went. The audit separates genuine progress from idle spinning. It runs fully offline with zero model calls, so your logs stay on your machine.
-
-```text
-You give the AI a task → Samcheonpo watches → busywork gets flagged → ignored flags become blocks → receipts let you look back
-```
 
 > The amounts Samcheonpo shows are **measured tokens converted at API prices**, in Korean won. They are not your actual bill or savings. When usage is unknown it says "unknown", not ₩0.
 
@@ -75,11 +106,28 @@ You give the AI a task → Samcheonpo watches → busywork gets flagged → igno
 | --- | --- | --- |
 | **Over-verification** | Same test repeated with no code change · rerunning a check that already has passing evidence · re-verifying after touching only docs · repeating the same review on the same state | Nudge → block before running on repeat (shows the earlier result) |
 | **Drifting off task** | Editing files outside the requested scope · editing protected paths · faking a real service to make tests pass · reverting to an old goal after context compaction | Nudge · immediate block on protected paths · shows what you asked next to what it is doing · right after a context compaction, once, restates the goal, protected paths and remaining done-conditions in one line |
-| **Capability loops** | Same error after every fix · failing while editing the same files again and again · retrying a fix that already failed (even across sessions) · flip-flopping edits (including ones that only rename or reformat) · repeated failures most likely caused by conditions outside the code (installs, services, permissions, ports, auth) | Nudge → block on repeat → stop auto-retries and write a handoff note. When a cause outside the code repeats twice with the environment unchanged, source edits are refused before they run until the cause is gone, and the one command a person should run (`npm install yaml` and the like) is shown. Dependency manifests stay editable; a pass of the same command or a successful install/service start lifts it |
+| **Capability loops** | Same error after every fix · failing while editing the same files again and again · retrying a fix that already failed (even across sessions) · flip-flopping edits (including ones that only rename or reformat) · repeated failures most likely caused by conditions outside the code | Nudge → block on repeat → stop auto-retries and write a handoff note. A confirmed cause outside the code is handled as described under "Problems outside the code" below |
 | **False "done"** | Deleting, skipping or weakening tests · code that hides errors · declaring "done" while the done-check fails | Nudge → block on repeat |
 | **Runaway cost** | Spend piling up without progress · abnormal spend rate · exceeding your budget · a tree of parent and child sessions exceeding its shared budget | Alert · stop when over budget · past the tree limit every session in that tree is refused before its next run |
 
-It follows five principles.
+### Problems outside the code cannot be fixed with code
+
+A package that is not installed, a server that is down, a missing permission, a port already in use: no amount of editing fixes these. When the same command fails twice with the same external cause and nothing in the environment changed, Samcheonpo holds source edits before they run until the cause is gone, and shows the one command a person should run.
+
+```mermaid
+flowchart LR
+    F[Command fails] --> C{Classify the cause<br/>from the run result only}
+    C -->|code problem| K[Nudge as usual]
+    C -->|transient<br/>network and the like| T[Retry allowed]
+    C -->|outside the code<br/>dependency · command · permission · service · port · auth · disk| X{Second time with<br/>the environment unchanged?}
+    X -->|no| K
+    X -->|yes| Z[Hold source edits<br/>for a person: npm install yaml]
+    Z -->|same command passes · install/service start succeeds · keep normal| K
+```
+
+Dependency manifests (`package.json`, `requirements.txt` and the like) stay editable while edits are held. Timeouts and kills can be code causes and never trigger the hold.
+
+### Principles
 
 1. **Judge by results.** Decisions rest on command results, working-tree state and test results, not on what the AI says about itself.
 2. **Never block on counts alone.** It blocks only when input and environment are unchanged and there is no new information and no progress. Retrying after changing code is not blocked. If the last failure came from a service, dependency, permission or network problem, the next rerun is let through once as a recovery check, and an install or service command in between starts the count over.
@@ -159,8 +207,8 @@ Your existing hooks and status line settings are preserved. Now just give the AI
 | `/samcheonpo:keep now` | Let it through this once; if it happens again, advise before blocking |
 | `/samcheonpo:steer` | Pass Samcheonpo's prescription to the agent |
 | `/samcheonpo:check` | Run the done-check now |
-| `/samcheonpo:rollback` | Put files the AI changed with its write tools back to the last progress a passing check confirmed. Without arguments it previews; `apply <plan ID>` performs exactly the previewed plan. Files whose ownership is unclear (your edits mixed in, changed by shell commands or links) are left alone, and replaced content is backed up |
-| `/samcheonpo:rollback golden` | List the copies of the AI's files recorded under `.samcheonpo/snapshots` at each passing check. `golden <id>` previews a return to that point, `golden <id> apply <plan ID>` performs it. Same ownership rules as rollback; the five most recent points are kept |
+| `/samcheonpo:rollback` | Put files the AI changed with its write tools back to the last progress a passing check confirmed. Without arguments it previews; `apply <plan ID>` performs exactly the previewed plan |
+| `/samcheonpo:rollback golden` | List the AI's files recorded at each passing check. `golden <id>` previews a return to that point, `golden <id> apply <plan ID>` performs it. The five most recent points are kept |
 | `/samcheonpo:accept`, `/samcheonpo:edit` | Accept or edit a work contract (when you use one) |
 
 `/samcheonpo:summary` example:
@@ -184,6 +232,24 @@ samcheonpo uninstall --agent claude
 ```
 
 Uninstallation leaves user-modified files alone and resets the agent hooks to their original shape.
+
+---
+
+## Rollback
+
+Rollback returns the files the AI changed to the last point a check passed. At every passing check the AI's files at that moment are recorded under `.samcheonpo/snapshots`, so a return to that point still works after the daemon restarts.
+
+```mermaid
+flowchart LR
+    W1[AI edits a.py] --> P[pytest passes<br/>point recorded]
+    P --> W2[AI edits a.py · b.py]
+    W2 --> X[pytest keeps failing]
+    X -->|rollback| R[a.py · b.py back to<br/>the passing point]
+    U[You edit b.py by hand] -.->|ownership unclear| R
+    R -->|b.py is left alone| D[preview → apply]
+```
+
+One rule applies. **Only files the AI changed with its write tools, and nobody touched since, are returned.** Files you edited, files changed by shell commands and links are not covered, and the preview lists them with the reason. Replaced content is backed up under `~/.samcheonpo/backup/`.
 
 ---
 
@@ -256,8 +322,8 @@ The research experiment mode (`experiment: {enabled: true}`) is off by default. 
 - **False positives can happen.** That is why it starts with nudges and blocks only when a warning was ignored on the same target in the same session, within a per-session cap. Report wrong calls with `/samcheonpo:keep normal`.
 - **A pre-run block reaches the agent only if the decision finishes within the hook's wait (15 ms).** If it does not, the run is not blocked, and the status line shows the number of late decisions and `unknown`.
 - **Rollback covers only files changed through write tools (Write, Edit) whose ownership is confirmed.** Files changed by shell commands, files with your edits mixed in, and links are not covered. The same holds for a return to a recorded passing point (`rollback golden`); files written by another session's agent are left alone because this session cannot confirm their ownership.
-- **Refusing edits for a cause outside the code can be wrong.** It applies only after the same command failed twice with the same external cause and no environment change, and `/samcheonpo:keep normal` lifts it at once. Timeouts (124) and kills (137) can be code causes and never trigger it.
-- **Code freeze, recorded passing points, tree budgets, the post-compaction anchor and the HUD have, as of 2026-10-07, been checked by harness tests only.** They have not yet been verified with a real agent run.
+- **Holding edits for a cause outside the code can be wrong.** It applies only after the same command failed twice with the same external cause and no environment change, and `/samcheonpo:keep normal` lifts it at once. Timeouts (124) and kills (137) can be code causes and never trigger it.
+- **The edit hold for causes outside the code, recorded passing points, tree budgets, the post-compaction anchor and the HUD have, as of 2026-10-07, been checked by harness tests only.** They have not yet been verified with a real agent run.
 - **User-only commands are refused in the agent's shell, but this is not full isolation.** `accept`, `keep` and `rollback apply` run through the agent's shell tool are refused; a process of the same OS user connecting to the daemon socket directly is not stopped.
 - **On short, clear tasks it has little to do.** Busywork mostly shows up in long, complex sessions.
 - **Amounts are API-rate conversions.** They do not reflect your actual subscription bill or remaining quota.
@@ -267,7 +333,7 @@ The research experiment mode (`experiment: {enabled: true}`) is off by default. 
 ## Learn more
 
 - [Getting started](docs/getting-started.md) · [Support and verification matrix](docs/support-matrix.md) (Korean)
-- Specs: [progress contract](docs/spec/progress-contract-v1.md) · [evidence ledger](docs/spec/evidence-ledger-v1.md) · [receipt display](docs/spec/receipt-billing.md) · [handoff](docs/spec/handoff-v1-draft.md)
+- Specs: [progress contract](docs/spec/progress-contract-v1.md) · [evidence ledger](docs/spec/evidence-ledger-v1.md) · [receipt display](docs/spec/receipt-billing.md) · [recovery and causes outside the code](docs/spec/recovery-v1.md) · [handoff](docs/spec/handoff-v1-draft.md)
 - Evaluation: `samcheonpo bench` (deterministic scenarios), `samcheonpo bench ab` (real agent comparison), `samcheonpo gaps` (spans the rules may have missed), `samcheonpo interventions` (how far each prescription got)
 - [Conformance cases](conformance/) are public so other tools can be scored against the same spec.
 
