@@ -342,7 +342,21 @@ func SaveAcceptance(project string, a Acceptance) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp, filepath.Join(Dir(project), "contract.state.json"))
+	return replaceFile(tmp, filepath.Join(Dir(project), "contract.state.json"))
+}
+
+// replaceFile renames tmp over dst. Windows refuses the rename while another
+// process or goroutine still has dst open, so a short retry covers concurrent
+// writers; the last error is returned when it keeps failing.
+func replaceFile(tmp, dst string) error {
+	var err error
+	for i := 0; i < 50; i++ {
+		if err = os.Rename(tmp, dst); err == nil {
+			return nil
+		}
+		time.Sleep(5 * time.Millisecond)
+	}
+	return err
 }
 
 // CurrentState resolves the acceptance state against the current file.

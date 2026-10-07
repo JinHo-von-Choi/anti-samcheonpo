@@ -4,13 +4,21 @@ import (
 	"bufio"
 	"fmt"
 	"net"
+	"os"
 	"path/filepath"
 	"testing"
 	"time"
 )
 
 func TestBootstrapRetainsFirstConnectionAndDoesNotRetryWarm(t *testing.T) {
-	path := filepath.Join(t.TempDir(), "daemon.sock")
+	// a unix socket path is limited to ~104 bytes on macOS, shorter than a
+	// test temp dir there
+	short, err := os.MkdirTemp("", "sc")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { os.RemoveAll(short) })
+	path := filepath.Join(short, "daemon.sock")
 	listener := make(chan net.Listener, 1)
 	errCh := make(chan error, 1)
 	spawned := 0

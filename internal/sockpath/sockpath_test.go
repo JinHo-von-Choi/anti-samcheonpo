@@ -1,6 +1,8 @@
 package sockpath
 
 import (
+	"os"
+	"path/filepath"
 	"strings"
 	"testing"
 )
@@ -15,8 +17,8 @@ func TestShortPath(t *testing.T) {
 	t.Setenv("XDG_RUNTIME_DIR", "")
 	t.Setenv("SAMCHEONPO_HOME", long)
 	p := Path()
-	if len(p) > maxLen || !strings.HasPrefix(p, "/tmp/samcheonpo-") {
-		t.Errorf("long paths fall back to /tmp: %s", p)
+	if len(p) > maxLen || !strings.HasPrefix(p, filepath.Join(os.TempDir(), "samcheonpo-")) {
+		t.Errorf("long paths fall back to the temp dir: %s", p)
 	}
 	if Path() != p {
 		t.Error("fallback is stable")

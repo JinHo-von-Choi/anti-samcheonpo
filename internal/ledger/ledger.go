@@ -33,7 +33,7 @@ func Open(path string) (*DB, error) {
 	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", path+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
+	db, err := sql.Open("sqlite", fileURI(path)+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
 	if err != nil {
 		return nil, err
 	}
@@ -567,4 +567,14 @@ func (d *DB) Mode(id string) string {
 	var m string
 	_ = d.QueryRow(`SELECT mode FROM session WHERE id=?`, id).Scan(&m)
 	return m
+}
+
+// fileURI turns a filesystem path into the SQLite file: URI form. A Windows
+// drive path needs the three-slash form, or the drive letter is read as a URI
+// authority.
+func fileURI(path string) string {
+	if filepath.VolumeName(path) != "" {
+		return "file:///" + filepath.ToSlash(path)
+	}
+	return "file:" + filepath.ToSlash(path)
 }

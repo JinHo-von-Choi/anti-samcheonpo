@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -333,6 +334,11 @@ func (p *Parser) rel(path string) string {
 	if path == "" {
 		return ""
 	}
+	if strings.HasPrefix(path, "/") && !strings.HasPrefix(p.Root, "/") && filepath.Separator != '/' {
+		// a Unix transcript read on another host: slash semantics, not the
+		// host's
+		return relSlash(filepath.ToSlash(p.Root), path)
+	}
 	path = filepath.Clean(path)
 	if p.Root != "" && filepath.IsAbs(path) {
 		if r, err := filepath.Rel(p.Root, path); err == nil && !strings.HasPrefix(r, "..") {
@@ -341,6 +347,22 @@ func (p *Parser) rel(path string) string {
 		return filepath.ToSlash(path)
 	}
 	return filepath.ToSlash(path)
+}
+
+// relSlash is rel for slash-separated absolute paths regardless of host.
+func relSlash(root, p string) string {
+	p = pathpkg.Clean(p)
+	if root == "" {
+		return p
+	}
+	root = pathpkg.Clean(root)
+	if p == root {
+		return "."
+	}
+	if strings.HasPrefix(p, root+"/") {
+		return strings.TrimPrefix(p, root+"/")
+	}
+	return p
 }
 
 func (p *Parser) toolUse(b block, ts time.Time, ref string, side bool) *event.Event {

@@ -10,6 +10,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strings"
 )
 
 // Fingerprint reads literal files/directories without following links. It
@@ -24,6 +25,10 @@ func Fingerprint(ctx context.Context, root string, paths []string) (string, erro
 	h := sha256.New()
 	files := 0
 	var bytesRead int64
+	rootResolved, err := filepath.EvalSymlinks(root)
+	if err != nil {
+		return "", err
+	}
 	for _, p := range paths {
 		if p == "" {
 			return "", fmt.Errorf("empty input path")
@@ -31,18 +36,22 @@ func Fingerprint(ctx context.Context, root string, paths []string) (string, erro
 		if !filepath.IsAbs(p) {
 			p = filepath.Join(root, p)
 		}
-		// WalkDir does not follow terminal links, but parent components also
-		// need validation or a literal file can escape through a linked dir.
+		// WalkDir does not follow terminal links, so a linked input is refused
+		// outright; parent components are resolved and must stay inside the
+		// resolved project, or a literal file could escape through a linked
+		// directory. The project root itself may sit behind a link (macOS
+		// /var, Windows short names), so both sides are compared resolved.
+		if lst, err := os.Lstat(p); err != nil {
+			return "", err
+		} else if lst.Mode()&fs.ModeSymlink != 0 {
+			return "", fmt.Errorf("symbolic input path is not reusable")
+		}
 		resolved, err := filepath.EvalSymlinks(p)
 		if err != nil {
 			return "", err
 		}
-		abs, err := filepath.Abs(p)
-		if err != nil {
-			return "", err
-		}
-		if resolved != abs {
-			return "", fmt.Errorf("symbolic input path is not reusable")
+		if resolved != rootResolved && !strings.HasPrefix(resolved, rootResolved+string(filepath.Separator)) {
+			return "", fmt.Errorf("input path leaves the project")
 		}
 		err = filepath.WalkDir(p, func(path string, entry fs.DirEntry, err error) error {
 			if err != nil {

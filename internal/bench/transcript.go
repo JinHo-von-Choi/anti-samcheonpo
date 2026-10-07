@@ -31,7 +31,7 @@ func ResolveTranscript(agent, id, repo, claudeDir, codexDir string, start time.T
 		if s.ID != id {
 			continue
 		}
-		if filepath.Clean(s.ProjectPath) != filepath.Clean(repo) {
+		if !sameDir(s.ProjectPath, repo) {
 			return nil, fmt.Errorf("transcript workspace mismatch")
 		}
 		if found != nil {
@@ -46,4 +46,18 @@ func ResolveTranscript(agent, id, repo, claudeDir, codexDir string, start time.T
 		return nil, fmt.Errorf("incomplete transcript usage")
 	}
 	return found, nil
+}
+
+// sameDir compares two directories after resolving links, so a project under
+// a linked temp directory (macOS /var) still matches its transcript.
+func sameDir(a, b string) bool {
+	ra, err := filepath.EvalSymlinks(a)
+	if err != nil {
+		ra = filepath.Clean(a)
+	}
+	rb, err := filepath.EvalSymlinks(b)
+	if err != nil {
+		rb = filepath.Clean(b)
+	}
+	return ra == rb
 }

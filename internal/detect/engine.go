@@ -602,9 +602,11 @@ type failMark struct {
 // cannot repair what is outside the source, so PreCheck refuses it and names
 // the external action instead.
 type freezeMark struct {
-	class, cmd, remedy string
-	seq                int64
-	count              int
+	class, remedy string
+	run           string // execution identity the freeze is keyed to
+	cmd           string // the command as the user reads it
+	seq           int64
+	count         int
 }
 
 // environment raises s2.environment when a failure that needs an action
@@ -614,7 +616,7 @@ func (e *Engine) environment(ev *event.Event, sigs *[]Signal) {
 	st := e.St
 	if ev.Tool == event.ToolShell && ev.ExitCode != nil && *ev.ExitCode == 0 && runID(ev) != "" {
 		// the environment recovered for this run: a later failure starts over
-		if f := st.freeze; f != nil && (f.cmd == runID(ev) || ev.Mutating) {
+		if f := st.freeze; f != nil && (f.run == runID(ev) || ev.Mutating) {
 			// the frozen command passed, or a command that changes the
 			// environment did: the cause no longer stands
 			st.freeze = nil
@@ -667,7 +669,7 @@ func (e *Engine) environment(ev *event.Event, sigs *[]Signal) {
 		facts["remedy"] = fault.Remedy
 	}
 	if fp.External(class) {
-		st.freeze = &freezeMark{class: class, cmd: runID(ev), remedy: fault.Remedy, seq: ev.Seq, count: s.count}
+		st.freeze = &freezeMark{class: class, run: runID(ev), cmd: ev.CmdNorm, remedy: fault.Remedy, seq: ev.Seq, count: s.count}
 	}
 	e.add(sigs, Signal{Detector: "S2", Rule: "s2.environment", Confidence: 0.85, Level: lvl, Evidence: append([]int64(nil), s.seqs...), Facts: facts})
 }
