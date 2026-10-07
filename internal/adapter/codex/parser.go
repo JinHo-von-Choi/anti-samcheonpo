@@ -180,6 +180,9 @@ func (p *Parser) rel(path string) string {
 		// a Unix transcript read on another host keeps slash semantics
 		path = pathpkg.Clean(path)
 		root := pathpkg.Clean(filepath.ToSlash(p.root))
+		if p.root != "" && path == root {
+			return "."
+		}
 		if p.root != "" && strings.HasPrefix(path, root+"/") {
 			return strings.TrimPrefix(path, root+"/")
 		}
