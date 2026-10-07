@@ -324,6 +324,20 @@ func ExecutedVerify(ev *event.Event) bool {
 
 func failing(ev *event.Event) bool { return ev.ExitCode != nil && *ev.ExitCode > 0 }
 
+// runID is the identity of a shell run for repeat decisions: the execution
+// fingerprint when the adapter computed one, else the display fingerprint.
+func runID(ev *event.Event) string {
+	if ev.ExecFP != "" {
+		return ev.ExecFP
+	}
+	return ev.CmdFP
+}
+
+// blockableRun reports whether a run's identity is certain enough to block a
+// repeat. Runs without an execution fingerprint (older records) are advised
+// only; so are runs whose shell text hides what would execute.
+func blockableRun(ev *event.Event) bool { return ev.ExecFP != "" && ev.ExecCertain }
+
 func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 	st := e.St
 	if !ExecutedVerify(ev) {
@@ -336,8 +350,8 @@ func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 	e.verifyProgress(ev, prev)
 
 	// S1 identical rerun
-	if ev.CmdFP != "" && !e.nondeterministic(ev.CmdNorm) {
-		key := ev.CmdFP + "|" + ev.WSBefore
+	if runID(ev) != "" && !e.nondeterministic(ev.CmdNorm) {
+		key := runID(ev) + "|" + ev.WSBefore
 		ent := st.verify[key]
 		if ent != nil && ent.result == ev.ResultFP {
 			ent.count++
@@ -399,7 +413,7 @@ func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 						}
 					}
 					waste := e.markWaste(rng, "S2")
-					st.stuckCmd[ev.CmdFP] = true
+					st.stuckCmd[runID(ev)] = true
 					e.add(sigs, Signal{Detector: "S2", Rule: "s2.stuck_error", Confidence: 0.9, Level: lvl, WasteMicro: waste,
 						Evidence: append([]int64(nil), s.seqs...),
 						Facts:    map[string]any{"count": s.count, "cmd": ev.CmdNorm, "error": errorLabel(ev)}})
@@ -476,11 +490,11 @@ func (e *Engine) whackAMole(ev *event.Event, sigs *[]Signal) {
 // the change could not affect the outcome. It starts in shadow.
 func (e *Engine) verifyAfterDocs(ev *event.Event, sigs *[]Signal) {
 	st := e.St
-	if ev.CmdFP == "" || e.nondeterministic(ev.CmdNorm) {
+	if runID(ev) == "" || e.nondeterministic(ev.CmdNorm) {
 		return
 	}
-	prev, ok := st.lastRun[ev.CmdFP]
-	st.lastRun[ev.CmdFP] = runMark{result: ev.ResultFP, ws: ev.WSBefore, seq: ev.Seq}
+	prev, ok := st.lastRun[runID(ev)]
+	st.lastRun[runID(ev)] = runMark{result: ev.ResultFP, ws: ev.WSBefore, seq: ev.Seq}
 	if !ok || prev.result != ev.ResultFP || prev.ws == ev.WSBefore {
 		return // a first run, a changed result, or an identical rerun (S1)
 	}
@@ -540,11 +554,11 @@ type failMark struct {
 // reruns cannot fix it. Transient network failures get more attempts.
 func (e *Engine) environment(ev *event.Event, sigs *[]Signal) {
 	st := e.St
-	if ev.Tool != event.ToolShell || ev.ExitCode == nil || *ev.ExitCode <= 0 || ev.CmdFP == "" {
+	if ev.Tool != event.ToolShell || ev.ExitCode == nil || *ev.ExitCode <= 0 || runID(ev) == "" {
 		return
 	}
 	class := fp.ClassifyFailure(ev.Text)
-	st.lastFail[ev.CmdFP] = failMark{class: class, ws: ev.WSBefore, seq: ev.Seq}
+	st.lastFail[runID(ev)] = failMark{class: class, ws: ev.WSBefore, seq: ev.Seq}
 	need := 0
 	switch {
 	case fp.External(class):
@@ -554,7 +568,7 @@ func (e *Engine) environment(ev *event.Event, sigs *[]Signal) {
 	default:
 		return
 	}
-	key := class + "|" + ev.CmdFP
+	key := class + "|" + runID(ev)
 	s := st.envStreak[key]
 	if s == nil || s.lastWS != ev.WSBefore {
 		s = &streak{lastWS: ev.WSBefore}
@@ -576,7 +590,7 @@ func (e *Engine) environment(ev *event.Event, sigs *[]Signal) {
 func (e *Engine) verifyProgress(ev, prev *event.Event) {
 	st := e.St
 	improved := false
-	if prev != nil && prev.CmdFP == ev.CmdFP && prev.ResultFP != ev.ResultFP {
+	if prev != nil && runID(prev) == runID(ev) && prev.ResultFP != ev.ResultFP {
 		pf, cf := failing(prev), failing(ev)
 		switch {
 		case pf && !cf:
@@ -1205,8 +1219,8 @@ func (e *Engine) TurnEnd(msg *event.Event, unmet []string) []Signal {
 // call is an identical verification rerun or touches a protected path.
 func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 	st := e.St
-	if ev.Tool == event.ToolShell && ev.Category == event.CatVerify && ev.CmdFP != "" && !e.nondeterministic(ev.CmdNorm) {
-		key := ev.CmdFP + "|" + ev.WSBefore
+	if ev.Tool == event.ToolShell && ev.Category == event.CatVerify && runID(ev) != "" && blockableRun(ev) && !e.nondeterministic(ev.CmdNorm) {
+		key := runID(ev) + "|" + ev.WSBefore
 		if ent := st.verify[key]; ent != nil && ent.count >= e.threshold("s1.identical_rerun", e.Cfg.Detectors.S1.RepeatNudgeAt)-1 {
 			last := st.bySeq[ent.seqs[len(ent.seqs)-1]]
 			s := Signal{Detector: "S1", Rule: "s1.identical_rerun", Confidence: 0.95, Level: L1, Evidence: append([]int64(nil), ent.seqs...),
@@ -1223,8 +1237,8 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 	// S2: rerunning a command that keeps failing the same way, with no change
 	// since its last failure. Failures that need an outside action are left
 	// alone: the environment may have changed where no fingerprint can see.
-	if ev.Tool == event.ToolShell && ev.Category == event.CatVerify && ev.CmdFP != "" && ev.WSBefore != "" && st.stuckCmd[ev.CmdFP] && !e.nondeterministic(ev.CmdNorm) {
-		if lf, ok := st.lastFail[ev.CmdFP]; ok && lf.ws == ev.WSBefore && !fp.External(lf.class) && lf.class != fp.FailTransient {
+	if ev.Tool == event.ToolShell && ev.Category == event.CatVerify && runID(ev) != "" && blockableRun(ev) && ev.WSBefore != "" && st.stuckCmd[runID(ev)] && !e.nondeterministic(ev.CmdNorm) {
+		if lf, ok := st.lastFail[runID(ev)]; ok && lf.ws == ev.WSBefore && !fp.External(lf.class) && lf.class != fp.FailTransient {
 			s := Signal{Detector: "S2", Rule: "s2.stuck_error", Confidence: 0.9, Level: L1, Evidence: []int64{lf.seq},
 				Facts: map[string]any{"cmd": ev.CmdNorm, "count": 1, "blocked": true, "unchanged": true}}
 			return true, &s

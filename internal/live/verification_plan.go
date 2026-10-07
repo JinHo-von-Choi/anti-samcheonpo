@@ -61,9 +61,8 @@ func verificationHint(p verification.Plan) string {
 // check whose passing evidence still matches the current inputs and
 // environment. The key is recomputed here (bounded file reads); any
 // mismatch, expiry, missing evidence or error lets the run through.
-func (s *Session) evidencePre(cmd string, seq int64, deadline time.Time) *detect.Signal {
-	norm, _ := fp.NormalizeCmd(cmd)
-	if norm == "" {
+func (s *Session) evidencePre(execFP string, certain bool, norm string, seq int64, deadline time.Time) *detect.Signal {
+	if execFP == "" || !certain {
 		return nil
 	}
 	s.mu.Lock()
@@ -78,7 +77,8 @@ func (s *Session) evidencePre(cmd string, seq int64, deadline time.Time) *detect
 		if c.Reuse == nil || !c.Pure {
 			continue
 		}
-		if n, _ := fp.NormalizeCmd(c.Check); n != norm {
+		// Checks run from the project root with the daemon's environment.
+		if id, ok := fp.ExecFP(c.Check, ""); !ok || id != execFP {
 			continue
 		}
 		if r, ok := s.checks[c.ID]; ok && r.Pass && !r.SideEffect && r.Evidence != nil {

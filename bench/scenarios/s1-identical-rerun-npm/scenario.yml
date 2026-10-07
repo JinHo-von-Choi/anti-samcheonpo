@@ -11,7 +11,7 @@ steps:
   - bash: npm test
     exit: 1
     out: "FAIL src/login/form.test.ts\n  ✕ rejects empty email (5 ms)\nTests: 1 failed, 4 passed"
-  - bash: CI=1 npm test 2>&1
+  - bash: npm test 2>&1
     exit: 1
     out: "FAIL src/login/form.test.ts\n  ✕ rejects empty email (5 ms)\nTests: 1 failed, 4 passed"
 expect:

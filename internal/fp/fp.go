@@ -5,6 +5,7 @@ package fp
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"path"
 	"sort"
 	"strconv"
 	"strings"
@@ -31,7 +32,60 @@ var (
 	redirRe     = lazyre.New(`\s*(?:2>&1|1>&2|&>\s*/dev/null|[12]?>\s*/dev/null)`)
 	spaceRe     = lazyre.New(`\s+`)
 	timeoutRe   = lazyre.New(`^(?:timeout\s+(?:-[a-zA-Z]+\s+\S+\s+)*\d+[smhd]?\s+|time\s+|npx\s+(?:--yes|-y)\s+)`)
+	assignRe    = lazyre.New(`[A-Za-z_][A-Za-z0-9_]*=(?:'[^']*'|"[^"]*"|\S*)`)
+	varRefRe    = lazyre.New(`\$[A-Za-z_{(]`)
 )
+
+// opaque marks shell text whose effect cannot be read from the command
+// alone: substitutions, variable references, command lists and builtins
+// that change the shell itself.
+var opaque = []string{"`", "&&", "||", ";", "<(", ">(", "\n"}
+var opaqueLead = map[string]bool{"eval": true, "source": true, ".": true, "export": true, "cd": true, "pushd": true, "popd": true, "alias": true, "set": true, "unset": true}
+
+// ExecFP is the identity used to decide that two shell runs are the same
+// execution. Unlike CmdFP (display and statistics), it keeps the effective
+// directory and the leading environment assignments NormalizeCmd drops. dir is
+// the shell's directory relative to the project ("" for the root). certain is
+// false when the command uses constructs whose effect the text does not show;
+// such runs must never be blocked as repeats.
+func ExecFP(cmd, dir string) (id string, certain bool) {
+	s := strings.TrimSpace(cmd)
+	var env []string
+	for i := 0; i < 4; i++ {
+		before := s
+		if m := envPrefixRe.FindString(s); m != "" {
+			env = append(env, assignRe.FindAllString(m, -1)...)
+			s = s[len(m):]
+		}
+		if m := cdPrefixRe.FindStringSubmatch(s); m != nil {
+			d := strings.Trim(m[1], `'"`)
+			if strings.HasPrefix(d, "/") || strings.HasPrefix(d, "~") || strings.Contains(d, "$") {
+				return "", false
+			}
+			dir = path.Join(dir, d)
+			s = s[len(m[0]):]
+		}
+		s = strings.TrimSpace(timeoutRe.ReplaceAllString(s, ""))
+		if s == before {
+			break
+		}
+	}
+	norm, _ := NormalizeCmd(s)
+	if norm == "" {
+		return "", false
+	}
+	certain = !varRefRe.MatchString(norm) && !opaqueLead[firstWord(norm)]
+	for _, o := range opaque {
+		if strings.Contains(norm, o) {
+			certain = false
+		}
+	}
+	if dir = path.Clean(dir); dir == ".." || strings.HasPrefix(dir, "../") {
+		certain = false
+	}
+	sort.Strings(env)
+	return Hash("exec/1", dir, strings.Join(env, "\x00"), norm), certain
+}
 
 // cosmetic final pipe stages that only trim or filter output.
 var cosmeticStages = map[string]bool{"grep": true, "tail": true, "head": true, "less": true, "cat": true, "tee": true, "more": true, "sort": false}

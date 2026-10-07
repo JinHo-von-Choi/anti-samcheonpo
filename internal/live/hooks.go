@@ -294,6 +294,9 @@ func (s *Session) buildTool(in HookInput) *event.Event {
 	if id == "" {
 		id = fmt.Sprintf("hook-%d", time.Now().UnixNano())
 	}
+	if in.Cwd != "" {
+		s.parser.Cwd = in.Cwd
+	}
 	ev := s.parser.HookToolUse(in.ToolName, id, in.ToolInput, time.Now())
 	s.classifyEvent(ev)
 	return ev
@@ -363,11 +366,11 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 		}
 	}
 	ctx := s.msgContext()
-	seq, tool, cmd := ev.Seq, ev.Tool, ev.Cmd
+	seq, tool, execFP, certain, norm := ev.Seq, ev.Tool, ev.ExecFP, ev.ExecCertain, ev.CmdNorm
 	s.mu.Unlock()
 	if !deny && s.queueRejected.Load() == 0 {
 		if tool == event.ToolShell {
-			if pre := s.evidencePre(cmd, seq, deadline); pre != nil {
+			if pre := s.evidencePre(execFP, certain, norm, seq, deadline); pre != nil {
 				deny, sig = true, pre
 			}
 		}

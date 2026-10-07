@@ -1,0 +1,17 @@
+symptom: normal
+kind: negative
+task: 기능 플래그별로 시험 확인하기
+steps:
+  - prompt: 결제 기능 플래그를 켠 경우와 끈 경우 모두 시험해 줘
+  - bash: FEATURE_FLAG=0 npm test
+    exit: 1
+    out: "FAIL src/pay/flag.test.ts\n  ✕ applies discount (5 ms)\nTests: 1 failed, 4 passed"
+  - bash: FEATURE_FLAG=1 npm test
+    exit: 1
+    out: "FAIL src/pay/flag.test.ts\n  ✕ applies discount (5 ms)\nTests: 1 failed, 4 passed"
+  - bash: cd services/pay && npm test
+    exit: 1
+    out: "FAIL src/pay/flag.test.ts\n  ✕ applies discount (5 ms)\nTests: 1 failed, 4 passed"
+expect:
+  not_fires: [s1.identical_rerun, s2.stuck_error]
+  max_level: 0

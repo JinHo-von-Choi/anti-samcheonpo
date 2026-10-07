@@ -71,16 +71,20 @@ func (u *Usage) Add(o Usage) {
 
 // Event is one normalized occurrence in an agent session.
 type Event struct {
-	SessionID   string            `json:"session_id"`
-	Seq         int64             `json:"seq"`
-	TS          time.Time         `json:"ts"`
-	Kind        Kind              `json:"kind"`
-	Tool        string            `json:"tool,omitempty"`
-	RawTool     string            `json:"raw_tool,omitempty"`
-	CallID      string            `json:"call_id,omitempty"`
-	Cmd         string            `json:"-"` // raw command, never stored
-	CmdNorm     string            `json:"cmd_norm,omitempty"`
-	CmdFP       string            `json:"cmd_fp,omitempty"`
+	SessionID string    `json:"session_id"`
+	Seq       int64     `json:"seq"`
+	TS        time.Time `json:"ts"`
+	Kind      Kind      `json:"kind"`
+	Tool      string    `json:"tool,omitempty"`
+	RawTool   string    `json:"raw_tool,omitempty"`
+	CallID    string    `json:"call_id,omitempty"`
+	Cmd       string    `json:"-"` // raw command, never stored
+	CmdNorm   string    `json:"cmd_norm,omitempty"`
+	CmdFP     string    `json:"cmd_fp,omitempty"`
+	// ExecFP identifies the execution for repeat decisions (fp.ExecFP);
+	// ExecCertain is false when the shell text hides what would run.
+	ExecFP      string            `json:"exec_fp,omitempty"`
+	ExecCertain bool              `json:"exec_certain,omitempty"`
 	Dir         string            `json:"dir,omitempty"`
 	Paths       []string          `json:"paths,omitempty"`
 	WriteHashes map[string]string `json:"write_hashes,omitempty"`

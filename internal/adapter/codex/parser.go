@@ -455,6 +455,7 @@ func (p *Parser) shellEvent(cmd string, ts time.Time, ref, raw string) *event.Ev
 	ev := &event.Event{Kind: event.KindTool, TS: ts, SourceRef: ref, RawTool: raw, Tool: event.ToolShell, Cmd: cmd}
 	ev.CmdNorm, ev.Dir = fp.NormalizeCmd(cmd)
 	ev.CmdFP = fp.CmdFP(ev.CmdNorm)
+	ev.ExecFP, ev.ExecCertain = fp.ExecFP(cmd, "")
 	ev.Summary = "shell: " + trunc(ev.CmdNorm, 100)
 	// Codex reads files through the shell; keep the path for re-read detection.
 	if m := readCmdRe.FindStringSubmatch(ev.CmdNorm); m != nil {

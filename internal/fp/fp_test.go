@@ -106,3 +106,44 @@ func TestMapFPDeterministic(t *testing.T) {
 		t.Error("shell mutation marker must change the fingerprint")
 	}
 }
+
+func TestExecFPKeepsWhatMakesRunsDifferent(t *testing.T) {
+	same := func(a, da, b, db string) bool {
+		x, cx := ExecFP(a, da)
+		y, cy := ExecFP(b, db)
+		return cx && cy && x == y
+	}
+	for _, c := range [][4]string{
+		{"pytest -q", "", "pytest -q", ""},
+		{"pytest -q 2>&1 | tail -20", "", "pytest -q", ""},
+		{"timeout 60 pytest -q", "", "pytest -q", ""},
+		{"cd svc && pytest -q", "", "pytest -q", "svc"},
+		{"B=2 A=1 pytest", "", "A=1 B=2 pytest", ""},
+		{"cd ./svc && pytest", "", "cd svc && pytest", ""},
+	} {
+		if !same(c[0], c[1], c[2], c[3]) {
+			t.Errorf("%q in %q should equal %q in %q", c[0], c[1], c[2], c[3])
+		}
+	}
+	for _, c := range [][4]string{
+		{"FEATURE_FLAG=0 npm test", "", "FEATURE_FLAG=1 npm test", ""},
+		{"cd service-a && npm test", "", "cd service-b && npm test", ""},
+		{"npm test", "a", "npm test", "b"},
+		{"pytest tests/test_a.py", "", "pytest tests/test_b.py", ""},
+		{`pytest -k "a b"`, "", "pytest -k a b", ""},
+	} {
+		x, _ := ExecFP(c[0], c[1])
+		y, _ := ExecFP(c[2], c[3])
+		if x == y {
+			t.Errorf("%q in %q must differ from %q in %q", c[0], c[1], c[2], c[3])
+		}
+	}
+	for _, cmd := range []string{
+		"pytest $ARGS", "pytest $(cat args)", "make test && make lint", "source .venv/bin/activate; pytest",
+		"cd /tmp && pytest", "cd .. && pytest", "eval pytest", "pytest `cat x`", "cd $HOME && pytest",
+	} {
+		if _, ok := ExecFP(cmd, ""); ok {
+			t.Errorf("%q must be uncertain", cmd)
+		}
+	}
+}

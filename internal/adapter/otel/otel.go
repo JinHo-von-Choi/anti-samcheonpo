@@ -202,6 +202,7 @@ func ParseFile(path string) ([]*event.Session, error) {
 				ev.Cmd = cmd
 				ev.CmdNorm, ev.Dir = fp.NormalizeCmd(cmd)
 				ev.CmdFP = fp.CmdFP(ev.CmdNorm)
+				ev.ExecFP, ev.ExecCertain = fp.ExecFP(cmd, "")
 				ev.Summary = "shell: " + ev.CmdNorm
 			} else {
 				for _, k := range []string{"file_path", "path", "filePath"} {

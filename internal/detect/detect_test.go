@@ -42,6 +42,7 @@ func (b *builder) next(ev *event.Event) []Signal {
 		ev.CostMicroKRW = 50_000_000 // 50 won
 	}
 	ev.WSBefore = b.ws
+	withExecFP(ev)
 	if ev.Category == event.CatProduce {
 		b.n++
 		b.ws = "ws" + string(rune('a'+b.n%26)) + time.Duration(b.n).String()
@@ -467,6 +468,7 @@ func TestPreCheck(t *testing.T) {
 	b.verify("pytest", 1, []string{"t::a"})
 	norm := "pytest"
 	ev := &event.Event{Kind: event.KindTool, Tool: event.ToolShell, Category: event.CatVerify, CmdNorm: norm, CmdFP: fp.CmdFP(norm), WSBefore: b.ws}
+	ev.ExecFP, ev.ExecCertain = fp.ExecFP(norm, "")
 	deny, sig := b.e.PreCheck(ev)
 	if !deny || sig.Rule != "s1.identical_rerun" {
 		t.Fatalf("third identical run is blocked before it runs: %v %+v", deny, sig)
@@ -727,7 +729,45 @@ func TestEnvironmentFailureRaisedOnUnchangedRepeat(t *testing.T) {
 func preVerify(b *builder, cmd string) (bool, *Signal) {
 	norm, _ := fp.NormalizeCmd(cmd)
 	ev := &event.Event{Kind: event.KindTool, Tool: event.ToolShell, Cmd: cmd, CmdNorm: norm, CmdFP: fp.CmdFP(norm), Category: event.CatVerify, WSBefore: b.ws}
-	return b.e.PreCheck(ev)
+	return b.e.PreCheck(withExecFP(ev))
+}
+
+// withExecFP gives a shell event the execution identity an adapter computes.
+func withExecFP(ev *event.Event) *event.Event {
+	if ev.Tool == event.ToolShell && ev.ExecFP == "" {
+		cmd := ev.Cmd
+		if cmd == "" {
+			cmd = ev.CmdNorm
+		}
+		ev.ExecFP, ev.ExecCertain = fp.ExecFP(cmd, "")
+	}
+	return ev
+}
+
+func TestPreCheckNeverBlocksUncertainOrChangedRuns(t *testing.T) {
+	b := newB(t, "x", nil)
+	b.verify("make test && make lint", 1, []string{"t::a"})
+	b.verify("make test && make lint", 1, []string{"t::a"})
+	if deny, _ := preVerify(b, "make test && make lint"); deny {
+		t.Fatal("a command list is uncertain and must not be blocked as a repeat")
+	}
+	b2 := newB(t, "x", nil)
+	b2.verify("FEATURE_FLAG=0 npm test", 1, []string{"t::a"})
+	b2.verify("FEATURE_FLAG=0 npm test", 1, []string{"t::a"})
+	if deny, _ := preVerify(b2, "FEATURE_FLAG=1 npm test"); deny {
+		t.Fatal("a changed environment assignment is a new run")
+	}
+	if deny, _ := preVerify(b2, "cd services/pay && FEATURE_FLAG=0 npm test"); deny {
+		t.Fatal("a different directory is a new run")
+	}
+	if deny, _ := preVerify(b2, "FEATURE_FLAG=0 npm test"); !deny {
+		t.Fatal("the same run in the same state is still recognized")
+	}
+	// an event recorded without an execution identity is advised, never blocked
+	old := &event.Event{Kind: event.KindTool, Tool: event.ToolShell, Category: event.CatVerify, CmdNorm: "pytest", CmdFP: fp.CmdFP("pytest"), WSBefore: b.ws}
+	if deny, _ := b.e.PreCheck(old); deny {
+		t.Fatal("a run without an execution identity must not be blocked")
+	}
 }
 
 func TestPreCheckStuckRerunWithoutChange(t *testing.T) {

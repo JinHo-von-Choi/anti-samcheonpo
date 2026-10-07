@@ -136,8 +136,10 @@ type Parser struct {
 	// virtual workspace state for retrospective mode (path -> content hash)
 	files map[string]string
 	// last known content for edit application (bounded by size)
-	contents  map[string]string
-	shellMut  int
+	contents map[string]string
+	shellMut int
+	// Cwd is the shell's directory as last reported (transcript line or hook).
+	Cwd       string
 	source    string
 	sidechain bool
 }
@@ -178,6 +180,9 @@ func (p *Parser) Feed(line []byte, off int64) {
 	if p.Root == "" && r.Cwd != "" {
 		p.Root = r.Cwd
 		p.Session.ProjectPath = r.Cwd
+	}
+	if r.Cwd != "" {
+		p.Cwd = r.Cwd
 	}
 	if !ts.IsZero() {
 		if p.Session.StartedAt.IsZero() || ts.Before(p.Session.StartedAt) {
@@ -311,6 +316,19 @@ func (p *Parser) flush() {
 	}
 }
 
+// shellDir is the shell's directory relative to the project root. A
+// directory outside the root keeps its absolute path, which never matches a
+// run inside the project.
+func (p *Parser) shellDir() string {
+	if p.Cwd == "" || p.Root == "" {
+		return ""
+	}
+	if r := p.rel(p.Cwd); r != "." {
+		return r
+	}
+	return ""
+}
+
 func (p *Parser) rel(path string) string {
 	if path == "" {
 		return ""
@@ -343,6 +361,7 @@ func (p *Parser) toolUse(b block, ts time.Time, ref string, side bool) *event.Ev
 		ev.Cmd = str("command")
 		ev.CmdNorm, ev.Dir = fp.NormalizeCmd(ev.Cmd)
 		ev.CmdFP = fp.CmdFP(ev.CmdNorm)
+		ev.ExecFP, ev.ExecCertain = fp.ExecFP(ev.Cmd, p.shellDir())
 		ev.Summary = "shell: " + trunc(ev.CmdNorm, 100)
 	case event.ToolRead:
 		ev.Paths = []string{p.rel(str("file_path"))}
