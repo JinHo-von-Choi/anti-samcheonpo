@@ -81,3 +81,16 @@ func TestDoctorReportsExperimentAndCapabilities(t *testing.T) {
 		}
 	}
 }
+
+func TestSlashCommandAcceptsUnquotedArguments(t *testing.T) {
+	t.Setenv("SAMCHEONPO_HOME", t.TempDir())
+	t.Setenv("SAMCHEONPO_NO_SPAWN", "1")
+	c := slashCmd()
+	c.SetArgs([]string{"rollback", "apply", "1a2b3c4d"})
+	c.SetOut(new(strings.Builder))
+	c.SetErr(new(strings.Builder))
+	err := c.Execute()
+	if err == nil || strings.Contains(err.Error(), "arg(s)") {
+		t.Fatalf("/samcheonpo:rollback apply <ID> passes two words; only the missing daemon may fail it: %v", err)
+	}
+}

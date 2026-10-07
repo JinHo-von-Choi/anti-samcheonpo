@@ -96,13 +96,11 @@ func slashCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "cmd <accept|edit|skip|keep|steer|summary|check|status|card|rollback> [arg]",
 		Short: "플러그인 슬래시 명령 처리",
-		Args:  cobra.RangeArgs(1, 2),
+		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			wd, _ := os.Getwd()
-			arg := ""
-			if len(args) == 2 {
-				arg = args[1]
-			}
+			// slash commands pass their arguments unquoted ("apply 1a2b3c4d")
+			arg := strings.Join(args[1:], " ")
 			text, errText, ok := hookclient.Query("Command", live.CommandInput{Name: args[0], Root: wd, Session: os.Getenv("CLAUDE_SESSION_ID"), Arg: arg}, 170*time.Second)
 			if !ok {
 				return fmt.Errorf("삼천포 데몬에 연결하지 못했다. 에이전트 세션이 시작되면 자동으로 뜬다")
