@@ -19,9 +19,13 @@ func TestExternalCauseFreezesEditsUntilReleased(t *testing.T) {
 	h.send("SessionStart", map[string]any{"source": "startup"})
 	h.send("UserPromptSubmit", map[string]any{"prompt": "src/app.cjs 시험 통과시켜 줘"})
 	out := "Error: Cannot find module 'yaml'\nRequire stack:\n- /w/src/app.cjs"
+	var advised bool
 	for i := 0; i < 2; i++ {
-		h.shell(fmt.Sprintf("r%d", i), "node test_app.cjs", out, 1)
+		o := h.shell(fmt.Sprintf("r%d", i), "node test_app.cjs", out, 1)
 		time.Sleep(150 * time.Millisecond)
+		if c := ctxOf(o); strings.Contains(c, "코드") && strings.Contains(c, "npm install yaml") {
+			advised = true // the environment advice reaches the agent on the failing run
+		}
 	}
 	write := func(i int) map[string]any {
 		p := filepath.Join(h.proj, "src", "app.cjs")
@@ -37,7 +41,6 @@ func TestExternalCauseFreezesEditsUntilReleased(t *testing.T) {
 		time.Sleep(150 * time.Millisecond)
 		return o
 	}
-	var advised bool
 	var denied map[string]any
 	for i := 0; i < 4 && denied == nil; i++ {
 		o := write(i)
@@ -50,10 +53,10 @@ func TestExternalCauseFreezesEditsUntilReleased(t *testing.T) {
 		}
 	}
 	if !advised {
-		t.Fatal("the first edit under a standing external cause is advised with the remedy")
+		t.Fatal("the external cause is advised with the remedy before any edit is refused")
 	}
 	if denied == nil {
-		t.Fatal("an edit repeated after the advice is refused")
+		t.Fatal("an edit after the delivered advice is refused")
 	}
 	reason, _ := denied["permissionDecisionReason"].(string)
 	if !strings.Contains(reason, "npm install yaml") || !strings.Contains(reason, "src/app.cjs") {
