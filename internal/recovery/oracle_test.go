@@ -139,7 +139,8 @@ func TestDiagnosisWithoutAFailureHasNoFault(t *testing.T) {
 }
 
 // Exit status alone can carry an external cause when the output names no better
-// one.
+// one. A timeout or a kill does not: a hanging loop or a leak in the source
+// produces 124 and 137 just as well, so they must not freeze source edits.
 func TestExitStatusSignals(t *testing.T) {
 	cases := []struct {
 		name   string
@@ -149,8 +150,6 @@ func TestExitStatusSignals(t *testing.T) {
 	}{
 		{"command not found", 127, "sh: 1: pulumi: not found", "command_missing"},
 		{"not executable", 126, "sh: 1: ./run.sh: Permission denied", "not_executable"},
-		{"killed", 137, "", "process_killed"},
-		{"timed out", 124, "", "process_timeout"},
 	}
 	o := NewFaultOracle()
 	for _, c := range cases {
@@ -160,6 +159,11 @@ func TestExitStatusSignals(t *testing.T) {
 		}
 		if !got.RequiresCodeFreeze {
 			t.Errorf("%s: an external fault must freeze source writes", c.name)
+		}
+	}
+	for _, exit := range []int{124, 137} {
+		if got := o.Diagnose(exit, ""); got.Category != CategoryCode || got.RequiresCodeFreeze || got.PrescribedAction != "" {
+			t.Errorf("exit %d: %+v", exit, got)
 		}
 	}
 }

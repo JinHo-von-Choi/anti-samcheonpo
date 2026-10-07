@@ -150,6 +150,8 @@ type State struct {
 	s6SameFired  bool
 	// recoveryUsed marks the one recovery check granted per run and cause.
 	recoveryUsed map[string]bool
+	// freeze is the standing external cause, nil when none stands.
+	freeze *freezeMark
 	// lastMutating is the last shell command that changes state outside the
 	// files (installs, chmod, archives); lastUnknown the last unclassified one.
 	lastMutating int64
@@ -595,6 +597,16 @@ type failMark struct {
 	seq   int64
 }
 
+// freezeMark is a cause outside the code that repeated with the workspace
+// unchanged. While it stands, a source edit is an unevidenced change: it
+// cannot repair what is outside the source, so PreCheck refuses it and names
+// the external action instead.
+type freezeMark struct {
+	class, cmd, remedy string
+	seq                int64
+	count              int
+}
+
 // environment raises s2.environment when a failure that needs an action
 // outside the code repeats without a workspace change: further code edits or
 // reruns cannot fix it. Transient network failures get more attempts.
@@ -602,6 +614,11 @@ func (e *Engine) environment(ev *event.Event, sigs *[]Signal) {
 	st := e.St
 	if ev.Tool == event.ToolShell && ev.ExitCode != nil && *ev.ExitCode == 0 && runID(ev) != "" {
 		// the environment recovered for this run: a later failure starts over
+		if f := st.freeze; f != nil && (f.cmd == runID(ev) || ev.Mutating) {
+			// the frozen command passed, or a command that changes the
+			// environment did: the cause no longer stands
+			st.freeze = nil
+		}
 		for key := range st.envStreak {
 			if strings.HasSuffix(key, "|"+runID(ev)) {
 				delete(st.envStreak, key)
@@ -618,7 +635,8 @@ func (e *Engine) environment(ev *event.Event, sigs *[]Signal) {
 	if ev.Tool != event.ToolShell || ev.ExitCode == nil || *ev.ExitCode <= 0 || runID(ev) == "" {
 		return
 	}
-	class := fp.ClassifyFailure(ev.Text)
+	fault := fp.DiagnoseFailure(*ev.ExitCode, ev.Text)
+	class := fault.Class
 	st.lastFail[runID(ev)] = failMark{class: class, ws: ev.WSBefore, seq: ev.Seq}
 	need := 0
 	switch {
@@ -644,8 +662,39 @@ func (e *Engine) environment(ev *event.Event, sigs *[]Signal) {
 	if class == fp.FailTransient {
 		lvl = L1
 	}
-	e.add(sigs, Signal{Detector: "S2", Rule: "s2.environment", Confidence: 0.85, Level: lvl, Evidence: append([]int64(nil), s.seqs...),
-		Facts: map[string]any{"kind": class, "cmd": ev.CmdNorm, "count": s.count}})
+	facts := map[string]any{"kind": class, "cmd": ev.CmdNorm, "count": s.count}
+	if fault.Remedy != "" {
+		facts["remedy"] = fault.Remedy
+	}
+	if fp.External(class) {
+		st.freeze = &freezeMark{class: class, cmd: runID(ev), remedy: fault.Remedy, seq: ev.Seq, count: s.count}
+	}
+	e.add(sigs, Signal{Detector: "S2", Rule: "s2.environment", Confidence: 0.85, Level: lvl, Evidence: append([]int64(nil), s.seqs...), Facts: facts})
+}
+
+// ReleaseFreeze lifts a standing external cause: the user judged the freeze
+// wrong, or the cause was handled where no fingerprint can see.
+func (e *Engine) ReleaseFreeze() { e.St.freeze = nil }
+
+// Frozen reports whether an external cause currently freezes source edits.
+func (e *Engine) Frozen() bool { return e.St.freeze != nil }
+
+// frozenWrite refuses a source edit while an external cause stands. Dependency
+// manifests stay writable: declaring the missing package is the one code-side
+// half of installing it, and the harness's own state directory is not source.
+func (e *Engine) frozenWrite(ev *event.Event) *Signal {
+	f := e.St.freeze
+	if f == nil || ev.Category != event.CatProduce || (ev.Tool != event.ToolWrite && ev.Tool != event.ToolEdit) {
+		return nil
+	}
+	for _, p := range ev.Paths {
+		if classify.IsManifest(p) || strings.HasPrefix(p, ".samcheonpo/") {
+			continue
+		}
+		return &Signal{Detector: "S2", Rule: "s2.environment", Confidence: 0.85, Level: L2, Evidence: []int64{f.seq},
+			Facts: map[string]any{"kind": f.class, "cmd": f.cmd, "remedy": f.remedy, "count": f.count, "frozen_path": p, "frozen": true, "blocked": true}}
+	}
+	return nil
 }
 
 func (e *Engine) verifyProgress(ev, prev *event.Event) {
@@ -1312,6 +1361,10 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 		if s := e.semanticPingPong(); s != nil {
 			return true, s
 		}
+	}
+	// S2: a source edit while a cause outside the code stands unchanged.
+	if s := e.frozenWrite(ev); s != nil {
+		return true, s
 	}
 	// S5: writing an error-hiding pattern again into a file where the same
 	// pattern was already raised.

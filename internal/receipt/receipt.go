@@ -294,9 +294,14 @@ func Describe(v detect.Signal) string {
 	case "s2.attempt_repeat":
 		return fmt.Sprintf("이미 실패한 변경을 다시 쓰려 함 (%s)", short(str("path"), 40))
 	case "s2.environment":
+		if str("frozen_path") != "" {
+			return fmt.Sprintf("코드 밖 원인이 그대로인데 파일 수정 시도 (%s)", short(str("frozen_path"), 40))
+		}
 		return fmt.Sprintf("코드로 고칠 수 없는 원인으로 같은 명령 %d회 실패 (%s)", num("count"), short(str("cmd"), 40))
 	case "s2.oscillation":
 		return fmt.Sprintf("%s를 이전 상태로 되돌림", short(str("path"), 40))
+	case "s2.semantic_oscillation":
+		return fmt.Sprintf("%s가 이름·공백만 다른 채 이미 실패한 상태로 돌아옴", short(str("path"), 40))
 	case "s2.whack_a_mole":
 		return fmt.Sprintf("오류는 바뀌는데 실패 %d건이 %d번 시도 동안 줄지 않음", num("failed"), num("attempts"))
 	case "s3.out_of_scope":

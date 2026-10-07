@@ -21,6 +21,7 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	var failed bool
 	var errorText string
 	var signatures []string
+	exit := 0
 	for i := len(s.eng.St.Events) - 1; i >= 0; i-- {
 		ev := s.eng.St.Events[i]
 		if ev.Seq > v.Seq {
@@ -29,13 +30,23 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 		failed = ev.IsError || ev.ExitCode != nil && *ev.ExitCode != 0
 		errorText = ev.Text
 		signatures = ev.ErrFPs
+		if failed {
+			exit = fp.ExitUnknown
+			if ev.ExitCode != nil && *ev.ExitCode != 0 {
+				exit = *ev.ExitCode
+			}
+		}
 		break
 	}
-	cause := recovery.Diagnose(v.Rule, errorText, failed)
+	// prose without a failed run is not evidence: exit 0 reads no cause from it
+	res, cause := recovery.DiagnoseExecution(v.Rule, exit, errorText)
 	key := fp.Hash(string(cause), v.Rule, strings.Join(signatures, "|"))
 	p, ok := recovery.Select(cause, key, s.contractRevision, s.recoveries)
 	if !ok {
 		return recovery.Attempt{}, "", false
+	}
+	if res.Category == recovery.CategoryExternalEnvironment {
+		p.Shell = res.PrescribedAction
 	}
 	if v.Level == detect.L1 && v.Arm == "fact" {
 		p.Action = "관측 사실만 전달한다(처방 없는 비교군)."

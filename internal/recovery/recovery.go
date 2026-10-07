@@ -42,14 +42,6 @@ func Diagnose(rule, errorText string, failed bool) Cause {
 	if failed && fp.External(fp.ClassifyFailure(errorText)) {
 		return Environment
 	}
-	if failed {
-		lower := strings.ToLower(errorText)
-		for _, phrase := range []string{"permission denied", "operation not permitted", "command not found", "connection refused", "could not resolve host", "network is unreachable", "no space left on device"} {
-			if strings.Contains(lower, phrase) {
-				return Environment
-			}
-		}
-	}
 	switch {
 	case strings.HasPrefix(rule, "s1."):
 		return Verification
@@ -81,7 +73,7 @@ func DiagnoseExecution(rule string, exitCode int, stderr string) (DiagnosticResu
 	case CategoryExternalEnvironment:
 		return res, Environment
 	default:
-		return res, Diagnose(rule, res.Evidence, true)
+		return res, Diagnose(rule, "", true)
 	}
 }
 

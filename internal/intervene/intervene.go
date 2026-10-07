@@ -56,7 +56,8 @@ var kindNames = map[string]string{
 	"assertion_mutilation": "단언문 삭제·약화·skip 주입",
 	"dependency":           "의존성 파일", "config": "검사·빌드 설정 파일",
 	"unresolvable_host": "접속 주소를 찾을 수 없음", "service_down": "접속할 서비스가 꺼져 있음", "dependency_missing": "설치되지 않은 의존성",
-	"permission": "권한 없음", "transient": "일시적인 네트워크 장애",
+	"permission": "권한 없음", "transient": "일시적인 네트워크 장애", "port_in_use": "포트를 다른 프로그램이 쓰고 있음",
+	"auth_rejected": "인증 거부", "command_missing": "설치되지 않은 명령", "not_executable": "실행 권한이 없는 파일", "disk_full": "디스크 공간 부족",
 	"mock_substituted": "시험의 실제 외부 서비스를 가짜로 대체", "stale_goal": "이전 목표의 경로로 되돌아감", "guessed": "요청에서 추정한 범위 밖",
 }
 

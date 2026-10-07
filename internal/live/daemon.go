@@ -611,6 +611,9 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		v := s.lastPrimary
 		if v != nil {
 			s.acknowledgeRecovery(v.ID)
+			if frozen, _ := v.Facts["frozen"].(bool); frozen {
+				s.eng.ReleaseFreeze()
+			}
 		}
 		ctx := s.msgContext()
 		s.mu.Unlock()

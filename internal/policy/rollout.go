@@ -53,7 +53,7 @@ func Escalable(rule, kind string, contractAccepted bool) bool {
 		return false
 	}
 	switch rule {
-	case "s1.identical_rerun", "s2.stuck_error", "s2.oscillation", "s5.error_hiding", "s5.test_weakening":
+	case "s1.identical_rerun", "s2.stuck_error", "s2.oscillation", "s2.semantic_oscillation", "s2.environment", "s5.error_hiding", "s5.test_weakening":
 		return true
 	case "s5.stop_unmet", "s5.false_done", "s3.out_of_scope", "s3.config_bypass", "s1.verify_ratio", "s2.whack_a_mole", "s1.evidence_rerun":
 		return contractAccepted
