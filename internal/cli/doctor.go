@@ -62,14 +62,21 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 		} else {
 			add("external_judge", "ok", "외부 판정 전송 비허용 정책")
 		}
+		if cfg.Experiment.Enabled {
+			add("experiment", "warning", "실험 모드 켜짐: 일부 안내를 대조군으로 보류하고 전달하지 않음 (연구용)")
+		} else {
+			add("experiment", "ok", "실험 모드 꺼짐: 모든 안내가 정책대로 전달됨")
+		}
+		add("rollout", "ok", fmt.Sprintf("개입 단계 %s, 세션당 차단 상한 %d회", cfg.Rollout.Mode, cfg.Rollout.EscalateMaxBlocks))
 	}
 	version := probe(agent)
-	_, tested := adapter.Resolve(agent, version)
+	caps, tested := adapter.Resolve(agent, version)
 	if tested {
 		add("agent_version", "ok", fmt.Sprintf("%s 버전이 캡처 fixture 시험 범위에 있음; 실제 세션 권한·제품 효과 인증은 아님", agent))
 	} else {
 		add("agent_version", "warning", fmt.Sprintf("%s 미설치·버전 미확인·시험 범위 밖 중 하나. 관찰 전용이며 감사 기능은 별도로 사용 가능", agent))
 	}
+	add("capabilities", "ok", capabilityText(caps))
 	if ping() {
 		add("daemon", "ok", "현재 홈의 데몬이 응답함")
 	} else {
@@ -85,6 +92,18 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 		add("ledger", "ok", fmt.Sprintf("원장 읽기 전용 무결성 검사 통과, 스키마 %d", version))
 	}
 	return r
+}
+
+// capabilityText states what the connected agent lets samcheonpo do.
+func capabilityText(c adapter.Caps) string {
+	yes := func(b bool) string {
+		if b {
+			return "가능"
+		}
+		return "불가"
+	}
+	return fmt.Sprintf("실행 전 차단 %s · 실행 전 안내 %s · 결과 옆 안내 %s · 종료 보류 %s · 상태줄 %s",
+		yes(c.BlockPre), yes(c.InjectPre), yes(c.InjectPost), yes(c.BlockStop), yes(c.StatusLine))
 }
 
 func doctorCmd() *cobra.Command {

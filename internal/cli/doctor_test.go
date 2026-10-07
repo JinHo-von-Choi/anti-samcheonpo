@@ -58,3 +58,26 @@ func TestDoctorDoesNotPrintMalformedConfigSecrets(t *testing.T) {
 		t.Fatal("invalid config hidden")
 	}
 }
+
+func TestDoctorReportsExperimentAndCapabilities(t *testing.T) {
+	root := t.TempDir()
+	home := filepath.Join(root, "home")
+	t.Setenv("SAMCHEONPO_HOME", home)
+	report := diagnose("claude", root, "/no/samcheonpo", filepath.Join(home, "ledger.db"), func(string) string { return "2.1.5" }, func() bool { return false })
+	got := map[string]diagnostic{}
+	for _, c := range report.Checks {
+		got[c.ID] = c
+	}
+	if e := got["experiment"]; e.State != "ok" || !strings.Contains(e.Message, "꺼짐") {
+		t.Fatalf("shipped default must report the experiment off: %+v", e)
+	}
+	if c := got["capabilities"]; !strings.Contains(c.Message, "실행 전 차단 가능") {
+		t.Fatalf("a tested Claude Code reports pre-tool blocking: %+v", c)
+	}
+	report = diagnose("claude", root, "/no/samcheonpo", filepath.Join(home, "ledger.db"), func(string) string { return "" }, func() bool { return false })
+	for _, c := range report.Checks {
+		if c.ID == "capabilities" && !strings.Contains(c.Message, "실행 전 차단 불가") {
+			t.Fatalf("an unverified agent is observation only: %+v", c)
+		}
+	}
+}

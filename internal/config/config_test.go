@@ -98,3 +98,25 @@ func TestExperimentIsOptIn(t *testing.T) {
 		t.Fatal("experiment arms must be off by default")
 	}
 }
+
+func TestInitTemplateMatchesShippedDefaults(t *testing.T) {
+	home, project := t.TempDir(), t.TempDir()
+	t.Setenv("SAMCHEONPO_HOME", home)
+	if err := os.WriteFile(filepath.Join(project, ".samcheonpo.yml"), []byte(Template), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, _, err := Load(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := Default()
+	if c.Experiment.Enabled != d.Experiment.Enabled || c.Experiment.Enabled {
+		t.Fatalf("template experiment %v, default %v", c.Experiment.Enabled, d.Experiment.Enabled)
+	}
+	if c.Rollout.Mode != d.Rollout.Mode || c.Rollout.EscalateMaxBlocks != d.Rollout.EscalateMaxBlocks || c.Contract.Draft != d.Contract.Draft {
+		t.Fatalf("template rollout/contract differ from defaults: %+v %+v", c.Rollout, c.Contract)
+	}
+	if c.Privacy.ExternalJudge || c.Notify.Push.Provider != "" || c.Detectors.S3.Judge.Provider != "" {
+		t.Fatal("shipped template enables an external destination")
+	}
+}
