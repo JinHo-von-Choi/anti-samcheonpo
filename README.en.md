@@ -75,7 +75,7 @@ You give the AI a task → Samcheonpo watches → busywork gets flagged → igno
 | --- | --- | --- |
 | **Over-verification** | Same test repeated with no code change · rerunning a check that already has passing evidence · re-verifying after touching only docs · repeating the same review on the same state | Nudge → block before running on repeat (shows the earlier result) |
 | **Drifting off task** | Editing files outside the requested scope · editing protected paths · faking a real service to make tests pass · reverting to an old goal after context compaction | Nudge · immediate block on protected paths · shows what you asked next to what it is doing |
-| **Capability loops** | Same error after every fix · failing while editing the same files again and again · retrying a fix that already failed (even across sessions) · flip-flopping edits · environment problems code cannot fix | Nudge → block on repeat → stop auto-retries and write a handoff note |
+| **Capability loops** | Same error after every fix · failing while editing the same files again and again · retrying a fix that already failed (even across sessions) · flip-flopping edits · repeated failures most likely caused by conditions outside the code (installs, services, permissions) | Nudge → block on repeat → stop auto-retries and write a handoff note |
 | **False "done"** | Deleting, skipping or weakening tests · code that hides errors · declaring "done" while the done-check fails | Nudge → block on repeat |
 | **Runaway cost** | Spend piling up without progress · abnormal spend rate · exceeding your budget | Alert · stop when over budget |
 
@@ -200,6 +200,8 @@ budget: {krw: 5000, minutes: 40}
 
 Approve the contract via `/samcheonpo:accept`. Once confirmed, the system executes check commands directly, locks down protected directories, and aborts runs that exceed configured limits. If you want automatic drafts for incoming tasks, set `contract: {draft: on}` inside `.samcheonpo.yml`.
 
+Changing any item of the contract file after acceptance, including the goal, requires accepting it again. The acceptance record is signed with a key in your home directory, so a record written by the agent or copied from another project does not count as acceptance.
+
 ## Configuration (`.samcheonpo.yml`, `~/.samcheonpo/config.yml`)
 
 ```yaml
@@ -213,6 +215,8 @@ notify:
 ```
 
 A project config can only make settings **weaker** than the user config. It cannot raise the block cap, and it cannot add or redirect external upload, notification destinations, or external programs to run; it can only turn them off. Newly added rules start in `shadow_rules`, record-only, until their false-positive rate is measured.
+
+The research experiment mode (`experiment: {enabled: true}`) is off by default. When on, it withholds some advice as a control group and says so in the status line. A project config cannot turn it on.
 
 ## Support
 
@@ -234,8 +238,10 @@ A project config can only make settings **weaker** than the user config. It cann
 
 ## Limitations
 
-- **The effect is still being proven.** Pilot runs showed lower cost per completion on tasks where agents spin their wheels, but the samples are small, so no general savings rate is claimed. Methods and limits are in the [experiment protocol](docs/benchmarks/protocol-v1.md).
+- **The effect is still being proven.** Pilot runs showed lower cost per completion on tasks where agents spin their wheels, but the samples are small, so no general savings rate is claimed. In a 2026-10-07 pilot with the real Claude Code (Sonnet) on 6 tasks, both arms completed 6/6 and there were no interventions; the tasks did not make the current model spin, so no effect could be measured. Methods and limits are in the [experiment protocol](docs/benchmarks/protocol-v1.md).
 - **False positives can happen.** That is why it starts with nudges and blocks only when a warning was ignored on the same target in the same session, within a per-session cap. Report wrong calls with `/samcheonpo:keep normal`.
+- **A pre-run block reaches the agent only if the decision finishes within the hook's wait (15 ms).** If it does not, the run is not blocked, and the status line shows the number of late decisions and `unknown`.
+- **Rollback covers only files changed through write tools (Write, Edit).** Files changed by shell commands are not covered.
 - **On short, clear tasks it has little to do.** Busywork mostly shows up in long, complex sessions.
 - **Amounts are API-rate conversions.** They do not reflect your actual subscription bill or remaining quota.
 - **Messages are in Korean.** The CLI output, nudges and summaries are currently Korean only.

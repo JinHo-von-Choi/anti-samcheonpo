@@ -4,7 +4,7 @@
 
 ## 실행과 기록
 
-`samcheonpo bench ab --config bench/ab.yml`은 과제·반복 블록마다 arm 순서를 seed로 섞는다. seed는 순서 재현용이지 원격 모델의 결정성 보장이 아니다. 실행마다 새 작업 복사본과 별도 SAMCHEONPO_HOME을 만든다. 결과는 run_id, seed, order, 에이전트·모델·정책 버전, 과제·채점기 해시를 기록한다. arm 설정의 agent_version/model/policy_version이 비어 있으면 해당 실행 조건은 미확인이다. 비용과 외부 채점 시간을 포함한 총예산 상한은 실제 실험 전에 별도 고정해야 한다.
+`samcheonpo bench ab --config bench/ab.yml`은 과제·반복 블록마다 arm 순서를 seed로 섞는다. seed는 순서 재현용이지 원격 모델의 결정성 보장이 아니다. 실행마다 새 작업 복사본과 별도 SAMCHEONPO_HOME을 만든다. 명령은 복사본 안에서 실행되므로, 저장소 안의 파일(예: 플러그인 디렉터리)은 비교를 시작한 폴더를 뜻하는 `{root}`로 가리킨다. `{task}`는 과제 폴더, `{prompt}`는 과제 지시문으로 바뀐다. 결과는 run_id, seed, order, 에이전트·모델·정책 버전, 과제·채점기 해시를 기록한다. arm 설정의 agent_version/model/policy_version이 비어 있으면 해당 실행 조건은 미확인이다. 비용과 외부 채점 시간을 포함한 총예산 상한은 실제 실험 전에 별도 고정해야 한다.
 
 Claude의 session_id와 Codex의 thread.started/thread_id를 해석한다. 실제 파일 내부 세션 ID, 작업 디렉터리, 파일 수정 시각을 확인하고 일치하는 transcript가 둘 이상이면 비용을 확정하지 않는다. 사용량 파싱 누락·미인식 단가·파일 부재도 `cost_known: false`와 사유로 남긴다. 비용 단위는 실제 청구액이 아닌 `transcript_api_equivalent`다. 구독 한도나 결제 절감액으로 해석하지 않는다.
 
