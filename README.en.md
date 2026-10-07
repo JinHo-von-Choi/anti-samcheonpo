@@ -39,18 +39,20 @@ Instead of opaque log notices, it drops concrete warnings (currently Korean; tra
 
 ```text
 AI가 같은 시험을 4번 돌렸는데, 그 사이 코드는 한 글자도 바뀌지 않았습니다.
-AI가 코드로는 고칠 수 없는 문제(설치되지 않은 의존성)로 같은 명령을 2번 실패했습니다.
+코드 밖 조건(설치되지 않은 의존성) 때문일 가능성이 높은 실패로 같은 명령이 2번 실패했습니다.
 AI가 요청 범위 밖 파일을 고쳤습니다 (src/theme/dark.css, 누적 2개).
 ```
 
 > The AI ran the same test 4 times, and not a single character of code changed in between.
-> The AI failed the same command twice on a problem code cannot fix (a missing dependency).
+> The same command failed twice, most likely because of a condition outside the code (a missing dependency).
 > The AI edited files outside the requested scope (src/theme/dark.css, 2 so far).
 
-A compact status line displays the key stats in one glance: progress 1/2, idle spend at API rates ₩1,240, busywork 12% (of what was measured).
+Each warning ends with one sentence you can paste to the AI as is, followed by the choices (keep now: allow once; keep normal: this call is wrong; steer; summary).
+
+A compact status line starts with one of four states: going well (there is progress evidence), watching, step in now, or unknown (observation is incomplete). No warnings alone is never shown as going well. Then come progress 1/2, idle spend at API rates ₩1,240, and busywork 12% (of what was measured).
 
 ```text
-진척 1/2 · 공회전 API환산 1,240원 · 헛짓 12% (계측분)
+[지켜보는 중] 진척 1/2 · 공회전 API환산 1,240원 · 헛짓 12% (계측분)
 ```
 
 **3. If ignored, it blocks.**
@@ -150,8 +152,8 @@ Your existing hooks and status line settings are preserved. Now just give the AI
 | Command | What it does |
 | --- | --- |
 | `/samcheonpo:summary` | Plain-language summary: what you asked, what it is doing, what is done, what is stuck, what it cost |
-| `/samcheonpo:keep normal` | Report that the last call was wrong; that rule will not block again |
-| `/samcheonpo:keep now` | Let it through this once |
+| `/samcheonpo:keep normal` | Report that the last call was wrong; the same call on the same target will not block again within the current goal (protected paths and budgets still apply) |
+| `/samcheonpo:keep now` | Let it through this once; if it happens again, advise before blocking |
 | `/samcheonpo:steer` | Pass Samcheonpo's prescription to the agent |
 | `/samcheonpo:check` | Run the done-check now |
 | `/samcheonpo:accept`, `/samcheonpo:edit` | Accept or edit a work contract (when you use one) |

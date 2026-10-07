@@ -353,25 +353,33 @@ func TestIgnoredAdviceEscalatesToBlockUntilReleased(t *testing.T) {
 	if denied == nil || !strings.Contains(denied["permissionDecisionReason"].(string), "권고가 이미 전달됐는데 반복") {
 		t.Fatalf("a repeat after delivered advice must be blocked with the reason: %v", denied)
 	}
-	// advice about one command never blocks a different command
+	// the user releases the verdict they just saw
+	text, errText, ok := hookclient.Query("Command", CommandInput{Name: "keep", Arg: "normal", Root: h.proj}, 5*time.Second)
+	if !ok || errText != "" || !strings.Contains(text, "오탐") || !strings.Contains(text, "pytest -q") || !strings.Contains(text, "다른 대상") {
+		t.Fatalf("keep normal states what it releases: %q %q %v", text, errText, ok)
+	}
+	for i := 10; i < 13; i++ {
+		if _, d := run(i); d != nil {
+			t.Fatalf("a verdict the user released must not be blocked again: %v", d)
+		}
+	}
+	// the release covers that target only; another command is judged afresh
 	other := func(i int) map[string]any {
 		o := h.shell(fmt.Sprintf("o%d", i), "pytest -q tests/test_b.py", "FAILED tests/test_b.py::test_y - assert 0\n1 failed", 1)
 		time.Sleep(150 * time.Millisecond)
 		return o
 	}
-	for i := 0; i < 3; i++ {
+	var otherReason string
+	for i := 0; i < 8 && otherReason == ""; i++ {
 		if hs, ok := other(i)["hookSpecificOutput"].(map[string]any); ok && hs["permissionDecision"] == "deny" {
-			t.Fatalf("a different command is scoped separately and only advised first: %v", hs)
+			otherReason, _ = hs["permissionDecisionReason"].(string)
+			if i == 0 {
+				t.Fatal("another target is advised before it is blocked")
+			}
 		}
 	}
-	text, errText, ok := hookclient.Query("Command", CommandInput{Name: "keep", Arg: "normal", Root: h.proj}, 5*time.Second)
-	if !ok || errText != "" || !strings.Contains(text, "오탐") {
-		t.Fatalf("keep normal: %q %q %v", text, errText, ok)
-	}
-	for i := 10; i < 13; i++ {
-		if _, d := run(i); d != nil {
-			t.Fatalf("a rule the user released must not be blocked again: %v", d)
-		}
+	if !strings.Contains(otherReason, "권고가 이미 전달됐는데 반복") {
+		t.Fatalf("the release does not cover another target, which still escalates after advice: %q", otherReason)
 	}
 }
 

@@ -37,7 +37,7 @@ type Context struct {
 }
 
 // Choices is the fixed user choice line.
-const Choices = "[/samcheonpo:keep 그대로 두기]  [/samcheonpo:steer 방향 바꾸라고 하기]  [/samcheonpo:summary 멈추고 요약 받기]"
+const Choices = "[/samcheonpo:keep now 이번만 허용]  [/samcheonpo:keep normal 이 판정은 틀림]  [/samcheonpo:steer 방향 바꾸라고 하기]  [/samcheonpo:summary 멈추고 요약 받기]"
 
 func RecoveryMarker(id string) string { return "[sc-recovery:" + id + "]" }
 
@@ -200,7 +200,8 @@ func Agent(v detect.Signal, c Context, arm string) string {
 	return msg
 }
 
-// User renders the user-facing message (at most three lines, last is choices).
+// User renders the user-facing message: at most two lines of observation,
+// one sentence the user can paste to the agent, then the choices.
 func User(v detect.Signal, c Context) string {
 	d := data(v, c)
 	msg := render(v.Rule+".user.tmpl", d)
@@ -211,7 +212,15 @@ func User(v detect.Signal, c Context) string {
 	if len(lines) > 2 {
 		lines = lines[:2]
 	}
+	if say := Say(v, c); say != "" {
+		lines = append(lines, "AI에게 이렇게 말해 보세요: \""+say+"\"")
+	}
 	return strings.Join(append(lines, Choices), "\n")
+}
+
+// Say is the one sentence a user can paste to the agent for this finding.
+func Say(v detect.Signal, c Context) string {
+	return render(v.Rule+".say.tmpl", data(v, c))
 }
 
 // Templates lists the template names (for the vocabulary check).

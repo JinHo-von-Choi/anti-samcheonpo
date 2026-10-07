@@ -540,15 +540,25 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		s.applyOverrides()
 		s.eng.Cfg = s.Cfg
 		if label == "false_positive" {
-			s.released[v.Rule] = true // never escalate a rule the user rejected
+			// Released for this goal revision, rule and target only; another
+			// target or a new goal is judged afresh.
+			s.released[s.adviceKey(*v)] = true
 		} else {
 			delete(s.advised, s.adviceKey(*v)) // "just this once": advise again before blocking
 		}
 		s.mu.Unlock()
-		if label == "false_positive" {
-			return fmt.Sprintf("'%s' 판정을 오탐으로 기록했다. 같은 판정이 이 프로젝트에서 3번 오탐으로 기록되면 기준을 한 단계 올린다.", receipt.Describe(*v)), nil
+		target, _ := v.Facts["path"].(string)
+		if target == "" {
+			target, _ = v.Facts["cmd"].(string)
 		}
-		return "이번만 넘어간다.", nil
+		scope := "지금 작업 목표 안에서"
+		if target != "" {
+			scope += " `" + target + "`에 대한"
+		}
+		if label == "false_positive" {
+			return fmt.Sprintf("'%s' 판정을 오탐으로 기록했다. %s 같은 판정은 다시 막지 않는다. 다른 대상이나 새 목표에는 적용되지 않고, 보호 경로와 예산 제한은 그대로다. 같은 판정이 이 프로젝트에서 3번 오탐으로 기록되면 기준을 한 단계 올린다.", receipt.Describe(*v), scope), nil
+		}
+		return "이번 한 번만 넘어간다. 같은 일이 다시 생기면 막기 전에 먼저 안내한다.", nil
 	case "steer":
 		s.mu.Lock()
 		v := s.lastPrimary

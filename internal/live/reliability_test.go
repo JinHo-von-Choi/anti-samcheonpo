@@ -13,6 +13,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/config"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 )
@@ -311,5 +312,33 @@ func TestEndedSessionRequiresExplicitRestart(t *testing.T) {
 	t.Cleanup(func() { _, _ = resumed.Finalize() })
 	if resumed == s {
 		t.Fatal("explicit restart reused closed session state")
+	}
+}
+
+func TestStatuslineStateNeedsEvidenceAndAdmitsUnknown(t *testing.T) {
+	s, d := reliabilitySession(t)
+	if line := s.Statusline(); !strings.HasPrefix(line, "[지켜보는 중]") {
+		t.Fatalf("no warning and no progress evidence is not shown as healthy: %q", line)
+	}
+	acceptCheck(t, s, d, "true")
+	s.checkpoint(false)
+	if line := s.Statusline(); !strings.HasPrefix(line, "[순조로움]") {
+		t.Fatalf("a passing accepted check is progress evidence: %q", line)
+	}
+	s.mu.Lock()
+	s.lastPrimary = &detect.Signal{Rule: "s1.identical_rerun", Level: detect.L1, Seq: s.eng.St.LastProgress + 1}
+	s.mu.Unlock()
+	if line := s.Statusline(); !strings.HasPrefix(line, "[지켜보는 중]") {
+		t.Fatalf("advice after the last progress: %q", line)
+	}
+	s.mu.Lock()
+	s.lastPrimary = &detect.Signal{Rule: "s2.stuck_error", Level: detect.L2, Seq: s.eng.St.LastProgress + 2}
+	s.mu.Unlock()
+	if line := s.Statusline(); !strings.HasPrefix(line, "[지금 끼어드세요]") {
+		t.Fatalf("an escalated finding asks the user to step in: %q", line)
+	}
+	s.queueRejected.Add(1)
+	if line := s.Statusline(); !strings.HasPrefix(line, "[확인 불가]") {
+		t.Fatalf("incomplete observation is shown as unknown: %q", line)
 	}
 }

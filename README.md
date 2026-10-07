@@ -39,14 +39,21 @@ Claude Code, Codex, opencode의 훅에 붙어 에이전트가 실행하는 명�
 
 ```text
 AI가 같은 시험을 4번 돌렸는데, 그 사이 코드는 한 글자도 바뀌지 않았습니다.
-AI가 코드로는 고칠 수 없는 문제(설치되지 않은 의존성)로 같은 명령을 2번 실패했습니다.
+코드 밖 조건(설치되지 않은 의존성) 때문일 가능성이 높은 실패로 같은 명령이 2번 실패했습니다.
 AI가 요청 범위 밖 파일을 고쳤습니다 (src/theme/dark.css, 누적 2개).
 ```
 
-상태줄에는 지금 상태가 한 줄로 보입니다.
+경고마다 AI에게 그대로 붙여 넣을 수 있는 한 문장과 선택지가 함께 나옵니다.
 
 ```text
-진척 1/2 · 공회전 API환산 1,240원 · 헛짓 12% (계측분)
+AI에게 이렇게 말해 보세요: "src/theme/dark.css는 내가 부탁한 범위가 아니야. 꼭 필요한 변경이면 이유를 먼저 설명하고, 아니면 되돌려 줘."
+[/samcheonpo:keep now 이번만 허용]  [/samcheonpo:keep normal 이 판정은 틀림]  [/samcheonpo:steer 방향 바꾸라고 하기]  [/samcheonpo:summary 멈추고 요약 받기]
+```
+
+상태줄 맨 앞에는 지금 상태가 네 가지 중 하나로 보입니다: 순조로움(진척 근거가 있음), 지켜보는 중, 지금 끼어드세요, 확인 불가(관측이 불완전함). 경고가 없다는 것만으로 순조로움이라고 표시하지 않습니다.
+
+```text
+[지켜보는 중] 진척 1/2 · 공회전 API환산 1,240원 · 헛짓 12% (계측분)
 ```
 
 **3. 무시하면 막습니다.**
@@ -146,8 +153,8 @@ samcheonpo install --agent opencode   # opencode
 | 명령 | 하는 일 |
 | --- | --- |
 | `/samcheonpo:summary` | 요청한 일, 지금 하는 일, 끝난 것, 막힌 것, 쓴 돈을 평문으로 요약 |
-| `/samcheonpo:keep normal` | 방금 판정이 틀렸다고 알림. 그 규칙은 다시 막지 않음 |
-| `/samcheonpo:keep now` | 이번만 넘어감 |
+| `/samcheonpo:keep normal` | 방금 판정이 틀렸다고 알림. 지금 작업 목표 안에서 같은 대상의 같은 판정은 다시 막지 않음(보호 경로·예산은 그대로) |
+| `/samcheonpo:keep now` | 이번만 넘어감. 다시 생기면 막기 전에 먼저 안내 |
 | `/samcheonpo:steer` | 삼천포의 처방을 에이전트에게 전달 |
 | `/samcheonpo:check` | 완료 조건을 지금 검사 |
 | `/samcheonpo:accept`, `/samcheonpo:edit` | 작업 계약 수락·수정 (계약을 쓸 때) |

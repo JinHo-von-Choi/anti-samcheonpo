@@ -29,7 +29,7 @@ func TestEveryRuleHasTemplates(t *testing.T) {
 		have[n] = true
 	}
 	for _, r := range rules {
-		for _, kind := range []string{".agent.tmpl", ".user.tmpl", ".rx.tmpl"} {
+		for _, kind := range []string{".agent.tmpl", ".user.tmpl", ".rx.tmpl", ".say.tmpl"} {
 			if !have[r+kind] {
 				t.Errorf("missing %s%s", r, kind)
 			}
@@ -63,8 +63,8 @@ func TestUserMessage(t *testing.T) {
 		v := detect.Signal{Rule: r, Facts: map[string]any{"count": 3, "path": "src/x.ts", "kind": "skip_added", "pct": 80}}
 		m := User(v, Context{})
 		lines := strings.Split(m, "\n")
-		if len(lines) > 3 || lines[len(lines)-1] != Choices {
-			t.Errorf("%s: at most three lines ending with choices:\n%s", r, m)
+		if len(lines) > 4 || lines[len(lines)-1] != Choices || !strings.HasPrefix(lines[len(lines)-2], "AI에게 이렇게 말해 보세요: ") {
+			t.Errorf("%s: at most two observation lines, a pasteable request, then choices:\n%s", r, m)
 		}
 	}
 }
@@ -84,5 +84,28 @@ func TestFactArmDoesNotReceiveVerificationPrescription(t *testing.T) {
 	}
 	if !strings.Contains(Agent(v, Context{}, "prescription"), "specific-stop-prescription") {
 		t.Fatal("prescription lost its evidence hint")
+	}
+}
+
+func TestUserMessageEndsWithPasteableRequestAndChoices(t *testing.T) {
+	v := detect.Signal{Rule: "s3.out_of_scope", Facts: map[string]any{"path": "src/theme/dark.css", "count": 2}}
+	lines := strings.Split(User(v, Context{Goal: "로그인 만료 처리"}), "\n")
+	if len(lines) < 3 || lines[len(lines)-1] != Choices {
+		t.Fatalf("choices close the message: %q", lines)
+	}
+	say := lines[len(lines)-2]
+	if !strings.HasPrefix(say, "AI에게 이렇게 말해 보세요: ") || !strings.Contains(say, "src/theme/dark.css") {
+		t.Fatalf("a request the user can paste names the finding: %q", say)
+	}
+	if !strings.Contains(Choices, "keep now") || !strings.Contains(Choices, "keep normal") {
+		t.Fatal("choices offer a one-time allowance and a wrong-verdict report")
+	}
+}
+
+func TestEnvironmentAndCapabilityWordingStaysTentative(t *testing.T) {
+	for _, r := range []string{"s2.environment.user.tmpl", "s6.capability_limit.user.tmpl"} {
+		if strings.Contains(Raw(r), "고칠 수 없는") || strings.Contains(Raw(r), "더 강한 모델") {
+			t.Errorf("%s states a cause more strongly than the evidence: %s", r, Raw(r))
+		}
 	}
 }

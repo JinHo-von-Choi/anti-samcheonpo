@@ -508,7 +508,7 @@ func (s *Session) routeFor(v detect.Signal) (route string, escalated bool) {
 	}
 	kind, _ := v.Facts["kind"].(string)
 	advised := s.advised[s.adviceKey(v)] && policy.Escalable(v.Rule, kind, s.acc.State == contract.StateAccepted)
-	route = policy.Escalate(base, advised, s.released[v.Rule], s.escalations, s.Cfg.Rollout.EscalateMaxBlocks)
+	route = policy.Escalate(base, advised, s.released[s.adviceKey(v)], s.escalations, s.Cfg.Rollout.EscalateMaxBlocks)
 	return route, route == "block" && base != "block"
 }
 
@@ -805,7 +805,8 @@ func (s *Session) Statusline() string {
 	if n := s.preLate.Load(); n > 0 {
 		parts = append(parts, fmt.Sprintf("[실행 전 판정 시간 초과 %d건: 그 판정은 전달되지 않았을 수 있음]", n))
 	}
-	if met, total := s.criteria(); total > 0 {
+	met, total := s.criteria()
+	if total > 0 {
 		parts = append(parts, fmt.Sprintf("진척 %d/%d", met, total))
 	} else if len(st.ProgressSeqs) > 0 {
 		parts = append(parts, "진척 추정")
@@ -827,11 +828,30 @@ func (s *Session) Statusline() string {
 	} else {
 		parts = append(parts, fmt.Sprintf("헛짓 %d%% (계측분)", pct))
 	}
-	line := strings.Join(parts, " · ")
-	if s.unresolved != nil {
-		line = "[주의] " + line
+	return "[" + s.stateLabel(met, total) + "] " + strings.Join(parts, " · ")
+}
+
+// stateLabel condenses the session into one of four states a non-developer
+// can act on. "순조로움" needs progress evidence: the absence of warnings is
+// never shown as health, and incomplete observation is shown as unknown.
+func (s *Session) stateLabel(met, total int) string {
+	st := s.eng.St
+	if s.queueRejected.Load() > 0 || s.storageErr != nil || s.preLate.Load() > 0 {
+		return "확인 불가"
 	}
-	return line
+	if s.unresolved != nil {
+		return "지금 끼어드세요"
+	}
+	if p := s.lastPrimary; p != nil && p.Seq > st.LastProgress {
+		if p.Level >= detect.L2 {
+			return "지금 끼어드세요"
+		}
+		return "지켜보는 중"
+	}
+	if met > 0 || (total == 0 && len(st.ProgressSeqs) > 0) {
+		return "순조로움"
+	}
+	return "지켜보는 중"
 }
 
 // measuredUsage is called under s.mu and never mistakes unobserved usage for
