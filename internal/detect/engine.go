@@ -152,6 +152,9 @@ type State struct {
 	// lastMutating is the last shell command that changes state outside the
 	// files (installs, chmod, archives); lastUnknown the last unclassified one.
 	lastMutating int64
+	// semOsc keeps the normalized fingerprints of recent failed states per
+	// file; PreCheck uses it to block a return to an already-failed state.
+	semOsc *SemanticOscillationDetector
 }
 
 // sameFilesAttempts is when repeated failures on the same files suggest a
@@ -207,6 +210,7 @@ func NewEngine(cfg config.Config, c *contract.Contract, accepted bool, mode, roo
 		editHist: map[string][]editHist{}, lineCount: map[string]int{}, highWater: map[string]int{}, created: map[string]bool{},
 		readCount: map[string]int{}, minute: map[int64]int64{}, outScope: map[string]bool{}, guessOut: map[string]int{}, testLits: map[string]int64{},
 		velocityFired: map[int64]bool{}, budgetFired: map[int]bool{}, LastProgress: -1, lastUnknown: -1, attemptFiles: map[string]bool{}, recoveryUsed: map[string]bool{},
+		semOsc: NewSemanticOscillationDetector(),
 	}
 	if c != nil && len(c.Scope.Allow) > 0 {
 		e.St.scopeKnown = true
@@ -473,12 +477,16 @@ func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 			st.failSeries = append(st.failSeries, failPoint{errKey: errKey, failed: len(ev.FailedTests), seq: ev.Seq})
 		}
 		e.whackAMole(ev, sigs)
+		// capabilityLimit drains attemptFiles, so the failed states must be
+		// recorded before it runs
+		e.recordSemanticFailures()
 		e.capabilityLimit(ev, keys, sigs)
 	} else if !failing(ev) {
 		st.errStreak = map[string]*streak{}
 		st.failSeries = nil
 		st.strategies = nil
 		st.attemptFiles = map[string]bool{}
+		st.semOsc.Clear()
 	}
 }
 
@@ -1293,6 +1301,14 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 			s := Signal{Detector: "S2", Rule: "s2.stuck_error", Confidence: 0.9, Level: L1, Evidence: []int64{lf.seq},
 				Facts: map[string]any{"cmd": ev.CmdNorm, "count": 1, "blocked": true, "unchanged": true}}
 			return true, &s
+		}
+	}
+	// S2 semantic ping-pong: the files touched since the last pass are back
+	// at an already-failed state whose bytes changed but whose structure did
+	// not, so another run of the same check only burns the same cost again.
+	if ev.Tool == event.ToolShell && ev.Category == event.CatVerify {
+		if s := e.semanticPingPong(); s != nil {
+			return true, s
 		}
 	}
 	// S5: writing an error-hiding pattern again into a file where the same
