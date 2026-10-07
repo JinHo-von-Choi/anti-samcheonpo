@@ -144,8 +144,15 @@ func (w *Workspace) gitTree(ctx context.Context) (string, error) {
 	defer os.Remove(tmpName)
 	if src, err := os.Open(idx); err == nil {
 		_, _ = io.Copy(tmp, src)
+		st, statErr := src.Stat()
 		src.Close()
 		tmp.Close()
+		// Keep the index's own mtime on the copy. Git treats an entry whose
+		// file changed in the same second as the index as "racily clean" and
+		// rehashes it; a copy stamped "now" would hide a same-size edit.
+		if statErr == nil {
+			_ = os.Chtimes(tmpName, st.ModTime(), st.ModTime())
+		}
 	} else {
 		// no index yet (fresh repository): let git start an empty one
 		tmp.Close()
