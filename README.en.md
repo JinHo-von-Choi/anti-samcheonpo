@@ -209,7 +209,7 @@ notify:
   desktop: true
 ```
 
-A project config can only make settings **weaker** than the user config. It cannot raise the block cap or turn on external upload. Newly added rules start in `shadow_rules`, record-only, until their false-positive rate is measured.
+A project config can only make settings **weaker** than the user config. It cannot raise the block cap, and it cannot add or redirect external upload, notification destinations, or external programs to run; it can only turn them off. Newly added rules start in `shadow_rules`, record-only, until their false-positive rate is measured.
 
 ## Support
 

@@ -789,6 +789,9 @@ func (s *Session) Statusline() string {
 	if s.storageErr != nil {
 		parts = append(parts, "[기록 저장 실패]")
 	}
+	if s.Cfg.Experiment.Enabled {
+		parts = append(parts, "[실험 모드: 일부 안내 보류]")
+	}
 	if met, total := s.criteria(); total > 0 {
 		parts = append(parts, fmt.Sprintf("진척 %d/%d", met, total))
 	} else if len(st.ProgressSeqs) > 0 {

@@ -1004,7 +1004,8 @@ func TestJudgeDrift(t *testing.T) {
 	defer srv.Close()
 	h := startDaemon(t)
 	cfg := fmt.Sprintf("notify: {desktop: false}\nexperiment: {enabled: false}\ndetectors:\n  s3_drift:\n    judge_every_events: 2\n    max_watch_cost_ratio: 0.5\n    judge: {provider: openai, model: claude-haiku-4-5, base_url: %q}\n", srv.URL+"/v1")
-	_ = os.WriteFile(filepath.Join(h.proj, ".samcheonpo.yml"), []byte(cfg), 0o644)
+	// The judge connection is user-owned; a project file cannot configure it.
+	_ = os.WriteFile(filepath.Join(h.home, "config.yml"), []byte(cfg), 0o644)
 	h.send("UserPromptSubmit", map[string]any{"prompt": "src/a.py 고쳐 줘", "session_id": "j-1"})
 	if err := os.MkdirAll(contract.Dir(h.proj), 0700); err != nil {
 		t.Fatal(err)

@@ -173,7 +173,7 @@ func Default() Config {
 	c.Contract = ContractCfg{Draft: "off", Confirm: "budget_over", ConfirmOverKRW: 3000}
 	c.Notify.Desktop = true
 	c.Privacy = Privacy{ExternalJudge: false, StoreRawText: false}
-	c.Experiment.Enabled = true
+	c.Experiment.Enabled = false
 	c.Checkpoint.TimeoutSec = 120
 	c.IronLaws.Enabled = true
 	return c
@@ -197,6 +197,10 @@ func Load(projectDir string) (Config, string, error) {
 			return c, "", fmt.Errorf("설정 파일 읽기 실패: %w", err)
 		}
 		allowExternal := c.Privacy.ExternalJudge
+		userIronLaws := c.IronLaws
+		userPush := c.Notify.Push
+		userJudge := c.Detectors.S3.Judge
+		userExperiment := c.Experiment.Enabled
 		userMode := c.Rollout.Mode
 		userEscalate := c.Rollout.EscalateMaxBlocks
 		userShadow := append([]string(nil), c.Rollout.ShadowRules...)
@@ -210,6 +214,26 @@ func Load(projectDir string) (Config, string, error) {
 		if i == 1 {
 			// Repository settings can restrict, but cannot grant, external access.
 			c.Privacy.ExternalJudge = allowExternal && c.Privacy.ExternalJudge
+			// Programs to run and destinations to send to belong to the user.
+			// A repository can switch them off but cannot add or redirect them.
+			c.IronLaws.Enabled = userIronLaws.Enabled && c.IronLaws.Enabled
+			c.IronLaws.Path = userIronLaws.Path
+			if c.Notify.Push != userPush {
+				if c.Notify.Push.Provider == "" {
+					c.Notify.Push.Topic, c.Notify.Push.URL = "", ""
+				} else {
+					c.Notify.Push = userPush
+				}
+			}
+			if c.Detectors.S3.Judge != userJudge {
+				if c.Detectors.S3.Judge.Provider == "" {
+					c.Detectors.S3.Judge = userJudge
+					c.Detectors.S3.Judge.Provider = ""
+				} else {
+					c.Detectors.S3.Judge = userJudge
+				}
+			}
+			c.Experiment.Enabled = userExperiment && c.Experiment.Enabled
 			rank := map[string]int{"shadow": 0, "recommend": 1, "validated": 2}
 			if rank[c.Rollout.Mode] > rank[userMode] {
 				c.Rollout.Mode = userMode
@@ -288,6 +312,7 @@ notify:
 privacy:
   external_judge: false
   store_raw_text: false
+# research only: randomly withholds some advice to measure its effect
 experiment:
-  enabled: true
+  enabled: false
 `
