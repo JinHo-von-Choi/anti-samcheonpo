@@ -23,6 +23,8 @@ const (
 
 var verifyRes = []*lazyre.RE{
 	lazyre.New(`^(?:python3?\s+-m\s+)?pytest\b`),
+	lazyre.New(`^python3?\s+(?:-\S+\s+)*-m\s+(?:unittest|doctest)\b`),
+	lazyre.New(`^node\s+(?:-\S+\s+)*--test\b`),
 	lazyre.New(`^(?:uv|poetry|pipenv)\s+run\s+(?:python3?\s+-m\s+)?(?:pytest|mypy|ruff|tox)\b`),
 	lazyre.New(`^go\s+(?:test|build|vet)\b`),
 	lazyre.New(`^(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|build|lint|typecheck|type-check|check|e2e|ci)\b`),

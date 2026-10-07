@@ -216,13 +216,27 @@ func NewEngine(cfg config.Config, c *contract.Contract, accepted bool, mode, roo
 	return e
 }
 
-var pathTokenRe = lazyre.New("(?:^|[\\s`'\"(\\[])((?:[A-Za-z0-9_.@-]+/)+[A-Za-z0-9_.@*-]*|[A-Za-z0-9_-]+\\.(?:go|py|ts|tsx|js|jsx|java|kt|rs|rb|php|cs|swift|md|yml|yaml|json|toml|html|css|sql|sh|vue|svelte))")
+var pathTokenRe = lazyre.New("(?:^|[\\s`'\"(\\[])((?:[A-Za-z0-9_.@-]+/)+[A-Za-z0-9_.@*-]*|[A-Za-z0-9_-]+\\.([A-Za-z0-9]+))")
+
+// sourceExt lists the extensions a bare file name in a request must have to
+// count as a path. The whole extension is compared, so "config.json" is not
+// read as "config.js" and "app.cjs" is not dropped.
+var sourceExt = map[string]bool{
+	"go": true, "py": true, "ts": true, "tsx": true, "mts": true, "cts": true, "js": true, "jsx": true, "mjs": true, "cjs": true,
+	"java": true, "kt": true, "kts": true, "scala": true, "rs": true, "rb": true, "php": true, "cs": true, "swift": true, "dart": true,
+	"c": true, "h": true, "cc": true, "cpp": true, "hpp": true, "m": true, "lua": true, "ex": true, "exs": true, "zig": true,
+	"md": true, "txt": true, "rst": true, "yml": true, "yaml": true, "json": true, "toml": true, "ini": true, "cfg": true, "conf": true, "xml": true,
+	"html": true, "css": true, "scss": true, "sql": true, "sh": true, "vue": true, "svelte": true,
+}
 
 // GuessScope infers allowed paths from a first prompt (audit mode).
 func GuessScope(prompt string) []string {
 	var out []string
 	seen := map[string]bool{}
 	for _, m := range pathTokenRe.FindAllStringSubmatch(prompt, -1) {
+		if m[2] != "" && !sourceExt[strings.ToLower(m[2])] {
+			continue
+		}
 		p := strings.Trim(m[1], "/.")
 		if p == "" || strings.HasPrefix(p, "http") || strings.Contains(p, "://") {
 			continue
