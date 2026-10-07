@@ -216,6 +216,7 @@ func codexHome() string {
 
 // benchHookCmd measures PreToolUse round trips through the real client.
 func benchHookCmd() *cobra.Command {
+	var p95Max, handlingMax time.Duration
 	var n int
 	c := &cobra.Command{
 		Use:   "bench-hook",
@@ -347,13 +348,23 @@ func benchHookCmd() *cobra.Command {
 			if first.Status != "ok" || !first.ResponseReceived || observed.Prompts != 1 || observed.ToolCalls != n || observed.QueueRejected > 0 || failures > 0 || responses != n {
 				return fmt.Errorf("훅 전송/관측 검증 실패: 빠른 실패는 지연 통과로 인정하지 않는다")
 			}
-			if pct(0.95) > 10*time.Millisecond {
-				return fmt.Errorf("p95 %v가 10ms를 넘는다", pct(0.95))
+			if p95Max > 0 && pct(0.95) > p95Max {
+				return fmt.Errorf("p95 %v가 %v를 넘는다", pct(0.95), p95Max)
+			}
+			if handlingMax > 0 {
+				if len(handling) != n {
+					return fmt.Errorf("처리 구간 분포를 얻지 못해 처리 p95 기준을 검사할 수 없다")
+				}
+				if h := handling[int(.95*float64(n-1))]; h > handlingMax {
+					return fmt.Errorf("처리 구간 p95 %v가 %v를 넘는다", h, handlingMax)
+				}
 			}
 			return nil
 		},
 	}
 	c.Flags().IntVar(&n, "n", 200, "반복 횟수")
+	c.Flags().DurationVar(&p95Max, "p95-max", 10*time.Millisecond, "프로세스 기동을 포함한 p95 상한 (0이면 검사하지 않음)")
+	c.Flags().DurationVar(&handlingMax, "handling-p95-max", 0, "입력/소켓/출력 처리 구간 p95 상한 (0이면 검사하지 않음; 러너 부하에 덜 흔들리는 회귀 기준)")
 	return c
 }
 

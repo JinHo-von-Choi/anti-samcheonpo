@@ -1,0 +1,10 @@
+{
+ "input": "input.jsonl",
+ "agent": "claude",
+ "expect": {
+  "rules": [
+   "s2.oscillation@L1"
+  ],
+  "contract_state": "draft"
+ }
+}

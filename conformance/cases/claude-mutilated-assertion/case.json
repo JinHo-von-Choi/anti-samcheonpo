@@ -1,0 +1,10 @@
+{
+ "input": "input.jsonl",
+ "agent": "claude",
+ "expect": {
+  "rules": [
+   "s5.test_weakening@L2"
+  ],
+  "contract_state": "draft"
+ }
+}

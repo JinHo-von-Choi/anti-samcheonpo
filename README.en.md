@@ -74,10 +74,10 @@ You give the AI a task → Samcheonpo watches → busywork gets flagged → igno
 | Dumb cost | Signals Samcheonpo watches | Intervention |
 | --- | --- | --- |
 | **Over-verification** | Same test repeated with no code change · rerunning a check that already has passing evidence · re-verifying after touching only docs · repeating the same review on the same state | Nudge → block before running on repeat (shows the earlier result) |
-| **Drifting off task** | Editing files outside the requested scope · editing protected paths · faking a real service to make tests pass · reverting to an old goal after context compaction | Nudge · immediate block on protected paths · shows what you asked next to what it is doing |
-| **Capability loops** | Same error after every fix · failing while editing the same files again and again · retrying a fix that already failed (even across sessions) · flip-flopping edits · repeated failures most likely caused by conditions outside the code (installs, services, permissions) | Nudge → block on repeat → stop auto-retries and write a handoff note |
+| **Drifting off task** | Editing files outside the requested scope · editing protected paths · faking a real service to make tests pass · reverting to an old goal after context compaction | Nudge · immediate block on protected paths · shows what you asked next to what it is doing · right after a context compaction, once, restates the goal, protected paths and remaining done-conditions in one line |
+| **Capability loops** | Same error after every fix · failing while editing the same files again and again · retrying a fix that already failed (even across sessions) · flip-flopping edits (including ones that only rename or reformat) · repeated failures most likely caused by conditions outside the code (installs, services, permissions, ports, auth) | Nudge → block on repeat → stop auto-retries and write a handoff note. When a cause outside the code repeats twice with the environment unchanged, source edits are refused before they run until the cause is gone, and the one command a person should run (`npm install yaml` and the like) is shown. Dependency manifests stay editable; a pass of the same command or a successful install/service start lifts it |
 | **False "done"** | Deleting, skipping or weakening tests · code that hides errors · declaring "done" while the done-check fails | Nudge → block on repeat |
-| **Runaway cost** | Spend piling up without progress · abnormal spend rate · exceeding your budget | Alert · stop when over budget |
+| **Runaway cost** | Spend piling up without progress · abnormal spend rate · exceeding your budget · a tree of parent and child sessions exceeding its shared budget | Alert · stop when over budget · past the tree limit every session in that tree is refused before its next run |
 
 It follows five principles.
 
@@ -160,6 +160,7 @@ Your existing hooks and status line settings are preserved. Now just give the AI
 | `/samcheonpo:steer` | Pass Samcheonpo's prescription to the agent |
 | `/samcheonpo:check` | Run the done-check now |
 | `/samcheonpo:rollback` | Put files the AI changed with its write tools back to the last progress a passing check confirmed. Without arguments it previews; `apply <plan ID>` performs exactly the previewed plan. Files whose ownership is unclear (your edits mixed in, changed by shell commands or links) are left alone, and replaced content is backed up |
+| `/samcheonpo:rollback golden` | List the copies of the AI's files recorded under `.samcheonpo/snapshots` at each passing check. `golden <id>` previews a return to that point, `golden <id> apply <plan ID>` performs it. Same ownership rules as rollback; the five most recent points are kept |
 | `/samcheonpo:accept`, `/samcheonpo:edit` | Accept or edit a work contract (when you use one) |
 
 `/samcheonpo:summary` example:
@@ -215,9 +216,13 @@ contract:
   draft: off                 # on: request a contract draft for each new task
 notify:
   desktop: true
+swarm:
+  tree_krw: 0                # shared budget (KRW) for a tree of parent and child sessions; 0 applies only the contract budget
 ```
 
-A project config can only make settings **weaker** than the user config. It cannot make detection stricter or raise the block cap, and it cannot add or redirect external upload, notification destinations, or external programs to run; it can only turn them off. Newly added rules start in `shadow_rules`, record-only, until their false-positive rate is measured.
+A tree is formed only from sessions joined with `samcheonpo handoff link`, or sessions whose plugin sends `parent_session_id` at session start. A session with unknown lineage is its own tree and is never blocked by another.
+
+A project config can only make settings **weaker** than the user config. It cannot make detection stricter, raise the block cap or widen the tree budget, and it cannot add or redirect external upload, notification destinations, or external programs to run; it can only turn them off. Newly added rules start in `shadow_rules`, record-only, until their false-positive rate is measured.
 
 The research experiment mode (`experiment: {enabled: true}`) is off by default. When on, it withholds some advice as a control group and says so in the status line. A project config cannot turn it on.
 
@@ -250,7 +255,9 @@ The research experiment mode (`experiment: {enabled: true}`) is off by default. 
 - **The effect is still being proven.** Pilot runs showed lower cost per completion on tasks where agents spin their wheels, but the samples are small, so no general savings rate is claimed. In a 2026-10-07 pilot with the real Claude Code (Sonnet) on 6 tasks, both arms completed 6/6 and there were no interventions; the tasks did not make the current model spin, so no effect could be measured. Methods and limits are in the [experiment protocol](docs/benchmarks/protocol-v1.md).
 - **False positives can happen.** That is why it starts with nudges and blocks only when a warning was ignored on the same target in the same session, within a per-session cap. Report wrong calls with `/samcheonpo:keep normal`.
 - **A pre-run block reaches the agent only if the decision finishes within the hook's wait (15 ms).** If it does not, the run is not blocked, and the status line shows the number of late decisions and `unknown`.
-- **Rollback covers only files changed through write tools (Write, Edit) whose ownership is confirmed.** Files changed by shell commands, files with your edits mixed in, and links are not covered.
+- **Rollback covers only files changed through write tools (Write, Edit) whose ownership is confirmed.** Files changed by shell commands, files with your edits mixed in, and links are not covered. The same holds for a return to a recorded passing point (`rollback golden`); files written by another session's agent are left alone because this session cannot confirm their ownership.
+- **Refusing edits for a cause outside the code can be wrong.** It applies only after the same command failed twice with the same external cause and no environment change, and `/samcheonpo:keep normal` lifts it at once. Timeouts (124) and kills (137) can be code causes and never trigger it.
+- **Code freeze, recorded passing points, tree budgets, the post-compaction anchor and the HUD have, as of 2026-10-07, been checked by harness tests only.** They have not yet been verified with a real agent run.
 - **User-only commands are refused in the agent's shell, but this is not full isolation.** `accept`, `keep` and `rollback apply` run through the agent's shell tool are refused; a process of the same OS user connecting to the daemon socket directly is not stopped.
 - **On short, clear tasks it has little to do.** Busywork mostly shows up in long, complex sessions.
 - **Amounts are API-rate conversions.** They do not reflect your actual subscription bill or remaining quota.

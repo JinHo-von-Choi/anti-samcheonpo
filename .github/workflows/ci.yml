@@ -29,3 +29,7 @@ jobs:
         run: |
           go build -o "$RUNNER_TEMP/samcheonpo" ./cmd/samcheonpo
           go run ./cmd/samcheonpo-conformance --impl "$RUNNER_TEMP/samcheonpo spec run" --task-impl "$RUNNER_TEMP/samcheonpo spec task"
+      - name: hook latency regression
+        # the hosted runner's process start time varies with load, so only the
+        # daemon's own handling span is a regression gate here
+        run: sh scripts/check-hook-budget.sh --p95-max 0 --handling-p95-max 6ms

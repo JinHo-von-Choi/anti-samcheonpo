@@ -1,0 +1,13 @@
+{
+ "input": "input.jsonl",
+ "agent": "claude",
+ "expect": {
+  "rules": [
+   "s2.environment@L2"
+  ],
+  "not_rules": [
+   "s2.stuck_error"
+  ],
+  "contract_state": "draft"
+ }
+}
