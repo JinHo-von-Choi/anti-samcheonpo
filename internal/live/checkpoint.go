@@ -14,11 +14,11 @@ import (
 	"sort"
 	"sync"
 	"sync/atomic"
-	"syscall"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testout"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/verification"
 )
@@ -230,9 +230,9 @@ func runGroup(dir, command string, timeout time.Duration) (int, string, bool, bo
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
-	cmd := exec.Command("/bin/sh", "-c", command)
+	cmd := procgroup.Shell(command)
 	cmd.Dir = dir
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
+	procgroup.Set(cmd)
 	var buf bytes.Buffer
 	lw := &limitWriter{w: &buf, n: 1 << 20}
 	cmd.Stdout, cmd.Stderr = lw, lw
@@ -253,7 +253,7 @@ func runGroup(dir, command string, timeout time.Duration) (int, string, bool, bo
 		}
 		return code, buf.String(), false, lw.truncated
 	case <-time.After(timeout):
-		_ = syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
+		_ = procgroup.Kill(cmd)
 		<-done
 		return -1, buf.String(), true, lw.truncated
 	}

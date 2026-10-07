@@ -12,9 +12,9 @@ import (
 	"os"
 	"os/exec"
 	"strings"
-	"syscall"
 	"time"
 
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/sockpath"
 )
 
@@ -203,7 +203,7 @@ func spawnDaemon() {
 	defer devnull.Close()
 	cmd := exec.Command(daemonExecutable(exe), "daemon")
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devnull, devnull, devnull
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	procgroup.Detach(cmd)
 	if cmd.Start() == nil {
 		_ = cmd.Process.Release()
 	}

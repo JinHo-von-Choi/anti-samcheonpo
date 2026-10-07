@@ -27,6 +27,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intervene"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/recovery"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/sockpath"
@@ -89,7 +90,7 @@ func Run(dbPath string, idle time.Duration) error {
 		return err
 	}
 	defer lf.Close()
-	if err := syscall.Flock(int(lf.Fd()), syscall.LOCK_EX|syscall.LOCK_NB); err != nil {
+	if err := procgroup.LockExclusive(lf); err != nil {
 		return errors.New("데몬이 이미 실행 중이다")
 	}
 	// the lock file names the holder so tools can stop this daemon

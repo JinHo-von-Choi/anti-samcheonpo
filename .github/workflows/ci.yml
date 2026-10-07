@@ -33,3 +33,50 @@ jobs:
         # the hosted runner's process start time varies with load, so only the
         # daemon's own handling span is a regression gate here
         run: sh scripts/check-hook-budget.sh --p95-max 0 --handling-p95-max 6ms
+
+  # The daemon, hooks, checkpoints and rollback are Unix code paths shared with
+  # Linux; this job proves they also build and pass on macOS.
+  macos:
+    runs-on: macos-15
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: vet
+        run: go vet ./...
+      - name: test
+        run: go test ./...
+      - name: conformance
+        run: |
+          go build -o "$RUNNER_TEMP/samcheonpo" ./cmd/samcheonpo
+          go run ./cmd/samcheonpo-conformance --impl "$RUNNER_TEMP/samcheonpo spec run" --task-impl "$RUNNER_TEMP/samcheonpo spec task"
+      - name: hook latency
+        run: sh scripts/check-hook-budget.sh --p95-max 0 --handling-p95-max 6ms
+
+  # Windows: the binaries build and the platform-neutral packages (detectors,
+  # fingerprints, ledger, receipts, contracts) pass. The daemon and hook flow
+  # tests drive fake agents through shell scripts and are not run here, so
+  # Windows is a build-and-logic check, not a verified agent connection.
+  windows:
+    runs-on: windows-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: vet
+        run: go vet ./...
+      - name: build
+        run: go build ./...
+      - name: test (platform-neutral packages)
+        run: >-
+          go test
+          ./internal/detect ./internal/fp ./internal/classify ./internal/rules ./internal/cost
+          ./internal/receipt ./internal/ledger ./internal/intent ./internal/verification ./internal/seal
+          ./internal/recovery ./internal/policy ./internal/notify ./internal/handoff ./internal/eval
+          ./internal/analyze ./internal/config ./internal/contract ./internal/intervene ./internal/testout
+          ./internal/judge ./internal/patch ./internal/procgroup
+          ./internal/adapter/claude ./internal/adapter/codex ./internal/adapter/otel

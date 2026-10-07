@@ -38,5 +38,9 @@ func Path() string {
 		return p
 	}
 	h := sha256.Sum256([]byte(p))
-	return filepath.Join("/tmp", fmt.Sprintf("samcheonpo-%d-%s.sock", os.Getuid(), hex.EncodeToString(h[:6])))
+	user := fmt.Sprint(os.Getuid())
+	if os.Getuid() < 0 { // Windows has no numeric uid
+		user = os.Getenv("USERNAME")
+	}
+	return filepath.Join(os.TempDir(), fmt.Sprintf("samcheonpo-%s-%s.sock", user, hex.EncodeToString(h[:6])))
 }

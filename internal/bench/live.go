@@ -11,11 +11,9 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"runtime"
 	"sort"
 	"strconv"
 	"strings"
-	"syscall"
 	"time"
 
 	"gopkg.in/yaml.v3"
@@ -25,6 +23,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/eval"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/sources"
 )
 
@@ -351,27 +350,7 @@ func stopDaemon(home string) bool {
 	// A socket disappearing does not prove finalization completed: listeners
 	// unlink before queue drain. Until native process verification exists for
 	// other OSes, conservatively withhold the monitoring total there.
-	if runtime.GOOS != "linux" {
-		return false
-	}
-	// only signal a process that is a samcheonpo daemon using this home
-	env, err := os.ReadFile(fmt.Sprintf("/proc/%d/environ", pid))
-	if os.IsNotExist(err) {
-		return true
-	}
-	if err != nil || !strings.Contains(string(env), "SAMCHEONPO_HOME="+home+"\x00") {
-		return false
-	}
-	if err := syscall.Kill(pid, syscall.SIGTERM); err != nil {
-		return errors.Is(err, syscall.ESRCH)
-	}
-	for i := 0; i < 100; i++ {
-		if errors.Is(syscall.Kill(pid, 0), syscall.ESRCH) {
-			return true
-		}
-		time.Sleep(50 * time.Millisecond)
-	}
-	return false
+	return stopVerifiedDaemon(pid, home)
 }
 
 func run(ctx context.Context, dir string, env []string, name string, args ...string) ([]byte, error) {
@@ -379,8 +358,8 @@ func run(ctx context.Context, dir string, env []string, name string, args ...str
 	cmd.Dir = dir
 	cmd.Env = append(os.Environ(), env...)
 	cmd.Stdin = nil
-	cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true}
-	cmd.Cancel = func() error { return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL) }
+	procgroup.Set(cmd)
+	cmd.Cancel = func() error { return procgroup.Kill(cmd) }
 	cmd.WaitDelay = 5 * time.Second
 	return cmd.CombinedOutput()
 }

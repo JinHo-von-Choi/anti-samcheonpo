@@ -12,11 +12,11 @@ import (
 	"path/filepath"
 	"sort"
 	"strings"
-	"syscall"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/config"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 )
 
 // Files larger than this, or beyond the session total, are not kept: the
@@ -101,7 +101,7 @@ func readState(root *os.Root, rel string) (fileState, error) {
 	case st.Size() > maxTrackedFile:
 		return fileState{}, fmt.Errorf("파일이 %dMB보다 큼", maxTrackedFile>>20)
 	}
-	if sys, ok := st.Sys().(*syscall.Stat_t); ok && sys.Nlink > 1 {
+	if procgroup.HardLinked(st) {
 		return fileState{}, fmt.Errorf("하드링크라 다른 위치도 바뀔 수 있어 다루지 않음")
 	}
 	b, err := root.ReadFile(name)

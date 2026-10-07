@@ -1,9 +1,9 @@
-//go:build !linux
+//go:build !linux && !darwin
 
 package live
 
 import "net"
 
-// samePeerUser relies on the socket's 0600 permission where peer credentials
-// are not read.
+// samePeerUser relies on the socket living in a directory only this user can
+// reach where peer credentials are not read.
 func samePeerUser(net.Conn) bool { return true }

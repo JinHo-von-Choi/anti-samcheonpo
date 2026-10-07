@@ -20,6 +20,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/install"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/live"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 )
 
 func liveCommands() []*cobra.Command {
@@ -71,7 +72,7 @@ func statuslineCmd() *cobra.Command {
 			}
 			theirs := ""
 			if wrap != "" {
-				c := exec.Command("/bin/sh", "-c", wrap)
+				c := procgroup.Shell(wrap)
 				c.Stdin = bytes.NewReader(in)
 				if out, err := c.Output(); err == nil {
 					theirs = strings.TrimSpace(strings.SplitN(string(out), "\n", 2)[0])
