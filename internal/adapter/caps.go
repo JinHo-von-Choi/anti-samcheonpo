@@ -123,7 +123,9 @@ func Resolve(agent, version string) (Caps, bool) {
 	return p.Caps, true
 }
 
-// ProbeVersion runs `<agent> --version` and returns the first line.
+// ProbeVersion runs `<agent> --version` and returns the first line. The
+// daemon probes off the hook path, so the timeout only has to cover slow
+// starters: opencode 1.18 takes about 1.1s to print its version.
 func ProbeVersion(agent string) string {
 	if _, ok := Profiles[agent]; !ok {
 		return ""
@@ -132,7 +134,7 @@ func ProbeVersion(agent string) string {
 	if agent == "cursor" {
 		bin = "cursor-agent"
 	}
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), probeTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, bin, "--version")
 	cmd.WaitDelay = 50 * time.Millisecond
@@ -144,6 +146,8 @@ func ProbeVersion(agent string) string {
 	}
 	return strings.TrimSpace(strings.SplitN(string(out.data), "\n", 2)[0])
 }
+
+var probeTimeout = 3 * time.Second
 
 type versionOutput struct{ data []byte }
 

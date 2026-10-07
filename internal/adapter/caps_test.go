@@ -14,6 +14,8 @@ func TestVersionProbeBoundsTimeAndOutput(t *testing.T) {
 	if err := os.WriteFile(path, []byte("#!/bin/sh\nexec sleep 5\n"), 0700); err != nil {
 		t.Fatal(err)
 	}
+	defer func(d time.Duration) { probeTimeout = d }(probeTimeout)
+	probeTimeout = 300 * time.Millisecond
 	start := time.Now()
 	if got := ProbeVersion("claude"); got != "" {
 		t.Fatal(got)
