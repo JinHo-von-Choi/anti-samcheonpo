@@ -332,7 +332,7 @@ The research experiment mode (`experiment: {enabled: true}`) is off by default. 
 
 ## Learn more
 
-- [Getting started](docs/getting-started.md) · [Support and verification matrix](docs/support-matrix.md) (Korean)
+- [Getting started](docs/getting-started.md) · [Support and verification matrix](docs/support-matrix.md) · [Agent skill](plugins/claude-code/skills/samcheonpo/SKILL.md): how an AI should set Samcheonpo up and act on its warnings, blocks and holds; installed with the Claude Code plugin (Korean)
 - Specs: [progress contract](docs/spec/progress-contract-v1.md) · [evidence ledger](docs/spec/evidence-ledger-v1.md) · [receipt display](docs/spec/receipt-billing.md) · [recovery and causes outside the code](docs/spec/recovery-v1.md) · [handoff](docs/spec/handoff-v1-draft.md)
 - Evaluation: `samcheonpo bench` (deterministic scenarios), `samcheonpo bench ab` (real agent comparison), `samcheonpo gaps` (spans the rules may have missed), `samcheonpo interventions` (how far each prescription got)
 - [Conformance cases](conformance/) are public so other tools can be scored against the same spec.

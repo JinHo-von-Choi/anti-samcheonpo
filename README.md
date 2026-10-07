@@ -321,7 +321,7 @@ swarm:
 
 ## 더 알아보기
 
-- [처음 사용하기](docs/getting-started.md) · [지원·검증 범위](docs/support-matrix.md)
+- [처음 사용하기](docs/getting-started.md) · [지원·검증 범위](docs/support-matrix.md) · [에이전트용 사용 지침(스킬)](plugins/claude-code/skills/samcheonpo/SKILL.md) — AI가 삼천포를 세팅하고 경고·차단·보류에 맞게 행동하는 규칙. Claude Code 플러그인에 같이 설치된다
 - 규격: [진척 계약](docs/spec/progress-contract-v1.md) · [근거 원장](docs/spec/evidence-ledger-v1.md) · [영수증 표시](docs/spec/receipt-billing.md) · [복구와 코드 밖 원인](docs/spec/recovery-v1.md) · [인수인계](docs/spec/handoff-v1-draft.md)
 - 평가: `samcheonpo bench`(결정적 시나리오), `samcheonpo bench ab`(실제 에이전트 비교), `samcheonpo gaps`(규칙이 놓친 의심 구간 추출), `samcheonpo interventions`(처방이 어디까지 전달됐는지)
 - 다른 도구도 같은 규격으로 채점할 수 있게 [적합성 사례](conformance/)를 공개합니다.
