@@ -53,40 +53,29 @@ func GoalCard(c *contract.Contract, acceptance contract.Acceptance, requested st
 func (c Card) Text() string {
 	var b strings.Builder
 	b.WriteString("AI는 이렇게 이해했습니다.\n")
-	if c.TaskID != "" {
-		fmt.Fprintf(&b, "작업 %s · 의도 개정 %d\n", c.TaskID, c.Revision)
-	}
-	if c.Source != nil {
-		fmt.Fprintf(&b, "요청 출처: %s / %s / %s\n", c.Source.Origin, c.Source.SessionID, c.Source.EventID)
-	}
-	if c.LatestMessage != "" && c.LatestMessage != c.RequestedGoal {
-		fmt.Fprintf(&b, "최근 요청 기록: %s\n", c.LatestMessage)
-	}
-	fmt.Fprintf(&b, "[목표 카드] 상태: %s · 확실성: %s\n권한: %s\n", c.State, c.Certainty, c.Authority)
+	// What should change, in the user's words, comes first; files are
+	// reference detail for whoever can read them.
 	if c.Goal != "" {
-		fmt.Fprintf(&b, "계약에 적힌 목표: %s\n", c.Goal)
+		fmt.Fprintf(&b, "바뀔 동작: %s\n", c.Goal)
 	}
 	if c.RequestedGoal != "" {
 		fmt.Fprintf(&b, "사용자 요청(초안에 반영할 내용): %s\n", c.RequestedGoal)
 	}
+	if c.LatestMessage != "" && c.LatestMessage != c.RequestedGoal {
+		fmt.Fprintf(&b, "최근 요청 기록: %s\n", c.LatestMessage)
+	}
 	for _, check := range c.Criteria {
 		if check.Manual != "" {
-			fmt.Fprintf(&b, "직접 확인할 조건: %s\n", check.Manual)
+			fmt.Fprintf(&b, "끝났는지 직접 확인할 것: %s\n", check.Manual)
 		} else {
-			fmt.Fprintf(&b, "기계 확인 조건: %s\n", check.Check)
+			fmt.Fprintf(&b, "끝났는지 자동으로 확인할 명령: %s\n", check.Check)
 			if check.Reuse != nil {
 				fmt.Fprintf(&b, "  재사용 선언: 입력·환경 동일 시 %d초; 외부 의존성·flaky 검사 제외\n", check.Reuse.MaxAgeSec)
 			}
 		}
 	}
-	if len(c.Allowed) > 0 {
-		fmt.Fprintf(&b, "허용 범위: %s\n", strings.Join(c.Allowed, ", "))
-	}
-	if len(c.Protected) > 0 {
-		fmt.Fprintf(&b, "보호 범위: %s\n", strings.Join(c.Protected, ", "))
-	}
 	if len(c.Forbidden) > 0 {
-		fmt.Fprintf(&b, "금지 사항: %s\n", strings.Join(c.Forbidden, ", "))
+		fmt.Fprintf(&b, "하지 않을 것: %s\n", strings.Join(c.Forbidden, ", "))
 	}
 	if c.BudgetKRW > 0 {
 		fmt.Fprintf(&b, "설정된 API 환산 예산: %s원(실제 청구액 아님)\n", contract.Comma(c.BudgetKRW))
@@ -94,8 +83,25 @@ func (c Card) Text() string {
 	if c.BudgetMinutes > 0 {
 		fmt.Fprintf(&b, "설정된 시간 예산: %d분\n", c.BudgetMinutes)
 	}
+	if len(c.Allowed) > 0 || len(c.Protected) > 0 {
+		b.WriteString("참고(파일 범위):")
+		if len(c.Allowed) > 0 {
+			fmt.Fprintf(&b, " 손댈 수 있는 곳 %s", strings.Join(c.Allowed, ", "))
+		}
+		if len(c.Protected) > 0 {
+			fmt.Fprintf(&b, " · 손대지 않을 곳 %s", strings.Join(c.Protected, ", "))
+		}
+		b.WriteString("\n")
+	}
+	fmt.Fprintf(&b, "[목표 카드] 상태: %s · 확실성: %s\n권한: %s\n", c.State, c.Certainty, c.Authority)
+	if c.TaskID != "" {
+		fmt.Fprintf(&b, "작업 %s · 의도 개정 %d\n", c.TaskID, c.Revision)
+	}
+	if c.Source != nil {
+		fmt.Fprintf(&b, "요청 출처: %s / %s / %s\n", c.Source.Origin, c.Source.SessionID, c.Source.EventID)
+	}
 	if c.Certainty != "accepted_contract" {
-		b.WriteString("초안·후보 발견은 실행 승인이 아니다. 내용을 확인하고 accept하거나 edit로 고친다.\n")
+		b.WriteString("초안·후보 발견은 실행 승인이 아니다. 동작 설명이 맞는지 확인하고 accept하거나 edit로 고친다.\n")
 		b.WriteString("[/samcheonpo:accept 맞아요]  [/samcheonpo:edit 고칠래요]  [/samcheonpo:skip 계약 없이 진행]\n")
 	}
 	return b.String()

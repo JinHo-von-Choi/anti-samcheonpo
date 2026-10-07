@@ -59,3 +59,17 @@ func TestCardPreservesConstraintsAndReuseDeclaration(t *testing.T) {
 		}
 	}
 }
+
+func TestCardLeadsWithBehaviorAndKeepsFilesAsReference(t *testing.T) {
+	c := &contract.Contract{Goal: "세션이 만료되면 다시 로그인 화면으로 보낸다", Done: []contract.Check{{ID: "m", Manual: "만료 후 /login으로 이동"}}}
+	c.Scope.Allow = []string{"src/auth/**"}
+	text := GoalCard(c, contract.Acceptance{State: contract.StateDraft}, "", nil).Text()
+	lines := strings.Split(text, "\n")
+	if len(lines) < 3 || !strings.HasPrefix(lines[1], "바뀔 동작: 세션이 만료되면") {
+		t.Fatalf("the behavior to change comes first: %q", text)
+	}
+	behavior, files := strings.Index(text, "바뀔 동작"), strings.Index(text, "참고(파일 범위)")
+	if files < 0 || files < behavior || !strings.Contains(text, "끝났는지 직접 확인할 것") {
+		t.Fatalf("files are shown after the behavior, as reference: %q", text)
+	}
+}
