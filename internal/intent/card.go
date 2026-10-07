@@ -39,7 +39,7 @@ func GoalCard(c *contract.Contract, acceptance contract.Acceptance, requested st
 		card.Protected = append([]string(nil), c.Scope.Protect...)
 		card.Forbidden = append([]string(nil), c.Forbid...)
 		card.BudgetKRW, card.BudgetMinutes = c.Budget.KRW, c.Budget.Minutes
-		if acceptance.State == contract.StateAccepted && acceptance.ChecksHash == c.ChecksHash() && acceptance.RequestedGoal == "" {
+		if acceptance.State == contract.StateAccepted && acceptance.ChecksHash == c.ChecksHash() && acceptance.AuthorityHash == contract.AuthorityDigest(c) && acceptance.RequestedGoal == "" {
 			card.Certainty = "accepted_contract"
 			card.Authority = "수락된 계약의 검사만 실행 가능; 새 명령·권한 확대 승인 아님"
 		}

@@ -48,7 +48,7 @@ explore: false                                            # 선택, 조사 작�
 ## 2. 상태 전이
 
 ```text
-draft ──accept──▶ accepted ──(check 목록 변경)──▶ stale ──accept──▶ accepted
+draft ──accept──▶ accepted ──(계약 내용 변경)──▶ stale ──accept──▶ accepted
   │                  │
   └──skip──▶ skipped └──(모든 기계 조건 충족 후 새 작업)──▶ done
 ```
@@ -57,17 +57,19 @@ draft ──accept──▶ accepted ──(check 목록 변경)──▶ stale 
 | --- | --- | --- |
 | `draft` | 계약 파일이 있으나 사용자가 수락하지 않았다 | 범위와 예산은 첫 프롬프트 기준, 체크포인트 실행 안 함 |
 | `accepted` | 사용자가 수락했다 | 범위, 예산, 완료 조건 모두 계약 기준 |
-| `stale` | 수락 뒤 기계 검증 조건이 바뀌었다 | `draft`와 같음. 다시 수락해야 체크포인트가 돈다 |
+| `stale` | 수락 뒤 계약 내용(목표·완료 조건·범위·보호 경로·예산·금지 항목)이 바뀌었거나, 수락 기록의 서명이 맞지 않는다 | `draft`와 같음. 다시 수락해야 체크포인트가 돈다 |
 | `skipped` | 사용자가 계약 없이 진행을 골랐다 | 추정 진척만 |
 | `done` | 작업이 끝났다 | 다음 프롬프트는 새 작업 |
 
 수락 기록은 `.samcheonpo/contract.state.json`에 둔다.
 
 ```json
-{"state": "accepted", "checks_hash": "…", "file_hash": "…", "accepted_at": "2026-10-06T03:41:40Z", "side_effect": ["c2"]}
+{"state": "accepted", "checks_hash": "…", "authority_hash": "…", "file_hash": "…", "accepted_at": "2026-10-06T03:41:40Z", "side_effect": ["c2"], "mac": "…"}
 ```
 
-`checks_hash`는 기계 검증 조건만으로 계산한다. 각 조건에 대해 `id + 0x00 + check + 0x00 + isolation + ("true"|"false")`를 만들고, 앞에 `"checks"`를 둔 목록을 0x00으로 이어 SHA-256을 구한 뒤 앞 16바이트를 소문자 16진수로 쓴다. 목표 문장이나 사람 확인 조건을 고치는 것은 수락을 깨지 않는다.
+`checks_hash`는 기계 검증 조건만으로 계산한다. 각 조건에 대해 `id + 0x00 + check + 0x00 + isolation + ("true"|"false")`를 만들고, 앞에 `"checks"`를 둔 목록을 0x00으로 이어 SHA-256을 구한 뒤 앞 16바이트를 소문자 16진수로 쓴다. `checks_hash`는 검사 결과를 다시 쓸 수 있는지 가리는 키다. 수락이 유효한지는 `authority_hash`로 판단한다. `authority_hash`는 계약 전체(목표, 사람 확인 조건 포함)의 정규 JSON으로 계산하므로, 어느 항목을 고쳐도 다시 수락해야 한다. `authority_hash`가 없는 이전 수락 기록도 다시 수락해야 한다.
+
+`mac`은 사용자 홈의 `acceptance.key`로 계산한 HMAC-SHA256이다. 입력은 프로젝트 절대 경로, 0x00, 그리고 `mac`을 비운 수락 기록 JSON이다. 에이전트가 직접 쓰거나 다른 프로젝트에서 복사한 수락 기록은 서명이 맞지 않아 `stale`로 취급한다.
 
 ## 3. 완료 조건 실행
 

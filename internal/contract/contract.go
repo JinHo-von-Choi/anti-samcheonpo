@@ -3,7 +3,12 @@
 package contract
 
 import (
+	"crypto/hmac"
+	"crypto/rand"
+	"crypto/sha256"
+	"encoding/hex"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"os"
 	"path"
@@ -18,6 +23,7 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/sockpath"
 )
 
 // SpecVersion is the Progress Contract version this package implements.
@@ -78,14 +84,20 @@ const (
 
 // Acceptance records what the user accepted.
 type Acceptance struct {
-	RequestedGoal    string    `json:"requested_goal,omitempty"`
-	PreviousFileHash string    `json:"previous_file_hash,omitempty"`
-	State            State     `json:"state"`
-	ChecksHash       string    `json:"checks_hash"`
-	FileHash         string    `json:"file_hash"`
-	AcceptedAt       time.Time `json:"accepted_at"`
+	RequestedGoal    string `json:"requested_goal,omitempty"`
+	PreviousFileHash string `json:"previous_file_hash,omitempty"`
+	State            State  `json:"state"`
+	ChecksHash       string `json:"checks_hash"`
+	// AuthorityHash binds every accepted field (goal, checks, scope,
+	// protection, budget, forbidden actions); any change needs re-acceptance.
+	AuthorityHash string    `json:"authority_hash,omitempty"`
+	FileHash      string    `json:"file_hash"`
+	AcceptedAt    time.Time `json:"accepted_at"`
 	// SideEffect lists check ids that changed the workspace and are excluded from automatic runs.
 	SideEffect []string `json:"side_effect,omitempty"`
+	// MAC is keyed by a secret in the user's samcheonpo home, so a state file
+	// written by an agent or copied from another project grants nothing.
+	MAC string `json:"mac,omitempty"`
 }
 
 // Dir returns the contract directory of a project.
@@ -307,6 +319,12 @@ func SaveAcceptance(project string, a Acceptance) error {
 	if err := os.MkdirAll(Dir(project), 0o755); err != nil {
 		return err
 	}
+	a.MAC = ""
+	mac, err := acceptanceMAC(project, a)
+	if err != nil && a.State == StateAccepted {
+		return fmt.Errorf("수락 기록 서명 실패: %w", err)
+	}
+	a.MAC = mac
 	b, _ := json.MarshalIndent(a, "", "  ")
 	f, err := os.CreateTemp(Dir(project), ".contract.state-*.tmp")
 	if err != nil {
@@ -333,10 +351,87 @@ func CurrentState(project string, c *Contract, raw []byte) Acceptance {
 		}
 		return Acceptance{State: StateDraft}
 	}
-	if a.State == StateAccepted && a.ChecksHash != c.ChecksHash() {
+	if a.State == StateAccepted && (a.ChecksHash != c.ChecksHash() || a.AuthorityHash == "" || a.AuthorityHash != AuthorityDigest(c) || !validMAC(project, a)) {
 		a.State = StateStale
 	}
 	return a
+}
+
+// AuthorityDigest hashes everything an acceptance authorizes. Unlike
+// ChecksHash, which keys check results, it covers scope, protection, budget,
+// forbidden actions and the goal.
+func AuthorityDigest(c *Contract) string {
+	b, _ := json.Marshal(c)
+	return fp.Hash("authority-v1", string(b))
+}
+
+func acceptanceKeyPath() string { return filepath.Join(sockpath.Home(), "acceptance.key") }
+
+// acceptanceKey returns the per-user signing key, creating it on first use.
+func acceptanceKey() ([]byte, error) {
+	p := acceptanceKeyPath()
+	if b, err := os.ReadFile(p); err == nil && len(b) >= 32 {
+		return b, nil
+	}
+	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+		return nil, err
+	}
+	key := make([]byte, 32)
+	if _, err := rand.Read(key); err != nil {
+		return nil, err
+	}
+	// Write the key completely under a temporary name, then link it into
+	// place: concurrent creators never observe a partial key.
+	tmp, err := os.CreateTemp(filepath.Dir(p), ".acceptance-*.key")
+	if err != nil {
+		return nil, err
+	}
+	defer os.Remove(tmp.Name())
+	if _, err := tmp.Write(key); err != nil {
+		tmp.Close()
+		return nil, err
+	}
+	if err := tmp.Chmod(0o600); err != nil {
+		tmp.Close()
+		return nil, err
+	}
+	if err := tmp.Close(); err != nil {
+		return nil, err
+	}
+	if err := os.Link(tmp.Name(), p); err != nil && !errors.Is(err, os.ErrExist) {
+		return nil, err
+	}
+	b, err := os.ReadFile(p)
+	if err != nil || len(b) < 32 {
+		return nil, fmt.Errorf("서명 키를 읽을 수 없다: %s", p)
+	}
+	return b, nil
+}
+
+func acceptanceMAC(project string, a Acceptance) (string, error) {
+	key, err := acceptanceKey()
+	if err != nil {
+		return "", err
+	}
+	root, err := filepath.Abs(project)
+	if err != nil {
+		return "", err
+	}
+	a.MAC = ""
+	b, _ := json.Marshal(a)
+	m := hmac.New(sha256.New, key)
+	m.Write([]byte(root))
+	m.Write([]byte{0})
+	m.Write(b)
+	return hex.EncodeToString(m.Sum(nil)), nil
+}
+
+func validMAC(project string, a Acceptance) bool {
+	if a.MAC == "" {
+		return false
+	}
+	want, err := acceptanceMAC(project, a)
+	return err == nil && hmac.Equal([]byte(want), []byte(a.MAC))
 }
 
 // Accept marks the current contract accepted.
@@ -345,7 +440,7 @@ func Accept(project string, c *Contract, raw []byte, now time.Time) (Acceptance,
 	if previous.RequestedGoal != "" && previous.PreviousFileHash == fp.Hash(string(raw)) {
 		return Acceptance{}, fmt.Errorf("목표 변경 요청이 아직 계약에 반영되지 않았다. 초안을 고친 뒤 수락해야 한다")
 	}
-	a := Acceptance{State: StateAccepted, ChecksHash: c.ChecksHash(), FileHash: fp.Hash(string(raw)), AcceptedAt: now}
+	a := Acceptance{State: StateAccepted, ChecksHash: c.ChecksHash(), AuthorityHash: AuthorityDigest(c), FileHash: fp.Hash(string(raw)), AcceptedAt: now}
 	return a, SaveAcceptance(project, a)
 }
 

@@ -1,6 +1,7 @@
 package contract
 
 import (
+	"encoding/json"
 	"os"
 	"path/filepath"
 	"strings"
@@ -123,12 +124,86 @@ func TestAcceptanceLifecycle(t *testing.T) {
 	if st := CurrentState(dir, c2, raw2); st.State != StateStale {
 		t.Errorf("changed checks must be stale, got %s", st.State)
 	}
-	// editing only the goal keeps acceptance
+	// the goal is part of what the user accepted
 	goalOnly := strings.Replace(good, "로그인 토큰이", "토큰이", 1)
 	_ = os.WriteFile(Path(dir), []byte(goalOnly), 0o644)
 	c3, raw3, _ := Load(dir)
-	if st := CurrentState(dir, c3, raw3); st.State != StateAccepted {
-		t.Errorf("goal edit changed state to %s", st.State)
+	if st := CurrentState(dir, c3, raw3); st.State != StateStale {
+		t.Errorf("goal edit must need re-acceptance, got %s", st.State)
+	}
+}
+
+func TestAcceptanceCoversEveryAuthorityField(t *testing.T) {
+	t.Setenv("SAMCHEONPO_HOME", t.TempDir())
+	edits := map[string][2]string{
+		"scope":   {`allow: ["src/auth/**", "src/pages/login/**"]`, `allow: ["**"]`},
+		"protect": {`protect: ["tests/**", ".env*"]`, `protect: []`},
+		"budget":  {"krw: 5000", "krw: 500000"},
+		"forbid":  {`forbid: ["테스트 수정", "새 의존성 추가"]`, `forbid: []`},
+	}
+	for name, e := range edits {
+		dir := t.TempDir()
+		_ = os.MkdirAll(Dir(dir), 0o755)
+		_ = os.WriteFile(Path(dir), []byte(good), 0o644)
+		c, raw, _ := Load(dir)
+		if _, err := Accept(dir, c, raw, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		changed := strings.Replace(good, e[0], e[1], 1)
+		if changed == good {
+			t.Fatalf("%s: edit did not apply", name)
+		}
+		_ = os.WriteFile(Path(dir), []byte(changed), 0o644)
+		c2, raw2, _ := Load(dir)
+		if st := CurrentState(dir, c2, raw2); st.State != StateStale {
+			t.Errorf("%s change kept acceptance: %s", name, st.State)
+		}
+	}
+}
+
+func TestForgedOrCopiedAcceptanceGrantsNothing(t *testing.T) {
+	t.Setenv("SAMCHEONPO_HOME", t.TempDir())
+	dir := t.TempDir()
+	_ = os.MkdirAll(Dir(dir), 0o755)
+	_ = os.WriteFile(Path(dir), []byte(good), 0o644)
+	c, raw, _ := Load(dir)
+
+	// an agent writes a plausible state file without the user's key
+	forged := Acceptance{State: StateAccepted, ChecksHash: c.ChecksHash(), AuthorityHash: AuthorityDigest(c), AcceptedAt: time.Now()}
+	b, _ := json.Marshal(forged)
+	_ = os.WriteFile(filepath.Join(Dir(dir), "contract.state.json"), b, 0o644)
+	if st := CurrentState(dir, c, raw); st.State != StateStale {
+		t.Fatalf("forged acceptance honored: %s", st.State)
+	}
+
+	// a legacy acceptance without an authority hash needs re-confirmation
+	if _, err := Accept(dir, c, raw, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	legacy := LoadAcceptance(dir)
+	legacy.AuthorityHash = ""
+	if err := SaveAcceptance(dir, legacy); err != nil {
+		t.Fatal(err)
+	}
+	if st := CurrentState(dir, c, raw); st.State != StateStale {
+		t.Fatalf("legacy acceptance honored: %s", st.State)
+	}
+
+	// a signed state copied into another project grants nothing there
+	if _, err := Accept(dir, c, raw, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	other := t.TempDir()
+	_ = os.MkdirAll(Dir(other), 0o755)
+	_ = os.WriteFile(Path(other), []byte(good), 0o644)
+	signed, _ := os.ReadFile(filepath.Join(Dir(dir), "contract.state.json"))
+	_ = os.WriteFile(filepath.Join(Dir(other), "contract.state.json"), signed, 0o644)
+	c2, raw2, _ := Load(other)
+	if st := CurrentState(other, c2, raw2); st.State != StateStale {
+		t.Fatalf("copied acceptance honored: %s", st.State)
+	}
+	if st := CurrentState(dir, c, raw); st.State != StateAccepted {
+		t.Fatalf("genuine acceptance lost: %s", st.State)
 	}
 }
 

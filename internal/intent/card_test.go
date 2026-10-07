@@ -34,14 +34,15 @@ func TestCardDoesNotGrantDraftOrStaleAuthority(t *testing.T) {
 	for _, a := range []contract.Acceptance{
 		{State: contract.StateDraft},
 		{State: contract.StateAccepted, ChecksHash: "wrong"},
-		{State: contract.StateAccepted, ChecksHash: c.ChecksHash(), RequestedGoal: "new goal"},
+		{State: contract.StateAccepted, ChecksHash: c.ChecksHash(), AuthorityHash: contract.AuthorityDigest(c), RequestedGoal: "new goal"},
+		{State: contract.StateAccepted, ChecksHash: c.ChecksHash()},
 	} {
 		card := GoalCard(c, a, "", nil)
 		if card.Certainty == "accepted_contract" || !strings.Contains(card.Text(), "실행 미승인") {
 			t.Fatal(card)
 		}
 	}
-	card := GoalCard(c, contract.Acceptance{State: contract.StateAccepted, ChecksHash: c.ChecksHash()}, "", nil)
+	card := GoalCard(c, contract.Acceptance{State: contract.StateAccepted, ChecksHash: c.ChecksHash(), AuthorityHash: contract.AuthorityDigest(c)}, "", nil)
 	if card.Certainty != "accepted_contract" || !strings.Contains(card.Authority, "권한 확대 승인 아님") {
 		t.Fatal(card)
 	}
