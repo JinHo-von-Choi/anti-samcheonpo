@@ -32,7 +32,7 @@ All the while the AI says "almost done". You sit there watching, unaware, while 
 ## How it helps
 
 **1. It watches.**
-It hooks directly into Claude Code, Codex, and opencode to trace edits, commands, test outputs, and spend in real time. It trusts actual runs over agent claims.
+It hooks directly into Claude Code, Codex, opencode, Antigravity (agy), Hermes, and OpenClaw to trace edits, commands, test outputs, and spend in real time. It trusts actual runs over agent claims.
 
 **2. It tells you in plain words.**
 Instead of opaque log notices, it drops concrete warnings (currently Korean; translations below):
@@ -143,6 +143,9 @@ Measured tokens; progress (estimated); necessary exploration; busywork; how many
 samcheonpo install --agent claude     # Claude Code (plugin and status line)
 samcheonpo install --agent codex      # Codex
 samcheonpo install --agent opencode   # opencode
+samcheonpo install --agent agy        # Antigravity CLI (~/.gemini/config/hooks.json)
+samcheonpo install --agent hermes     # Hermes (plugin, via hermes plugins enable)
+samcheonpo install --agent openclaw   # OpenClaw (plugin, via openclaw plugins install)
 ```
 
 Your existing hooks and status line settings are preserved. Now just give the AI work as usual. A background daemon starts on the first hook call.
@@ -225,7 +228,13 @@ The research experiment mode (`experiment: {enabled: true}`) is off by default. 
 | Claude Code | Observe · nudge · block before running · status line · slash commands | 2.1.x |
 | Codex | Observe · nudge · block before running | 0.160.x |
 | opencode | Observe · nudge · block before running | 1.18.x |
-| GitHub Copilot · Cursor · Antigravity (agy) | Observe only | |
+| Antigravity (agy) | Observe · nudge · block before running | 1.3.x |
+| Hermes | Observe · nudge · block before running | 0.21.x |
+| OpenClaw | Observe · nudge (from the next request) · block before running | 2026.7.x |
+| GitHub Copilot · Cursor | Observe only | |
+
+- agy: hooks carry no tool results, so exit codes, output and tokens are read from the conversation transcript; a shell result is applied at the next event. agy has no session-end event, so no end-of-session receipt is written.
+- OpenClaw: no hook changes the tool result the model sees during a run. Advice is attached to the next request; until then, repeats within the same run are not blocked.
 
 | Platform | Status |
 | --- | --- |

@@ -1,0 +1,21 @@
+{
+ "artifactDirectoryPath": "/work/home/.gemini/antigravity-cli/brain/2401c2cc-42e0-426d-99b8-20b3c7d11683",
+ "conversationId": "2401c2cc-42e0-426d-99b8-20b3c7d11683",
+ "modelName": "gemini-3.8-flash-high",
+ "stepIdx": 6,
+ "toolCall": {
+  "args": {
+   "CodeContent": "hi\n",
+   "Description": "Create b.txt containing hi",
+   "Overwrite": true,
+   "TargetFile": "/work/proj/b.txt",
+   "toolAction": "Writing b.txt",
+   "toolSummary": "Create b.txt"
+  },
+  "name": "write_to_file"
+ },
+ "transcriptPath": "/work/home/.gemini/antigravity-cli/brain/2401c2cc-42e0-426d-99b8-20b3c7d11683/.system_generated/logs/transcript_full.jsonl",
+ "workspacePaths": [
+  "/work/proj"
+ ]
+}

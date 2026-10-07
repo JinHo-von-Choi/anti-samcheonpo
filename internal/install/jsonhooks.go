@@ -162,10 +162,110 @@ func jsonInner(s string) string {
 	return string(b[1 : len(b)-1])
 }
 
-// Agy is the Antigravity CLI dialect (Claude family, project .agents/hooks.json).
-var Agy = HookDialect{Agent: "agy", Events: map[string]int{
-	"SessionStart": 5, "UserPromptSubmit": 5, "PreToolUse": 5, "PostToolUse": 5, "Stop": 160, "SessionEnd": 5,
-}}
+// AgyGroup is the hook group name samcheonpo owns in agy's hooks.json.
+const AgyGroup = "samcheonpo"
+
+// agyGroup builds the agy 1.3 hook group: tool events take matcher entries,
+// invocation and stop events take plain handlers.
+func agyGroup(bin string) json.RawMessage {
+	cmd := func(ev string) map[string]any {
+		timeout := 5
+		if ev == "Stop" {
+			timeout = 160
+		}
+		return map[string]any{"type": "command", "command": marker(bin, "agy") + ev + " agy", "timeout": timeout}
+	}
+	g := map[string]any{
+		"PreToolUse":    []map[string]any{{"matcher": "*", "hooks": []map[string]any{cmd("PreToolUse")}}},
+		"PostToolUse":   []map[string]any{{"matcher": "*", "hooks": []map[string]any{cmd("PostToolUse")}}},
+		"PreInvocation": []map[string]any{cmd("PreInvocation")},
+		"Stop":          []map[string]any{cmd("Stop")},
+	}
+	b, _ := json.Marshal(g)
+	return b
+}
+
+// InstallAgy adds the samcheonpo group to agy's global hooks.json
+// (~/.gemini/config/hooks.json), keeping every other group.
+func InstallAgy(bin, path string, out func(string)) error {
+	bin = hookclient.Executable(bin)
+	if out == nil {
+		out = func(string) {}
+	}
+	if _, err := os.Lstat(hookStatePath("agy")); err == nil {
+		return errors.New("agy 연결이 이미 설치되어 있다")
+	} else if !os.IsNotExist(err) {
+		return err
+	}
+	root, raw, err := readSettings(path)
+	if err != nil {
+		return err
+	}
+	if _, ok := root[AgyGroup]; ok {
+		return fmt.Errorf("%s에 %q 훅 묶음이 이미 있다", path, AgyGroup)
+	}
+	if err := backup(path, raw); err != nil {
+		return err
+	}
+	g := agyGroup(bin)
+	root[AgyGroup] = g
+	b, err := json.MarshalIndent(root, "", "  ")
+	if err != nil {
+		return err
+	}
+	st, _ := json.MarshalIndent(hookState{Agent: "agy", Path: path, Existed: raw != nil, Marker: marker(bin, "agy"), At: time.Now().UTC(), Entries: map[string]json.RawMessage{AgyGroup: g}}, "", "  ")
+	if err := writeHookSettings(path, append(b, '\n'), raw, hookStatePath("agy"), st); err != nil {
+		return err
+	}
+	out(fmt.Sprintf("agy 훅 묶음 %q를 %s에 추가했다", AgyGroup, path))
+	return nil
+}
+
+// UninstallAgy removes the group InstallAgy added, if it is unchanged.
+// Records from older versions (event entries in a project hooks.json) are
+// removed the generic way.
+func UninstallAgy(out func(string)) error {
+	if out == nil {
+		out = func(string) {}
+	}
+	sb, err := os.ReadFile(hookStatePath("agy"))
+	if err != nil {
+		return errors.New("agy 설치 기록이 없다")
+	}
+	var st hookState
+	if err := json.Unmarshal(sb, &st); err != nil {
+		return err
+	}
+	want, ok := st.Entries[AgyGroup]
+	if !ok {
+		return UninstallHooks("agy", out)
+	}
+	root, raw, err := readSettings(st.Path)
+	if err != nil {
+		return err
+	}
+	if cur, ok := root[AgyGroup]; ok {
+		if !jsonEqual(cur, want) {
+			return fmt.Errorf("%s의 %q 훅 묶음이 설치 뒤 바뀌어 지우지 않았다. 직접 확인한 뒤 지우고 %s를 삭제하면 된다", st.Path, AgyGroup, hookStatePath("agy"))
+		}
+		delete(root, AgyGroup)
+		if err := backup(st.Path, raw); err != nil {
+			return err
+		}
+		if len(root) == 0 && !st.Existed {
+			if err := os.Remove(st.Path); err != nil && !os.IsNotExist(err) {
+				return err
+			}
+		} else {
+			b, _ := json.MarshalIndent(root, "", "  ")
+			if err := writeAtomic(st.Path, append(b, '\n'), 0o600); err != nil {
+				return err
+			}
+		}
+		out(fmt.Sprintf("%s에서 %q 훅 묶음을 뺐다", st.Path, AgyGroup))
+	}
+	return os.Remove(hookStatePath("agy"))
+}
 
 // CopilotFile writes the Copilot CLI repository hook file (PascalCase mode).
 func CopilotFile(bin, project string, out func(string)) error {

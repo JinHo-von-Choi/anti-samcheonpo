@@ -1,0 +1,3 @@
+name: samcheonpo
+version: "1"
+description: samcheonpo forwarder - passes tool and turn events to the samcheonpo hook client

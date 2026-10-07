@@ -61,16 +61,48 @@ func TestCursorTranslation(t *testing.T) {
 	}
 }
 
-func TestAgyFailClosed(t *testing.T) {
-	var m map[string]any
-	_ = json.Unmarshal(translateOut("agy", "PreToolUse", "PreToolUse", nil, true), &m)
-	hs, _ := m["hookSpecificOutput"].(map[string]any)
-	if hs == nil || hs["permissionDecision"] != "allow" {
-		t.Fatalf("agy needs an explicit allow: %v", m)
+func TestAgyStaysInPermissionFlow(t *testing.T) {
+	// an explicit "allow" would skip agy's own permission prompt
+	if out := translateOut("agy", "PreToolUse", "PreToolUse", nil, false); out != nil {
+		t.Fatalf("agy pass prints nothing: %s", out)
 	}
-	_, ins, _ := translateIn("agy", "PreToolUse", json.RawMessage(`{"session_id":"a","tool_name":"run_command","tool_input":{"command":"ls"}}`))
-	if ins[0].ToolName != "Bash" {
-		t.Error("agy run_command maps to Bash")
+	deny := json.RawMessage(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"r"}}`)
+	if got := string(translateOut("agy", "PreToolUse", "PreToolUse", deny, false)); got != `{"decision":"deny","reason":"r"}` {
+		t.Fatalf("agy deny: %s", got)
+	}
+	stop := json.RawMessage(`{"decision":"block","reason":"r"}`)
+	if got := string(translateOut("agy", "Stop", "Stop", stop, false)); got != `{"decision":"continue","reason":"r"}` {
+		t.Fatalf("agy stop hold: %s", got)
+	}
+}
+
+func TestAgyTranscriptResult(t *testing.T) {
+	tr := filepath.Join("..", "..", "testdata", "hooks", "agy", "transcript_full.jsonl")
+	if out, code, ok := agyStepResult(tr, 2); !ok || code != 0 || out != "EMPTYOUT" {
+		t.Fatalf("step 2: %q %d %v", out, code, ok)
+	}
+	if out, code, ok := agyStepResult(tr, 6); !ok || code != 1 || out != "" {
+		t.Fatalf("step 6 (false): %q %d %v", out, code, ok)
+	}
+	if _, _, ok := agyStepResult(tr, 99); ok {
+		t.Fatal("a missing step is unknown")
+	}
+	if got := agyUserRequest(tr); !strings.HasPrefix(got, "Run these shell commands") {
+		t.Fatalf("user request: %q", got)
+	}
+	// the shell result is written after PostToolUse returns: held until the next event
+	post, _ := os.ReadFile(filepath.Join("..", "..", "testdata", "hooks", "agy", "PostToolUse-step6.json"))
+	var m map[string]any
+	_ = json.Unmarshal(post, &m)
+	m["conversationId"], m["transcriptPath"] = "held-1", tr
+	post, _ = json.Marshal(m)
+	if evs, _, _ := translateIn("agy", "PostToolUse", post); len(evs) != 0 {
+		t.Fatalf("shell result is held: %v", evs)
+	}
+	inv, _ := json.Marshal(map[string]any{"conversationId": "held-1", "invocationNum": 3, "transcriptPath": tr})
+	evs, ins, _ := translateIn("agy", "PreInvocation", inv)
+	if len(evs) < 2 || evs[0] != "PostToolUseFailure" || !strings.HasPrefix(ins[0].Error, "Exit code 1") || evs[len(evs)-1] != "Inject" {
+		t.Fatalf("held result is released first with its exit code: %v", evs)
 	}
 }
 
@@ -81,7 +113,7 @@ func TestClientExplicitAllowWhenDaemonDown(t *testing.T) {
 	t.Setenv("SAMCHEONPO_NO_SPAWN", "1")
 	_ = os.MkdirAll(base, 0o755)
 	cases := map[[2]string]string{
-		{"agy", "PreToolUse"}:              `"permissionDecision":"allow"`,
+		{"agy", "PreToolUse"}:              "",
 		{"cursor", "beforeShellExecution"}: `"permission":"allow"`,
 		{"cursor", "beforeSubmitPrompt"}:   `"continue":true`,
 		{"claude", "PreToolUse"}:           "",

@@ -104,13 +104,13 @@ func translateIn(agent, event string, raw json.RawMessage) ([]string, []HookInpu
 		}
 		return nil, nil, nil
 	}
-	// Claude family (claude, codex, opencode forwarder, agy)
+	if agent == "agy" {
+		return agyIn(event, raw)
+	}
+	// Claude family (claude, codex, opencode forwarder)
 	var in HookInput
 	if err := json.Unmarshal(raw, &in); err != nil {
 		return nil, nil, err
-	}
-	if agent == "agy" {
-		in.ToolName = agyTool(in.ToolName)
 	}
 	return []string{event}, []HookInput{in}, nil
 }
@@ -179,14 +179,7 @@ func translateOut(agent, event, claudeEvent string, out json.RawMessage, failClo
 		}
 		return marshalOrNil(r)
 	case "agy":
-		// fail-closed: every pre-tool answer states its decision
-		if claudeEvent == "PreToolUse" && (hs == nil || hs["permissionDecision"] == nil) {
-			if m == nil {
-				m = map[string]any{}
-			}
-			m["hookSpecificOutput"] = map[string]any{"hookEventName": "PreToolUse", "permissionDecision": "allow"}
-		}
-		return marshalOrNil(m)
+		return marshalOrNil(agyOut(event, claudeEvent, m))
 	}
 	_ = failClosed
 	return out

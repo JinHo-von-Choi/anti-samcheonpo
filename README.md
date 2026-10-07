@@ -32,7 +32,7 @@ AI는 그 시간 내내 "거의 다 됐습니다"라고 말합니다. 사용자�
 ## 어떻게 돕는가
 
 **1. 지켜봅니다.**
-Claude Code, Codex, opencode의 훅에 붙어 에이전트가 실행하는 명령, 고치는 파일, 시험 결과, 쓰는 토큰을 실시간으로 봅니다. AI가 "통과했다"고 말해도 믿지 않고 실제 실행 결과로만 판단합니다.
+Claude Code, Codex, opencode, Antigravity(agy), Hermes, OpenClaw의 훅에 붙어 에이전트가 실행하는 명령, 고치는 파일, 시험 결과, 쓰는 토큰을 실시간으로 봅니다. AI가 "통과했다"고 말해도 믿지 않고 실제 실행 결과로만 판단합니다.
 
 **2. 쉬운 말로 알려 줍니다.**
 "identical rerun detected" 대신 이렇게 말합니다.
@@ -144,6 +144,9 @@ samcheonpo audit --since 30d
 samcheonpo install --agent claude     # Claude Code (플러그인과 상태줄)
 samcheonpo install --agent codex      # Codex
 samcheonpo install --agent opencode   # opencode
+samcheonpo install --agent agy        # Antigravity CLI (~/.gemini/config/hooks.json)
+samcheonpo install --agent hermes     # Hermes (플러그인, hermes plugins enable)
+samcheonpo install --agent openclaw   # OpenClaw (플러그인, openclaw plugins install)
 ```
 
 기존 훅과 상태줄 설정은 보존됩니다. 이제 평소처럼 AI에게 일을 시키면 됩니다. 처음 훅이 불릴 때 백그라운드 데몬이 자동으로 뜹니다.
@@ -221,7 +224,13 @@ notify:
 | Claude Code | 관찰 · 귀띔 · 실행 전 차단 · 상태줄 · 슬래시 명령 | 2.1.x |
 | Codex | 관찰 · 귀띔 · 실행 전 차단 | 0.160.x |
 | opencode | 관찰 · 귀띔 · 실행 전 차단 | 1.18.x |
-| GitHub Copilot · Cursor · Antigravity(agy) | 관찰 전용 | |
+| Antigravity(agy) | 관찰 · 귀띔 · 실행 전 차단 | 1.3.x |
+| Hermes | 관찰 · 귀띔 · 실행 전 차단 | 0.21.x |
+| OpenClaw | 관찰 · 귀띔(다음 요청부터) · 실행 전 차단 | 2026.7.x |
+| GitHub Copilot · Cursor | 관찰 전용 | |
+
+- agy: 훅이 도구 결과를 주지 않아 대화 기록에서 종료 코드·출력·토큰을 읽습니다. 셸 결과는 다음 이벤트에서 반영됩니다. 세션 종료 이벤트가 없어 종료 영수증은 만들지 않습니다.
+- OpenClaw: 실행 중에 도구 결과를 바꿔 모델에 보여 줄 훅이 없습니다. 귀띔은 다음 요청에 붙고, 그 전에는 같은 실행 안의 반복을 막지 않습니다.
 
 | 환경 | 상태 |
 | --- | --- |

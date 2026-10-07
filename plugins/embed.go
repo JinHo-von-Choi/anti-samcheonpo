@@ -12,3 +12,23 @@ var ClaudeCode embed.FS
 //
 //go:embed opencode/samcheonpo.ts
 var Opencode []byte
+
+// HermesInit and HermesManifest are the Hermes forwarder plugin.
+//
+//go:embed hermes/__init__.py
+var HermesInit []byte
+
+//go:embed hermes/plugin.yaml
+var HermesManifest []byte
+
+// OpenclawIndex, OpenclawManifest and OpenclawPackage are the OpenClaw
+// forwarder plugin.
+//
+//go:embed openclaw/index.js
+var OpenclawIndex []byte
+
+//go:embed openclaw/openclaw.plugin.json
+var OpenclawManifest []byte
+
+//go:embed openclaw/package.json
+var OpenclawPackage []byte

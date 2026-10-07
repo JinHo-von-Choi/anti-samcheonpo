@@ -70,11 +70,10 @@ func Main(event string, stdin io.Reader, stdout io.Writer) int {
 }
 
 // failClosedAllow is the explicit "proceed" for agents that block when a
-// hook prints nothing (agy pre-tool, Cursor permission hooks).
+// hook prints nothing (Cursor permission hooks). agy proceeds through its own
+// permission flow on empty output; an explicit "allow" there would skip it.
 func failClosedAllow(agent, event string) string {
 	switch {
-	case agent == "agy" && event == "PreToolUse":
-		return `{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"allow"}}`
 	case agent == "cursor" && strings.HasPrefix(event, "before") && event != "beforeSubmitPrompt":
 		return `{"permission":"allow"}`
 	case agent == "cursor" && event == "beforeSubmitPrompt":

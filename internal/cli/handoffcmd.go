@@ -22,6 +22,8 @@ var launch = map[string]string{
 	"codex":    `codex %s`,
 	"opencode": `opencode run %s`,
 	"agy":      `agy -p %s`,
+	"hermes":   `hermes chat -q %s`,
+	"openclaw": `openclaw agent --local -m %s`,
 	"cursor":   `cursor-agent -p %s`,
 	"copilot":  `copilot -p %s`,
 }
@@ -40,7 +42,7 @@ func handoffCmd() *cobra.Command {
 			}
 			tmpl, ok := launch[to]
 			if !ok {
-				return fmt.Errorf("대상 에이전트: claude, codex, opencode, agy, cursor, copilot")
+				return fmt.Errorf("대상 에이전트: claude, codex, opencode, agy, hermes, openclaw, cursor, copilot")
 			}
 			wd, _ := os.Getwd()
 			db, err := openDB()

@@ -186,11 +186,22 @@ func (d *Daemon) recoverySession(req Request, out json.RawMessage) *Session {
 	if agent == "" {
 		agent = "claude"
 	}
-	_, inputs, err := translateIn(agent, req.Event, req.Payload)
-	if err != nil || len(inputs) == 0 {
-		return nil
+	var id string
+	if agent == "agy" {
+		// translating an agy payload again would move held results
+		var a agyPayload
+		if json.Unmarshal(req.Payload, &a) != nil {
+			return nil
+		}
+		id = a.ConversationID
+	} else {
+		_, inputs, err := translateIn(agent, req.Event, req.Payload)
+		if err != nil || len(inputs) == 0 {
+			return nil
+		}
+		id = inputs[0].SessionID
 	}
 	d.mu.Lock()
 	defer d.mu.Unlock()
-	return d.sessions[inputs[0].SessionID]
+	return d.sessions[id]
 }

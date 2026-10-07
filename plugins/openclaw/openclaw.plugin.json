@@ -1,0 +1,7 @@
+{
+  "id": "samcheonpo",
+  "name": "samcheonpo",
+  "description": "samcheonpo forwarder: passes tool and turn events to the samcheonpo hook client",
+  "activation": { "onStartup": true },
+  "configSchema": { "type": "object", "additionalProperties": false }
+}

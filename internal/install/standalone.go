@@ -72,42 +72,54 @@ func installStandalone(agent, path string, body []byte) error {
 }
 
 func removeStandalone(agent, path string) error {
-	state, err := standaloneState(agent, path)
+	state, err := checkStandalone(agent, path)
 	if err != nil {
 		return err
 	}
-	raw, err := os.ReadFile(state)
-	if err != nil {
-		return errors.New("생성 파일 해시 기록이 없어 연결 파일을 보존했습니다; 파일 내용을 직접 확인하세요")
-	}
-	var record standaloneRecord
-	if err := json.Unmarshal(raw, &record); err != nil {
-		return err
-	}
-	abs, err := filepath.Abs(path)
-	if err != nil {
-		return err
-	}
-	if record.Path != abs || record.SHA256 == "" {
-		return errors.New("연결 파일 기록 불일치")
-	}
-	st, err := os.Lstat(path)
-	if err == nil {
-		if !st.Mode().IsRegular() {
-			return errors.New("교체된 연결 경로를 보존했습니다")
-		}
-		body, err := os.ReadFile(path)
-		if err != nil {
-			return err
-		}
-		if fmt.Sprintf("%x", sha256.Sum256(body)) != record.SHA256 {
-			return errors.New("설치 이후 수정된 연결 파일을 보존했습니다; 원복하거나 수동으로 제거하세요")
-		}
-		if err := os.Remove(path); err != nil {
-			return err
-		}
-	} else if !os.IsNotExist(err) {
+	if err := os.Remove(path); err != nil && !os.IsNotExist(err) {
 		return err
 	}
 	return os.Remove(state)
+}
+
+// checkStandalone confirms that path still holds what installStandalone
+// wrote (or is gone) and returns the install record's path.
+func checkStandalone(agent, path string) (string, error) {
+	state, err := standaloneState(agent, path)
+	if err != nil {
+		return "", err
+	}
+	raw, err := os.ReadFile(state)
+	if err != nil {
+		return "", errors.New("생성 파일 해시 기록이 없어 연결 파일을 보존했습니다; 파일 내용을 직접 확인하세요")
+	}
+	var record standaloneRecord
+	if err := json.Unmarshal(raw, &record); err != nil {
+		return "", err
+	}
+	abs, err := filepath.Abs(path)
+	if err != nil {
+		return "", err
+	}
+	if record.Path != abs || record.SHA256 == "" {
+		return "", errors.New("연결 파일 기록 불일치")
+	}
+	st, err := os.Lstat(path)
+	if os.IsNotExist(err) {
+		return state, nil
+	}
+	if err != nil {
+		return "", err
+	}
+	if !st.Mode().IsRegular() {
+		return "", errors.New("교체된 연결 경로를 보존했습니다")
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		return "", err
+	}
+	if fmt.Sprintf("%x", sha256.Sum256(body)) != record.SHA256 {
+		return "", errors.New("설치 이후 수정된 연결 파일을 보존했습니다; 원복하거나 수동으로 제거하세요")
+	}
+	return state, nil
 }

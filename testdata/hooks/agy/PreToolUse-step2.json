@@ -1,0 +1,20 @@
+{
+ "artifactDirectoryPath": "/work/home/.gemini/antigravity-cli/brain/e6e61b4b-164c-4879-b004-4d1246421708",
+ "conversationId": "e6e61b4b-164c-4879-b004-4d1246421708",
+ "modelName": "gemini-3.8-flash-high",
+ "stepIdx": 2,
+ "toolCall": {
+  "args": {
+   "CommandLine": "echo EMPTYOUT",
+   "Cwd": "/work/proj",
+   "WaitMsBeforeAsync": 5000,
+   "toolAction": "Running echo EMPTYOUT",
+   "toolSummary": "Run echo EMPTYOUT"
+  },
+  "name": "run_command"
+ },
+ "transcriptPath": "/work/home/.gemini/antigravity-cli/brain/e6e61b4b-164c-4879-b004-4d1246421708/.system_generated/logs/transcript_full.jsonl",
+ "workspacePaths": [
+  "/work/proj"
+ ]
+}

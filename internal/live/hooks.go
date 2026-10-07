@@ -111,7 +111,7 @@ func FilterOutput(event string, raw json.RawMessage, c adapter.Caps) json.RawMes
 			delete(m, "decision")
 			delete(m, "reason")
 		}
-	case "UserPromptSubmit":
+	case "UserPromptSubmit", "Inject":
 		if hs != nil && !c.PromptInject {
 			delete(hs, "additionalContext")
 		}
@@ -176,6 +176,13 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 		return nil, s, nil
 	case "UserPromptSubmit":
 		return s.onPrompt(in), s, nil
+	case "Inject":
+		// a later model call within a turn (agy): hand over pending advice
+		nudge, _ := s.takePendingFor("UserPromptSubmit", in.Ack)
+		if nudge == "" {
+			return nil, s, nil
+		}
+		return hookOut(additional("UserPromptSubmit", nudge)), s, nil
 	case "PreToolUse":
 		return s.onPreTool(in), s, nil
 	case "PostToolUse", "PostToolUseFailure":

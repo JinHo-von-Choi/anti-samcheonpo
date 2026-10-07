@@ -30,11 +30,11 @@ samcheonpo receipt <세션ID>
 
 ```sh
 samcheonpo install --agent claude
-# 또는
+# 또는 codex, opencode, agy, hermes, openclaw
 samcheonpo install --agent codex
 ```
 
-기존 훅과 상태줄은 보존 대상이다. Claude 설치에서 플러그인 CLI 호출을 직접 처리하려면 `--no-plugin-cli`를 쓴다. 이 경우 설정 파일을 썼다는 사실만으로 에이전트가 플러그인을 로드했다고 간주하면 안 된다. 에이전트의 플러그인/훅 신뢰 확인 뒤 새 세션에서 확인한다. 미확인 버전은 관찰 전용으로 시작한다.
+기존 훅과 상태줄은 보존 대상이다. agy는 `~/.gemini/config/hooks.json`에 `samcheonpo` 훅 묶음을 더하고 다른 묶음은 건드리지 않는다. Hermes와 OpenClaw는 플러그인을 쓴 뒤 각 에이전트의 명령(`hermes plugins enable`, `openclaw plugins install`)으로 켜며, 제거도 그 명령(`hermes plugins remove`, `openclaw plugins uninstall`)으로 한다. 실행 중인 Hermes·OpenClaw 게이트웨이는 재시작해야 적용된다. Claude 설치에서 플러그인 CLI 호출을 직접 처리하려면 `--no-plugin-cli`를 쓴다. 이 경우 설정 파일을 썼다는 사실만으로 에이전트가 플러그인을 로드했다고 간주하면 안 된다. 에이전트의 플러그인/훅 신뢰 확인 뒤 새 세션에서 확인한다. 미확인 버전은 관찰 전용으로 시작한다.
 
 ## 목표 확인과 경고 읽기
 

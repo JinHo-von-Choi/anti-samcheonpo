@@ -63,10 +63,29 @@ var Profiles = map[string]Profile{
 		StatusLine: false, UserMessage: false, PostFailure: true, ExitInHook: true, SessionEndBudget: 3 * time.Second}},
 	// Docs-based, not yet captured from a running agent: observation only
 	// until fixtures are recorded (Tested is empty). Copilot uses the
-	// PascalCase hook mode; Cursor and agy fail closed on missing decisions.
+	// PascalCase hook mode; Cursor fails closed on missing decisions.
 	"copilot": {Agent: "copilot", Caps: Caps{SessionEndBudget: 5 * time.Second}},
 	"cursor":  {Agent: "cursor", Caps: Caps{FailClosed: true, SessionEndBudget: 5 * time.Second}},
-	"agy":     {Agent: "agy", Caps: Caps{FailClosed: true, SessionEndBudget: 5 * time.Second}},
+	// agy 1.3.0: payloads captured in testdata/hooks/agy. Pre-tool deny and
+	// stop continuation verified with the real CLI; advice reaches the model
+	// through PreInvocation injectSteps; results come from the transcript.
+	"agy": {Agent: "agy", Tested: Tested{Min: "1.3.0", Max: "1.3.999"}, Caps: Caps{
+		BlockPre: true, InjectPre: false, InjectPost: false, BlockStop: true, PromptInject: true,
+		StatusLine: false, UserMessage: false, PostFailure: true, ExitInHook: true, SessionEndBudget: 5 * time.Second}},
+	// Hermes 0.21 through the forwarder plugin (plugins/hermes): pre_tool_call
+	// blocks, transform_tool_result extends the tool result, pre_llm_call adds
+	// context once per turn, pre_verify continues a turn that edited code.
+	"hermes": {Agent: "hermes", Tested: Tested{Min: "0.21.0", Max: "0.21.999"}, Caps: Caps{
+		BlockPre: true, InjectPre: false, InjectPost: true, BlockStop: true, EndTurnPost: false, PromptInject: true,
+		StatusLine: false, UserMessage: false, PostFailure: true, ExitInHook: true, SessionEndBudget: 3 * time.Second}},
+	// OpenClaw 2026.7 through the forwarder plugin (plugins/openclaw):
+	// before_tool_call blocks, before_prompt_build adds context once per
+	// turn, before_agent_finalize asks for one more pass. No hook changes the
+	// tool result the model reads within a run (tool_result_persist only
+	// rewrites the stored transcript), so advice waits for the next turn.
+	"openclaw": {Agent: "openclaw", Tested: Tested{Min: "2026.7.0", Max: "2026.7.999"}, Caps: Caps{
+		BlockPre: true, InjectPre: false, InjectPost: false, BlockStop: true, EndTurnPost: false, PromptInject: true,
+		StatusLine: false, UserMessage: false, PostFailure: true, ExitInHook: true, SessionEndBudget: 3 * time.Second}},
 }
 
 // ObserveOnly is used for unknown agents and untested versions.

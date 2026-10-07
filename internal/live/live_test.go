@@ -54,7 +54,7 @@ func startDaemon(t *testing.T) *harness {
 	if err := os.MkdirAll(bin, 0700); err != nil {
 		t.Fatal(err)
 	}
-	for agent, version := range map[string]string{"claude": "2.1.0", "codex": "0.160.0", "opencode": "1.18.34"} {
+	for agent, version := range map[string]string{"claude": "2.1.0", "codex": "0.160.0", "opencode": "1.18.34", "agy": "1.3.1"} {
 		if err := os.WriteFile(filepath.Join(bin, agent), []byte("#!/bin/sh\nprintf '%s\\n' '"+version+"'\n"), 0700); err != nil {
 			t.Fatal(err)
 		}
@@ -81,7 +81,7 @@ func startDaemon(t *testing.T) *harness {
 		case <-time.After(5 * time.Second):
 		}
 	})
-	for _, agent := range []string{"claude", "codex", "opencode"} {
+	for _, agent := range []string{"claude", "codex", "opencode", "agy"} {
 		ready := false
 		for deadline := time.Now().Add(2 * time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
 			text, errText, ok := hookclient.Query("AgentStatus", map[string]string{"agent": agent}, time.Second)
@@ -785,7 +785,12 @@ func TestPostToolNudgeStuckError(t *testing.T) {
 
 func loadFixture(t *testing.T, name string) map[string]any {
 	t.Helper()
-	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "hooks", "codex", name+".json"))
+	return loadAgentFixture(t, "codex", name)
+}
+
+func loadAgentFixture(t *testing.T, agent, name string) map[string]any {
+	t.Helper()
+	b, err := os.ReadFile(filepath.Join("..", "..", "testdata", "hooks", agent, name+".json"))
 	if err != nil {
 		t.Fatal(err)
 	}
@@ -1342,4 +1347,76 @@ func processAlive(pid int) bool {
 		return b[i+2] != 'Z'
 	}
 	return true
+}
+
+// TestAgyFixtures replays hook payloads captured from agy 1.3.0: the first
+// model call carries the user's request, results come from the transcript,
+// advice reaches the model at a later model call, and an ignored repeat is
+// refused with agy's deny answer.
+func TestAgyFixtures(t *testing.T) {
+	h := startDaemon(t)
+	tr := filepath.Join(h.home, "transcript_full.jsonl")
+	_ = os.MkdirAll(h.home, 0o755)
+	_ = os.WriteFile(tr, []byte(`{"step_index":"0","type":"USER_INPUT","content":"<USER_REQUEST>\nsrc/a.py 시험 통과시켜 줘\n</USER_REQUEST>"}`+"\n"), 0o644)
+	prep := func(name string) map[string]any {
+		m := loadAgentFixture(t, "agy", name)
+		m["workspacePaths"] = []string{h.proj}
+		m["transcriptPath"] = tr
+		m["conversationId"] = "agy-1"
+		return m
+	}
+	if out := h.sendAgent("agy", "PreInvocation", prep("PreInvocation-0")); len(out) != 0 {
+		t.Fatalf("first prompt is observation only: %v", out)
+	}
+	pre, post := prep("PreToolUse-step6"), prep("PostToolUse-step6")
+	for _, m := range []map[string]any{pre, post} {
+		args := m["toolCall"].(map[string]any)["args"].(map[string]any)
+		args["CommandLine"], args["Cwd"] = "pytest -q", h.proj
+	}
+	var advice string
+	for i := 0; i < 6; i++ {
+		step := 10 + 2*i
+		pre["stepIdx"], post["stepIdx"] = step, step
+		o := h.sendAgent("agy", "PreToolUse", pre)
+		if o["decision"] == "deny" {
+			if advice == "" || !strings.Contains(fmt.Sprint(o["reason"]), "권고가 이미 전달됐는데 반복") {
+				t.Fatalf("deny only after advice: advice=%q deny=%v", advice, o)
+			}
+			goto denied
+		}
+		if len(o) != 0 {
+			t.Fatalf("agy pass prints nothing: %v", o)
+		}
+		f, _ := os.OpenFile(tr, os.O_APPEND|os.O_WRONLY, 0o644)
+		fmt.Fprintf(f, `{"step_index":"%d","type":"PLANNER_RESPONSE","input_tokens":"1000","cache_read_tokens":"400","output_tokens":"50"}`+"\n", step-1)
+		fmt.Fprintf(f, `{"step_index":"%d","type":"GENERIC","content":"The command exited with code 1.\nOutput:\nFAILED tests/test_a.py::test_x - assert 1 == 2\n1 failed\n"}`+"\n", step)
+		f.Close()
+		h.sendAgent("agy", "PostToolUse", post)
+		time.Sleep(200 * time.Millisecond)
+		inv := prep("PreInvocation-1")
+		inv["invocationNum"] = i + 1
+		if steps, ok := h.sendAgent("agy", "PreInvocation", inv)["injectSteps"].([]any); ok && len(steps) > 0 {
+			advice = fmt.Sprint(steps[0].(map[string]any)["ephemeralMessage"])
+		}
+	}
+	t.Fatal("an ignored identical failing rerun must be refused")
+denied:
+	if !strings.HasPrefix(advice, "[삼천포] 관찰:") {
+		t.Fatalf("advice goes through injectSteps: %q", advice)
+	}
+	db, err := ledger.Open(h.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var failed int
+	_ = db.QueryRow(`SELECT COUNT(*) FROM event WHERE session_id='agy-1' AND tool='shell' AND exit_code=1`).Scan(&failed)
+	if failed < 2 {
+		t.Fatalf("exit codes come from the transcript: %d failed shell events", failed)
+	}
+	var in, cache, out int64
+	_ = db.QueryRow(`SELECT COALESCE(SUM(tokens_in),0), COALESCE(SUM(tokens_cache_read),0), COALESCE(SUM(tokens_out),0) FROM event WHERE session_id='agy-1'`).Scan(&in, &cache, &out)
+	if in == 0 || in%600 != 0 || cache != in/600*400 || out != in/600*50 {
+		t.Fatalf("each model response is counted once, cached tokens apart: in=%d cache=%d out=%d", in, cache, out)
+	}
 }

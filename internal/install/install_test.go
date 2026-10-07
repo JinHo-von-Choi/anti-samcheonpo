@@ -121,6 +121,42 @@ func TestCodexHooksMergeAndRemove(t *testing.T) {
 	}
 }
 
+func TestAgyHookGroup(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SAMCHEONPO_HOME", filepath.Join(home, ".samcheonpo"))
+	p := filepath.Join(home, "config", "hooks.json")
+	_ = os.MkdirAll(filepath.Dir(p), 0o700)
+	orig := `{"mine":{"PreToolUse":[{"matcher":"run_command","hooks":[{"type":"command","command":"python3 mine.py"}]}]}}`
+	_ = os.WriteFile(p, []byte(orig), 0o600)
+	if err := InstallAgy("/opt/samcheonpo", p, nil); err != nil {
+		t.Fatal(err)
+	}
+	var got map[string]map[string][]map[string]any
+	b, _ := os.ReadFile(p)
+	if err := json.Unmarshal(b, &got); err != nil {
+		t.Fatal(err)
+	}
+	g := got[AgyGroup]
+	if got["mine"] == nil || g == nil || g["PreInvocation"][0]["command"] == nil || g["PreToolUse"][0]["matcher"] != "*" || g["Stop"][0]["timeout"] != float64(160) {
+		t.Fatalf("adds a named group in agy's format and keeps the user's: %s", b)
+	}
+	if err := InstallAgy("/opt/samcheonpo", p, nil); err == nil {
+		t.Fatal("a second install is refused")
+	}
+	if err := UninstallAgy(nil); err != nil {
+		t.Fatal(err)
+	}
+	b, _ = os.ReadFile(p)
+	var after, before any
+	_ = json.Unmarshal(b, &after)
+	_ = json.Unmarshal([]byte(orig), &before)
+	ja, _ := json.Marshal(after)
+	jb, _ := json.Marshal(before)
+	if string(ja) != string(jb) {
+		t.Errorf("uninstall restores the file:\n%s\n%s", ja, jb)
+	}
+}
+
 func TestCursorAndCopilotFiles(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("SAMCHEONPO_HOME", filepath.Join(home, ".samcheonpo"))

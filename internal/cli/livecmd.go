@@ -147,12 +147,16 @@ func installCmd() *cobra.Command {
 				return install.InstallCursor(exe, hooksFile, func(s string) { fmt.Fprintln(cmd.OutOrStdout(), s) })
 			case "agy":
 				if hooksFile == "" {
-					wd, _ := os.Getwd()
-					hooksFile = filepath.Join(wd, ".agents", "hooks.json")
+					h, _ := os.UserHomeDir()
+					hooksFile = filepath.Join(h, ".gemini", "config", "hooks.json")
 				}
-				return install.InstallHooks(install.Agy, exe, hooksFile, func(s string) { fmt.Fprintln(cmd.OutOrStdout(), s+" (관찰 전용)") })
+				return install.InstallAgy(exe, hooksFile, func(s string) { fmt.Fprintln(cmd.OutOrStdout(), s) })
+			case "hermes":
+				return install.InstallHermes(exe, install.HermesPluginDir(), func(s string) { fmt.Fprintln(cmd.OutOrStdout(), s) })
+			case "openclaw":
+				return install.InstallOpenclaw(exe, func(s string) { fmt.Fprintln(cmd.OutOrStdout(), s) })
 			default:
-				return fmt.Errorf("지원하는 에이전트: claude, codex, opencode, copilot, cursor, agy")
+				return fmt.Errorf("지원하는 에이전트: claude, codex, opencode, agy, hermes, openclaw, copilot, cursor")
 			}
 			if settings == "" {
 				settings = install.DefaultSettings()
@@ -161,7 +165,7 @@ func installCmd() *cobra.Command {
 			return install.Install(install.Options{Binary: exe, SettingsPath: settings, UsePluginCLI: !noCLI, Out: func(s string) { fmt.Fprintln(w, s) }})
 		},
 	}
-	c.Flags().StringVar(&agent, "agent", "claude", "대상 에이전트 (claude, codex, opencode)")
+	c.Flags().StringVar(&agent, "agent", "claude", "대상 에이전트 (claude, codex, opencode, agy, hermes, openclaw)")
 	c.Flags().StringVar(&settings, "settings", "", "Claude Code settings.json 경로")
 	c.Flags().StringVar(&hooksFile, "hooks-file", "", "Codex hooks.json 경로 (기본 ~/.codex/hooks.json, 프로젝트는 .codex/hooks.json)")
 	c.Flags().BoolVar(&noCLI, "no-plugin-cli", false, "claude plugin 명령으로 등록하지 않는다")
@@ -189,9 +193,13 @@ func uninstallCmd() *cobra.Command {
 			case "cursor":
 				return install.UninstallCursor(say)
 			case "agy":
-				return install.UninstallHooks("agy", say)
+				return install.UninstallAgy(say)
+			case "hermes":
+				return install.UninstallHermes(say)
+			case "openclaw":
+				return install.UninstallOpenclaw(say)
 			}
-			return fmt.Errorf("지원하는 에이전트: claude, codex, opencode, copilot, cursor, agy")
+			return fmt.Errorf("지원하는 에이전트: claude, codex, opencode, agy, hermes, openclaw, copilot, cursor")
 		},
 	}
 	c.Flags().StringVar(&agent, "agent", "claude", "대상 에이전트")
