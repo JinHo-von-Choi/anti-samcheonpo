@@ -573,6 +573,8 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		return "아래 내용을 에이전트에게 전달한다.\n\n" + intervene.Agent(*v, ctx, "prescription"), nil
 	case "summary":
 		return s.plainSummary(), nil
+	case "rollback":
+		return s.rollback(in.Arg == "apply")
 	case "check":
 		res := s.checkpoint(false)
 		s.mu.Lock()
@@ -680,6 +682,9 @@ func (s *Session) plainSummary() string {
 		}
 	}
 	b.WriteString(next)
+	if len(s.rb.agentHash) > 0 {
+		b.WriteString("\nAI가 바꾼 파일을 " + s.rollbackBasis() + "으로 되돌리려면 /samcheonpo:rollback 으로 먼저 미리 볼 수 있습니다.")
+	}
 	return b.String()
 }
 

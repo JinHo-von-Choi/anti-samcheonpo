@@ -347,6 +347,9 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 	}
 	s.mu.Lock()
 	ev := s.buildTool(in)
+	if ev.Category == event.CatProduce {
+		s.trackBefore(ev.Paths)
+	}
 	s.awaiting[ev.CallID] = ev
 	s.byTool[ev.CallID] = ev
 	if cur, fresh := s.ws.Current(); fresh {
@@ -488,6 +491,9 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 	s.mu.Lock()
 	if !s.caps.ExitInHook {
 		s.codexExit(ev)
+	}
+	if ev.Category == event.CatProduce && !failure {
+		s.trackAfter(ev.Paths)
 	}
 	ev.TS = time.Now()
 	contractWrite := false

@@ -157,6 +157,7 @@ samcheonpo install --agent opencode   # opencode
 | `/samcheonpo:keep now` | 이번만 넘어감. 다시 생기면 막기 전에 먼저 안내 |
 | `/samcheonpo:steer` | 삼천포의 처방을 에이전트에게 전달 |
 | `/samcheonpo:check` | 완료 조건을 지금 검사 |
+| `/samcheonpo:rollback` | AI가 쓰기 도구로 바꾼 파일을 마지막 진척 시점(검사 통과)으로 되돌리기. 인자 없이는 미리보기, `apply`로 실행. AI가 쓴 뒤 사용자가 고친 파일과 셸 명령으로 바뀐 파일은 건드리지 않음 |
 | `/samcheonpo:accept`, `/samcheonpo:edit` | 작업 계약 수락·수정 (계약을 쓸 때) |
 
 `/samcheonpo:summary` 예시:

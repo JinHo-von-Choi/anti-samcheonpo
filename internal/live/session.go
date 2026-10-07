@@ -104,6 +104,7 @@ type Session struct {
 	produceSinceCheck int
 	lastPrimary       *detect.Signal
 	unresolved        *detect.Signal
+	rb                rollbackState
 	checks            map[string]CheckResult
 	firstPrompt       string
 	prompts           int
@@ -366,7 +367,11 @@ func (s *Session) observe(ev *event.Event) []detect.Signal {
 	} else {
 		ev.Priced = true
 	}
+	lastProgress := s.eng.St.LastProgress
 	sigs := s.eng.Observe(ev)
+	if s.eng.St.LastProgress != lastProgress && s.eng.St.LastProgress == ev.Seq && detect.ExecutedVerify(ev) && ev.ExitCode != nil && *ev.ExitCode == 0 {
+		s.snapshotProgress(ev.Seq)
+	}
 	if s.usage == nil && ev.Kind == event.KindTool && ev.Tool != "checkpoint" {
 		// agents without a Claude transcript report usage after the calls
 		s.sinceTokens = append(s.sinceTokens, ev)
@@ -761,6 +766,7 @@ func (s *Session) checkpoint(mid bool) []CheckResult {
 	s.persistEvent(ev)
 	if newly {
 		s.eng.CheckpointProgress(ev)
+		s.snapshotProgress(ev.Seq)
 	}
 	if s.db != nil {
 		s.recordStorageError(s.db.InsertProgress(s.ID, ev.Seq, met, total, res))

@@ -202,7 +202,7 @@ func TestHookFlowIdenticalRerun(t *testing.T) {
 	time.Sleep(300 * time.Millisecond)
 	o := h.shell("t9", "pytest -q", "1 passed", 0)
 	if hs, ok := o["hookSpecificOutput"].(map[string]any); ok && hs["permissionDecision"] == "deny" {
-		t.Fatal("a run after an edit must not be blocked")
+		t.Fatalf("a run after an edit must not be blocked: %v", hs["permissionDecisionReason"])
 	}
 	line, _, ok := hookclient.Query("Statusline", map[string]string{"session_id": "sess-1"}, time.Second)
 	if !ok || !strings.Contains(line, "공회전") || !strings.Contains(line, "헛짓") {
@@ -1113,5 +1113,80 @@ func TestBlockDecidedAfterClientDeadlineIsReportedUndelivered(t *testing.T) {
 	}
 	if !strings.Contains(status(), "판정 시간 초과 1건") {
 		t.Fatalf("a block decided after the client stopped waiting is reported as possibly undelivered: %q", status())
+	}
+}
+
+func TestRollbackRestoresOnlyAgentWritesSinceProgress(t *testing.T) {
+	h := startDaemon(t)
+	h.send("UserPromptSubmit", map[string]any{"prompt": "src/a.py 고쳐 줘"})
+	write := func(id, rel, content string) {
+		abs := filepath.Join(h.proj, rel)
+		in := map[string]any{"tool_name": "Write", "tool_use_id": id, "tool_input": map[string]any{"file_path": abs, "content": content}}
+		h.send("PreToolUse", in)
+		_ = os.MkdirAll(filepath.Dir(abs), 0o755)
+		_ = os.WriteFile(abs, []byte(content), 0o644)
+		in["tool_response"] = map[string]any{"type": "update"}
+		h.send("PostToolUse", in)
+	}
+	cmd := func(arg string) string {
+		text, errText, ok := hookclient.Query("Command", CommandInput{Name: "rollback", Arg: arg, Root: h.proj}, 5*time.Second)
+		if !ok || errText != "" {
+			t.Fatalf("rollback %q: %q %v", arg, errText, ok)
+		}
+		return text
+	}
+	read := func(rel string) string {
+		b, _ := os.ReadFile(filepath.Join(h.proj, rel))
+		return string(b)
+	}
+	// progress: an edit followed by a passing verification
+	write("w1", "src/a.py", "x = 2\n")
+	h.shell("v1", "pytest -q", "1 passed", 0)
+	time.Sleep(300 * time.Millisecond)
+	// then the agent wanders: rewrites a.py, touches the theme, creates a file
+	_ = os.MkdirAll(filepath.Join(h.proj, "src", "theme"), 0o755)
+	_ = os.WriteFile(filepath.Join(h.proj, "src", "theme", "dark.css"), []byte("body{}\n"), 0o644)
+	write("w2", "src/a.py", "x = 3  # rewritten\n")
+	write("w3", "src/theme/dark.css", "body{color:red}\n")
+	write("w4", "src/new_helper.py", "def helper(): pass\n")
+	// the user edits the theme file by hand after the agent did
+	_ = os.WriteFile(filepath.Join(h.proj, "src", "theme", "dark.css"), []byte("body{color:blue} /* mine */\n"), 0o644)
+	time.Sleep(200 * time.Millisecond)
+
+	preview := cmd("")
+	if !strings.Contains(preview, "진척이 확인된 시점") || !strings.Contains(preview, "src/a.py: 이전 내용으로 복구") ||
+		!strings.Contains(preview, "src/new_helper.py: AI가 새로 만든 파일이라 삭제") || !strings.Contains(preview, "src/theme/dark.css: 건너뜀") {
+		t.Fatalf("preview: %s", preview)
+	}
+	if read("src/a.py") != "x = 3  # rewritten\n" {
+		t.Fatal("a preview changes nothing")
+	}
+	applied := cmd("apply")
+	if !strings.Contains(applied, "2개 파일을 되돌렸다") {
+		t.Fatalf("apply: %s", applied)
+	}
+	if read("src/a.py") != "x = 2\n" {
+		t.Fatalf("a.py goes back to the content at the last progress: %q", read("src/a.py"))
+	}
+	if _, err := os.Stat(filepath.Join(h.proj, "src", "new_helper.py")); !os.IsNotExist(err) {
+		t.Fatal("a file the agent created after the progress is removed")
+	}
+	if read("src/theme/dark.css") != "body{color:blue} /* mine */\n" {
+		t.Fatal("a file the user changed after the agent is never overwritten")
+	}
+	if again := cmd(""); !strings.Contains(again, "되돌릴 파일이 없다") {
+		t.Fatalf("a second preview finds nothing left: %s", again)
+	}
+	h.send("SessionEnd", map[string]any{})
+	time.Sleep(100 * time.Millisecond)
+	db, err := ledger.Open(h.db)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer db.Close()
+	var n int
+	_ = db.QueryRow(`SELECT COUNT(*) FROM rollback WHERE session_id='sess-1'`).Scan(&n)
+	if n != 1 {
+		t.Fatalf("the rollback is recorded in the ledger: %d", n)
 	}
 }

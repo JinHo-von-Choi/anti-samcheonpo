@@ -156,7 +156,7 @@ func TestUpgradeV2LedgerPreservesAnalysisAndRollsBackFailure(t *testing.T) {
 	if err != nil || after.Head != before.Head || after.Spec != before.Spec {
 		t.Fatalf("legacy seal changed: %+v %v", after, err)
 	}
-	if d.Version() != 7 {
+	if d.Version() != 8 {
 		t.Fatal(d.Version())
 	}
 }

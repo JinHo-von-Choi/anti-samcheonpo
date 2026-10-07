@@ -156,6 +156,7 @@ Your existing hooks and status line settings are preserved. Now just give the AI
 | `/samcheonpo:keep now` | Let it through this once; if it happens again, advise before blocking |
 | `/samcheonpo:steer` | Pass Samcheonpo's prescription to the agent |
 | `/samcheonpo:check` | Run the done-check now |
+| `/samcheonpo:rollback` | Put files the AI changed with its write tools back to the last progress a passing check confirmed. Without arguments it previews; `apply` performs it. Files you edited after the AI, and files changed by shell commands, are left alone |
 | `/samcheonpo:accept`, `/samcheonpo:edit` | Accept or edit a work contract (when you use one) |
 
 `/samcheonpo:summary` example:
