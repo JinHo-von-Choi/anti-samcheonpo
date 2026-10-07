@@ -4,7 +4,6 @@ import (
 	"database/sql"
 	"fmt"
 	"io/fs"
-	"net/url"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -29,8 +28,7 @@ func openReadOnly(path string) (*sql.DB, error) {
 	if err != nil {
 		return nil, err
 	}
-	u := url.URL{Scheme: "file", Path: filepath.ToSlash(abs)}
-	db, err := sql.Open("sqlite", u.String()+"?mode=ro&_pragma=busy_timeout(200)&_pragma=query_only(1)")
+	db, err := sql.Open("sqlite", fileURI(abs)+"?mode=ro&_pragma=busy_timeout(200)&_pragma=query_only(1)")
 	return db, err
 }
 

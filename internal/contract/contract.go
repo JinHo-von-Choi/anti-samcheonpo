@@ -144,7 +144,7 @@ func Parse(b []byte) (*Contract, []ValidationError) {
 				errs = append(errs, ValidationError{f + ".reuse", "v2의 pure·deterministic 검사에 입력·환경 파일과 1~3600초 유효기간이 필요하다"})
 			}
 			for _, p := range d.Reuse.Inputs {
-				if p == "" || filepath.IsAbs(p) || p == "." || strings.ContainsAny(p, "*?[\\") || p == ".." || strings.HasPrefix(filepath.Clean(p), "../") {
+				if p == "" || filepath.IsAbs(p) || strings.HasPrefix(p, "/") || p == "." || strings.ContainsAny(p, "*?[\\") || p == ".." || strings.HasPrefix(filepath.ToSlash(filepath.Clean(p)), "../") {
 					errs = append(errs, ValidationError{f + ".reuse.inputs", "프로젝트 안의 구체적인 파일·폴더 경로가 필요하다"})
 				}
 			}

@@ -304,7 +304,7 @@ func validSnapshotID(id string) bool {
 
 // safeRelPath reports whether a slash path stays inside its root.
 func safeRelPath(name string) bool {
-	if name == "" || filepath.IsAbs(name) {
+	if name == "" || filepath.IsAbs(name) || strings.HasPrefix(name, "/") || strings.HasPrefix(name, "\\") || filepath.VolumeName(name) != "" {
 		return false
 	}
 	clean := filepath.Clean(name)

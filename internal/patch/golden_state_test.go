@@ -4,6 +4,7 @@ import (
 	"errors"
 	"os"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"sync"
 	"testing"
@@ -60,10 +61,10 @@ func TestGoldenStateCaptureRecordsFilesAndMeta(t *testing.T) {
 		t.Fatalf("hashes name the content: %v", meta.Hashes)
 	}
 	f, err := g.ReadFile(id, "bin/run.sh")
-	if err != nil || string(f.Data) != "#!/bin/sh\n" || f.Mode != 0o755 {
+	if err != nil || string(f.Data) != "#!/bin/sh\n" || (runtime.GOOS != "windows" && f.Mode != 0o755) {
 		t.Fatalf("read: %+v %v", f, err)
 	}
-	if f, err := g.ReadFile(id, "docs/n.md"); err != nil || f.Mode != 0o644 {
+	if f, err := g.ReadFile(id, "docs/n.md"); err != nil || (runtime.GOOS != "windows" && f.Mode != 0o644) {
 		t.Fatalf("a file without a mode is stored as 0644: %+v %v", f, err)
 	}
 	if _, err := g.ReadFile(id, "src/other.py"); !errors.Is(err, ErrSnapshotGone) {

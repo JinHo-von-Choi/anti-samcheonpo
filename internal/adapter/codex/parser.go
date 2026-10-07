@@ -10,6 +10,7 @@ import (
 	"fmt"
 	"io"
 	"os"
+	pathpkg "path"
 	"path/filepath"
 	"strings"
 	"time"
@@ -174,6 +175,15 @@ func (p *Parser) rel(path string) string {
 	path = strings.TrimPrefix(path, "file://")
 	if path == "" {
 		return ""
+	}
+	if strings.HasPrefix(path, "/") && filepath.Separator != '/' {
+		// a Unix transcript read on another host keeps slash semantics
+		path = pathpkg.Clean(path)
+		root := pathpkg.Clean(filepath.ToSlash(p.root))
+		if p.root != "" && strings.HasPrefix(path, root+"/") {
+			return strings.TrimPrefix(path, root+"/")
+		}
+		return path
 	}
 	path = filepath.Clean(path)
 	if p.root != "" && filepath.IsAbs(path) {

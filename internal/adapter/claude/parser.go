@@ -334,7 +334,7 @@ func (p *Parser) rel(path string) string {
 	if path == "" {
 		return ""
 	}
-	if strings.HasPrefix(path, "/") && !strings.HasPrefix(p.Root, "/") && filepath.Separator != '/' {
+	if strings.HasPrefix(path, "/") && filepath.Separator != '/' {
 		// a Unix transcript read on another host: slash semantics, not the
 		// host's
 		return relSlash(filepath.ToSlash(p.Root), path)
