@@ -82,7 +82,7 @@ You give the AI a task → Samcheonpo watches → busywork gets flagged → igno
 It follows five principles.
 
 1. **Judge by results.** Decisions rest on command results, working-tree state and test results, not on what the AI says about itself.
-2. **Never block on counts alone.** It blocks only when input and environment are unchanged and there is no new information and no progress. Retrying after changing code or after bringing a service back up is never blocked.
+2. **Never block on counts alone.** It blocks only when input and environment are unchanged and there is no new information and no progress. Retrying after changing code is not blocked. If the last failure came from a service, dependency, permission or network problem, the next rerun is let through once as a recovery check, and an install or service command in between starts the count over.
 3. **Give a reason when blocking.** It returns what the decision was based on and what to do next. It never fabricates fake command output.
 4. **Say "unknown" when it does not know.** Missing measurements show as unknown, not ₩0; estimates are labeled as estimates.
 5. **Keep records on your machine.** No remote upload or external judge model unless you explicitly turn it on.
@@ -156,7 +156,7 @@ Your existing hooks and status line settings are preserved. Now just give the AI
 | `/samcheonpo:keep now` | Let it through this once; if it happens again, advise before blocking |
 | `/samcheonpo:steer` | Pass Samcheonpo's prescription to the agent |
 | `/samcheonpo:check` | Run the done-check now |
-| `/samcheonpo:rollback` | Put files the AI changed with its write tools back to the last progress a passing check confirmed. Without arguments it previews; `apply` performs it. Files you edited after the AI, and files changed by shell commands, are left alone |
+| `/samcheonpo:rollback` | Put files the AI changed with its write tools back to the last progress a passing check confirmed. Without arguments it previews; `apply <plan ID>` performs exactly the previewed plan. Files whose ownership is unclear (your edits mixed in, changed by shell commands or links) are left alone, and replaced content is backed up |
 | `/samcheonpo:accept`, `/samcheonpo:edit` | Accept or edit a work contract (when you use one) |
 
 `/samcheonpo:summary` example:
@@ -214,7 +214,7 @@ notify:
   desktop: true
 ```
 
-A project config can only make settings **weaker** than the user config. It cannot raise the block cap, and it cannot add or redirect external upload, notification destinations, or external programs to run; it can only turn them off. Newly added rules start in `shadow_rules`, record-only, until their false-positive rate is measured.
+A project config can only make settings **weaker** than the user config. It cannot make detection stricter or raise the block cap, and it cannot add or redirect external upload, notification destinations, or external programs to run; it can only turn them off. Newly added rules start in `shadow_rules`, record-only, until their false-positive rate is measured.
 
 The research experiment mode (`experiment: {enabled: true}`) is off by default. When on, it withholds some advice as a control group and says so in the status line. A project config cannot turn it on.
 
@@ -241,7 +241,8 @@ The research experiment mode (`experiment: {enabled: true}`) is off by default. 
 - **The effect is still being proven.** Pilot runs showed lower cost per completion on tasks where agents spin their wheels, but the samples are small, so no general savings rate is claimed. In a 2026-10-07 pilot with the real Claude Code (Sonnet) on 6 tasks, both arms completed 6/6 and there were no interventions; the tasks did not make the current model spin, so no effect could be measured. Methods and limits are in the [experiment protocol](docs/benchmarks/protocol-v1.md).
 - **False positives can happen.** That is why it starts with nudges and blocks only when a warning was ignored on the same target in the same session, within a per-session cap. Report wrong calls with `/samcheonpo:keep normal`.
 - **A pre-run block reaches the agent only if the decision finishes within the hook's wait (15 ms).** If it does not, the run is not blocked, and the status line shows the number of late decisions and `unknown`.
-- **Rollback covers only files changed through write tools (Write, Edit).** Files changed by shell commands are not covered.
+- **Rollback covers only files changed through write tools (Write, Edit) whose ownership is confirmed.** Files changed by shell commands, files with your edits mixed in, and links are not covered.
+- **User-only commands are refused in the agent's shell, but this is not full isolation.** `accept`, `keep` and `rollback apply` run through the agent's shell tool are refused; a process of the same OS user connecting to the daemon socket directly is not stopped.
 - **On short, clear tasks it has little to do.** Busywork mostly shows up in long, complex sessions.
 - **Amounts are API-rate conversions.** They do not reflect your actual subscription bill or remaining quota.
 - **Messages are in Korean.** The CLI output, nudges and summaries are currently Korean only.
