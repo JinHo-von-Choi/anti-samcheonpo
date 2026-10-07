@@ -595,7 +595,10 @@ func priceCmd() *cobra.Command {
 			if err := os.MkdirAll(config.Home(), 0o700); err != nil {
 				return err
 			}
-			b, _ := os.ReadFile(p)
+			b, err := os.ReadFile(p)
+			if err != nil && !os.IsNotExist(err) {
+				return fmt.Errorf("단가표를 읽지 못해 환율을 추가하지 않았다: %w", err)
+			}
 			s := string(b)
 			if !strings.Contains(s, "fx:") {
 				s = "fx:\n" + s

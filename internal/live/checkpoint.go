@@ -302,19 +302,30 @@ func (r *Runner) worktree() (string, func(), error) {
 	if out, err := exec.CommandContext(ctx, "git", "-C", r.Root, "worktree", "add", "--detach", dir, commit).CombinedOutput(); err != nil {
 		return "", func() {}, fmt.Errorf("git worktree add: %s", bytes.TrimSpace(out))
 	}
-	for _, p := range untracked(ctx, r.Root) {
-		src := filepath.Join(r.Root, p)
-		dst := filepath.Join(dir, p)
-		if b, err := os.ReadFile(src); err == nil {
-			_ = os.MkdirAll(filepath.Dir(dst), 0o755)
-			_ = os.WriteFile(dst, b, 0o644)
-		}
-	}
 	cleanup := func() {
 		c2, cancel2 := withTimeout(30 * time.Second)
 		defer cancel2()
 		_ = exec.CommandContext(c2, "git", "-C", r.Root, "worktree", "remove", "--force", dir).Run()
 		_ = os.RemoveAll(dir)
+	}
+	// a check on a copy with missing files would judge different inputs
+	for _, p := range untracked(ctx, r.Root) {
+		src := filepath.Join(r.Root, p)
+		dst := filepath.Join(dir, p)
+		b, err := os.ReadFile(src)
+		if os.IsNotExist(err) {
+			continue // removed since the listing
+		}
+		if err == nil {
+			err = os.MkdirAll(filepath.Dir(dst), 0o755)
+		}
+		if err == nil {
+			err = os.WriteFile(dst, b, 0o644)
+		}
+		if err != nil {
+			cleanup()
+			return "", func() {}, fmt.Errorf("격리 작업 폴더에 %s를 복사하지 못했다: %w", p, err)
+		}
 	}
 	return dir, cleanup, nil
 }

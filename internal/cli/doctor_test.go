@@ -94,3 +94,25 @@ func TestSlashCommandAcceptsUnquotedArguments(t *testing.T) {
 		t.Fatalf("/samcheonpo:rollback apply <ID> passes two words; only the missing daemon may fail it: %v", err)
 	}
 }
+
+func TestSetFXKeepsUnreadablePriceTable(t *testing.T) {
+	if os.Geteuid() == 0 {
+		t.Skip("root reads any file")
+	}
+	home := t.TempDir()
+	t.Setenv("SAMCHEONPO_HOME", home)
+	p := filepath.Join(home, "prices.yml")
+	orig := "models:\n  - model: m\n"
+	_ = os.WriteFile(p, []byte(orig), 0o000)
+	c := priceCmd()
+	c.SetArgs([]string{"set-fx", "1400", "--from", "2026-10-01"})
+	c.SetOut(new(strings.Builder))
+	c.SetErr(new(strings.Builder))
+	if err := c.Execute(); err == nil {
+		t.Fatal("an unreadable price table is reported, not replaced")
+	}
+	_ = os.Chmod(p, 0o600)
+	if b, _ := os.ReadFile(p); string(b) != orig {
+		t.Fatalf("the price table is unchanged: %q", b)
+	}
+}
