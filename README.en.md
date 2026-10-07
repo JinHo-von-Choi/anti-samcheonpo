@@ -1,6 +1,9 @@
 <div align="center">
 
-# Samcheonpo (anti-samcheonpo)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.png">
+  <img src="docs/assets/logo.png" alt="Samcheonpo (anti-samcheonpo)" width="300">
+</picture>
 
 **A harness that notices when an AI coding agent is burning your time and money on busywork, tells you, and stops it**
 

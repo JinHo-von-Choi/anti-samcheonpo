@@ -1,6 +1,9 @@
 <div align="center">
 
-# 삼천포 (anti-samcheonpo)
+<picture>
+  <source media="(prefers-color-scheme: dark)" srcset="docs/assets/logo-dark.png">
+  <img src="docs/assets/logo.png" alt="삼천포 (anti-samcheonpo)" width="300">
+</picture>
 
 **AI 코딩 에이전트가 헛짓에 시간과 돈을 태우는 것을 알아채고, 알려 주고, 멈추게 하는 하네스**
 
