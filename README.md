@@ -136,11 +136,11 @@ flowchart LR
 
 ### 릴리스 파일 (Linux x86-64)
 
-[Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases)에서 `samcheonpo_0.3.0_linux_amd64.tar.gz`와 `SHA256SUMS`를 받습니다.
+[Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases)에서 `samcheonpo_0.3.1_linux_amd64.tar.gz`와 `SHA256SUMS`를 받습니다.
 
 ```bash
 sha256sum -c SHA256SUMS
-tar -xzf samcheonpo_0.3.0_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.3.1_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -152,8 +152,8 @@ samcheonpo doctor
 Go 1.27 이상이 필요합니다. 실제 에이전트 실행을 확인한 환경은 Linux x86-64뿐이며, macOS와 Windows의 확인 범위는 아래 지원 범위 표에 있습니다.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.3.0
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.3.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.3.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.3.1
 ```
 
 Windows는 빌드와 순수 패키지 시험까지 확인했고, 에이전트 연결은 아직 검증하지 않았습니다.

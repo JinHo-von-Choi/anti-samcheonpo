@@ -141,11 +141,11 @@ Dependency manifests (`package.json`, `requirements.txt` and the like) stay edit
 
 ### Release archive (Linux x86-64)
 
-Download `samcheonpo_0.3.0_linux_amd64.tar.gz` and `SHA256SUMS` from [Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases).
+Download `samcheonpo_0.3.1_linux_amd64.tar.gz` and `SHA256SUMS` from [Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases).
 
 ```bash
 sha256sum -c SHA256SUMS
-tar -xzf samcheonpo_0.3.0_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.3.1_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -157,8 +157,8 @@ Keep the primary binary `samcheonpo` beside `samcheonpo-hook` inside that same f
 Requires Go 1.27 or later. Linux x86-64 is the only platform verified with real agent runs; what is verified on macOS and Windows is in the support table below.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.3.0
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.3.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.3.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.3.1
 ```
 
 Windows builds and passes the platform-neutral tests; connecting an agent there is not yet verified.
