@@ -1,6 +1,6 @@
 {
   "name": "samcheonpo",
-  "version": "0.1.0",
+  "version": "0.2.0",
   "description": "AI 코딩 에이전트의 헛짓(검증 쳇바퀴, 실패 루프, 맥락 이탈 등)을 잡아 원화 영수증으로 보여 주고 본론으로 되돌린다",
   "author": { "name": "최진호" },
   "homepage": "https://github.com/JinHo-von-Choi/anti-samcheonpo",
