@@ -28,6 +28,9 @@ type Prescription struct {
 	StopCondition string `json:"stop_condition"`
 	MaxAttempts   int    `json:"max_attempts"`
 	Handoff       bool   `json:"handoff"`
+	// Shell is the remedy for an external fault, to be run by an operator and
+	// not by the agent. It is empty unless the cause is the environment.
+	Shell string `json:"shell,omitempty"`
 }
 
 // Diagnose needs a failed execution before interpreting an environmental
@@ -63,6 +66,37 @@ func Diagnose(rule, errorText string, failed bool) Cause {
 	default:
 		return Unknown
 	}
+}
+
+// DiagnoseExecution relates a failed execution to the bounded recovery model.
+// The oracle names the category and the evidence, Diagnose names the cause. An
+// observed external fault is always the environment cause, whatever the rule
+// says: the rule is a prior, and a failed run is the stronger evidence.
+func DiagnoseExecution(rule string, exitCode int, stderr string) (DiagnosticResult, Cause) {
+	res := NewFaultOracle().Diagnose(exitCode, stderr)
+	switch res.Category {
+	case CategoryNoFault:
+		// Nothing failed, so there is no failed execution to read a cause from.
+		return res, Diagnose(rule, "", false)
+	case CategoryExternalEnvironment:
+		return res, Environment
+	default:
+		return res, Diagnose(rule, res.Evidence, true)
+	}
+}
+
+// Prescribe joins the oracle's freeze to the bounded prescription. An external
+// fault overrides the cause it was handed, because no code edit is a valid
+// response to a fault outside the code.
+func Prescribe(cause Cause, res DiagnosticResult) Prescription {
+	if res.Category == CategoryExternalEnvironment {
+		cause = Environment
+	}
+	p := For(cause)
+	if res.Category != CategoryNoFault {
+		p.Shell = res.PrescribedAction
+	}
+	return p
 }
 
 func For(cause Cause) Prescription {
