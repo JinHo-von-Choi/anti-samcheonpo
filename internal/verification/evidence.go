@@ -22,6 +22,9 @@ type Key struct {
 	InputHash       string `json:"input_hash"`
 	EnvironmentHash string `json:"environment_hash"`
 	RunnerVersion   string `json:"runner_version"`
+	// AuthorityHash binds evidence to the accepted contract it ran under; a
+	// pass observed under other scope, budget or checks is never reused.
+	AuthorityHash string `json:"authority_hash,omitempty"`
 }
 
 func (k Key) Valid() bool {

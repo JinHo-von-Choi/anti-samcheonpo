@@ -67,6 +67,14 @@ func (w *Workspace) Current() (string, bool) {
 	return w.cur, !w.dirty && w.cur != ""
 }
 
+// Generation counts observed changes; a read is consistent only if it is the
+// same before and after.
+func (w *Workspace) Generation() uint64 {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.generation
+}
+
 // Invalidate marks the fingerprint stale.
 func (w *Workspace) Invalidate() {
 	w.mu.Lock()

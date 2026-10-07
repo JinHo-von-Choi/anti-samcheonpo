@@ -137,6 +137,7 @@ func receiverKeys(b handoff.Bundle, root string) (map[string]verification.Key, e
 	ws := live.NewWorkspace(root)
 	defer ws.Close()
 	runner := live.Runner{Root: root, WS: ws}
+	runner.SetAuthority(contract.AuthorityDigest(c))
 	keys := map[string]verification.Key{}
 	for _, check := range c.MachineChecks() {
 		key, err := runner.CurrentKey(check, b.Task.ID, b.Revisions[len(b.Revisions)-1].Number)

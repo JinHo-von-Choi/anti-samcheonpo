@@ -94,12 +94,19 @@ func (s *Session) evidencePre(execFP string, certain bool, norm string, seq int6
 	}
 	ctx, cancel := context.WithDeadline(context.Background(), deadline.Add(-preMargin))
 	defer cancel()
+	var generation uint64
+	if runner.WS != nil {
+		generation = runner.WS.Generation()
+	}
 	key, err := runner.CurrentKeyContext(ctx, *check, taskID, revision)
 	if err != nil {
 		if ctx.Err() != nil {
 			s.preLate.Add(1)
 		}
 		return nil
+	}
+	if runner.WS == nil || runner.WS.Generation() != generation {
+		return nil // the workspace changed while the inputs were read
 	}
 	if ok, _ := verification.Reusable(*evidence, key, time.Now()); !ok {
 		return nil

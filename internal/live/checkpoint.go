@@ -13,6 +13,7 @@ import (
 	"runtime"
 	"sort"
 	"sync"
+	"sync/atomic"
 	"syscall"
 	"time"
 
@@ -51,6 +52,18 @@ type Runner struct {
 	Timeout time.Duration
 	// Busy reports whether the agent's shell tool is running.
 	Busy func() bool
+	// authority is the accepted contract's authority hash keys are bound to.
+	authority atomic.Pointer[string]
+}
+
+// SetAuthority binds future verification keys to an accepted contract.
+func (r *Runner) SetAuthority(hash string) { r.authority.Store(&hash) }
+
+func (r *Runner) authorityHash() string {
+	if p := r.authority.Load(); p != nil {
+		return *p
+	}
+	return ""
 }
 
 // Run executes checks. mid restricts to checks safe to run during work
@@ -94,7 +107,7 @@ func (r *Runner) proofKey(c contract.Check, taskID string, revision uint64) (ver
 }
 
 func (r *Runner) proofKeyContext(ctx context.Context, c contract.Check, taskID string, revision uint64) (verification.Key, error) {
-	key := verification.Key{TaskID: taskID, Revision: revision, CheckID: c.ID, RunnerVersion: "samcheonpo-check/2"}
+	key := verification.Key{TaskID: taskID, Revision: revision, CheckID: c.ID, RunnerVersion: "samcheonpo-check/2", AuthorityHash: r.authorityHash()}
 	if c.Reuse == nil || !c.Pure || !c.Reuse.Deterministic || r.WS == nil {
 		return key, fmt.Errorf("완전한 로컬 입력 선언이 없는 검사는 재사용하지 않는다")
 	}

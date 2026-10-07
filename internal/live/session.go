@@ -272,6 +272,13 @@ func (s *Session) setContract(c *contract.Contract, acc contract.Acceptance) {
 	}
 	s.c, s.acc = c, acc
 	accepted := c != nil && acc.State == contract.StateAccepted
+	if s.runner != nil {
+		authority := ""
+		if accepted {
+			authority = contract.AuthorityDigest(c)
+		}
+		s.runner.SetAuthority(authority)
+	}
 	if s.eng != nil {
 		s.eng.Contract, s.eng.Accepted = s.engineContract(), accepted
 		s.eng.ScopeChanged()
