@@ -1,0 +1,18 @@
+symptom: S1
+kind: negative
+task: 빠진 패키지를 설치한 뒤 다시 시험
+steps:
+  - prompt: tests/test_fetch.py 실패를 고쳐 줘
+  - bash: pytest -q tests/test_fetch.py
+    exit: 1
+    out: "E   ModuleNotFoundError: No module named 'requests'\n1 error"
+  - bash: pytest -q tests/test_fetch.py
+    exit: 1
+    out: "E   ModuleNotFoundError: No module named 'requests'\n1 error"
+  - bash: pip install requests
+    out: "Successfully installed requests-2.32.3"
+  - bash: pytest -q tests/test_fetch.py
+    exit: 1
+    out: "E   ModuleNotFoundError: No module named 'requests'\n1 error"
+expect:
+  not_fires: [s1.identical_rerun:L1, s1.verify_after_docs]

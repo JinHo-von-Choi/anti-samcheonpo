@@ -1,0 +1,18 @@
+symptom: S1
+kind: negative
+task: DB를 다시 띄운 뒤 다시 시험
+steps:
+  - prompt: 주문 저장 시험이 실패하는 이유를 찾아 줘
+  - bash: pytest -q tests/test_orders.py
+    exit: 1
+    out: "E   psycopg.OperationalError: connection failed: connection refused\n1 failed"
+  - bash: pytest -q tests/test_orders.py
+    exit: 1
+    out: "E   psycopg.OperationalError: connection failed: connection refused\n1 failed"
+  - bash: docker compose up -d db
+    out: "Container app-db-1  Started"
+  - bash: pytest -q tests/test_orders.py
+    exit: 1
+    out: "E   psycopg.OperationalError: connection failed: connection refused\n1 failed"
+expect:
+  not_fires: [s1.identical_rerun:L1]

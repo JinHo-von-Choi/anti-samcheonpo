@@ -131,13 +131,22 @@ func TestIdenticalRerunNotForDifferentResult(t *testing.T) {
 	}
 }
 
-func TestUnknownShellLowersConfidence(t *testing.T) {
-	b := newB(t, "x", nil)
-	b.verify("pytest", 1, nil, "e")
-	b.next(&event.Event{Kind: event.KindTool, Tool: event.ToolShell, Category: event.CatExplore, Unknown: true})
-	v := fired(b.verify("pytest", 1, nil, "e"), "s1.identical_rerun")
-	if v == nil || v.Confidence >= 0.95 {
-		t.Fatalf("unknown command in between must lower confidence: %+v", v)
+func TestStateChangingShellRestartsTheRepeatCount(t *testing.T) {
+	// an unrecognized command (./setup.sh) or a known state change (an
+	// install, a service start) may change what the fingerprint cannot see
+	for _, between := range []*event.Event{
+		{Kind: event.KindTool, Tool: event.ToolShell, Category: event.CatExplore, Unknown: true},
+		{Kind: event.KindTool, Tool: event.ToolShell, Category: event.CatExplore, Unknown: true, Mutating: true},
+	} {
+		b := newB(t, "x", nil)
+		b.verify("pytest", 1, nil, "e")
+		b.next(between)
+		if v := fired(b.verify("pytest", 1, nil, "e"), "s1.identical_rerun"); v != nil {
+			t.Fatalf("the run after a state-changing command starts a new count: %+v", v)
+		}
+		if v := fired(b.verify("pytest", 1, nil, "e"), "s1.identical_rerun"); v == nil {
+			t.Fatal("repeats after it are still counted")
+		}
 	}
 }
 

@@ -58,6 +58,10 @@ var gitProduce = map[string]bool{"checkout": true, "restore": true, "apply": tru
 var produceWords = map[string]bool{"mv": true, "cp": true, "rm": true, "mkdir": true, "touch": true,
 	"chmod": true, "chown": true, "ln": true, "rmdir": true, "patch": true, "install": true, "unzip": true, "tar": true, "truncate": true, "dd": true}
 var pkgInstallRe = lazyre.New(`^(?:npm|pnpm|yarn|bun)\s+(?:i|install|add|remove|uninstall)\b|^pip3?\s+install\b|^uv\s+(?:add|pip\s+install|sync)\b|^go\s+(?:get|mod\s+tidy)\b|^cargo\s+add\b|^poetry\s+add\b|^apt(?:-get)?\s+install\b|^brew\s+install\b`)
+
+// serviceControlRe matches commands that start, stop or restart a service.
+// They change what a check can reach without touching project files.
+var serviceControlRe = lazyre.New(`^(?:docker(?:-compose|\s+compose)?\s+(?:up|start|restart|stop|down|run)\b|docker\s+container\s+(?:start|restart|run)\b|podman(?:-compose|\s+compose)?\s+(?:up|start|restart|run)\b|systemctl\s+(?:--user\s+)?(?:start|restart|reload|stop)\b|service\s+\S+\s+(?:start|restart|stop)\b|brew\s+services\s+(?:start|restart|stop)\b|pg_ctl\s+(?:start|restart)\b|redis-server\b|mysqld\b|mongod\b)`)
 var redirectWriteRe = lazyre.New(`(?:^|[^0-9&>])>{1,2}\s*([^\s&|;>]+)`)
 var sedInplaceRe = lazyre.New(`^(?:sed|perl)\s+(?:-[a-zA-Z]*i|-i)`)
 
@@ -114,6 +118,10 @@ func stage(st string, opt Options) (string, bool) {
 		if re, err := regexp.Compile(v); err == nil && strings.ContainsAny(v, `^$\\(`) && re.MatchString(norm) {
 			return ShellVerify, false
 		}
+	}
+	if serviceControlRe.MatchString(norm) {
+		// not a file change, but not read-only either
+		return ShellUnknown, true
 	}
 	writes := redirectWriteRe.FindAllStringSubmatch(norm, -1)
 	mut := false

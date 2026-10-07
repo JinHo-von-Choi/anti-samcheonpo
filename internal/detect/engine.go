@@ -149,6 +149,9 @@ type State struct {
 	s6SameFired  bool
 	// recoveryUsed marks the one recovery check granted per run and cause.
 	recoveryUsed map[string]bool
+	// lastMutating is the last shell command that changes state outside the
+	// files (installs, chmod, archives); lastUnknown the last unclassified one.
+	lastMutating int64
 }
 
 // sameFilesAttempts is when repeated failures on the same files suggest a
@@ -289,6 +292,9 @@ func (e *Engine) tool(ev *event.Event, sigs *[]Signal) {
 	if ev.Tool == event.ToolShell && ev.Unknown {
 		st.lastUnknown = ev.Seq
 	}
+	if ev.Tool == event.ToolShell && ev.Mutating && ev.Category != event.CatVerify {
+		st.lastMutating = ev.Seq
+	}
 	switch ev.Category {
 	case event.CatVerify:
 		e.verification(ev, sigs)
@@ -355,6 +361,14 @@ func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 	if runID(ev) != "" && !e.nondeterministic(ev.CmdNorm) {
 		key := runID(ev) + "|" + ev.WSBefore
 		ent := st.verify[key]
+		if ent != nil {
+			// an install, service command or unclassified shell command since
+			// the last run may have changed what the workspace fingerprint
+			// cannot see: the next run starts a new count
+			if last := ent.seqs[len(ent.seqs)-1]; st.lastMutating > last || st.lastUnknown > last {
+				ent = nil
+			}
+		}
 		if ent != nil && ent.result == ev.ResultFP {
 			ent.count++
 			ent.seqs = append(ent.seqs, ev.Seq)
@@ -505,7 +519,8 @@ func (e *Engine) verifyAfterDocs(ev *event.Event, sigs *[]Signal) {
 	if !ok || prev.result != ev.ResultFP || prev.ws == ev.WSBefore {
 		return // a first run, a changed result, or an identical rerun (S1)
 	}
-	if st.lastWriteSeq > prev.seq && st.lastCodeWriteSeq < prev.seq {
+	// an install or service command in between is not a documentation change
+	if st.lastWriteSeq > prev.seq && st.lastCodeWriteSeq < prev.seq && st.lastMutating < prev.seq {
 		e.add(sigs, Signal{Detector: "S1", Rule: "s1.verify_after_docs", Confidence: 0.8, Level: L1, Evidence: []int64{prev.seq, ev.Seq},
 			Facts: map[string]any{"cmd": ev.CmdNorm}})
 	}

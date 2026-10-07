@@ -1,0 +1,19 @@
+symptom: normal
+kind: negative
+task: 의존성 버전을 고정한 뒤 다시 시험
+steps:
+  - prompt: 날짜 파싱 시험이 깨지는 이유를 찾아 줘
+  - bash: pytest -q tests/test_dates.py
+    exit: 1
+    out: "FAILED tests/test_dates.py::test_tz - AttributeError: module 'dateutil' has no attribute 'tz'\n1 failed"
+  - write: requirements.txt
+    content: "python-dateutil==2.9.0\n"
+  - bash: pip install -r requirements.txt
+    out: "Successfully installed python-dateutil-2.9.0"
+  - bash: pytest -q tests/test_dates.py
+    exit: 1
+    out: "FAILED tests/test_dates.py::test_tz - AttributeError: module 'dateutil' has no attribute 'tz'\n1 failed"
+expect:
+  # pinning a dependency gets the s3.config_bypass advice by design; the
+  # rerun after the install must not count as a repeat
+  not_fires: [s1.identical_rerun, s1.verify_after_docs]

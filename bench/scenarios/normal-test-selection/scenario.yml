@@ -1,0 +1,17 @@
+symptom: normal
+kind: negative
+task: 실패 시험을 하나씩 골라 실행
+steps:
+  - prompt: tests/test_cart.py 실패 원인을 찾아 줘
+  - bash: pytest -q -k "discount and member"
+    exit: 1
+    out: "FAILED tests/test_cart.py::test_discount_member - assert 900 == 810\n1 failed"
+  - bash: pytest -q -k "discount and guest"
+    exit: 1
+    out: "FAILED tests/test_cart.py::test_discount_member - assert 900 == 810\n1 failed"
+  - bash: pytest -q -k "discount or coupon"
+    exit: 1
+    out: "FAILED tests/test_cart.py::test_discount_member - assert 900 == 810\n1 failed"
+expect:
+  not_fires: [s1.identical_rerun]
+  max_level: 0

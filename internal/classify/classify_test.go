@@ -88,3 +88,16 @@ func TestManifestAndConfig(t *testing.T) {
 		t.Error("tool config detection")
 	}
 }
+
+func TestServiceControlIsAStateChange(t *testing.T) {
+	for _, c := range []string{"docker compose up -d db", "docker-compose restart api", "systemctl --user start redis", "brew services start postgresql", "docker start pg"} {
+		if cls, mut := Shell(c, Options{}); cls != ShellUnknown || !mut {
+			t.Errorf("%q -> %s mut=%v, want a state change", c, cls, mut)
+		}
+	}
+	for _, c := range []string{"docker ps", "docker logs api", "systemctl status redis"} {
+		if cls, _ := Shell(c, Options{}); cls != ShellExplore {
+			t.Errorf("%q is read-only, got %s", c, cls)
+		}
+	}
+}

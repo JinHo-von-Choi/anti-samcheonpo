@@ -9,6 +9,7 @@ import (
 	"os"
 	"path/filepath"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -46,7 +47,7 @@ type Step struct {
 // Expect describes the required outcome.
 type Expect struct {
 	Fires    []string `yaml:"fires"`     // rules that must produce a verdict at L1+ (or any level with suffix ":L0")
-	NotFires []string `yaml:"not_fires"` // rules that must not produce any verdict
+	NotFires []string `yaml:"not_fires"` // rules that must not produce any verdict (or none at level k and above with suffix ":Lk")
 	MaxLevel *int     `yaml:"max_level"` // highest allowed primary level
 	WasteMin int64    `yaml:"waste_min_krw"`
 	WasteMax *int64   `yaml:"waste_max_krw"`
@@ -253,7 +254,14 @@ func Run(s Scenario, prices *cost.Table, work string) (Outcome, error) {
 		}
 	}
 	for _, no := range s.Expect.NotFires {
-		if _, ok := fired[no]; ok {
+		// "rule:Lk" forbids level k and above; a bare rule forbids any level
+		rule, min := no, detect.L0
+		if i := strings.LastIndex(no, ":L"); i > 0 {
+			if k, err := strconv.Atoi(no[i+2:]); err == nil {
+				rule, min = no[:i], detect.Level(k)
+			}
+		}
+		if l, ok := fired[rule]; ok && l >= min {
 			o.Problems = append(o.Problems, "울리면 안 되는데 울림: "+no)
 		}
 	}

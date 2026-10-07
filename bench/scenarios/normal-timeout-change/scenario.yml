@@ -1,0 +1,17 @@
+symptom: normal
+kind: negative
+task: 느린 시험에 시간 제한을 늘려 다시 실행
+steps:
+  - prompt: 통합 시험이 시간 초과로 끝나는 이유를 봐 줘
+  - bash: timeout 60 npm run test:int
+    exit: 124
+    out: "Terminated"
+  - bash: timeout 300 npm run test:int
+    exit: 124
+    out: "Terminated"
+  - bash: timeout 600 npm run test:int
+    exit: 124
+    out: "Terminated"
+expect:
+  not_fires: [s1.identical_rerun, s2.stuck_error]
+  max_level: 0
