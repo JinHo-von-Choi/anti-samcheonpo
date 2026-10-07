@@ -192,6 +192,27 @@ type Report struct {
 	Deterministic      SymptomScore   `json:"deterministic"`
 	Kappa              []KappaPair    `json:"kappa"`
 	DoubleLabeledShare float64        `json:"double_labeled_share"`
+	// Rules scores each rule separately; blocking decisions are per rule.
+	Rules []RuleScore `json:"rules"`
+	// Incidents is the number of consensus incidents; Disputed counts merged
+	// spans only a minority of a session's labelers marked (excluded).
+	Incidents int `json:"incidents"`
+	Disputed  int `json:"disputed"`
+}
+
+// RuleScore is the evaluation of one rule. Correct detections hit a consensus
+// incident of the rule's symptom; Justified ones hit an incident the labelers
+// judged worth intervening in; NormalHits fall inside reviewed clean spans.
+type RuleScore struct {
+	Rule         string   `json:"rule"`
+	Detections   int      `json:"detections"`
+	Correct      int      `json:"correct"`
+	Precision    float64  `json:"precision"`
+	PrecisionCI  Interval `json:"precision_ci"`
+	Justified    int      `json:"justified"`
+	JustifiedCI  Interval `json:"justified_ci"`
+	NormalHits   int      `json:"normal_hits"`
+	Insufficient bool     `json:"insufficient"`
 }
 
 // KappaPair is Cohen's kappa between two labelers.
@@ -219,18 +240,7 @@ func Evaluate(set string, sessions []string, data map[string]SessionData, labels
 	for _, s := range sessions {
 		inSet[s] = true
 	}
-	// labels by session and symptom (union across labelers)
-	type iv struct {
-		s, e int64
-		sym  string
-	}
-	lab := map[string][]iv{}
-	for _, l := range labels {
-		if !inSet[l.Session] || l.Meta != nil || l.Symptom == "" || l.Symptom == "none" {
-			continue
-		}
-		lab[l.Session] = append(lab[l.Session], iv{l.Start, l.End, l.Symptom})
-	}
+	inc, normal, disputed := consensus(sessions, labels)
 	scores := map[string]*SymptomScore{}
 	get := func(s string) *SymptomScore {
 		if scores[s] == nil {
@@ -238,7 +248,9 @@ func Evaluate(set string, sessions []string, data map[string]SessionData, labels
 		}
 		return scores[s]
 	}
+	rules := map[string]*RuleScore{}
 	latency := map[string][]int64{}
+	incidents := 0
 	for _, sid := range sessions {
 		d := data[sid]
 		cost := map[int64]int64{}
@@ -247,33 +259,57 @@ func Evaluate(set string, sessions []string, data map[string]SessionData, labels
 			cost[ev.Seq] = ev.CostMicroKRW
 			order = append(order, ev.Seq)
 		}
-		covered := map[int]int64{} // label index -> first detection seq
+		covered := map[int]int64{} // incident index -> first detection seq
 		for _, v := range d.Verdicts {
 			if v.Suppressed || v.Confidence < 0.5 {
 				continue
 			}
-			sc := get(v.Detector)
-			sc.Detections++
-			hit := false
-			for i, l := range lab[sid] {
-				if l.sym != v.Detector {
+			hit, justified, onlyDisputed := -1, false, false
+			for i, l := range inc[sid] {
+				if l.sym != v.Detector || !overlaps(v.Evidence, l.s, l.e) {
 					continue
 				}
-				for _, e := range v.Evidence {
-					if e >= l.s && e <= l.e {
-						hit = true
-						if f, ok := covered[i]; !ok || v.Seq < f {
-							covered[i] = v.Seq
-						}
+				hit = i
+				justified = justified || l.justified
+				if f, ok := covered[i]; !ok || v.Seq < f {
+					covered[i] = v.Seq
+				}
+			}
+			if hit < 0 {
+				for _, l := range disputed[sid] {
+					if l.sym == v.Detector && overlaps(v.Evidence, l.s, l.e) {
+						onlyDisputed = true
+					}
+				}
+			}
+			if onlyDisputed {
+				continue // the labelers disagree; neither right nor wrong
+			}
+			sc := get(v.Detector)
+			sc.Detections++
+			r := rules[v.Rule]
+			if r == nil {
+				r = &RuleScore{Rule: v.Rule}
+				rules[v.Rule] = r
+			}
+			r.Detections++
+			if hit >= 0 {
+				sc.Correct++
+				r.Correct++
+				if justified {
+					r.Justified++
+				}
+			} else {
+				for _, n := range normal[sid] {
+					if overlaps(v.Evidence, n.s, n.e) {
+						r.NormalHits++
 						break
 					}
 				}
 			}
-			if hit {
-				sc.Correct++
-			}
 		}
-		for i, l := range lab[sid] {
+		for i, l := range inc[sid] {
+			incidents++
 			sc := get(l.sym)
 			sc.Positives++
 			if f, ok := covered[i]; ok {
@@ -313,7 +349,112 @@ func Evaluate(set string, sessions []string, data map[string]SessionData, labels
 	finish(det, nil)
 	rep.Overall, rep.Deterministic = *all, *det
 	rep.Kappa, rep.DoubleLabeledShare = kappa(sessions, data, labels)
+	rep.Incidents = incidents
+	for _, ds := range disputed {
+		rep.Disputed += len(ds)
+	}
+	var names []string
+	for k := range rules {
+		names = append(names, k)
+	}
+	sort.Strings(names)
+	for _, k := range names {
+		r := rules[k]
+		if r.Detections > 0 {
+			r.Precision = float64(r.Correct) / float64(r.Detections)
+		}
+		r.PrecisionCI = Wilson(r.Correct, r.Detections)
+		r.JustifiedCI = Wilson(r.Justified, r.Detections)
+		r.Insufficient = r.Detections < MinPositives
+		rep.Rules = append(rep.Rules, *r)
+	}
 	return rep
+}
+
+type span struct {
+	s, e      int64
+	sym       string
+	justified bool
+}
+
+func overlaps(evidence []int64, s, e int64) bool {
+	for _, x := range evidence {
+		if x >= s && x <= e {
+			return true
+		}
+	}
+	return false
+}
+
+// consensus merges each session's labels into incidents: overlapping spans of
+// the same symptom from any labeler form one incident, counted once however
+// many labelers marked it. An incident a strict majority of the session's
+// labelers marked is a positive; the rest are disputed and excluded. Spans
+// labeled "none" are reviewed clean spans.
+func consensus(sessions []string, labels []Label) (inc, normal, disputed map[string][]span) {
+	inSet := map[string]bool{}
+	for _, s := range sessions {
+		inSet[s] = true
+	}
+	by := map[string][]Label{}
+	labelers := map[string]map[string]bool{}
+	for _, l := range labels {
+		if !inSet[l.Session] || l.Meta != nil || l.Symptom == "" {
+			continue
+		}
+		by[l.Session] = append(by[l.Session], l)
+		if labelers[l.Session] == nil {
+			labelers[l.Session] = map[string]bool{}
+		}
+		labelers[l.Session][l.Labeler] = true
+	}
+	inc, normal, disputed = map[string][]span{}, map[string][]span{}, map[string][]span{}
+	for sid, ls := range by {
+		sort.Slice(ls, func(i, j int) bool {
+			if ls[i].Symptom != ls[j].Symptom {
+				return ls[i].Symptom < ls[j].Symptom
+			}
+			return ls[i].Start < ls[j].Start
+		})
+		n := len(labelers[sid])
+		flush := func(cur span, votes map[string]bool, yes, answered int) {
+			cur.justified = answered > 0 && yes*2 > answered
+			switch {
+			case cur.sym == "none":
+				normal[sid] = append(normal[sid], cur)
+			case len(votes)*2 > n:
+				inc[sid] = append(inc[sid], cur)
+			default:
+				disputed[sid] = append(disputed[sid], cur)
+			}
+		}
+		var cur span
+		var votes map[string]bool
+		yes, answered := 0, 0
+		for i, l := range ls {
+			if i > 0 && l.Symptom == cur.sym && l.Start <= cur.e {
+				if l.End > cur.e {
+					cur.e = l.End
+				}
+			} else {
+				if i > 0 {
+					flush(cur, votes, yes, answered)
+				}
+				cur, votes, yes, answered = span{s: l.Start, e: l.End, sym: l.Symptom}, map[string]bool{}, 0, 0
+			}
+			votes[l.Labeler] = true
+			if l.Justified != "" {
+				answered++
+				if l.Justified == "yes" {
+					yes++
+				}
+			}
+		}
+		if len(ls) > 0 {
+			flush(cur, votes, yes, answered)
+		}
+	}
+	return inc, normal, disputed
 }
 
 func finish(s *SymptomScore, lat []int64) {

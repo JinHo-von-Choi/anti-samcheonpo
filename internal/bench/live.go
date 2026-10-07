@@ -46,7 +46,8 @@ type LiveTask struct {
 }
 
 // Arm is one way of running the agent. "{prompt}" in Cmd is replaced by the
-// task prompt and "{task}" by the task directory.
+// task prompt, "{task}" by the task directory and "{root}" by the directory
+// the comparison was started from (commands run inside a trial copy).
 type Arm struct {
 	Cmd           []string          `yaml:"cmd"`
 	Env           map[string]string `yaml:"env"`
@@ -138,6 +139,18 @@ func LoadLiveTasks(dir string) ([]LiveTask, error) {
 }
 
 // LoadABConfig reads the arm configuration.
+// ExpandArgv substitutes the placeholders of an arm command.
+func ExpandArgv(cmd []string, t LiveTask) []string {
+	root, _ := os.Getwd()
+	argv := make([]string, len(cmd))
+	for i, s := range cmd {
+		s = strings.ReplaceAll(s, "{task}", t.Dir)
+		s = strings.ReplaceAll(s, "{root}", root)
+		argv[i] = strings.ReplaceAll(s, "{prompt}", t.Prompt)
+	}
+	return argv
+}
+
 func LoadABConfig(p string) (ABConfig, error) {
 	var c ABConfig
 	b, err := os.ReadFile(p)
@@ -216,11 +229,7 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 	if t.TimeoutSec > 0 {
 		timeout = t.TimeoutSec
 	}
-	argv := make([]string, len(a.Cmd))
-	for i, s := range a.Cmd {
-		s = strings.ReplaceAll(s, "{task}", t.Dir)
-		argv[i] = strings.ReplaceAll(s, "{prompt}", t.Prompt)
-	}
+	argv := ExpandArgv(a.Cmd, t)
 	var env []string
 	for k, v := range a.Env {
 		env = append(env, k+"="+v)

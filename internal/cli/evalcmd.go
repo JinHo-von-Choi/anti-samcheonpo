@@ -268,6 +268,18 @@ func evalText(r eval.Report) string {
 	for _, k := range r.Kappa {
 		fmt.Fprintf(&b, "표시자 일치도 %s-%s kappa %.2f (이벤트 %d)\n", k.A, k.B, k.Kappa, k.Events)
 	}
+	fmt.Fprintf(&b, "합의 사건 %d개 · 표시자 간 이견으로 제외 %d개\n", r.Incidents, r.Disputed)
+	if len(r.Rules) > 0 {
+		fmt.Fprintf(&b, "%-28s %6s %6s %16s %16s %8s\n", "규칙", "탐지", "정밀도", "95% 구간", "개입 정당", "정상 구간")
+		for _, x := range r.Rules {
+			flag := ""
+			if x.Insufficient {
+				flag = "  표본 부족"
+			}
+			fmt.Fprintf(&b, "%-28s %6d %5.0f%% %7.0f%%-%3.0f%% %6d (%2.0f-%3.0f%%) %8d%s\n", x.Rule, x.Detections, x.Precision*100, x.PrecisionCI.Lo*100, x.PrecisionCI.Hi*100,
+				x.Justified, x.JustifiedCI.Lo*100, x.JustifiedCI.Hi*100, x.NormalHits, flag)
+		}
+	}
 	return b.String()
 }
 

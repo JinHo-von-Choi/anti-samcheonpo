@@ -98,3 +98,25 @@ func TestSummaryGates(t *testing.T) {
 		t.Fatalf("worse arm passed: %+v", s)
 	}
 }
+
+func TestExampleABConfigResolvesRepositoryPaths(t *testing.T) {
+	cfg, err := LoadABConfig(filepath.Join("..", "..", "bench", "ab.example.yml"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	on, off := cfg.Arms["on"], cfg.Arms["off"]
+	if on.Agent == "" || on.Agent != off.Agent || on.AgentVersion != off.AgentVersion || on.Model != off.Model {
+		t.Fatalf("arms must declare the same agent, version and model: %+v %+v", on, off)
+	}
+	argv := ExpandArgv(on.Cmd, LiveTask{Dir: "/tmp/task", Prompt: "p"})
+	wd, _ := os.Getwd()
+	found := false
+	for i, a := range argv {
+		if a == "--plugin-dir" && i+1 < len(argv) {
+			found = argv[i+1] == filepath.Join(wd, "plugins", "claude-code")
+		}
+	}
+	if !found {
+		t.Fatalf("the plugin directory must resolve from the start directory, not the trial copy: %v", argv)
+	}
+}

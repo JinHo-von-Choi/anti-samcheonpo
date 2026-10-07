@@ -351,12 +351,22 @@ func benchHookCmd() *cobra.Command {
 	return c
 }
 
-// InterventionArm is the per-arm intervention statistic.
+// InterventionArm is the per-arm intervention statistic. Outcomes stay in
+// their observed states: an advice whose rule did not recur is not "resolved",
+// and an advice whose delivery was never confirmed is not counted as either.
 type InterventionArm struct {
-	Arm                string        `json:"arm"`
-	N                  int           `json:"n"`
-	Resolved           int           `json:"resolved"`
-	ResolvedCI         eval.Interval `json:"resolved_ci"`
+	Arm string `json:"arm"`
+	N   int    `json:"n"`
+	// Delivered advices whose follow-up window closed.
+	Observed       int           `json:"observed"`
+	NoRecurrence   int           `json:"no_recurrence_observed"`
+	NoRecurrenceCI eval.Interval `json:"no_recurrence_ci"`
+	Recurrence     int           `json:"recurrence_observed"`
+	// Unconfirmed delivery, censored by a goal change, still open, or legacy.
+	Unconfirmed        int           `json:"delivery_unconfirmed"`
+	Censored           int           `json:"censored"`
+	Pending            int           `json:"pending"`
+	Legacy             int           `json:"legacy_unknown"`
 	Progress           int           `json:"progress_after"`
 	ProgressCI         eval.Interval `json:"progress_ci"`
 	CostPerProgressKRW int64         `json:"cost_per_progress_krw"`
@@ -373,16 +383,16 @@ type InterventionsReport struct {
 // Text renders the report.
 func (r InterventionsReport) Text() string {
 	var b strings.Builder
-	b.WriteString("개입 실험 (L1 귀띔, 10이벤트 안 신호 소멸 / 20이벤트 안 진척)\n")
-	fmt.Fprintf(&b, "%-13s %5s %16s %16s %14s %8s %14s\n", "군", "건수", "자가 해결률", "진척 회복률", "진척당 비용", "중단", "중단 피해율")
+	b.WriteString("개입 실험 (L1 귀띔; 재발 미관측은 해결 확인이 아니다)\n")
+	fmt.Fprintf(&b, "%-13s %5s %18s %6s %8s %6s %6s %16s %14s %8s %14s\n", "군", "건수", "재발 미관측/관찰", "재발", "전달미확인", "중단됨", "진행중", "진척 회복률", "진척당 비용", "중단", "중단 피해율")
 	for _, a := range r.Arms {
-		pr := func(k int, ci eval.Interval) string {
-			if a.N == 0 {
+		pr := func(k, n int, ci eval.Interval) string {
+			if n == 0 {
 				return "-"
 			}
-			return fmt.Sprintf("%.0f%% (%.0f-%.0f)", float64(k)/float64(a.N)*100, ci.Lo*100, ci.Hi*100)
+			return fmt.Sprintf("%d/%d (%.0f-%.0f%%)", k, n, ci.Lo*100, ci.Hi*100)
 		}
-		fmt.Fprintf(&b, "%-13s %5d %16s %16s %13s원 %8d %14s\n", a.Arm, a.N, pr(a.Resolved, a.ResolvedCI), pr(a.Progress, a.ProgressCI), commaInt(a.CostPerProgressKRW), a.Interrupted, pr(a.Harm, a.HarmCI))
+		fmt.Fprintf(&b, "%-13s %5d %18s %6d %8d %6d %6d %16s %13s원 %8d %14s\n", a.Arm, a.N, pr(a.NoRecurrence, a.Observed, a.NoRecurrenceCI), a.Recurrence, a.Unconfirmed, a.Censored+a.Legacy, a.Pending, pr(a.Progress, a.N, a.ProgressCI), commaInt(a.CostPerProgressKRW), a.Interrupted, pr(a.Harm, a.N, a.HarmCI))
 	}
 	return b.String()
 }
@@ -423,8 +433,21 @@ func InterventionReport(db *ledger.DB) (InterventionsReport, error) {
 			arms[x.arm] = a
 		}
 		a.N++
-		if x.outcome == "resolved" {
-			a.Resolved++
+		switch x.outcome {
+		case "no_recurrence_observed":
+			a.Observed++
+			a.NoRecurrence++
+		case "recurrence_observed":
+			a.Observed++
+			a.Recurrence++
+		case "delivery_unconfirmed", "unsupported_delivery":
+			a.Unconfirmed++
+		case "":
+			a.Pending++
+		case "resolved":
+			a.Legacy++ // written by an older version with a different meaning
+		default:
+			a.Censored++
 		}
 		if x.normal > 0 {
 			a.Interrupted++
@@ -448,7 +471,7 @@ func InterventionReport(db *ledger.DB) (InterventionsReport, error) {
 		if a == nil {
 			a = &InterventionArm{Arm: name}
 		}
-		a.ResolvedCI = eval.Wilson(a.Resolved, a.N)
+		a.NoRecurrenceCI = eval.Wilson(a.NoRecurrence, a.Observed)
 		a.ProgressCI = eval.Wilson(a.Progress, a.N)
 		a.HarmCI = eval.Wilson(a.Harm, a.N)
 		if a.Progress > 0 {

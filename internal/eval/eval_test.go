@@ -83,14 +83,14 @@ func TestEvaluate(t *testing.T) {
 	if s1.Detections != 2 || s1.Correct != 1 || s1.Precision != 0.5 {
 		t.Errorf("S1 precision %+v", s1)
 	}
-	if s1.Positives != 2 || s1.Covered != 2 || s1.Recall != 1 {
-		t.Errorf("S1 recall %+v (two labelers, same interval)", s1)
+	if s1.Positives != 1 || s1.Covered != 1 || s1.Recall != 1 {
+		t.Errorf("S1 recall %+v (two labelers marking one interval are one incident)", s1)
 	}
 	if s1.LatencyMedianKRW != 4 {
 		t.Errorf("detection latency cost %d, want 4 won (events 3..6)", s1.LatencyMedianKRW)
 	}
-	if s2.Positives != 1 || s2.Covered != 0 {
-		t.Errorf("S2 recall %+v", s2)
+	if s2.Positives != 0 || rep.Disputed != 1 || rep.Incidents != 1 {
+		t.Errorf("an S2 span one of two labelers marked is disputed, not a positive: %+v disputed=%d incidents=%d", s2, rep.Disputed, rep.Incidents)
 	}
 	if !s1.Insufficient {
 		t.Error("fewer than 20 positives is reported as insufficient")
@@ -114,5 +114,52 @@ func TestLoadLabels(t *testing.T) {
 	_ = os.WriteFile(filepath.Join(dir, "kim", "bad.jsonl"), []byte("{oops\n"), 0o644)
 	if _, err := LoadLabels(dir); err == nil {
 		t.Error("broken label files are errors")
+	}
+}
+
+func TestEvaluateScoresRulesOnConsensus(t *testing.T) {
+	var evs []*event.Event
+	for i := int64(0); i < 30; i++ {
+		evs = append(evs, &event.Event{Seq: i})
+	}
+	data := map[string]SessionData{"s": {Events: evs, Verdicts: []detect.Signal{
+		{Detector: "S1", Rule: "s1.identical_rerun", Seq: 5, Evidence: []int64{5}, Confidence: 0.95},  // justified incident
+		{Detector: "S1", Rule: "s1.verify_ratio", Seq: 12, Evidence: []int64{12}, Confidence: 0.9},    // incident not worth stopping
+		{Detector: "S1", Rule: "s1.identical_rerun", Seq: 21, Evidence: []int64{21}, Confidence: 0.9}, // inside a reviewed clean span
+		{Detector: "S2", Rule: "s2.stuck_error", Seq: 26, Evidence: []int64{26}, Confidence: 0.9},     // disputed span: not scored
+	}}}
+	labels := []Label{
+		{Session: "s", Start: 4, End: 6, Symptom: "S1", Justified: "yes", Labeler: "a"},
+		{Session: "s", Start: 5, End: 7, Symptom: "S1", Justified: "yes", Labeler: "b"},
+		{Session: "s", Start: 11, End: 13, Symptom: "S1", Justified: "no", Labeler: "a"},
+		{Session: "s", Start: 11, End: 13, Symptom: "S1", Justified: "no", Labeler: "b"},
+		{Session: "s", Start: 20, End: 22, Symptom: "none", Labeler: "a"},
+		{Session: "s", Start: 25, End: 27, Symptom: "S2", Labeler: "b"},
+	}
+	// adding a third labeler who agrees must not create new incidents
+	more := append(append([]Label(nil), labels...), Label{Session: "s", Start: 4, End: 6, Symptom: "S1", Justified: "yes", Labeler: "c"},
+		Label{Session: "s", Start: 11, End: 13, Symptom: "S1", Justified: "no", Labeler: "c"})
+	for _, ls := range [][]Label{labels, more} {
+		rep := Evaluate("holdout", []string{"s"}, data, ls)
+		if rep.Incidents != 2 {
+			t.Fatalf("incidents %d, want 2 regardless of labeler count", rep.Incidents)
+		}
+		got := map[string]RuleScore{}
+		for _, r := range rep.Rules {
+			got[r.Rule] = r
+		}
+		ir := got["s1.identical_rerun"]
+		if ir.Detections != 2 || ir.Correct != 1 || ir.Justified != 1 || ir.NormalHits != 1 {
+			t.Fatalf("identical_rerun %+v", ir)
+		}
+		if vr := got["s1.verify_ratio"]; vr.Correct != 1 || vr.Justified != 0 {
+			t.Fatalf("verify_ratio hit an incident not worth stopping: %+v", vr)
+		}
+		if _, ok := got["s2.stuck_error"]; ok {
+			t.Fatal("a detection on a disputed span is neither right nor wrong")
+		}
+		if !ir.Insufficient {
+			t.Fatal("two detections are an insufficient sample")
+		}
 	}
 }
