@@ -15,6 +15,7 @@ import (
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/config"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/plugins"
 )
 
@@ -69,7 +70,7 @@ func Install(o Options) (retErr error) {
 	}
 	root := filepath.Join(config.Home(), "plugin")
 	pdir := filepath.Join(root, "claude-code")
-	if err := os.MkdirAll(config.Home(), 0700); err != nil {
+	if err := procgroup.MkdirAllPrivate(config.Home()); err != nil {
 		return err
 	}
 	if err := os.Mkdir(root, 0700); err != nil {
@@ -306,7 +307,7 @@ func writeAtomic(p string, b []byte, mode os.FileMode) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	return os.Rename(tmp, p)
+	return procgroup.Rename(tmp, p)
 }
 
 func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''`) + "'" }

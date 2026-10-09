@@ -237,18 +237,26 @@ func runGroup(dir, command string, timeout time.Duration) (int, string, bool, bo
 	lw := &limitWriter{w: &buf, n: 1 << 20}
 	cmd.Stdout, cmd.Stderr = lw, lw
 	cmd.Stdin = nil
-	if err := cmd.Start(); err != nil {
+	// a descendant that outlives the shell must not keep the output pipe, and
+	// with it the check, open after the shell is gone
+	cmd.WaitDelay = 2 * time.Second
+	if err := procgroup.Start(cmd); err != nil {
 		return 127, err.Error(), false, false
 	}
+	defer procgroup.Release(cmd)
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait() }()
 	select {
 	case err := <-done:
 		code := 0
 		var ee *exec.ExitError
-		if errors.As(err, &ee) {
+		switch {
+		case errors.As(err, &ee):
 			code = ee.ExitCode()
-		} else if err != nil {
+		case errors.Is(err, exec.ErrWaitDelay):
+			// the shell finished and only a descendant still held the pipe
+			code = cmd.ProcessState.ExitCode()
+		case err != nil:
 			code = 1
 		}
 		return code, buf.String(), false, lw.truncated

@@ -11,22 +11,27 @@ case "$release_version" in ''|*[!A-Za-z0-9._-]*) echo 'invalid version' >&2; exi
 if [ "${#release_version}" -gt 64 ]; then echo 'version too long' >&2; exit 2; fi
 release_os=$(go env GOOS)
 release_arch=$(go env GOARCH)
-case "$release_os/$release_arch" in linux/amd64|linux/arm64|darwin/amd64|darwin/arm64) ;; *) echo 'unsupported release target' >&2; exit 2;; esac
+case "$release_os/$release_arch" in linux/amd64|linux/arm64|darwin/amd64|darwin/arm64|windows/amd64|windows/arm64) ;; *) echo 'unsupported release target' >&2; exit 2;; esac
 if [ "$release_os" != "$(go env GOHOSTOS)" ] || [ "$release_arch" != "$(go env GOHOSTARCH)" ]; then
   echo 'native execution verification required; cross-build alone is not a release gate' >&2
   exit 2
 fi
-case "$release_output" in /*) ;; *) release_output="$(pwd)/$release_output";; esac
+# a native Windows program cannot resolve the MSYS form (/tmp/...) of a path
+if command -v cygpath >/dev/null 2>&1; then
+  release_output=$(cygpath -m "$release_output")
+fi
+case "$release_output" in /*|[A-Za-z]:*) ;; *) release_output="$(pwd)/$release_output";; esac
+release_exe=$(go env GOEXE)
 # Refuse to overwrite any existing output directory.
 mkdir "$release_output"
 release_stage="$release_output/package"
 mkdir "$release_stage"
 release_ldflags="-s -w -X github.com/JinHo-von-Choi/anti-samcheonpo/internal/cli.Version=$release_version -X github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient.Version=$release_version"
-CGO_ENABLED=0 go build -mod=readonly -trimpath -ldflags "$release_ldflags" -o "$release_stage/samcheonpo" ./cmd/samcheonpo
-CGO_ENABLED=0 go build -mod=readonly -trimpath -ldflags "$release_ldflags" -o "$release_stage/samcheonpo-hook" ./cmd/samcheonpo-hook
-test "$("$release_stage/samcheonpo-hook" --version)" = "$release_version"
-test "$("$release_stage/samcheonpo" --version)" = "samcheonpo version $release_version"
-SAMCHEONPO_SMOKE_BIN="$release_stage/samcheonpo" go test ./internal/install -run '^TestCleanEnvironmentBinarySmoke$' -count=1
+CGO_ENABLED=0 go build -mod=readonly -trimpath -ldflags "$release_ldflags" -o "$release_stage/samcheonpo$release_exe" ./cmd/samcheonpo
+CGO_ENABLED=0 go build -mod=readonly -trimpath -ldflags "$release_ldflags" -o "$release_stage/samcheonpo-hook$release_exe" ./cmd/samcheonpo-hook
+test "$("$release_stage/samcheonpo-hook$release_exe" --version)" = "$release_version"
+test "$("$release_stage/samcheonpo$release_exe" --version)" = "samcheonpo version $release_version"
+SAMCHEONPO_SMOKE_BIN="$release_stage/samcheonpo$release_exe" go test ./internal/install -run '^TestCleanEnvironmentBinarySmoke$' -count=1
 cp LICENSE README.md README.en.md docs/getting-started.md docs/support-matrix.md "$release_stage/"
 {
   printf 'version=%s\nos=%s\narch=%s\n' "$release_version" "$release_os" "$release_arch"
@@ -37,7 +42,11 @@ cp LICENSE README.md README.en.md docs/getting-started.md docs/support-matrix.md
   printf 'publication=not performed\n'
 } > "$release_stage/BUILD.txt"
 release_name="samcheonpo_${release_version}_${release_os}_${release_arch}.tar.gz"
-tar -czf "$release_output/$release_name" -C "$release_stage" samcheonpo samcheonpo-hook LICENSE README.md README.en.md getting-started.md support-matrix.md BUILD.txt
+# relative paths only: GNU tar reads "C:/..." as host:path
+(
+  cd "$release_output"
+  tar -czf "$release_name" -C package "samcheonpo$release_exe" "samcheonpo-hook$release_exe" LICENSE README.md README.en.md getting-started.md support-matrix.md BUILD.txt
+)
 (
   cd "$release_output"
   if command -v sha256sum >/dev/null 2>&1; then

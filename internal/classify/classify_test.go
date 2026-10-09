@@ -105,3 +105,14 @@ func TestServiceControlIsAStateChange(t *testing.T) {
 		}
 	}
 }
+
+func TestWindowsSpellingsOfKnownPrograms(t *testing.T) {
+	if _, mut := Shell("pytest -q > NUL", Options{}); mut {
+		t.Error("redirecting to NUL writes no file")
+	}
+	for _, cmd := range []string{`C:\Python313\pytest.exe -q`, `.\pytest.exe -q`, "PYTEST.EXE -q"} {
+		if class, _ := Shell(cmd, Options{}); class != ShellVerify {
+			t.Errorf("%q is a test run, got %q", cmd, class)
+		}
+	}
+}

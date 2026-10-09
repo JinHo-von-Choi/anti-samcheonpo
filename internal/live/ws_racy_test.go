@@ -28,6 +28,11 @@ func TestFingerprintSeesSameSizeEditInIndexSecond(t *testing.T) {
 	}
 	st, _ := os.Stat(file)
 	run("add", "a.py")
+	// the precondition is that the file and the index share a second; making
+	// it so keeps the test from depending on where a second boundary falls
+	if err := os.Chtimes(filepath.Join(root, ".git", "index"), st.ModTime(), st.ModTime()); err != nil {
+		t.Fatal(err)
+	}
 	ws := NewWorkspace(root)
 	defer ws.Close()
 	before, err := ws.Compute(context.Background())

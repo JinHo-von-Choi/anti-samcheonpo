@@ -10,6 +10,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lazyre"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rules"
 )
 
@@ -22,10 +23,10 @@ const (
 )
 
 var verifyRes = []*lazyre.RE{
-	lazyre.New(`^(?:python3?\s+-m\s+)?pytest\b`),
-	lazyre.New(`^python3?\s+(?:-\S+\s+)*-m\s+(?:unittest|doctest)\b`),
+	lazyre.New(`^(?:(?:python3?|py)\s+-m\s+)?pytest\b`),
+	lazyre.New(`^(?:python3?|py)\s+(?:-\S+\s+)*-m\s+(?:unittest|doctest)\b`),
 	lazyre.New(`^node\s+(?:-\S+\s+)*--test\b`),
-	lazyre.New(`^(?:uv|poetry|pipenv)\s+run\s+(?:python3?\s+-m\s+)?(?:pytest|mypy|ruff|tox)\b`),
+	lazyre.New(`^(?:uv|poetry|pipenv)\s+run\s+(?:(?:python3?|py)\s+-m\s+)?(?:pytest|mypy|ruff|tox)\b`),
 	lazyre.New(`^go\s+(?:test|build|vet)\b`),
 	lazyre.New(`^(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?(?:test|build|lint|typecheck|type-check|check|e2e|ci)\b`),
 	lazyre.New(`^(?:npx\s+)?(?:vitest|jest|tsc|eslint|playwright\s+test|mocha)\b`),
@@ -37,7 +38,7 @@ var verifyRes = []*lazyre.RE{
 	lazyre.New(`^make\s+(?:test|check|build|lint)\b`),
 	lazyre.New(`^curl\b.*\b(?:localhost|127\.0\.0\.1|0\.0\.0\.0)\b`),
 	lazyre.New(`^(?:bash|sh)\s+\S*test\S*\.sh\b`),
-	lazyre.New(`^(?:python3?|node)\s+\S*test\S*\b`),
+	lazyre.New(`^(?:python3?|py|node)\s+\S*test\S*\b`),
 	lazyre.New(`^(?:shellcheck|golangci-lint|staticcheck|swift\s+(?:test|build)|xcodebuild|flutter\s+test|dart\s+test|phpunit|rspec|bundle\s+exec\s+rspec)\b`),
 }
 
@@ -128,7 +129,7 @@ func stage(st string, opt Options) (string, bool) {
 	writes := redirectWriteRe.FindAllStringSubmatch(norm, -1)
 	mut := false
 	for _, w := range writes {
-		if w[1] != "/dev/null" && !strings.HasPrefix(w[1], "/dev/") {
+		if w[1] != "/dev/null" && !strings.HasPrefix(w[1], "/dev/") && !strings.EqualFold(w[1], "nul") {
 			mut = true
 		}
 	}
@@ -180,9 +181,9 @@ func stage(st string, opt Options) (string, bool) {
 func firstWord(s string) string {
 	s = strings.TrimLeft(s, "( ")
 	if i := strings.IndexAny(s, " \t"); i >= 0 {
-		return path.Base(s[:i])
+		return pathnorm.CommandBase(s[:i])
 	}
-	return path.Base(s)
+	return pathnorm.CommandBase(s)
 }
 
 func secondWord(s string) string {

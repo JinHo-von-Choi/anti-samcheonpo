@@ -24,7 +24,7 @@ def kinds(before: str, after: str) -> list[str]:
     return out
 
 
-cases = yaml.safe_load(Path(__file__).resolve().parent.parent.joinpath("testdata", "bypass-cases.yml").read_text())
+cases = yaml.safe_load(Path(__file__).resolve().parent.parent.joinpath("testdata", "bypass-cases.yml").read_text(encoding="utf-8"))
 bad = 0
 for c in cases:
     got = kinds(c["before"], c["after"])

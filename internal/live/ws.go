@@ -28,6 +28,7 @@ type Workspace struct {
 	Root       string
 	Scope      []string // glob prefixes used when the tree is too large
 	isGit      bool
+	gitDir     string
 	mu         sync.Mutex
 	computeMu  sync.Mutex
 	cache      map[string]statEntry
@@ -54,8 +55,13 @@ const MaxFiles = 50000
 func NewWorkspace(root string) *Workspace {
 	w := &Workspace{Root: root, cache: map[string]statEntry{}, dirty: true}
 	w.life, w.stop = context.WithCancel(context.Background())
-	if out, err := exec.Command("git", "-C", root, "rev-parse", "--is-inside-work-tree").Output(); err == nil && strings.TrimSpace(string(out)) == "true" {
-		w.isGit = true
+	// one query answers both questions; the git directory does not move, so
+	// each fingerprint saves a process start
+	if out, err := exec.Command("git", "-C", root, "rev-parse", "--is-inside-work-tree", "--absolute-git-dir").Output(); err == nil {
+		if lines := strings.Split(strings.TrimSpace(string(out)), "\n"); len(lines) == 2 && strings.TrimSpace(lines[0]) == "true" {
+			w.isGit = true
+			w.gitDir = strings.TrimSpace(lines[1])
+		}
 	}
 	return w
 }
@@ -131,11 +137,7 @@ func (w *Workspace) Compute(ctx context.Context) (string, error) {
 // gitTree hashes the working tree through a temporary index so the user's
 // index is untouched; the copied stat cache means only changed files are read.
 func (w *Workspace) gitTree(ctx context.Context) (string, error) {
-	gitDir, err := exec.CommandContext(ctx, "git", "-C", w.Root, "rev-parse", "--absolute-git-dir").Output()
-	if err != nil {
-		return "", err
-	}
-	idx := filepath.Join(strings.TrimSpace(string(gitDir)), "index")
+	idx := filepath.Join(w.gitDir, "index")
 	tmp, err := os.CreateTemp("", "samcheonpo-index-")
 	if err != nil {
 		return "", err

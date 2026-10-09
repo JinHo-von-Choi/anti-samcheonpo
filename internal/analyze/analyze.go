@@ -17,6 +17,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 )
 
 // EvaluatorVersion identifies the detector rule set; recorded in receipt seals.
@@ -130,7 +131,7 @@ func Run(s *event.Session, opt Options) (*Result, error) {
 }
 
 func joinDir(dir, f string) string {
-	if dir == "" || strings.HasPrefix(f, "/") {
+	if dir == "" || pathnorm.IsAbs(f) {
 		return f
 	}
 	return strings.TrimSuffix(dir, "/") + "/" + f

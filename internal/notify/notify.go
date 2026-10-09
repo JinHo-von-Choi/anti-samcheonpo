@@ -50,6 +50,8 @@ func (n *Notifier) send(title, body string) {
 		case "darwin":
 			script := `display notification "` + esc(body) + `" with title "` + esc(title) + `"`
 			_ = exec.Command("osascript", "-e", script).Run()
+		case "windows":
+			_ = exec.Command("powershell", "-NoProfile", "-NonInteractive", "-Command", toastScript(title, body)).Run()
 		}
 	}
 	switch n.provider {
@@ -81,3 +83,20 @@ func (n *Notifier) send(title, body string) {
 }
 
 func esc(s string) string { return strings.ReplaceAll(strings.ReplaceAll(s, `\`, `\\`), `"`, `\"`) }
+
+// psQuote returns s as a PowerShell single-quoted string literal, in which
+// nothing but the quote itself is special.
+func psQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", "''") + "'" }
+
+// toastScript builds the PowerShell that shows a Windows toast notification.
+// The text goes in as XML text nodes, so it needs no markup escaping.
+func toastScript(title, body string) string {
+	return `$ErrorActionPreference = 'Stop'
+[Windows.UI.Notifications.ToastNotificationManager, Windows.UI.Notifications, ContentType = WindowsRuntime] > $null
+$xml = [Windows.UI.Notifications.ToastNotificationManager]::GetTemplateContent([Windows.UI.Notifications.ToastTemplateType]::ToastText02)
+$text = $xml.GetElementsByTagName('text')
+$text.Item(0).AppendChild($xml.CreateTextNode(` + psQuote(title) + `)) > $null
+$text.Item(1).AppendChild($xml.CreateTextNode(` + psQuote(body) + `)) > $null
+[Windows.UI.Notifications.ToastNotificationManager]::CreateToastNotifier('samcheonpo').Show([Windows.UI.Notifications.ToastNotification]::new($xml))
+`
+}

@@ -20,6 +20,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testutil/fakeexe"
 )
 
 type harness struct {
@@ -54,9 +55,7 @@ func startDaemon(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	for agent, version := range map[string]string{"claude": "2.1.0", "codex": "0.160.0", "opencode": "1.18.34", "agy": "1.3.1"} {
-		if err := os.WriteFile(filepath.Join(bin, agent), []byte("#!/bin/sh\nprintf '%s\\n' '"+version+"'\n"), 0700); err != nil {
-			t.Fatal(err)
-		}
+		fakeexe.Install(t, bin, agent, fakeexe.Spec{Stdout: version + "\n"})
 	}
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
 	if err := os.MkdirAll(filepath.Join(h.proj, "src"), 0o755); err != nil {
@@ -402,17 +401,7 @@ func TestDraftRequestKeepsAgentWorkingAndShowsCardToUser(t *testing.T) {
 
 func TestIronLawsAdviceNeverBlocksTheNextWrite(t *testing.T) {
 	h := startDaemon(t)
-	fake := `#!/bin/sh
-file="$2"; out=""
-while [ $# -gt 0 ]; do [ "$1" = "-o" ] && out="$2"; shift; done
-n=$(grep -c SWALLOW "$file" 2>/dev/null || true)
-printf '{"violations":[' > "$out"
-i=0; while [ "$i" -lt "${n:-0}" ]; do [ "$i" -gt 0 ] && printf ',' >> "$out"; printf '{"rule_id":"IL-301","iron_law":3,"line_number":1,"confidence":"CONFIRMED"}' >> "$out"; i=$((i+1)); done
-printf ']}' >> "$out"
-`
-	if err := os.WriteFile(filepath.Join(filepath.Dir(h.home), "bin", "iron-laws"), []byte(fake), 0o700); err != nil {
-		t.Fatal(err)
-	}
+	fakeexe.Install(t, filepath.Join(filepath.Dir(h.home), "bin"), "iron-laws", fakeexe.Spec{Behavior: "ironlaws"})
 	h.send("UserPromptSubmit", map[string]any{"prompt": "src/io.py 고쳐 줘"})
 	write := func(id, rel, content string) map[string]any {
 		abs := filepath.Join(h.proj, rel)
@@ -649,7 +638,7 @@ func TestCheckpointTimeoutKillsGroup(t *testing.T) {
 	pidFile := filepath.Join(dir, "pid")
 	r := &Runner{Root: dir, Timeout: 300 * time.Millisecond}
 	start := time.Now()
-	res := r.Run([]contract.Check{{ID: "c1", Check: "sh -c 'echo $$ > " + pidFile + "; sleep 30' & sleep 30"}}, false, nil)
+	res := r.Run([]contract.Check{{ID: "c1", Check: "sh -c 'echo $$ > " + filepath.ToSlash(pidFile) + "; sleep 30' & sleep 30"}}, false, nil)
 	if !res[0].TimedOut || res[0].Pass || time.Since(start) > 5*time.Second {
 		t.Fatalf("timeout result %+v after %v", res[0], time.Since(start))
 	}
@@ -760,12 +749,19 @@ func TestPostToolNudgeStuckError(t *testing.T) {
 	h := startDaemon(t)
 	h.send("UserPromptSubmit", map[string]any{"prompt": "src/a.py 오류 고쳐 줘"})
 	var nudge string
-	for i := 0; i < 6 && nudge == ""; i++ {
+	// an attempt counts only once the daemon has recomputed the workspace
+	// fingerprint after the edit, which takes several git process starts; a
+	// host with slow process creation needs more attempts than a fast one
+	for i := 0; i < 12 && nudge == ""; i++ {
 		p := filepath.Join(h.proj, "src", "a.py")
 		content := fmt.Sprintf("x = %d\n", i+10)
 		_ = os.WriteFile(p, []byte(content), 0o644)
 		w := map[string]any{"tool_name": "Write", "tool_use_id": fmt.Sprintf("w%d", i), "tool_input": map[string]any{"file_path": p, "content": content}}
-		h.send("PreToolUse", w)
+		// advice is delivered with the next hook after it is raised, whichever
+		// event that turns out to be
+		if c := ctxOf(h.send("PreToolUse", w)); c != "" {
+			nudge = c
+		}
 		w["tool_response"] = map[string]any{"type": "update"}
 		if c := ctxOf(h.send("PostToolUse", w)); c != "" {
 			nudge = c
@@ -971,7 +967,16 @@ func TestPluginUsageAttribution(t *testing.T) {
 		h.sendAgent("opencode", "PreToolUse", with(map[string]any{"tool_name": "Read", "tool_use_id": id, "tool_input": map[string]any{"file_path": "src/a.py"}}))
 		h.sendAgent("opencode", "PostToolUse", with(map[string]any{"tool_name": "Read", "tool_use_id": id, "tool_input": map[string]any{"file_path": "src/a.py"}, "tool_response": map[string]any{"stdout": "x"}}))
 	}
-	time.Sleep(200 * time.Millisecond)
+	// usage is attributed to calls that are already stored, so wait for both
+	waitDB, _ := ledger.Open(h.db)
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		var stored int
+		_ = waitDB.QueryRow(`SELECT COUNT(*) FROM event WHERE session_id='oc-1' AND kind='tool'`).Scan(&stored)
+		if stored >= 2 {
+			break
+		}
+	}
+	waitDB.Close()
 	usage := func(out int) map[string]any {
 		return with(map[string]any{"message_id": "m1", "model": "claude-sonnet-5-5", "usage": map[string]any{"input_tokens": 10, "output_tokens": out, "cache_read_input_tokens": 0, "cache_creation_input_tokens": 0}})
 	}

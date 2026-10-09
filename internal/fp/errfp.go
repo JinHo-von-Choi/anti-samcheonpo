@@ -6,6 +6,7 @@ import (
 	"strings"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lazyre"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 )
 
 // ErrorBlock is one extracted error: kind, message template and top frames.
@@ -24,6 +25,7 @@ var (
 	tsRe      = lazyre.New(`\d{4}-\d{2}-\d{2}[T ]\d{2}:\d{2}:\d{2}(?:[.,]\d+)?(?:Z|[+-]\d{2}:?\d{2})?|\b\d{2}:\d{2}:\d{2}(?:\.\d+)?\b`)
 	hexRe     = lazyre.New(`\b0x[0-9a-fA-F]+\b|\b[0-9a-fA-F]{8,}\b`)
 	pathRe    = lazyre.New(`(?:[A-Za-z]:)?(?:\.{0,2}/|[A-Za-z0-9_.@-]+/)(?:[A-Za-z0-9_.@-]+/)*([A-Za-z0-9_.@-]+)`)
+	winPathRe = lazyre.New(`[A-Za-z]:\\(?:[^\\/:*?"<>|\s]+\\)*([^\\/:*?"<>|\s]+)`)
 	numRe     = lazyre.New(`\b\d+(?:\.\d+)?\b`)
 	quotedRe  = lazyre.New(`'[^']{33,}'|"[^"]{33,}"`)
 	ansiRe    = lazyre.New(`\x1b\[[0-9;]*[A-Za-z]`)
@@ -42,6 +44,15 @@ var (
 	genericRe = lazyre.New(`^(?:\[?ERROR\]?|FATAL|fatal|Error|error)[:\s]\s*(.*)$`)
 )
 
+// baseName is the last element of a file path as it appears in tool output,
+// which uses backslashes when the tool ran on Windows.
+func baseName(p string) string {
+	if pathnorm.IsWindowsAbs(p) || (strings.Contains(p, `\`) && !strings.Contains(p, "/")) {
+		p = strings.ReplaceAll(p, `\`, "/")
+	}
+	return path.Base(p)
+}
+
 // Template masks volatile tokens of a message.
 func Template(msg string) string {
 	s := ansiRe.ReplaceAllString(msg, "")
@@ -52,8 +63,9 @@ func Template(msg string) string {
 		if !strings.Contains(m, "/") {
 			return m
 		}
-		return "<path>/" + path.Base(m)
+		return "<path>/" + baseName(m)
 	})
+	s = winPathRe.ReplaceAllString(s, "<path>/$1")
 	s = hexRe.ReplaceAllString(s, "<hex>")
 	s = numRe.ReplaceAllString(s, "<n>")
 	s = spaceRe.ReplaceAllString(s, " ")
@@ -93,7 +105,7 @@ func ExtractErrors(out string) []ErrorBlock {
 		}
 		if strings.Contains(ln, `File "`) {
 			if m := pyFrameRe.FindStringSubmatch(ln); m != nil {
-				pyFrames = append(pyFrames, path.Base(m[1])+":"+m[2])
+				pyFrames = append(pyFrames, baseName(m[1])+":"+m[2])
 				continue
 			}
 		}
@@ -125,7 +137,7 @@ func ExtractErrors(out string) []ErrorBlock {
 			var fr []string
 			for j := i + 1; j < len(lines) && len(fr) < 3; j++ {
 				if fm := nodeAtRe.FindStringSubmatch(lines[j]); fm != nil {
-					fr = append(fr, path.Base(fm[2])+":"+fm[1])
+					fr = append(fr, baseName(fm[2])+":"+fm[1])
 				} else {
 					break
 				}
@@ -137,7 +149,7 @@ func ExtractErrors(out string) []ErrorBlock {
 			var fr []string
 			for j := i + 1; j < len(lines) && len(fr) < 3; j++ {
 				if fm := goFrameRe.FindStringSubmatch(strings.TrimSpace(lines[j])); fm != nil {
-					fr = append(fr, path.Base(fm[1])+":"+fm[2])
+					fr = append(fr, baseName(fm[1])+":"+fm[2])
 				}
 			}
 			blocks = append(blocks, ErrorBlock{Kind: "panic", Template: Template(m[1]), Frames: fr})
@@ -166,7 +178,7 @@ func ExtractErrors(out string) []ErrorBlock {
 			if code == "" {
 				code, msg, file = m[5], m[6], m[4]
 			}
-			blocks = append(blocks, ErrorBlock{Kind: code, Template: Template(msg), Frames: []string{path.Base(file)}})
+			blocks = append(blocks, ErrorBlock{Kind: code, Template: Template(msg), Frames: []string{baseName(file)}})
 			continue
 		}
 		if m := javacRe.FindStringSubmatch(t); m != nil {
@@ -174,7 +186,7 @@ func ExtractErrors(out string) []ErrorBlock {
 			if file == "" {
 				file, msg = m[3], m[4]
 			}
-			blocks = append(blocks, ErrorBlock{Kind: "compile", Template: Template(msg), Frames: []string{path.Base(file)}})
+			blocks = append(blocks, ErrorBlock{Kind: "compile", Template: Template(msg), Frames: []string{baseName(file)}})
 			continue
 		}
 		// pytest assertion lines ("E   AssertionError: ...") and bare exceptions

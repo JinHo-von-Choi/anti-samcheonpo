@@ -244,3 +244,14 @@ func TestCandidates(t *testing.T) {
 		t.Error("draft request must carry candidates and the contract path")
 	}
 }
+
+func TestFileHashIgnoresLineEndings(t *testing.T) {
+	lf := []byte("goal: x\ndone:\n  - check: \"true\"\n")
+	crlf := []byte("goal: x\r\ndone:\r\n  - check: \"true\"\r\n")
+	if fileHash(lf) != fileHash(crlf) {
+		t.Fatal("the same contract with different line endings must hash alike")
+	}
+	if fileHash(lf) == fileHash([]byte("goal: y\n")) {
+		t.Fatal("different contracts must not hash alike")
+	}
+}

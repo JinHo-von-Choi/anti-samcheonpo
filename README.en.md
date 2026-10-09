@@ -161,7 +161,7 @@ go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.3.1
 go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.3.1
 ```
 
-Windows builds and passes the platform-neutral tests; connecting an agent there is not yet verified.
+Windows needs Windows 10 1803 or later and Git for Windows. The full test suite, the conformance cases, the hook latency check and the release-candidate smoke pass on Windows 11 arm64; connecting a real agent session there is not yet verified.
 
 ---
 
@@ -312,7 +312,7 @@ The research experiment mode (`experiment: {enabled: true}`) is off by default. 
 | Linux x86-64 | Install, uninstall, hook latency (p95 under 10 ms) and real agent runs verified |
 | macOS | Installs from source. The full test suite including daemon, hooks and rollback, plus the conformance cases, pass on the GitHub Actions macOS runner. No real agent run yet |
 | Linux arm64 | Installs from source; not verified running |
-| Windows | Installs from source. Builds and the platform-neutral packages (detectors, ledger, contracts) pass on the GitHub Actions Windows runner. Daemon and hook connection unverified; hook commands assume Git Bash |
+| Windows | Installs from source. On Windows 11 arm64 the full suite, the 17 conformance cases, the hook latency check (200 of 200 answered) and the release-candidate install, uninstall, audit and first-hook smoke pass. Real agent runs and x64 are not verified. Checks run in the bash of Git for Windows |
 | WSL | Unverified with the Linux binary |
 
 ---

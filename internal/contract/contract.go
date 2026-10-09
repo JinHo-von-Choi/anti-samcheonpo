@@ -3,6 +3,7 @@
 package contract
 
 import (
+	"bytes"
 	"crypto/hmac"
 	"crypto/rand"
 	"crypto/sha256"
@@ -23,6 +24,8 @@ import (
 	"gopkg.in/yaml.v3"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/sockpath"
 )
 
@@ -342,21 +345,7 @@ func SaveAcceptance(project string, a Acceptance) error {
 	if err := f.Close(); err != nil {
 		return err
 	}
-	return replaceFile(tmp, filepath.Join(Dir(project), "contract.state.json"))
-}
-
-// replaceFile renames tmp over dst. Windows refuses the rename while another
-// process or goroutine still has dst open, so a short retry covers concurrent
-// writers; the last error is returned when it keeps failing.
-func replaceFile(tmp, dst string) error {
-	var err error
-	for i := 0; i < 50; i++ {
-		if err = os.Rename(tmp, dst); err == nil {
-			return nil
-		}
-		time.Sleep(5 * time.Millisecond)
-	}
-	return err
+	return procgroup.Rename(tmp, filepath.Join(Dir(project), "contract.state.json"))
 }
 
 // CurrentState resolves the acceptance state against the current file.
@@ -390,7 +379,7 @@ func acceptanceKey() ([]byte, error) {
 	if b, err := os.ReadFile(p); err == nil && len(b) >= 32 {
 		return b, nil
 	}
-	if err := os.MkdirAll(filepath.Dir(p), 0o700); err != nil {
+	if err := procgroup.MkdirAllPrivate(filepath.Dir(p)); err != nil {
 		return nil, err
 	}
 	key := make([]byte, 32)
@@ -426,11 +415,15 @@ func acceptanceKey() ([]byte, error) {
 }
 
 func acceptanceMAC(project string, a Acceptance) (string, error) {
-	key, err := acceptanceKey()
+	root, err := pathnorm.Absolute(project)
 	if err != nil {
 		return "", err
 	}
-	root, err := filepath.Abs(project)
+	return acceptanceMACFor(root, a)
+}
+
+func acceptanceMACFor(root string, a Acceptance) (string, error) {
+	key, err := acceptanceKey()
 	if err != nil {
 		return "", err
 	}
@@ -443,21 +436,38 @@ func acceptanceMAC(project string, a Acceptance) (string, error) {
 	return hex.EncodeToString(m.Sum(nil)), nil
 }
 
+// validMAC accepts a record signed for any spelling of the project path: new
+// records use the canonical one, older ones used the path as it was typed.
 func validMAC(project string, a Acceptance) bool {
 	if a.MAC == "" {
 		return false
 	}
-	want, err := acceptanceMAC(project, a)
-	return err == nil && hmac.Equal([]byte(want), []byte(a.MAC))
+	roots, err := pathnorm.Spellings(project)
+	if err != nil {
+		return false
+	}
+	for _, root := range roots {
+		if want, err := acceptanceMACFor(root, a); err == nil && hmac.Equal([]byte(want), []byte(a.MAC)) {
+			return true
+		}
+	}
+	return false
+}
+
+// fileHash identifies the contract file by its text; line endings do not
+// count, so a checkout or an editor that switches LF and CRLF does not make
+// the file look edited.
+func fileHash(raw []byte) string {
+	return fp.Hash(string(bytes.ReplaceAll(raw, []byte("\r\n"), []byte("\n"))))
 }
 
 // Accept marks the current contract accepted.
 func Accept(project string, c *Contract, raw []byte, now time.Time) (Acceptance, error) {
 	previous := LoadAcceptance(project)
-	if previous.RequestedGoal != "" && previous.PreviousFileHash == fp.Hash(string(raw)) {
+	if previous.RequestedGoal != "" && previous.PreviousFileHash == fileHash(raw) {
 		return Acceptance{}, fmt.Errorf("목표 변경 요청이 아직 계약에 반영되지 않았다. 초안을 고친 뒤 수락해야 한다")
 	}
-	a := Acceptance{State: StateAccepted, ChecksHash: c.ChecksHash(), AuthorityHash: AuthorityDigest(c), FileHash: fp.Hash(string(raw)), AcceptedAt: now}
+	a := Acceptance{State: StateAccepted, ChecksHash: c.ChecksHash(), AuthorityHash: AuthorityDigest(c), FileHash: fileHash(raw), AcceptedAt: now}
 	return a, SaveAcceptance(project, a)
 }
 
@@ -472,7 +482,7 @@ func RequestChange(project, goal string) (Acceptance, error) {
 	if goal == "" {
 		goal = "사용자가 계약 수정을 요청했다. 수정 내용을 확인해야 한다."
 	}
-	a := Acceptance{State: StateDraft, RequestedGoal: goal, PreviousFileHash: fp.Hash(string(raw))}
+	a := Acceptance{State: StateDraft, RequestedGoal: goal, PreviousFileHash: fileHash(raw)}
 	return a, SaveAcceptance(project, a)
 }
 

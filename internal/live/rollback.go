@@ -101,7 +101,7 @@ func readState(root *os.Root, rel string) (fileState, error) {
 	case st.Size() > maxTrackedFile:
 		return fileState{}, fmt.Errorf("파일이 %dMB보다 큼", maxTrackedFile>>20)
 	}
-	if procgroup.HardLinked(st) {
+	if procgroup.HardLinked(filepath.Join(root.Name(), name), st) {
 		return fileState{}, fmt.Errorf("하드링크라 다른 위치도 바뀔 수 있어 다루지 않음")
 	}
 	b, err := root.ReadFile(name)
@@ -508,7 +508,7 @@ func writeInRoot(root *os.Root, rel string, data []byte, mode os.FileMode) error
 	if err := root.WriteFile(tmp, data, mode); err != nil {
 		return err
 	}
-	if err := root.Rename(tmp, name); err != nil {
+	if err := procgroup.RetryTransient(func() error { return root.Rename(tmp, name) }); err != nil {
 		_ = root.Remove(tmp)
 		return err
 	}

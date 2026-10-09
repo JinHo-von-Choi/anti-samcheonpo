@@ -42,5 +42,11 @@ func Path() string {
 	if os.Getuid() < 0 { // Windows has no numeric uid
 		user = os.Getenv("USERNAME")
 	}
-	return filepath.Join(os.TempDir(), fmt.Sprintf("samcheonpo-%s-%s.sock", user, hex.EncodeToString(h[:6])))
+	tmp := os.TempDir()
+	fallback := filepath.Join(tmp, fmt.Sprintf("samcheonpo-%s-%s.sock", user, hex.EncodeToString(h[:6])))
+	if len(fallback) <= maxLen {
+		return fallback
+	}
+	// a long temp directory or user name: keep only what makes the name unique
+	return filepath.Join(tmp, "sc-"+hex.EncodeToString(h[:6])+".sock")
 }

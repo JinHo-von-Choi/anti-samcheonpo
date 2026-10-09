@@ -7,6 +7,9 @@ import (
 	"encoding/hex"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
+	"path/filepath"
 	"strings"
 	"time"
 )
@@ -103,4 +106,29 @@ func Revise(taskID string, previous *Revision, goal string, source Source) (Revi
 		r.Number = previous.Number + 1
 	}
 	return r, r.Validate()
+}
+
+// ProjectID is the identity of a project directory. It is computed from the
+// canonical path, so every spelling of the directory gives the same value.
+func ProjectID(root string) string {
+	abs, err := pathnorm.Absolute(root)
+	if err != nil {
+		abs = filepath.Clean(root)
+	}
+	return fp.Hash("project", filepath.Clean(abs))
+}
+
+// MatchesProject reports whether id names root, including ids recorded from
+// the path as it was typed before identities were canonical.
+func MatchesProject(id, root string) bool {
+	spellings, err := pathnorm.Spellings(root)
+	if err != nil {
+		spellings = []string{filepath.Clean(root)}
+	}
+	for _, spelling := range spellings {
+		if id == fp.Hash("project", filepath.Clean(spelling)) {
+			return true
+		}
+	}
+	return false
 }

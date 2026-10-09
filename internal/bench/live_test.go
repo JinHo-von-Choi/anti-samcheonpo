@@ -7,6 +7,7 @@ import (
 	"testing"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testutil/fakeexe"
 )
 
 func TestLiveTrialAndSummary(t *testing.T) {
@@ -24,18 +25,12 @@ func TestLiveTrialAndSummary(t *testing.T) {
 	tr, _ := filepath.Abs("../../testdata/claude/basic.jsonl")
 	// a fake agent: fixes the file when asked, copies a real transcript and
 	// prints its session id like claude -p --output-format json
-	agent := filepath.Join(root, "agent.sh")
-	_ = os.WriteFile(agent, []byte(`#!/bin/sh
-[ "$FIX" = 1 ] && echo fixed > add.txt
-sed -e "s|s1|sid-$FIX|g" -e "s|/w/proj|$PWD|g" "$TR" > "$CD/proj/sid-$FIX.jsonl"
-test -n "$SAMCHEONPO_HOME" || exit 3
-echo '{"type":"result","session_id":"sid-'$FIX'"}'
-`), 0o755)
+	agent := fakeexe.Install(t, root, "agent", fakeexe.Spec{Behavior: "benchagent"})
 	cfgPath := filepath.Join(root, "ab.yml")
 	_ = os.WriteFile(cfgPath, []byte(`trials: 1
 arms:
-  off: {cmd: ["`+agent+`", "{prompt}"], env: {FIX: "0", TR: "`+tr+`", CD: "`+claudeDir+`"}}
-  on:  {cmd: ["`+agent+`", "{prompt}"], env: {FIX: "1", TR: "`+tr+`", CD: "`+claudeDir+`"}}
+  off: {cmd: ['`+agent+`', "{prompt}"], env: {FIX: "0", TR: '`+tr+`', CD: '`+claudeDir+`'}}
+  on:  {cmd: ['`+agent+`', "{prompt}"], env: {FIX: "1", TR: '`+tr+`', CD: '`+claudeDir+`'}}
 `), 0o644)
 	cfg, err := LoadABConfig(cfgPath)
 	if err != nil {

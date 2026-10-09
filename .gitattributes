@@ -1,0 +1,5 @@
+# Text files are checked out with LF on every system. Shell scripts break on
+# CRLF, gofmt reports CRLF Go files, and file hashes would differ between hosts.
+* text=auto eol=lf
+*.png binary
+*.db binary

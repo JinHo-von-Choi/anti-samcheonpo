@@ -14,6 +14,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/clock"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/sockpath"
 )
@@ -103,13 +104,13 @@ type Outcome struct {
 
 func runAgent(event, agent string, stdin io.Reader, stdout, diagnostics io.Writer) int {
 	result := Outcome{Status: "invalid_input"}
-	var started time.Time
+	var started clock.Stamp
 	if diagnostics != nil {
-		started = time.Now()
+		started = clock.Now()
 	}
 	defer func() {
 		if diagnostics != nil {
-			result.HandlingNS = time.Since(started).Nanoseconds()
+			result.HandlingNS = started.Since().Nanoseconds()
 			_ = json.NewEncoder(diagnostics).Encode(result)
 		}
 	}()
@@ -203,8 +204,7 @@ func spawnDaemon() {
 	defer devnull.Close()
 	cmd := exec.Command(daemonExecutable(exe), "daemon")
 	cmd.Stdin, cmd.Stdout, cmd.Stderr = devnull, devnull, devnull
-	procgroup.Detach(cmd)
-	if cmd.Start() == nil {
+	if procgroup.StartDetached(cmd) == nil {
 		_ = cmd.Process.Release()
 	}
 }

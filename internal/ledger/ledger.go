@@ -7,7 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"io/fs"
-	"os"
+	"net/url"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -19,6 +19,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/analyze"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/seal"
 )
 
@@ -30,7 +31,7 @@ type DB struct{ *sql.DB }
 
 // Open opens (creating if needed) the ledger and applies migrations.
 func Open(path string) (*DB, error) {
-	if err := os.MkdirAll(filepath.Dir(path), 0o700); err != nil {
+	if err := procgroup.MkdirAllPrivate(filepath.Dir(path)); err != nil {
 		return nil, err
 	}
 	db, err := sql.Open("sqlite", fileURI(path)+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
@@ -569,12 +570,14 @@ func (d *DB) Mode(id string) string {
 	return m
 }
 
-// fileURI turns a filesystem path into the SQLite file: URI form. A Windows
-// drive path needs the three-slash form, or the drive letter is read as a URI
-// authority.
+// fileURI turns a filesystem path into the SQLite file: URI form. The path is
+// percent-escaped, since #, ? and % would otherwise end or alter the path, and
+// a Windows drive path takes the three-slash form so that the drive letter is
+// not read as a URI authority.
 func fileURI(path string) string {
-	if filepath.VolumeName(path) != "" {
-		return "file:///" + filepath.ToSlash(path)
+	slashed := filepath.ToSlash(path)
+	if filepath.VolumeName(path) != "" && !strings.HasPrefix(slashed, "//") {
+		slashed = "/" + slashed
 	}
-	return "file:" + filepath.ToSlash(path)
+	return (&url.URL{Scheme: "file", Path: slashed}).String()
 }

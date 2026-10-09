@@ -140,7 +140,7 @@ func TestCheckpointDiscardsResultAfterContractChange(t *testing.T) {
 	barrier := t.TempDir()
 	started, release := filepath.Join(barrier, "started"), filepath.Join(barrier, "release")
 	t.Cleanup(func() { _ = os.WriteFile(release, nil, 0600) })
-	acceptCheck(t, s, d, "touch "+started+"; while test ! -e "+release+"; do sleep 0.01; done")
+	acceptCheck(t, s, d, "touch "+filepath.ToSlash(started)+"; while test ! -e "+filepath.ToSlash(release)+"; do sleep 0.01; done")
 	done := make(chan []CheckResult, 1)
 	go func() { done <- s.checkpoint(false) }()
 	deadline := time.Now().Add(5 * time.Second)

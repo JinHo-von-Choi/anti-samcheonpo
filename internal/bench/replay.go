@@ -7,6 +7,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"io"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -111,20 +112,17 @@ func BuildReplay(s *event.Session, transcript string, at int64, out string) (Rep
 		return fail(reason)
 	}
 	archive := exec.Command("git", "-C", root, "archive", r.BaseCommit)
-	untar := exec.Command("tar", "-x", "-C", repo)
 	pipe, err := archive.StdoutPipe()
 	if err != nil {
 		return r, err
 	}
-	untar.Stdin = pipe
-	if err := untar.Start(); err != nil {
+	if err := archive.Start(); err != nil {
 		return r, err
 	}
-	if err := archive.Run(); err != nil {
-		untar.Wait()
-		return cleanup("기준 커밋을 풀지 못했다")
-	}
-	if err := untar.Wait(); err != nil {
+	extractErr := extractTar(pipe, repo)
+	// the pipe must be drained before Wait, or git blocks on a full pipe
+	_, _ = io.Copy(io.Discard, pipe)
+	if err := archive.Wait(); err != nil || extractErr != nil {
 		return cleanup("기준 커밋을 풀지 못했다")
 	}
 	for _, ev := range writes {

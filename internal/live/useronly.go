@@ -1,8 +1,9 @@
 package live
 
 import (
-	"path"
 	"strings"
+
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 )
 
 // userOnlyCommand reports whether a shell command runs a samcheonpo command
@@ -20,7 +21,21 @@ func userOnlyCommand(cmd string) bool {
 		for len(w) > 0 && (strings.Contains(w[0], "=") && !strings.HasPrefix(w[0], "=") || w[0] == "env" || w[0] == "exec" || w[0] == "command" || w[0] == "sudo" || w[0] == "nohup" || w[0] == "time") {
 			w = w[1:]
 		}
-		if len(w) == 0 || path.Base(w[0]) != "samcheonpo" {
+		if len(w) == 0 {
+			continue
+		}
+		if shellWrappers[pathnorm.CommandBase(w[0])] {
+			// a command handed to another shell is still in command position
+			rest := w[1:]
+			for len(rest) > 0 && (strings.HasPrefix(rest[0], "-") || strings.EqualFold(rest[0], "/c") || strings.EqualFold(rest[0], "/k")) {
+				rest = rest[1:]
+			}
+			if userOnlyCommand(strings.Join(rest, " ")) {
+				return true
+			}
+			continue
+		}
+		if pathnorm.CommandBase(w[0]) != "samcheonpo" {
 			continue
 		}
 		w = w[1:]
@@ -45,6 +60,9 @@ func userOnlyCommand(cmd string) bool {
 	}
 	return false
 }
+
+// shellWrappers are interpreters that run the command text they are given.
+var shellWrappers = map[string]bool{"sh": true, "bash": true, "zsh": true, "dash": true, "ksh": true, "fish": true, "cmd": true, "powershell": true, "pwsh": true}
 
 // shellSegments splits at ; & | and newlines outside quotes.
 func shellSegments(s string) []string {

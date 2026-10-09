@@ -11,6 +11,7 @@ import (
 	"strings"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lazyre"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 )
 
 // Hash returns the first 16 bytes of SHA-256 of the joined parts, hex encoded.
@@ -64,7 +65,7 @@ func ExecFP(cmd, dir string) (id string, certain bool) {
 		}
 		if m := cdPrefixRe.FindStringSubmatch(s); m != nil {
 			d := strings.Trim(restoreQuoted(m[1]), `'"`)
-			if strings.HasPrefix(d, "/") || strings.HasPrefix(d, "~") || strings.Contains(d, "$") {
+			if strings.HasPrefix(d, "/") || strings.HasPrefix(d, "~") || strings.Contains(d, "$") || pathnorm.IsWindowsAbs(d) {
 				return "", false
 			}
 			dir = path.Join(dir, d)
@@ -174,7 +175,26 @@ func NormalizeCmd(cmd string) (norm string, dir string) {
 		s = strings.TrimSpace(s[:idx])
 	}
 	s = spaceRe.ReplaceAllString(strings.TrimSpace(s), " ")
-	return s, dir
+	return canonicalProgram(s), dir
+}
+
+// canonicalProgram rewrites a program spelled the Windows way (a backslash
+// path, a drive letter, an .exe/.cmd/.bat suffix) to its bare name so the same
+// run has one fingerprint on every system. Other spellings are left alone,
+// which keeps existing fingerprints unchanged.
+func canonicalProgram(s string) string {
+	word, rest := s, ""
+	if s != "" && (s[0] == '"' || s[0] == '\'') {
+		if end := strings.IndexByte(s[1:], s[0]); end >= 0 {
+			word, rest = s[1:1+end], s[end+2:]
+		}
+	} else if i := strings.IndexAny(s, " \t"); i >= 0 {
+		word, rest = s[:i], s[i:]
+	}
+	if word == "" || !(strings.Contains(word, `\`) || pathnorm.HasExecutableSuffix(word) || pathnorm.IsWindowsAbs(word)) {
+		return s
+	}
+	return pathnorm.CommandBase(word) + rest
 }
 
 // CmdFP returns the fingerprint of a normalized command.

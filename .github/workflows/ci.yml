@@ -55,28 +55,43 @@ jobs:
       - name: hook latency
         run: sh scripts/check-hook-budget.sh --p95-max 0 --handling-p95-max 6ms
 
-  # Windows: the binaries build and the platform-neutral packages (detectors,
-  # fingerprints, ledger, receipts, contracts) pass. The daemon and hook flow
-  # tests drive fake agents through shell scripts and are not run here, so
-  # Windows is a build-and-logic check, not a verified agent connection.
+  # Windows: the whole suite, the conformance cases and the hook budget run on
+  # x64 and arm64 runners. Commands run in Git Bash, the shell the harness
+  # uses for checks on Windows.
   windows:
-    runs-on: windows-latest
-    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [windows-latest, windows-11-arm]
+    runs-on: ${{ matrix.os }}
+    timeout-minutes: 45
+    defaults:
+      run:
+        shell: bash
     steps:
       - uses: actions/checkout@v4
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+      - name: python3 name for Windows
+        run: |
+          py=$(command -v python)
+          cp "$py" "$(dirname "$py")/python3.exe"
+      - name: gofmt
+        run: test -z "$(gofmt -l cmd internal plugins)"
       - name: vet
         run: go vet ./...
-      - name: build
-        run: go build ./...
-      - name: test (platform-neutral packages)
-        run: >-
-          go test
-          ./internal/detect ./internal/fp ./internal/classify ./internal/rules ./internal/cost
-          ./internal/receipt ./internal/ledger ./internal/intent ./internal/verification ./internal/seal
-          ./internal/recovery ./internal/policy ./internal/notify ./internal/handoff ./internal/eval
-          ./internal/analyze ./internal/config ./internal/contract ./internal/intervene ./internal/testout
-          ./internal/judge ./internal/patch ./internal/procgroup
-          ./internal/adapter/claude ./internal/adapter/codex ./internal/adapter/otel
+      - name: test
+        run: go test ./...
+      - name: conformance
+        run: sh scripts/check-conformance.sh
+      - name: hook latency
+        # the hosted runner's process start time varies with load, so only the
+        # daemon's own handling span is a regression gate here
+        run: sh scripts/check-hook-budget.sh --p95-max 0 --handling-p95-max 6ms

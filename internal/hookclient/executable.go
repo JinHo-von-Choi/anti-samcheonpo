@@ -6,6 +6,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"runtime"
 	"strings"
 	"time"
 )
@@ -36,19 +37,29 @@ func TransportVersion(path string) string {
 	return strings.TrimSpace(output.String())
 }
 
+// ExeSuffix is the file name suffix of a program on this system.
+var ExeSuffix = func() string {
+	if runtime.GOOS == "windows" {
+		return ".exe"
+	}
+	return ""
+}()
+
 // Executable chooses the matching sibling transport when installed. The main
 // binary remains a supported fallback for existing single-binary installs.
+// Windows has no execute permission bit, so a regular file with the program
+// suffix counts.
 func Executable(main string) string {
-	p := filepath.Join(filepath.Dir(main), "samcheonpo-hook")
-	if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && st.Mode().Perm()&0111 != 0 {
+	p := filepath.Join(filepath.Dir(main), "samcheonpo-hook"+ExeSuffix)
+	if st, err := os.Stat(p); err == nil && st.Mode().IsRegular() && (runtime.GOOS == "windows" || st.Mode().Perm()&0111 != 0) {
 		return p
 	}
 	return main
 }
 
 func daemonExecutable(exe string) string {
-	if filepath.Base(exe) == "samcheonpo-hook" {
-		return filepath.Join(filepath.Dir(exe), "samcheonpo")
+	if strings.TrimSuffix(strings.ToLower(filepath.Base(exe)), ".exe") == "samcheonpo-hook" {
+		return filepath.Join(filepath.Dir(exe), "samcheonpo"+ExeSuffix)
 	}
 	return exe
 }

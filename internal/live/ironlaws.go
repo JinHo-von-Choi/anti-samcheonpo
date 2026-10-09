@@ -5,12 +5,12 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
-	"strings"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/classify"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 )
 
 // IronLawsFinding is one iron-laws violation (subset of its JSON report).
@@ -82,7 +82,7 @@ func (s *Session) ironLawsCheck(ev *event.Event) {
 		return
 	}
 	for _, p := range ev.Paths {
-		if strings.HasPrefix(p, "/") || classify.IsTestPath(p) || detect.IsDocPath(p) {
+		if pathnorm.IsAbs(p) || classify.IsTestPath(p) || detect.IsDocPath(p) {
 			continue
 		}
 		abs := filepath.Join(s.Root, p)

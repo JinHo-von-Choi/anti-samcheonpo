@@ -15,6 +15,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/clock"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/eval"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/install"
@@ -279,9 +280,9 @@ func benchHookCmd() *cobra.Command {
 				child.Env = append(os.Environ(), "SAMCHEONPO_NO_SPAWN="+spawn, "SAMCHEONPO_HOOK_DIAGNOSTICS=1")
 				var diagnostics bytes.Buffer
 				child.Stderr = &diagnostics
-				start := time.Now()
+				start := clock.Now()
 				err = child.Run()
-				elapsed := time.Since(start)
+				elapsed := start.Since()
 				var outcome hookclient.Outcome
 				if err != nil {
 					return elapsed, outcome, err

@@ -156,7 +156,7 @@ go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.3.1
 go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.3.1
 ```
 
-Windows는 빌드와 순수 패키지 시험까지 확인했고, 에이전트 연결은 아직 검증하지 않았습니다.
+Windows는 Windows 10 1803 이상과 Git for Windows가 필요합니다. 전체 시험·적합성·훅 지연·릴리스 후보 smoke는 Windows 11 arm64에서 통과했고, 실제 에이전트 세션 연결은 아직 확인하지 않았습니다.
 
 ---
 
@@ -302,7 +302,7 @@ swarm:
 | Linux x86-64 | 실제 설치·제거·훅 지연(p95 10ms 이내)·실제 에이전트 실행 확인 |
 | macOS | 소스 설치. GitHub Actions의 macOS 러너에서 데몬·훅·되돌리기를 포함한 전체 시험과 적합성 사례 통과. 실제 에이전트 실행은 미확인 |
 | Linux arm64 | 소스 설치 가능, 실제 실행 미확인 |
-| Windows | 소스 설치. GitHub Actions의 Windows 러너에서 빌드와 탐지·원장·계약 같은 플랫폼 중립 패키지 시험 통과. 데몬·훅 연결은 미검증이며 훅 명령은 Git Bash를 전제 |
+| Windows | 소스 설치. Windows 11 arm64에서 전체 시험, 적합성 17건, 훅 지연(200회 응답 200), 릴리스 후보의 설치·제거·감사·첫 훅 smoke 통과. 실제 에이전트 실행과 x64는 미확인. 검사 명령은 Git for Windows의 bash로 실행 |
 | WSL | Linux 실행 파일로 미확인 |
 
 ---

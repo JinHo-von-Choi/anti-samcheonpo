@@ -8,7 +8,6 @@ import (
 	"os/exec"
 	"path/filepath"
 	"reflect"
-	"strings"
 	"time"
 )
 
@@ -36,7 +35,7 @@ func checkTaskSpec(impl, dir string) (int, int) {
 		return 1, 1
 	}
 	defer os.RemoveAll(work)
-	parts := strings.Fields(impl)
+	parts := splitCommand(impl)
 	if len(parts) == 0 {
 		return 1, 1
 	}

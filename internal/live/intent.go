@@ -4,11 +4,9 @@ import (
 	"database/sql"
 	"errors"
 	"fmt"
-	"path/filepath"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
-	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 )
 
@@ -23,7 +21,7 @@ func (s *Session) restoreIntent() error {
 	if err != nil {
 		return err
 	}
-	if task.ProjectID != fp.Hash("project", filepath.Clean(s.Root)) {
+	if !intent.MatchesProject(task.ProjectID, s.Root) {
 		return errors.New("session intent belongs to another project")
 	}
 	s.task, s.intentRevision, s.taskLink = &task, &revision, &link
@@ -48,7 +46,7 @@ func (s *Session) recordIntent(change intent.Change, source intent.Source) error
 	var task intent.Task
 	var err error
 	if s.task == nil {
-		task, err = intent.NewTask(fp.Hash("project", filepath.Clean(s.Root)), source.At)
+		task, err = intent.NewTask(intent.ProjectID(s.Root), source.At)
 		if err != nil {
 			return err
 		}

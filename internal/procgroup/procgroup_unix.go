@@ -12,8 +12,18 @@ import (
 // Shell runs command through /bin/sh.
 func Shell(command string) *exec.Cmd { return exec.Command("/bin/sh", "-c", command) }
 
+// ShellName names the interpreter Shell uses.
+func ShellName() string { return "sh" }
+
 // Set puts the command in its own process group so Kill can end it whole.
 func Set(cmd *exec.Cmd) { cmd.SysProcAttr = &syscall.SysProcAttr{Setpgid: true} }
+
+// Start starts a command prepared with Set.
+func Start(cmd *exec.Cmd) error { return cmd.Start() }
+
+// Release frees what Start attached to the command. It is safe to call after
+// Wait and more than once.
+func Release(*exec.Cmd) {}
 
 // Kill ends the command's whole process group.
 func Kill(cmd *exec.Cmd) error {
@@ -23,8 +33,12 @@ func Kill(cmd *exec.Cmd) error {
 	return syscall.Kill(-cmd.Process.Pid, syscall.SIGKILL)
 }
 
-// Detach starts the command in its own session so it outlives the caller.
-func Detach(cmd *exec.Cmd) { cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true} }
+// StartDetached starts the command in its own session so it outlives the
+// caller.
+func StartDetached(cmd *exec.Cmd) error {
+	cmd.SysProcAttr = &syscall.SysProcAttr{Setsid: true}
+	return cmd.Start()
+}
 
 // LockExclusive takes a non-blocking exclusive lock that the OS releases when
 // the process exits.
@@ -33,7 +47,7 @@ func LockExclusive(f *os.File) error {
 }
 
 // HardLinked reports whether the file has more than one name.
-func HardLinked(fi fs.FileInfo) bool {
+func HardLinked(_ string, fi fs.FileInfo) bool {
 	sys, ok := fi.Sys().(*syscall.Stat_t)
 	return ok && sys.Nlink > 1
 }

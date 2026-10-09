@@ -6,13 +6,15 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient"
 )
 
 func TestLightHookInstallPreservesMainCommandsAndRemovalMarker(t *testing.T) {
 	t.Setenv("SAMCHEONPO_HOME", t.TempDir())
 	dir := t.TempDir()
-	main := filepath.Join(dir, "samcheonpo")
-	helper := filepath.Join(dir, "samcheonpo-hook")
+	main := filepath.Join(dir, "samcheonpo"+hookclient.ExeSuffix)
+	helper := filepath.Join(dir, "samcheonpo-hook"+hookclient.ExeSuffix)
 	if err := os.WriteFile(helper, []byte("fixture"), 0700); err != nil {
 		t.Fatal(err)
 	}

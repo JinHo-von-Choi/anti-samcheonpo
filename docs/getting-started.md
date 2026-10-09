@@ -85,6 +85,12 @@ samcheonpo install --agent codex
 
 `accept`, `edit`, `skip`, `keep`, `rollback apply`와 세션 밖 `contract accept`는 사용자의 판단을 바꾸는 명령이다. 슬래시 명령(`/samcheonpo:...`)으로 실행하면 동작한다. 에이전트가 셸 도구로 같은 명령을 실행하면 실행 전에 거부한다. 같은 OS 사용자로 도는 프로세스가 데몬 소켓에 직접 접속하는 것까지 막지는 않는다.
 
+## Windows
+
+Windows 10 1803 이상(유닉스 도메인 소켓 지원)이 필요하다. 검사 명령은 Git for Windows의 `bash`로 실행하므로 계약의 `check:`를 유닉스와 같은 문법으로 쓸 수 있다. Git for Windows가 없으면 `cmd.exe`로 실행되어 `test -s`, `&&`, 작은따옴표 같은 POSIX 문법이 같은 뜻으로 동작하지 않는다. `samcheonpo doctor`의 `shell` 항목이 어느 쪽인지 알려 준다. `bash.exe`를 직접 지정하려면 `SAMCHEONPO_SHELL`에 경로를 넣는다. System32의 `bash.exe`는 WSL 시작 파일이므로 쓰지 않는다.
+
+데몬은 현재 사용자와 SYSTEM만 접근할 수 있는 폴더(`%USERPROFILE%\.samcheonpo\run`)의 유닉스 소켓으로 훅과 통신하고, 접속한 프로세스의 사용자 SID가 데몬과 같은지 확인한다. `SAMCHEONPO_HOME`을 프로필 밖으로 지정해도 새로 만드는 폴더에는 같은 접근 제한을 건다. 이미 있는 폴더의 권한은 바꾸지 않는다.
+
 ## 제거와 복구
 
 ```sh

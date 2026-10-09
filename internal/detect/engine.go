@@ -17,6 +17,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 )
 
 // Level is an intervention level L0-L4.
@@ -736,11 +737,11 @@ func (e *Engine) progress(ev *event.Event) {
 func (e *Engine) CheckpointProgress(ev *event.Event) { e.progress(ev) }
 
 func (e *Engine) inScope(rel string) (in bool, known bool) {
-	if strings.HasPrefix(rel, "/tmp/") || strings.HasPrefix(rel, "/var/tmp/") || strings.HasPrefix(rel, ".samcheonpo/") {
+	if pathnorm.IsTempPath(rel) || strings.HasPrefix(rel, ".samcheonpo/") {
 		return true, true
 	}
 	if e.St.scopeKnown {
-		if strings.HasPrefix(rel, "/") {
+		if pathnorm.IsAbs(rel) {
 			return false, true
 		}
 		return e.Contract.InScope(rel), true
@@ -748,7 +749,7 @@ func (e *Engine) inScope(rel string) (in bool, known bool) {
 	if len(e.St.allowGuess) == 0 {
 		return true, false
 	}
-	if strings.HasPrefix(rel, "/") {
+	if pathnorm.IsAbs(rel) {
 		return false, true
 	}
 	for _, g := range e.St.allowGuess {
@@ -804,7 +805,7 @@ func (e *Engine) production(ev *event.Event, sigs *[]Signal) {
 				if in, _ := e.inScope(p); in {
 					grew = true
 				}
-			} else if !strings.HasPrefix(p, "/") {
+			} else if !pathnorm.IsAbs(p) {
 				grew = true
 			}
 			st.highWater[p] = st.lineCount[p]

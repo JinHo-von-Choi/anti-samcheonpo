@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testutil/fakeexe"
 )
 
 // TestOpenclawForwarder replays hook events captured from OpenClaw 2026.7.1
@@ -18,22 +20,13 @@ func TestOpenclawForwarder(t *testing.T) {
 	}
 	dir := t.TempDir()
 	log := filepath.Join(dir, "calls.jsonl")
-	stub := filepath.Join(dir, "samcheonpo")
-	_ = os.WriteFile(stub, []byte(`#!/bin/sh
-ev="$2"
-payload=$(cat)
-printf '{"ev":"%s","agent":"%s","p":%s}\n' "$ev" "$3" "$payload" >> "`+log+`"
-case "$ev" in
-  UserPromptSubmit) echo '{"hookSpecificOutput":{"hookEventName":"UserPromptSubmit","additionalContext":"[advice]"}}' ;;
-  PreToolUse) case "$payload" in *'"Bash"'*) echo '{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"repeat"}}' ;; esac ;;
-  Stop) echo '{"decision":"block","reason":"run the check"}' ;;
-esac
-`), 0o755)
+	stub := fakeexe.Install(t, dir, "samcheonpo", fakeexe.Spec{Behavior: "hookstub", Option: "openclaw"})
 	_ = os.WriteFile(filepath.Join(dir, "index.mjs"), OpenclawIndex, 0o644)
 	fixture, _ := filepath.Abs(filepath.Join("..", "testdata", "hooks", "openclaw", "events.jsonl"))
 	driver := `
 import { readFileSync } from "node:fs"
-const { default: plugin } = await import(process.argv[1])
+import { pathToFileURL } from "node:url"
+const { default: plugin } = await import(pathToFileURL(process.argv[1]).href)
 const hooks = {}
 plugin.register({ on: (name, fn) => { hooks[name] = fn } })
 const lines = readFileSync(process.argv[2], "utf8").trim().split("\n").map((l) => JSON.parse(l))
@@ -46,7 +39,7 @@ for (const r of lines) {
 console.log(JSON.stringify(out))
 `
 	cmd := exec.Command(node, "--input-type=module", "-e", driver, filepath.Join(dir, "index.mjs"), fixture)
-	cmd.Env = append(os.Environ(), "SAMCHEONPO_BIN="+stub)
+	cmd.Env = append(os.Environ(), "SAMCHEONPO_BIN="+stub, "SAMCHEONPO_STUB_LOG="+log)
 	out, err := cmd.CombinedOutput()
 	if err != nil {
 		t.Fatalf("%v: %s", err, out)
@@ -90,7 +83,8 @@ console.log(JSON.stringify(out))
 		seen = append(seen, c.Ev)
 		if c.Ev == "PostToolUse" {
 			in, _ := c.P["tool_input"].(map[string]any)
-			if c.P["tool_name"] != "Write" || in["file_path"] != "/work/proj/b.txt" {
+			want, _ := filepath.Abs("/work/proj/b.txt")
+			if c.P["tool_name"] != "Write" || in["file_path"] != want {
 				t.Errorf("write result with an absolute path: %v", c.P)
 			}
 		}

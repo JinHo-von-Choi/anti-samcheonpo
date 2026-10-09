@@ -5,13 +5,12 @@ import (
 	"errors"
 	"fmt"
 	"os"
-	"path/filepath"
 	"reflect"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
-	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/handoff"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/live"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/verification"
@@ -77,7 +76,7 @@ func buildHandoff(db *ledger.DB, agent, session, root string) (handoff.Bundle, e
 		}
 		b.Usage = append(b.Usage, u)
 	}
-	if task.ProjectID == fp.Hash("project", filepath.Clean(root)) {
+	if intent.MatchesProject(task.ProjectID, root) {
 		c, _, err := contract.Load(root)
 		if err == nil && c != nil && c.ChecksHash() == r.ContractHash && c.Goal == r.Goal {
 			b.Contract = c

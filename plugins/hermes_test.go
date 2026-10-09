@@ -7,6 +7,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testutil/fakeexe"
 )
 
 // TestHermesForwarder replays hook kwargs captured from Hermes 0.21.5
@@ -18,22 +20,8 @@ func TestHermesForwarder(t *testing.T) {
 	}
 	dir := t.TempDir()
 	log := filepath.Join(dir, "calls.jsonl")
-	stub := filepath.Join(dir, "samcheonpo")
 	// the stub answers like the daemon: deny, advice, a stop hold
-	_ = os.WriteFile(stub, []byte(`#!/usr/bin/env python3
-import json, sys
-ev = sys.argv[2]
-p = json.load(sys.stdin)
-open(`+"`"+`LOG`+"`"+`, "a").write(json.dumps({"ev": ev, "agent": sys.argv[3], "p": p}) + "\n")
-if ev == "PreToolUse" and p["tool_name"] == "Bash":
-    print(json.dumps({"hookSpecificOutput": {"hookEventName": "PreToolUse", "permissionDecision": "deny", "permissionDecisionReason": "repeat"}}))
-elif ev in ("UserPromptSubmit", "PostToolUseFailure"):
-    print(json.dumps({"hookSpecificOutput": {"hookEventName": ev, "additionalContext": "[advice]"}}))
-elif ev == "Stop" and not p["stop_hook_active"]:
-    print(json.dumps({"decision": "block", "reason": "run the check"}))
-`), 0o755)
-	b, _ := os.ReadFile(stub)
-	_ = os.WriteFile(stub, []byte(strings.Replace(string(b), "`LOG`", `"`+log+`"`, 1)), 0o755)
+	stub := fakeexe.Install(t, dir, "samcheonpo", fakeexe.Spec{Behavior: "hookstub", Option: "hermes"})
 	_ = os.WriteFile(filepath.Join(dir, "__init__.py"), HermesInit, 0o644)
 	driver := `
 import importlib.util, json, sys
@@ -51,7 +39,7 @@ for line in open(sys.argv[2]):
 `
 	fixture, _ := filepath.Abs(filepath.Join("..", "testdata", "hooks", "hermes", "kwargs.jsonl"))
 	cmd := exec.Command(py, "-I", "-c", driver, filepath.Join(dir, "__init__.py"), fixture)
-	cmd.Env = append(os.Environ(), "SAMCHEONPO_BIN="+stub)
+	cmd.Env = append(os.Environ(), "SAMCHEONPO_BIN="+stub, "SAMCHEONPO_STUB_LOG="+log)
 	cmd.Dir = dir
 	out, err := cmd.CombinedOutput()
 	if err != nil {

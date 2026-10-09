@@ -73,7 +73,7 @@ func link(prev, data string) string {
 
 func run(impl, dir string, c caseFile) (output, error) {
 	var o output
-	parts := strings.Fields(impl)
+	parts := splitCommand(impl)
 	args := append(parts[1:], filepath.Join(dir, c.Input))
 	if c.Agent != "" {
 		args = append(args, "--agent", c.Agent)

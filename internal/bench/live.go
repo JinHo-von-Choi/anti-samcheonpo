@@ -2,6 +2,7 @@ package bench
 
 import (
 	"bufio"
+	"bytes"
 	"context"
 	"encoding/json"
 	"errors"
@@ -143,8 +144,14 @@ func ExpandArgv(cmd []string, t LiveTask) []string {
 	root, _ := os.Getwd()
 	argv := make([]string, len(cmd))
 	for i, s := range cmd {
+		paths := strings.Contains(s, "{task}") || strings.Contains(s, "{root}")
 		s = strings.ReplaceAll(s, "{task}", t.Dir)
 		s = strings.ReplaceAll(s, "{root}", root)
+		if paths {
+			// the config writes paths with slashes; the prompt, substituted
+			// afterwards, is text and stays as written
+			s = filepath.FromSlash(s)
+		}
 		argv[i] = strings.ReplaceAll(s, "{prompt}", t.Prompt)
 	}
 	return argv
@@ -361,7 +368,14 @@ func run(ctx context.Context, dir string, env []string, name string, args ...str
 	procgroup.Set(cmd)
 	cmd.Cancel = func() error { return procgroup.Kill(cmd) }
 	cmd.WaitDelay = 5 * time.Second
-	return cmd.CombinedOutput()
+	var out bytes.Buffer
+	cmd.Stdout, cmd.Stderr = &out, &out
+	if err := procgroup.Start(cmd); err != nil {
+		return nil, err
+	}
+	defer procgroup.Release(cmd)
+	err := cmd.Wait()
+	return out.Bytes(), err
 }
 
 // sessionID finds a session id in agent output (claude -p --output-format

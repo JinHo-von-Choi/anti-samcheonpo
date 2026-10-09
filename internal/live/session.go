@@ -34,6 +34,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/notify"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/patch"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/policy"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/recovery"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rules"
@@ -947,7 +948,7 @@ func (s *Session) Finalize() (string, error) {
 	rc := receipt.Build(receipt.Input{Title: receipt.SessionTitle(sess.StartedAt, s.ID, s.Agent), Agent: s.Agent, Totals: res.Totals, Grade: res.Grade,
 		Verdicts: res.Verdicts, Seal: &sl, Criteria: [2]int{res.Criteria.Met, res.Criteria.Total}, Billing: billing, Recoveries: s.recoveries})
 	dir := filepath.Join(config.Home(), "receipts")
-	if err := os.MkdirAll(dir, 0o700); err != nil {
+	if err := procgroup.MkdirAllPrivate(dir); err != nil {
 		return "", err
 	}
 	p := filepath.Join(dir, s.ID+".md")

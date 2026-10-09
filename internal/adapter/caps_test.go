@@ -2,18 +2,16 @@ package adapter
 
 import (
 	"os"
-	"path/filepath"
 	"testing"
 	"time"
+
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testutil/fakeexe"
 )
 
 func TestVersionProbeBoundsTimeAndOutput(t *testing.T) {
 	bin := t.TempDir()
 	t.Setenv("PATH", bin+string(os.PathListSeparator)+os.Getenv("PATH"))
-	path := filepath.Join(bin, "claude")
-	if err := os.WriteFile(path, []byte("#!/bin/sh\nexec sleep 5\n"), 0700); err != nil {
-		t.Fatal(err)
-	}
+	fakeexe.Install(t, bin, "claude", fakeexe.Spec{SleepMS: 5000})
 	defer func(d time.Duration) { probeTimeout = d }(probeTimeout)
 	probeTimeout = 300 * time.Millisecond
 	start := time.Now()

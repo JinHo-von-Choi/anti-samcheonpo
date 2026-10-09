@@ -31,10 +31,16 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 	add := func(id, state, message string) {
 		r.Checks = append(r.Checks, diagnostic{ID: id, State: state, Message: message})
 	}
-	if runtime.GOOS == "linux" || runtime.GOOS == "darwin" {
+	switch runtime.GOOS {
+	case "linux", "darwin":
 		add("platform", "ok", "Unix 실행 경로. 이 결과만으로 모든 배포 환경의 검증을 의미하지는 않음")
-	} else {
-		add("platform", "error", "지원하지 않는 네이티브 OS; Windows는 WSL에서 Linux 실행 파일 사용")
+	case "windows":
+		add("platform", "ok", "Windows 네이티브 실행 경로. 이 결과만으로 모든 배포 환경의 검증을 의미하지는 않음")
+		for _, d := range windowsChecks() {
+			add(d.ID, d.State, d.Message)
+		}
+	default:
+		add("platform", "error", "지원하지 않는 OS; 이 환경에서는 Linux 실행 파일을 쓸 수 있는 환경(WSL 등)이 필요")
 	}
 	if exe != "" && hookclient.Executable(exe) != exe {
 		add("hook_transport", "ok", "경량 훅 파일 발견; 현재 설치된 연결이 이 파일을 사용하는지는 설치 기록 확인 필요")

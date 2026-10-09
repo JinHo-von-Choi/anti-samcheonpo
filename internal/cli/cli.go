@@ -28,6 +28,8 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intervene"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/seal"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/sources"
@@ -167,7 +169,7 @@ func auditCmd() *cobra.Command {
 			defer db.Close()
 			files := sources.Find(agent, t, claudeDir(), codexDir())
 			if project != "" {
-				abs, _ := filepath.Abs(project)
+				abs, _ := pathnorm.Absolute(project)
 				project = abs
 			}
 			var total, largest int64
@@ -592,7 +594,7 @@ func priceCmd() *cobra.Command {
 				return fmt.Errorf("--from은 2026-10-01 형식이어야 한다")
 			}
 			p := filepath.Join(config.Home(), "prices.yml")
-			if err := os.MkdirAll(config.Home(), 0o700); err != nil {
+			if err := procgroup.MkdirAllPrivate(config.Home()); err != nil {
 				return err
 			}
 			b, err := os.ReadFile(p)
@@ -624,7 +626,7 @@ func writeAtomic(p string, b []byte) error {
 	if err := os.WriteFile(tmp, b, 0o644); err != nil {
 		return err
 	}
-	return os.Rename(tmp, p)
+	return procgroup.Rename(tmp, p)
 }
 
 func initCmd() *cobra.Command {

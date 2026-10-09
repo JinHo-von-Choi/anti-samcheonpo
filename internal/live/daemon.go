@@ -27,6 +27,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intervene"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/recovery"
@@ -82,7 +83,7 @@ type Daemon struct {
 
 // Run starts the daemon (blocking). It exits after Idle without requests.
 func Run(dbPath string, idle time.Duration) error {
-	if err := os.MkdirAll(filepath.Join(config.Home(), "run"), 0o700); err != nil {
+	if err := procgroup.MkdirAllPrivate(filepath.Join(config.Home(), "run")); err != nil {
 		return err
 	}
 	lf, err := os.OpenFile(LockPath(), os.O_CREATE|os.O_RDWR, 0o600)
@@ -115,7 +116,6 @@ func Run(dbPath string, idle time.Duration) error {
 		return err
 	}
 	d := &Daemon{sessions: map[string]*Session{}, versions: map[string]string{}, db: db, prices: prices, last: time.Now(), Idle: idle, ln: ln, done: make(chan struct{})}
-	defer close(d.done)
 	go d.idleWatch()
 	sigs := make(chan os.Signal, 1)
 	signal.Notify(sigs, syscall.SIGTERM, syscall.SIGINT)
@@ -152,6 +152,9 @@ func Run(dbPath string, idle time.Duration) error {
 			d.serve(c)
 		}()
 	}
+	// streams such as the HUD hold a connection open until this closes; waiting
+	// for them first would block shutdown for as long as the reader stays idle
+	close(d.done)
 	d.serving.Wait()
 	d.ending.Wait()
 	d.mu.Lock()
@@ -396,8 +399,9 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 		if s.Agent != agent {
 			return nil, errors.New("다른 에이전트와 세션 ID가 충돌한다; 새 세션 ID가 필요하다")
 		}
-		abs, err := filepath.Abs(root)
-		if err != nil || filepath.Clean(abs) != filepath.Clean(s.Root) {
+		abs, err := pathnorm.Absolute(root)
+		known, knownErr := pathnorm.Absolute(s.Root)
+		if err != nil || knownErr != nil || filepath.Clean(abs) != filepath.Clean(known) {
 			return nil, errors.New("세션 ID가 다른 프로젝트 경로에 재사용되었습니다")
 		}
 		return s, nil
@@ -505,8 +509,8 @@ func (d *Daemon) latest(root, id string) *Session {
 }
 
 func sameDir(a, b string) bool {
-	ca, _ := filepath.Abs(a)
-	cb, _ := filepath.Abs(b)
+	ca, _ := pathnorm.Absolute(a)
+	cb, _ := pathnorm.Absolute(b)
 	return ca == cb || strings.HasPrefix(cb, ca+string(filepath.Separator))
 }
 

@@ -16,6 +16,15 @@ func TestUserOnlyCommandMatching(t *testing.T) {
 		"cd /w && samcheonpo cmd accept",
 		"samcheonpo --db /tmp/x.db cmd accept",
 		"echo y | samcheonpo cmd accept",
+		"samcheonpo.exe cmd accept",
+		`"C:\Users\u\bin\samcheonpo.exe" cmd keep normal`,
+		`C:\Users\u\bin\SAMCHEONPO.EXE cmd skip`,
+		"C:/Users/u/bin/samcheonpo.exe cmd rollback apply",
+		".\\samcheonpo cmd accept",
+		"bash -c 'samcheonpo cmd accept'",
+		`sh -lc "cd /w && samcheonpo cmd keep normal"`,
+		"cmd /c samcheonpo.exe cmd accept",
+		`powershell -NoProfile -Command "samcheonpo.exe cmd skip"`,
 	} {
 		if !userOnlyCommand(c) {
 			t.Errorf("%q must be refused", c)
@@ -31,6 +40,10 @@ func TestUserOnlyCommandMatching(t *testing.T) {
 		"grep -r 'samcheonpo cmd accept' docs/",
 		"cat README.md",
 		"samcheonpo-hook hook PreToolUse",
+		"samcheonpo-hook.exe hook PreToolUse",
+		"bash -c 'echo samcheonpo cmd accept'",
+		"bash run.sh samcheonpo cmd accept",
+		"cmd /c echo hello",
 	} {
 		if userOnlyCommand(c) {
 			t.Errorf("%q must be allowed", c)
