@@ -161,6 +161,44 @@ func (h *harness) shell(id, cmd, stdout string, exit int) map[string]any {
 	return h.send("PostToolUse", post)
 }
 
+// workspaceGeneration reads how many file changes the daemon has seen in the
+// project of session sess-1.
+func (h *harness) workspaceGeneration() uint64 {
+	h.t.Helper()
+	text, _, ok := hookclient.Query("ObservationStatus", map[string]any{"session_id": "sess-1"}, 2*time.Second)
+	var st struct {
+		Generation uint64 `json:"workspace_generation"`
+	}
+	if !ok || json.Unmarshal([]byte(text), &st) != nil {
+		h.t.Fatalf("observation status: %q %v", text, ok)
+	}
+	return st.Generation
+}
+
+// settleWorkspace waits until the daemon has seen the file change made after
+// the generation was read as since, and no further change follows. A change
+// made outside a hook reaches the daemon through the file watcher a moment
+// later; a check that starts before it arrives is conservatively let through.
+func (h *harness) settleWorkspace(since uint64) {
+	h.t.Helper()
+	deadline := time.Now().Add(10 * time.Second)
+	last, stable := since, 0
+	for time.Now().Before(deadline) {
+		g := h.workspaceGeneration()
+		switch {
+		case g == since:
+		case g == last:
+			stable++
+		default:
+			last, stable = g, 0
+		}
+		if g != since && stable >= 3 {
+			return
+		}
+		time.Sleep(30 * time.Millisecond)
+	}
+}
+
 func TestHookFlowIdenticalRerun(t *testing.T) {
 	h := startDaemon(t)
 	h.declareTestRules("s1.identical_rerun")
@@ -487,7 +525,9 @@ func TestEvidenceRerunIsAdvisedThenBlocked(t *testing.T) {
 	// a checkpoint produces the passing evidence
 	h.send("Stop", map[string]any{"stop_hook_active": false, "last_assistant_message": "확인했습니다."})
 	// an unrelated file changes the workspace but not the declared inputs
+	generation := h.workspaceGeneration()
 	_ = os.WriteFile(filepath.Join(h.proj, "notes.txt"), []byte("n\n"), 0o644)
+	h.settleWorkspace(generation)
 	run := func(id string) map[string]any {
 		return h.send("PreToolUse", map[string]any{"tool_name": "Bash", "tool_use_id": id, "tool_input": map[string]any{"command": "grep -q 'x = 1' src/a.py"}})
 	}

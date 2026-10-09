@@ -304,7 +304,11 @@ func (d *Daemon) handleWith(req Request, slot *ackSlot) (json.RawMessage, string
 			return nil, "", errors.New("세션을 찾을 수 없다")
 		}
 		s.mu.Lock()
-		b, err := json.Marshal(map[string]any{"prompts": s.prompts, "tool_calls": len(s.byTool), "observed_events": len(s.eng.St.Events), "queue_rejected": s.queueRejected.Load()})
+		var generation uint64
+		if s.ws != nil {
+			generation = s.ws.Generation()
+		}
+		b, err := json.Marshal(map[string]any{"prompts": s.prompts, "tool_calls": len(s.byTool), "observed_events": len(s.eng.St.Events), "queue_rejected": s.queueRejected.Load(), "workspace_generation": generation})
 		s.mu.Unlock()
 		return nil, string(b), err
 	case "AgentStatus":

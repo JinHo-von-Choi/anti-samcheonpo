@@ -43,9 +43,14 @@ func TestGoldenPointIsRecordedAtPassAndRestoresOwnedFiles(t *testing.T) {
 	write("w1", "src/a.py", "x = 2\n")
 	write("w2", "src/b.py", "y = 1\n")
 	h.shell("v1", "pytest -q", "2 passed", 0)
-	time.Sleep(400 * time.Millisecond)
 	g := patch.NewGoldenStateManager(h.proj)
-	list := g.ListSnapshots()
+	// the pass is recorded once the daemon has processed the result
+	var list []patch.SnapshotMeta
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		if list = g.ListSnapshots(); len(list) > 0 {
+			break
+		}
+	}
 	if len(list) != 1 || list[0].Reason != "pytest -q" || list[0].Session != "sess-1" || strings.Join(list[0].Files, ",") != "src/a.py,src/b.py" {
 		t.Fatalf("the pass is recorded with the agent's files: %+v", list)
 	}
