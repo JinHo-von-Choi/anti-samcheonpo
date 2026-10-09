@@ -3,12 +3,14 @@ package live
 import (
 	"strings"
 
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/classify"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 )
 
 // userOnlyCommand reports whether a shell command runs a samcheonpo command
 // that changes what the user decided: accepting or editing a contract,
-// releasing a verdict, skipping the contract, applying a rollback. These
+// releasing a verdict, skipping the contract, extending the session ceiling,
+// applying a rollback. These
 // reach the daemon through the user's slash commands, which the agent host
 // expands outside the agent's tool calls; the same command run by the
 // agent's shell tool is refused. Only words in command position count, so a
@@ -16,7 +18,9 @@ import (
 // process of the same OS user can still reach the daemon socket directly;
 // this closes the ordinary path.
 func userOnlyCommand(cmd string) bool {
-	for _, seg := range shellSegments(cmd) {
+	// text a here-document writes into a file is not a command; what a
+	// here-document program runs is
+	for _, seg := range shellSegments(classify.RunnableText(cmd)) {
 		w := shellWords(seg)
 		for len(w) > 0 && (strings.Contains(w[0], "=") && !strings.HasPrefix(w[0], "=") || w[0] == "env" || w[0] == "exec" || w[0] == "command" || w[0] == "sudo" || w[0] == "nohup" || w[0] == "time") {
 			w = w[1:]
@@ -50,7 +54,7 @@ func userOnlyCommand(cmd string) bool {
 			continue
 		}
 		switch {
-		case w[0] == "cmd" && (w[1] == "accept" || w[1] == "keep" || w[1] == "skip" || w[1] == "edit"):
+		case w[0] == "cmd" && (w[1] == "accept" || w[1] == "keep" || w[1] == "skip" || w[1] == "edit" || w[1] == "extend"):
 			return true
 		case w[0] == "cmd" && w[1] == "rollback" && len(w) > 2 && w[2] == "apply":
 			return true

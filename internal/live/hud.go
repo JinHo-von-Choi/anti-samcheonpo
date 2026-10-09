@@ -66,6 +66,14 @@ func (s *Session) hudState() notify.HUDState {
 		h.WastePercentage = pct
 		parts = append(parts, fmt.Sprintf("헛짓 %d%% (계측분)", pct))
 	}
+	if active, tok, tier := s.eng.SessionLength(); tier > 0 {
+		h.SessionMinutes, h.SessionTokens, h.SessionTier = int(active.Minutes()), tok, tier
+		label := "세션"
+		if tier >= 3 {
+			label = "세션 상한 도달"
+		}
+		parts = append(parts, fmt.Sprintf("%s %s·%s 토큰", label, detect.HoursText(active.Hours()), detect.TokensText(tok)))
+	}
 	if spent, limit, ok := s.treeSpend(); ok {
 		h.TreeKRW, h.TreeLimitKRW = spent, limit
 		parts = append(parts, fmt.Sprintf("군집 지출 %s원/%s원", contract.Comma(spent), contract.Comma(limit)))

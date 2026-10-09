@@ -159,6 +159,8 @@ type State struct {
 	// semOsc keeps the normalized fingerprints of recent failed states per
 	// file; PreCheck uses it to block a return to an already-failed state.
 	semOsc *SemanticOscillationDetector
+	// mar is the state of the long-session rules (marathon.go).
+	mar *marathonState
 }
 
 // sameFilesAttempts is when repeated failures on the same files suggest a
@@ -215,7 +217,7 @@ func NewEngine(cfg config.Config, c *contract.Contract, accepted bool, mode, roo
 		editHist: map[string][]editHist{}, lineCount: map[string]int{}, highWater: map[string]int{}, created: map[string]bool{},
 		readCount: map[string]int{}, minute: map[int64]int64{}, outScope: map[string]bool{}, guessOut: map[string]int{}, testLits: map[string]int64{},
 		velocityFired: map[int64]bool{}, budgetFired: map[int]bool{}, LastProgress: -1, lastUnknown: -1, attemptFiles: map[string]bool{}, recoveryUsed: map[string]bool{},
-		semOsc: NewSemanticOscillationDetector(),
+		semOsc: NewSemanticOscillationDetector(), mar: newMarathonState(),
 	}
 	if c != nil && len(c.Scope.Allow) > 0 {
 		e.St.scopeKnown = true
@@ -289,6 +291,7 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 	if !ev.TS.IsZero() {
 		st.minute[ev.TS.Unix()/60] += ev.CostMicroKRW
 	}
+	e.trackActive(ev)
 	var sigs []Signal
 	switch ev.Kind {
 	case event.KindCompact:
@@ -300,9 +303,11 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 			e.forcedTurn(ev, &sigs)
 		}
 	case event.KindTool:
+		e.refine(ev)
 		e.tool(ev, &sigs)
 	}
 	e.cost(ev, &sigs)
+	e.sessionLength(ev, &sigs)
 	return e.combine(ev, sigs)
 }
 
@@ -320,6 +325,10 @@ func (e *Engine) tool(ev *event.Event, sigs *[]Signal) {
 	}
 	switch ev.Category {
 	case event.CatVerify:
+		if ev.Tool == event.ToolShell && ev.Mutating && len(ev.Paths) > 0 {
+			// one command that edits files and then runs tests
+			e.production(ev, sigs)
+		}
 		e.verification(ev, sigs)
 	case event.CatProduce:
 		e.production(ev, sigs)
@@ -334,6 +343,7 @@ func (e *Engine) tool(ev *event.Event, sigs *[]Signal) {
 	}
 	e.verifyRatio(ev, sigs)
 	e.memoryRot(ev, sigs)
+	e.marathon(ev, sigs)
 }
 
 func (e *Engine) nondeterministic(norm string) bool {
@@ -353,7 +363,27 @@ func ExecutedVerify(ev *event.Event) bool {
 	return ev.Category == event.CatVerify && ev.ExitCode != nil && *ev.ExitCode != -1
 }
 
-func failing(ev *event.Event) bool { return ev.ExitCode != nil && *ev.ExitCode > 0 }
+// failing reports a failed run. A check whose exit status a trailing read
+// masked (`pytest > out; tail out`) fails when its output reports failures.
+func failing(ev *event.Event) bool {
+	if ev.ExitCode == nil {
+		return false
+	}
+	if *ev.ExitCode > 0 {
+		return true
+	}
+	if *ev.ExitCode != 0 || ev.Category != event.CatVerify || (len(ev.FailedTests) == 0 && !maskedFailRe.MatchString(ev.Text)) {
+		return false
+	}
+	cmd := ev.Cmd
+	if cmd == "" {
+		cmd = ev.CmdNorm
+	}
+	return classify.MaskedExit(cmd)
+}
+
+// maskedFailRe matches a test or gate summary that reports a failure.
+var maskedFailRe = lazyre.New(`(?m)\b[1-9]\d* (?:failed|errors?)\b|^\[FAIL\]|^FAIL\b|^--- FAIL|^FAILED |\bTests?:\s+[1-9]\d* failed`)
 
 // runID is the identity of a shell run for repeat decisions: the execution
 // fingerprint when the adapter computed one, else the display fingerprint.
@@ -417,6 +447,12 @@ func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 	for _, t := range ev.FailedTests {
 		keys = append(keys, "test:"+t)
 	}
+	if failing(ev) && len(keys) == 0 {
+		// output sent to a log or cut off: the failure is known only by the
+		// run and its exit status, and each retry after an edit that fails
+		// the same way is still a repeat
+		keys = []string{fmt.Sprintf("blind:%s:%d", e.checkOf(ev).key, *ev.ExitCode)}
+	}
 	if failing(ev) && len(keys) > 0 {
 		cur := map[string]bool{}
 		for _, f := range keys {
@@ -474,11 +510,6 @@ func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 			errKey = strings.Join(ev.FailedTests, ",")
 		}
 		if len(st.failSeries) == 0 || st.failSeries[len(st.failSeries)-1].seq != ev.Seq {
-			last := ""
-			if n := len(st.failSeries); n > 0 {
-				last = st.failSeries[n-1].errKey
-			}
-			_ = last
 			st.failSeries = append(st.failSeries, failPoint{errKey: errKey, failed: len(ev.FailedTests), seq: ev.Seq})
 		}
 		e.whackAMole(ev, sigs)
@@ -496,6 +527,9 @@ func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 }
 
 func errorLabel(ev *event.Event) string {
+	if len(ev.FailedTests) == 0 && len(ev.ErrFPs) == 0 && ev.ExitCode != nil {
+		return fmt.Sprintf("종료 코드 %d (출력 없음)", *ev.ExitCode)
+	}
 	if len(ev.FailedTests) > 0 {
 		return ev.FailedTests[0]
 	}
@@ -782,8 +816,7 @@ func (e *Engine) production(ev *event.Event, sigs *[]Signal) {
 	}
 	grew := false
 	paths := ev.Paths
-	for p, h := range ev.WriteHashes {
-		_ = h
+	for p := range ev.WriteHashes {
 		if !contains(paths, p) {
 			paths = append(paths, p)
 		}
@@ -1302,13 +1335,21 @@ func (e *Engine) cost(ev *event.Event, sigs *[]Signal) {
 	}
 }
 
-// TurnEnd evaluates a turn's final assistant message (false completion).
-// unmet reports whether a live checkpoint of an accepted contract failed.
+// TurnEnd evaluates a turn's final assistant message: a completion claim
+// against the checks (false completion), and a turn that stops to ask the
+// user while a command keeps being rejected. unmet reports whether a live
+// checkpoint of an accepted contract failed.
 func (e *Engine) TurnEnd(msg *event.Event, unmet []string) []Signal {
 	st := e.St
 	var sigs []Signal
-	if msg == nil || !IsCompletionClaim(msg.Text) || st.writes == 0 {
+	if msg == nil {
 		return nil
+	}
+	if s := e.rejectionWait(msg); s != nil {
+		e.add(&sigs, *s)
+	}
+	if !IsCompletionClaim(msg.Text) || st.writes == 0 {
+		return e.combine(msg, sigs)
 	}
 	lv := st.lastVerify
 	switch {
@@ -1367,6 +1408,11 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 	}
 	// S2: a source edit while a cause outside the code stands unchanged.
 	if s := e.frozenWrite(ev); s != nil {
+		return true, s
+	}
+	// S2: a command outside the known checks that keeps rejecting the same
+	// input, run again on an unchanged workspace.
+	if s := e.rejectedRerun(ev, true); s != nil {
 		return true, s
 	}
 	// S5: writing an error-hiding pattern again into a file where the same

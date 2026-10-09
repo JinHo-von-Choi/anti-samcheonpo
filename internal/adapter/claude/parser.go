@@ -392,6 +392,13 @@ func (p *Parser) toolUse(b block, ts time.Time, ref string, side bool) *event.Ev
 		}
 		ev.ExecFP, ev.ExecCertain = fp.ExecFP(ev.Cmd, dir)
 		ev.Summary = "shell: " + trunc(ev.CmdNorm, 100)
+		for _, k := range []string{"timeout", "timeout_ms"} {
+			if v, ok := in[k].(float64); ok && v > 0 {
+				ev.TimeoutMS = int64(v)
+				break
+			}
+		}
+		ev.Background, _ = in["run_in_background"].(bool)
 	case event.ToolRead:
 		ev.Paths = []string{p.rel(str("file_path"))}
 		ev.Summary = "read " + ev.Paths[0]

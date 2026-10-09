@@ -26,7 +26,11 @@ func RolloutRoute(mode, rule string, evidence map[string]string) string {
 	return "block"
 }
 
-func ExplicitGuardrail(rule string) bool { return rule == "s3.protected_path" || rule == "s8.budget" }
+// ExplicitGuardrail reports rules that enforce a limit the user set: a
+// protected path, a budget, a session ceiling. They are not experiments.
+func ExplicitGuardrail(rule string) bool {
+	return rule == "s3.protected_path" || rule == "s8.budget" || rule == "s8.session_ceiling"
+}
 
 // Escalate turns advice into a block when the same rule was already advised
 // in this session and the agent repeated the behavior. Rules the user marked
@@ -53,8 +57,16 @@ func Escalable(rule, kind string, contractAccepted bool) bool {
 		return false
 	}
 	switch rule {
-	case "s1.identical_rerun", "s2.stuck_error", "s2.oscillation", "s2.semantic_oscillation", "s2.environment", "s5.error_hiding", "s5.test_weakening":
+	case "s1.identical_rerun", "s2.stuck_error", "s2.oscillation", "s2.semantic_oscillation", "s2.environment", "s5.error_hiding", "s5.test_weakening",
+		"s1.full_suite_local_change", "s5.release_without_preflight", "s5.release_rate":
 		return true
+	case "s1.unprobed_long_run":
+		// a run time inferred from a test's name is an estimate
+		return kind == "explicit"
+	case "s2.verifier_deadlock":
+		// only rerunning the same input; a turn waiting on the user has
+		// nothing left to block
+		return kind == "unchanged_rerun"
 	case "s5.stop_unmet", "s5.false_done", "s3.out_of_scope", "s3.config_bypass", "s1.verify_ratio", "s2.whack_a_mole", "s1.evidence_rerun":
 		return contractAccepted
 	default:

@@ -22,6 +22,10 @@ const (
 	FailDiskFull       = "disk_full"
 	FailTransient      = "transient"
 	FailFixable        = "fixable_import"
+	// FailUITiming is a browser test that acted or asserted before the page
+	// reached the state it waits for. The fix is in the code (wait for the
+	// state); a rerun of the same code may pass or fail by timing alone.
+	FailUITiming = "ui_timing"
 )
 
 // Fault is the single reading of one failed execution. Class drives the
@@ -104,6 +108,20 @@ var signals = []textSignal{
 		phrases: []string{"could not find `", "failed to select a version for", "error: no matching package named"}, subject: goPkgRe, generic: "go mod tidy"},
 }
 
+// uiTimingSignals are browser-test failures that point to a race between the
+// test and the page. They rank after the external causes (a dev server that is
+// down is a service failure, not a race) and before the generic code markers,
+// which their output also contains ("expected:").
+var uiTimingSignals = []textSignal{
+	{class: FailUITiming, signal: "ui_timing",
+		phrases: []string{"waiting for locator(", "waiting for selector", "waiting for expect(locator)", "waiting for getby", "element is not attached", "element is not visible",
+			"element is outside of the viewport", "staleelementreferenceexception", "elementclickinterceptedexception", "elementnotinteractableexception",
+			"timed out retrying after", "waiting for element to be visible", "intercepts pointer events"},
+		subject: uiTimeoutRe},
+}
+
+var uiTimeoutRe = regexp.MustCompile(`(?i)timeout \d+ms exceeded`)
+
 // codeSignals name failures whose remedy is a change to the source. They carry
 // no command: prescribing one would move the repair outside the evidence.
 var codeSignals = []textSignal{
@@ -144,6 +162,11 @@ func DiagnoseFailure(exitCode int, out string) Fault {
 	}
 	lower := strings.ToLower(out)
 	for _, s := range signals {
+		if f, ok := match(s, out, lower); ok {
+			return f
+		}
+	}
+	for _, s := range uiTimingSignals {
 		if f, ok := match(s, out, lower); ok {
 			return f
 		}
@@ -207,7 +230,7 @@ func apply(s textSignal, out, subject string) Fault {
 			return f
 		}
 	}
-	if f.Class == FailNone || f.Class == FailTransient {
+	if f.Class == FailNone || f.Class == FailTransient || f.Class == FailUITiming {
 		return f
 	}
 	switch {

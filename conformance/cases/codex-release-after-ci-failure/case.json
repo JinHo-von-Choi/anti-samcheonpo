@@ -1,0 +1,10 @@
+{
+ "input": "input.jsonl",
+ "agent": "codex",
+ "expect": {
+  "rules": [
+   "s5.release_without_preflight@L1"
+  ],
+  "contract_state": "draft"
+ }
+}

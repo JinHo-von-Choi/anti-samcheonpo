@@ -1,0 +1,2 @@
+AI가 {{if eq .kind "ci_failed"}}원격 CI 실패를 로컬에서 확인하지 않은 채{{else if eq .kind "unverified_change"}}고친 내용을 검사하지 않은 채{{else}}브라우저 시험이 실패한 채{{end}} 다시 배포하려 합니다 (`{{.cmd}}`).
+배포마다 원격 CI가 처음부터 다시 돌기 때문에 로컬 확인을 먼저 하는 편이 빠릅니다.

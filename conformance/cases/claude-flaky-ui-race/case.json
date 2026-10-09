@@ -1,0 +1,10 @@
+{
+ "input": "input.jsonl",
+ "agent": "claude",
+ "expect": {
+  "rules": [
+   "s2.flaky_ui_race@L1"
+  ],
+  "contract_state": "draft"
+ }
+}

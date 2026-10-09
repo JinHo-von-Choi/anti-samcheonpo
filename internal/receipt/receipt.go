@@ -311,6 +311,33 @@ func Describe(v detect.Signal) string {
 			return "의존성 파일 변경 (" + short(str("path"), 40) + ")"
 		}
 		return "검사·빌드 설정 변경 (" + short(str("path"), 40) + ")"
+	case "s1.full_suite_local_change":
+		return fmt.Sprintf("%s만 바꾸고 전체 시험 재실행 (%s)", str("size"), short(str("cmd"), 40))
+	case "s1.unprobed_long_run":
+		return fmt.Sprintf("짧은 확인 없이 긴 실행 시작 (%s)", short(str("cmd"), 40))
+	case "s2.verifier_deadlock":
+		if str("kind") == "waiting" {
+			return fmt.Sprintf("같은 거부가 반복된 채 사용자 선택을 기다리며 멈춤 (%s)", short(str("cmd"), 40))
+		}
+		return fmt.Sprintf("같은 도구가 같은 이유로 %d회 거부 (%s)", num("count"), short(str("cmd"), 40))
+	case "s2.flaky_ui_race":
+		return fmt.Sprintf("브라우저 시험이 화면 준비 전 확인으로 %d회 실패 (%s)", num("count"), short(str("cmd"), 40))
+	case "s4.serial_triage":
+		return fmt.Sprintf("보고서 항목을 하나씩 처리 %d회 (%s)", num("cycles"), short(str("path"), 40))
+	case "s5.release_without_preflight":
+		switch str("kind") {
+		case "ci_failed":
+			return fmt.Sprintf("원격 CI 실패를 로컬에서 확인하지 않고 배포 (%s)", short(str("cmd"), 40))
+		case "unverified_change":
+			return fmt.Sprintf("직전 배포 뒤 고친 내용을 검사하지 않고 다시 배포 (%s)", short(str("cmd"), 40))
+		}
+		return fmt.Sprintf("브라우저 시험 실패가 남은 채 배포 (%s)", short(str("cmd"), 40))
+	case "s5.release_rate":
+		return fmt.Sprintf("한 시간 안에 %d번째 배포 (%s)", num("count")+1, short(str("cmd"), 40))
+	case "s8.session_long":
+		return fmt.Sprintf("세션 활동 %s, 토큰 %s", str("hours"), str("tokens"))
+	case "s8.session_ceiling":
+		return fmt.Sprintf("세션 상한 %s 도달", str("limit"))
 	case "s4.read_only_streak":
 		return fmt.Sprintf("만들지 않고 읽기만 %d번", num("count"))
 	case "s5.test_weakening":

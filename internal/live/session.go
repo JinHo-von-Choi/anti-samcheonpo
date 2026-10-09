@@ -107,6 +107,9 @@ type Session struct {
 	failedEdits       map[string]ledger.FailedAttempt
 	produceSinceCheck int
 	lastPrimary       *detect.Signal
+	// ironSeen holds external error-hiding findings already reported, by
+	// path, rule and line text, so a finding is reported once.
+	ironSeen          map[string]bool
 	unresolved        *detect.Signal
 	rb                rollbackState
 	golden            *patch.GoldenStateManager
@@ -521,7 +524,12 @@ func (s *Session) adviceKey(v detect.Signal) string {
 		revision = s.intentRevision.Number
 	}
 	kind, _ := v.Facts["kind"].(string)
-	target, _ := v.Facts["path"].(string)
+	// target names what the rule judges when the command text varies for
+	// the same thing (each release has a new tag, each runner a new name)
+	target, _ := v.Facts["target"].(string)
+	if target == "" {
+		target, _ = v.Facts["path"].(string)
+	}
 	if target == "" {
 		target, _ = v.Facts["cmd"].(string)
 	}

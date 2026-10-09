@@ -1,0 +1,10 @@
+{
+ "input": "input.jsonl",
+ "agent": "codex",
+ "expect": {
+  "rules": [
+   "s2.stuck_error@L1"
+  ],
+  "contract_state": "draft"
+ }
+}

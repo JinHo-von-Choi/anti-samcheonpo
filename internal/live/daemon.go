@@ -653,6 +653,8 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		return "아래 내용을 에이전트에게 전달한다.\n\n" + intervene.Agent(*v, ctx, "prescription"), nil
 	case "summary":
 		return s.plainSummary(), nil
+	case "extend":
+		return d.extend(s, in.Arg)
 	case "rollback":
 		return s.rollback(in.Arg)
 	case "check":

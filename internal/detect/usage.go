@@ -2,7 +2,7 @@ package detect
 
 import "github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 
-type usagePart struct{ tokens, unpriced, waste int64 }
+type usagePart struct{ tokens, unpriced, waste, fresh int64 }
 
 type usageCache struct {
 	count                         int
@@ -10,6 +10,9 @@ type usageCache struct {
 	parts                         map[*event.Event]usagePart
 	dirty                         map[*event.Event]bool
 	tokens, unpriced, waste, idle int64
+	// fresh is input, output and cache writes: tokens without cache reads,
+	// which repeat the same context every turn and dwarf the rest.
+	fresh int64
 }
 
 func (s *State) invalidateUsage(ev *event.Event) {
@@ -26,13 +29,22 @@ func (s *State) invalidateUsage(ev *event.Event) {
 // late usage/waste classifications. Caller must serialize with engine mutation.
 // Unchanged reads are O(1); changing the progress boundary recomputes idle tokens.
 func (s *State) UsageSummary() (tokens, unpriced, waste, idle int64) {
+	c := s.refreshUsage()
+	return c.tokens, c.unpriced, c.waste, c.idle
+}
+
+// FreshTokens is the session's input, output and cache-write tokens, the
+// measure session-length limits use. Same serialization as UsageSummary.
+func (s *State) FreshTokens() int64 { return s.refreshUsage().fresh }
+
+func (s *State) refreshUsage() *usageCache {
 	c := &s.usageCache
 	if c.parts == nil || c.count > len(s.Events) {
 		*c = usageCache{parts: map[*event.Event]usagePart{}, progress: s.LastProgress}
 	}
 	update := func(ev *event.Event) {
 		old := c.parts[ev]
-		next := usagePart{tokens: ev.Usage.Total()}
+		next := usagePart{tokens: ev.Usage.Total(), fresh: ev.Usage.In + ev.Usage.Out + ev.Usage.CacheWrite}
 		if !ev.Priced {
 			next.unpriced = next.tokens
 		}
@@ -40,6 +52,7 @@ func (s *State) UsageSummary() (tokens, unpriced, waste, idle int64) {
 			next.waste = ev.CostMicroKRW
 		}
 		c.tokens += next.tokens - old.tokens
+		c.fresh += next.fresh - old.fresh
 		c.unpriced += next.unpriced - old.unpriced
 		c.waste += next.waste - old.waste
 		if ev.Seq > c.progress {
@@ -66,5 +79,5 @@ func (s *State) UsageSummary() (tokens, unpriced, waste, idle int64) {
 		}
 		c.progress = s.LastProgress
 	}
-	return c.tokens, c.unpriced, c.waste, c.idle
+	return c
 }

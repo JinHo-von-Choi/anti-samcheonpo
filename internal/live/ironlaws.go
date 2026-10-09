@@ -5,6 +5,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"strings"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/classify"
@@ -93,13 +94,33 @@ func (s *Session) ironLawsCheck(ev *event.Event) {
 		if err != nil || len(fs) == 0 {
 			continue
 		}
+		lines := fileLines(abs)
+		added := addedLines(ev, p)
 		s.mu.Lock()
 		if s.closed {
 			s.mu.Unlock()
 			return
 		}
+		if s.ironSeen == nil {
+			s.ironSeen = map[string]bool{}
+		}
 		var sigs []detect.Signal
 		for _, f := range fs {
+			// A finding is error hiding this write added only when it sits on
+			// a line the write added; one already in the file is not new, and
+			// the same finding is reported once per session.
+			text := ""
+			if f.Line > 0 && f.Line <= len(lines) {
+				text = strings.TrimSpace(lines[f.Line-1])
+			}
+			if added != nil && !added[text] {
+				continue
+			}
+			key := p + "\x00" + f.RuleID + "\x00" + text
+			if s.ironSeen[key] {
+				continue
+			}
+			s.ironSeen[key] = true
 			conf := 0.8
 			if f.Confidence == "CONFIRMED" {
 				conf = 0.9
@@ -110,4 +131,31 @@ func (s *Session) ironLawsCheck(ev *event.Event) {
 		s.deliver(s.eng.Emit(ev, sigs))
 		s.mu.Unlock()
 	}
+}
+
+// fileLines reads a file's lines; nil when it cannot be read.
+func fileLines(path string) []string {
+	b, err := os.ReadFile(path)
+	if err != nil {
+		return nil
+	}
+	return strings.Split(string(b), "\n")
+}
+
+// addedLines is the set of trimmed lines a write added to path, nil when the
+// write carries no patch for it (the added lines are unknown).
+func addedLines(ev *event.Event, path string) map[string]bool {
+	for _, pf := range ev.Patch {
+		if pf.Path != path {
+			continue
+		}
+		set := map[string]bool{}
+		for _, l := range pf.Added {
+			if t := strings.TrimSpace(l); t != "" {
+				set[t] = true
+			}
+		}
+		return set
+	}
+	return nil
 }

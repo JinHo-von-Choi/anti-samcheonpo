@@ -83,8 +83,14 @@ type Event struct {
 	CmdFP     string    `json:"cmd_fp,omitempty"`
 	// ExecFP identifies the execution for repeat decisions (fp.ExecFP);
 	// ExecCertain is false when the shell text hides what would run.
-	ExecFP      string            `json:"exec_fp,omitempty"`
-	ExecCertain bool              `json:"exec_certain,omitempty"`
+	ExecFP      string `json:"exec_fp,omitempty"`
+	ExecCertain bool   `json:"exec_certain,omitempty"`
+	// TimeoutMS is the run limit the agent stated for a shell call (0: none);
+	// Background marks a shell call started without waiting for its end.
+	TimeoutMS  int64 `json:"timeout_ms,omitempty"`
+	Background bool  `json:"background,omitempty"`
+	// DurationMS is the observed wall time of a tool call (0: unknown).
+	DurationMS  int64             `json:"duration_ms,omitempty"`
 	Dir         string            `json:"dir,omitempty"`
 	Paths       []string          `json:"paths,omitempty"`
 	WriteHashes map[string]string `json:"write_hashes,omitempty"`

@@ -387,6 +387,11 @@ func (p *Parser) item(pl map[string]any, ts time.Time, ref string) {
 		} else {
 			p.setResult(ev, -1, out)
 		}
+		if d, ok := it["duration"].(map[string]any); ok {
+			secs, _ := d["secs"].(float64)
+			nanos, _ := d["nanos"].(float64)
+			ev.DurationMS = int64(secs*1000 + nanos/1e6)
+		}
 		p.sess.ToolUses++
 		p.sess.ToolUsesPaired++
 	case "FileChange":
@@ -510,6 +515,9 @@ func (p *Parser) setResult(ev *event.Event, code int, out string) {
 
 var exitCodeRe = lazyre.New(`(?:Process exited with code|Exit code:?|"exit_code":)\s*(-?\d+)`)
 
+// wallTimeRe reads the run time Codex reports with a command's output.
+var wallTimeRe = lazyre.New(`(?:Wall time:|"duration_seconds":)\s*([0-9]+(?:\.[0-9]+)?)`)
+
 func (p *Parser) responseItem(pl map[string]any, ptype string, ts time.Time, ref string) {
 	switch ptype {
 	case "function_call", "custom_tool_call":
@@ -532,6 +540,9 @@ func (p *Parser) responseItem(pl map[string]any, ptype string, ts time.Time, ref
 					p.setExecDir(ev, wd)
 					break
 				}
+			}
+			if v, ok := args["timeout_ms"].(float64); ok && v > 0 {
+				ev.TimeoutMS = int64(v)
 			}
 		case "apply_patch":
 			input, _ := pl["input"].(string)
@@ -565,6 +576,12 @@ func (p *Parser) responseItem(pl map[string]any, ptype string, ts time.Time, ref
 			if m := exitCodeRe.FindStringSubmatch(out); m != nil {
 				fmt.Sscan(m[1], &code)
 			}
+			if m := wallTimeRe.FindStringSubmatch(out); m != nil {
+				var sec float64
+				if _, err := fmt.Sscan(m[1], &sec); err == nil && sec > 0 {
+					ev.DurationMS = int64(sec * 1000)
+				}
+			}
 			p.setResult(ev, code, out)
 		}
 	case "message":
@@ -590,6 +607,9 @@ func outputText(v any) string {
 		if json.Unmarshal([]byte(o), &m) == nil {
 			if s, ok := m["output"].(string); ok {
 				if md, ok := m["metadata"].(map[string]any); ok {
+					if d, ok := md["duration_seconds"].(float64); ok && d > 0 {
+						s = fmt.Sprintf("%s\nWall time: %g seconds", s, d)
+					}
 					if ec, ok := md["exit_code"].(float64); ok {
 						return fmt.Sprintf("%s\nExit code: %d", s, int(ec))
 					}

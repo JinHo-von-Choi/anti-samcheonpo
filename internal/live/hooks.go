@@ -421,6 +421,13 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 		}
 	}
 	if !deny {
+		// the session ceiling, releases, long runs and whole-suite runs do
+		// not depend on the workspace fingerprint
+		if pre := s.eng.PreGuard(ev); pre != nil {
+			deny, sig = true, pre
+		}
+	}
+	if !deny {
 		if pre := s.swarmPre(); pre != nil {
 			deny, sig = true, pre
 		}
@@ -532,9 +539,12 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 		return nil
 	}
 	ev := s.byTool[in.ToolUseID]
+	started := time.Time{}
 	if ev == nil {
 		ev = s.buildTool(in)
 		s.byTool[ev.CallID] = ev
+	} else {
+		started = ev.TS // set when the pre-tool hook saw the call
 	}
 	delete(s.shell, ev.CallID)
 	delete(s.awaiting, ev.CallID)
@@ -560,6 +570,9 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 		s.trackAfter(ev.CallID, ev.Paths)
 	}
 	ev.TS = time.Now()
+	if !started.IsZero() && ev.DurationMS == 0 {
+		ev.DurationMS = ev.TS.Sub(started).Milliseconds()
+	}
 	contractWrite := false
 	for _, p := range ev.Paths {
 		if p == ".samcheonpo/contract.yml" || strings.HasSuffix(p, "/.samcheonpo/contract.yml") || filepath.Clean(p) == contract.Path(s.Root) {

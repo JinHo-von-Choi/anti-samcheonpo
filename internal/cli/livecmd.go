@@ -96,7 +96,7 @@ func statuslineCmd() *cobra.Command {
 
 func slashCmd() *cobra.Command {
 	return &cobra.Command{
-		Use:   "cmd <accept|edit|skip|keep|steer|summary|check|status|card|rollback> [arg]",
+		Use:   "cmd <accept|edit|skip|keep|steer|summary|check|status|card|rollback|extend> [arg]",
 		Short: "플러그인 슬래시 명령 처리",
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {

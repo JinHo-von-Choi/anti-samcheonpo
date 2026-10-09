@@ -48,6 +48,12 @@ type HUDState struct {
 	// this session belongs to; both 0 when the session is not in a bounded tree.
 	TreeKRW      int64 `json:"tree_krw,omitempty"`
 	TreeLimitKRW int64 `json:"tree_limit_krw,omitempty"`
+	// SessionMinutes and SessionTokens are the session's active time and
+	// fresh tokens; SessionTier is the length tier reached (0 none, 1 notice,
+	// 2 warn, 3 ceiling).
+	SessionMinutes int   `json:"session_minutes,omitempty"`
+	SessionTokens  int64 `json:"session_tokens,omitempty"`
+	SessionTier    int   `json:"session_tier,omitempty"`
 }
 
 // HUDPayload is the JSON serialised form broadcast to HUD subscribers.

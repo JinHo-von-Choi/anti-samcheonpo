@@ -64,12 +64,31 @@ type Detectors struct {
 		RatioWindow   int     `yaml:"ratio_window" json:"ratio_window"`
 		Ratio         float64 `yaml:"ratio" json:"ratio"`
 		TestBloat     float64 `yaml:"test_bloat" json:"test_bloat"`
+		// A whole-suite run after a change smaller than both limits (files
+		// changed, lines changed) is a local change checked at full cost.
+		// 0 turns the rule off.
+		LocalChangeFiles int `yaml:"local_change_files" json:"local_change_files"`
+		LocalChangeLines int `yaml:"local_change_lines" json:"local_change_lines"`
+		// Runs stated to last up to LongRunFreeSec need no earlier probe;
+		// longer ones may last StepRatio times the longest passed run of the
+		// same target.
+		// ExpensiveCheckSec makes a test run that last took this long count
+		// as a whole-suite run, whatever runs it (0: by scope only).
+		ExpensiveCheckSec int `yaml:"expensive_check_sec" json:"expensive_check_sec"`
+		LongRunFreeSec    int `yaml:"long_run_free_sec" json:"long_run_free_sec"`
+		LongRunStepRatio  int `yaml:"long_run_step_ratio" json:"long_run_step_ratio"`
 	} `yaml:"s1_verify_treadmill" json:"s1"`
 	S2 struct {
 		Nudge         int `yaml:"nudge" json:"nudge"`
 		Notify        int `yaml:"notify" json:"notify"`
 		Pause         int `yaml:"pause" json:"pause"`
 		WhackAttempts int `yaml:"whack_attempts" json:"whack_attempts"`
+		// RejectionRepeats is when a command outside the known checks failing
+		// the same way despite edits is put to the user.
+		RejectionRepeats int `yaml:"rejection_repeats" json:"rejection_repeats"`
+		// UITimingRepeats is when browser-test timing failures of one command
+		// are reported as a race.
+		UITimingRepeats int `yaml:"ui_timing_repeats" json:"ui_timing_repeats"`
 	} `yaml:"s2_failure_loop" json:"s2"`
 	S3 struct {
 		NotifyFiles        int     `yaml:"notify_files" json:"notify_files"`
@@ -91,7 +110,14 @@ type Detectors struct {
 		MaxReads    int `yaml:"max_reads" json:"max_reads"`
 		MaxMinutes  int `yaml:"max_minutes" json:"max_minutes"`
 		RereadCount int `yaml:"reread_count" json:"reread_count"`
+		// TriageCycles is when going back to one findings report and editing
+		// a file or two each time is reported as a serial triage.
+		TriageCycles int `yaml:"triage_cycles" json:"triage_cycles"`
 	} `yaml:"s4_idle_explore" json:"s4"`
+	S5 struct {
+		// ReleasesPerHour bounds tag pushes, releases and publishes per hour.
+		ReleasesPerHour int `yaml:"releases_per_hour" json:"releases_per_hour"`
+	} `yaml:"s5_release" json:"s5"`
 	S7 struct {
 		Compactions int `yaml:"compactions" json:"compactions"`
 	} `yaml:"s7_memory_rot" json:"s7"`
@@ -101,6 +127,18 @@ type Detectors struct {
 		IdleSpendFloorKRW      int64   `yaml:"idle_spend_floor_krw" json:"idle_spend_floor_krw"`
 		IdleSpendBudgetRatio   float64 `yaml:"idle_spend_budget_ratio" json:"idle_spend_budget_ratio"`
 		IdleMinToolEvents      int     `yaml:"idle_min_tool_events" json:"idle_min_tool_events"`
+		// Session length: active hours or tokens (input, output and cache
+		// writes) at which the user is told (notice) and asked (warn). 0 turns
+		// a limit off.
+		NoticeHours  float64 `yaml:"notice_hours" json:"notice_hours"`
+		NoticeTokens int64   `yaml:"notice_tokens" json:"notice_tokens"`
+		WarnHours    float64 `yaml:"warn_hours" json:"warn_hours"`
+		WarnTokens   int64   `yaml:"warn_tokens" json:"warn_tokens"`
+		// CeilingHours and CeilingTokens stop the session until the user
+		// extends it. Off (0) unless the user sets them; a project file may
+		// lower them but not raise or remove them.
+		CeilingHours  float64 `yaml:"ceiling_hours" json:"ceiling_hours"`
+		CeilingTokens int64   `yaml:"ceiling_tokens" json:"ceiling_tokens"`
 	} `yaml:"s8_cost" json:"s8"`
 	// Overrides raises per-rule thresholds after confirmed false positives.
 	Overrides map[string]int `yaml:"overrides" json:"overrides"`
@@ -160,6 +198,17 @@ func Default() Config {
 	c.Detectors.S1.RatioWindow = 20
 	c.Detectors.S1.Ratio = 4
 	c.Detectors.S1.TestBloat = 3
+	c.Detectors.S1.LocalChangeFiles = 3
+	c.Detectors.S1.LocalChangeLines = 50
+	c.Detectors.S1.LongRunFreeSec = 300
+	c.Detectors.S1.ExpensiveCheckSec = 300
+	c.Detectors.S1.LongRunStepRatio = 6
+	c.Detectors.S2.RejectionRepeats = 2
+	c.Detectors.S2.UITimingRepeats = 2
+	c.Detectors.S4.TriageCycles = 10
+	c.Detectors.S5.ReleasesPerHour = 2
+	c.Detectors.S8.NoticeHours, c.Detectors.S8.NoticeTokens = 2, 10_000_000
+	c.Detectors.S8.WarnHours, c.Detectors.S8.WarnTokens = 4, 30_000_000
 	c.Detectors.S2.Nudge, c.Detectors.S2.Notify, c.Detectors.S2.Pause = 3, 5, 8
 	c.Detectors.S2.WhackAttempts = 5
 	c.Detectors.S3.NotifyFiles = 3
@@ -304,7 +353,55 @@ func loosenOnly(d *Detectors, l *Levels, ud Detectors, ul Levels) {
 			*v = u
 		}
 	}
+	atMost := func(v *int, u int) {
+		if *v > u {
+			*v = u
+		}
+	}
+	// 0 is off, the loosest setting: a project may turn a limit off or
+	// raise it, but not turn on one the user has off or lower it
+	atLeastOrOffF := func(v *float64, u float64) {
+		switch {
+		case *v == 0:
+		case u == 0:
+			*v = 0
+		case *v < u:
+			*v = u
+		}
+	}
+	atLeastOrOff64 := func(v *int64, u int64) {
+		switch {
+		case *v == 0:
+		case u == 0:
+			*v = 0
+		case *v < u:
+			*v = u
+		}
+	}
 	atLeast(&d.S1.RepeatNudgeAt, ud.S1.RepeatNudgeAt)
+	atLeast(&d.S1.RatioWindow, ud.S1.RatioWindow)
+	// a larger local-change limit judges more runs; the smaller one wins
+	atMost(&d.S1.LocalChangeFiles, ud.S1.LocalChangeFiles)
+	atMost(&d.S1.LocalChangeLines, ud.S1.LocalChangeLines)
+	atLeast(&d.S1.LongRunFreeSec, ud.S1.LongRunFreeSec)
+	atLeast(&d.S1.ExpensiveCheckSec, ud.S1.ExpensiveCheckSec)
+	atLeast(&d.S1.LongRunStepRatio, ud.S1.LongRunStepRatio)
+	atLeast(&d.S2.RejectionRepeats, ud.S2.RejectionRepeats)
+	atLeast(&d.S2.UITimingRepeats, ud.S2.UITimingRepeats)
+	atLeast(&d.S4.TriageCycles, ud.S4.TriageCycles)
+	atLeast(&d.S5.ReleasesPerHour, ud.S5.ReleasesPerHour)
+	atLeastOrOffF(&d.S8.NoticeHours, ud.S8.NoticeHours)
+	atLeastOrOff64(&d.S8.NoticeTokens, ud.S8.NoticeTokens)
+	atLeastOrOffF(&d.S8.WarnHours, ud.S8.WarnHours)
+	atLeastOrOff64(&d.S8.WarnTokens, ud.S8.WarnTokens)
+	// The session ceiling is a budget: a project may lower it, never raise or
+	// remove one the user set.
+	if ud.S8.CeilingHours > 0 && (d.S8.CeilingHours <= 0 || d.S8.CeilingHours > ud.S8.CeilingHours) {
+		d.S8.CeilingHours = ud.S8.CeilingHours
+	}
+	if ud.S8.CeilingTokens > 0 && (d.S8.CeilingTokens <= 0 || d.S8.CeilingTokens > ud.S8.CeilingTokens) {
+		d.S8.CeilingTokens = ud.S8.CeilingTokens
+	}
 	atLeastF(&d.S1.Ratio, ud.S1.Ratio)
 	atLeastF(&d.S1.TestBloat, ud.S1.TestBloat)
 	atLeast(&d.S2.Nudge, ud.S2.Nudge)

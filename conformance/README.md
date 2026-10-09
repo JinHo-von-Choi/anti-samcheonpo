@@ -6,7 +6,7 @@
 go build -o samcheonpo ./cmd/samcheonpo
 go build -o samcheonpo-conformance ./cmd/samcheonpo-conformance
 ./samcheonpo-conformance --impl "./samcheonpo spec run" --cases conformance/cases
-# v1 4건 + v2 10건
+# v1 10건 + v2 10건
 ./samcheonpo-conformance --impl "./samcheonpo spec run" --task-impl "./samcheonpo spec task"
 ```
 

@@ -42,6 +42,32 @@ var verifyRes = []*lazyre.RE{
 	lazyre.New(`^(?:shellcheck|golangci-lint|staticcheck|swift\s+(?:test|build)|xcodebuild|flutter\s+test|dart\s+test|phpunit|rspec|bundle\s+exec\s+rspec)\b`),
 }
 
+// verifyScriptRe matches a project script named as a test, gate, check,
+// verification, CI or lint run (scripts/gates.py, ./check-all.sh, ci.sh).
+var verifyScriptRe = lazyre.New(`^(?:(?:python3?|py|node|bash|sh|zsh|deno\s+run)\s+(?:-\S+\s+)*)?(?:\./|/)?(?:[\w.-]+/)*(?:[\w-]*[_-])?(?:tests?|gates?|checks?|verify|verification|ci|lint|smoke)(?:[_-][\w-]*)?\.(?:py|sh|js|mjs|ts|bash)\b`)
+
+// interpreterVersionRe matches a versioned interpreter name (python3.13).
+var interpreterVersionRe = lazyre.New(`^(python3?|pypy3?|node)\d*(?:\.\d+)*$`)
+
+// bareProgram rewrites the program word of a command to its plain name, so a
+// tool run from a virtual environment or a vendored bin directory
+// (.venv/bin/python, node_modules/.bin/jest, /usr/bin/python3.13) is classified
+// like the same tool on PATH.
+func bareProgram(norm string) string {
+	word, rest := norm, ""
+	if i := strings.IndexAny(norm, " \t"); i >= 0 {
+		word, rest = norm[:i], norm[i:]
+	}
+	base := pathnorm.CommandBase(word)
+	if m := interpreterVersionRe.FindStringSubmatch(base); m != nil {
+		base = m[1]
+	}
+	if base == word {
+		return norm
+	}
+	return base + rest
+}
+
 var exploreWords = map[string]bool{
 	"cat": true, "ls": true, "find": true, "grep": true, "rg": true, "head": true, "tail": true,
 	"wc": true, "tree": true, "sed": true, "awk": true, "less": true, "more": true, "file": true,
@@ -75,11 +101,21 @@ type Options struct {
 
 // Shell classifies a raw shell command. It returns the class and whether the
 // command mutates files.
+// Here-document bodies are not command lines: a body read by an interpreter
+// is judged by the commands it runs (subprocess calls, exec calls, script
+// lines) and the files it writes; a body redirected into a file is content.
+// A command that both changes files and runs tests (a test runner, a gate
+// script, or checks run from a here-document) is a verification that
+// mutates, so the test run is seen.
 func Shell(cmd string, opt Options) (class string, mutating bool) {
-	stages := fp.SplitStages(cmd)
-	hasProduce, hasVerify, hasExplore, hasUnknown := false, false, false, false
-	for _, st := range stages {
-		c, mut := stage(st, opt)
+	return shellDepth(cmd, opt, 0)
+}
+
+func shellDepth(cmd string, opt Options, depth int) (class string, mutating bool) {
+	outer, docs := splitHeredocs(cmd)
+	stages := fp.SplitStages(outer)
+	hasProduce, hasVerify, hasExplore, hasUnknown, hasTest := false, false, false, false, false
+	note := func(c string, mut bool) {
 		if mut {
 			mutating = true
 		}
@@ -94,7 +130,27 @@ func Shell(cmd string, opt Options) (class string, mutating bool) {
 			hasUnknown = true
 		}
 	}
+	for _, st := range stages {
+		c, mut := stage(st, opt)
+		note(c, mut)
+		hasTest = hasTest || (c == ShellVerify && isTestRun(st))
+	}
+	for _, d := range docs {
+		if depth < 2 {
+			for _, c := range embeddedCommands(d) {
+				cls, mut := shellDepth(c, opt, depth+1)
+				note(cls, mut)
+				hasTest = hasTest || cls == ShellVerify
+			}
+		}
+		if interpreterKind(d.reader) == "python" && len(pythonWrites(d.body)) > 0 {
+			hasProduce, mutating = true, true
+		}
+	}
 	switch {
+	case hasTest && hasProduce:
+		// a test run in the same command as an edit is still a test run
+		return ShellVerify, true
 	case hasProduce:
 		return ShellProduce, true
 	case hasVerify:
@@ -133,10 +189,14 @@ func stage(st string, opt Options) (string, bool) {
 			mut = true
 		}
 	}
+	bare := bareProgram(norm)
 	for _, re := range verifyRes {
-		if re.MatchString(norm) {
+		if re.MatchString(bare) {
 			return ShellVerify, mut
 		}
+	}
+	if verifyScriptRe.MatchString(bare) {
+		return ShellVerify, mut
 	}
 	if rules.Current().VerifyCommands.Match(norm) {
 		return ShellVerify, mut
@@ -155,6 +215,13 @@ func stage(st string, opt Options) (string, bool) {
 	}
 	if w == "git" {
 		sub := secondWord(norm)
+		if sub == "tag" {
+			// creating or deleting a tag changes the repository; listing does not
+			if _, rest := gitSub(strings.Fields(norm)[1:]); gitTagMutates(rest) {
+				return ShellProduce, true
+			}
+			return ShellExplore, false
+		}
 		if gitProduce[sub] {
 			return ShellProduce, true
 		}
@@ -215,6 +282,10 @@ func Initial(ev *event.Event, opt Options) {
 		cls, mut := Shell(ev.Cmd, opt)
 		ev.ShellClass = cls
 		ev.Mutating = mut
+		if len(ev.Paths) == 0 && mut {
+			// files a here-document script writes are the call's paths
+			ev.Paths = HeredocWrites(ev.Cmd)
+		}
 		switch cls {
 		case ShellVerify:
 			ev.Category = event.CatVerify
@@ -285,3 +356,10 @@ func IsManifest(p string) bool { return manifestNames[path.Base(p)] }
 
 // IsToolConfig reports lint/type/build/test configuration files.
 func IsToolConfig(p string) bool { return configNames[path.Base(p)] }
+
+// isTestRun reports whether a verification stage runs tests or a project
+// gate rather than a build or a linter alone.
+func isTestRun(st string) bool {
+	n, _ := fp.NormalizeCmd(st)
+	return VerifyScope(n) != ScopeUnknown || verifyScriptRe.MatchString(bareProgram(n))
+}

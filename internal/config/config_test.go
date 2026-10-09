@@ -150,3 +150,44 @@ func TestProjectCanOnlyLoosenThresholds(t *testing.T) {
 		t.Fatal("overrides come from the user's feedback, not from a project file")
 	}
 }
+
+func TestLongSessionLimitsMergeAsLimits(t *testing.T) {
+	home, project := t.TempDir(), t.TempDir()
+	t.Setenv("SAMCHEONPO_HOME", home)
+	if err := os.WriteFile(filepath.Join(home, "config.yml"), []byte("detectors:\n  s8_cost: {ceiling_hours: 6, ceiling_tokens: 50000000}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(filepath.Join(project, ".samcheonpo.yml"), []byte(
+		"detectors:\n  s1_verify_treadmill: {local_change_files: 10, local_change_lines: 9999, ratio_window: 2, expensive_check_sec: 30}\n"+
+			"  s8_cost: {ceiling_hours: 0, ceiling_tokens: 90000000, notice_hours: 1, warn_hours: 0}\n  s5_release: {releases_per_hour: 1}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, _, err := Load(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	d := Default()
+	s1, s8 := c.Detectors.S1, c.Detectors.S8
+	if s1.LocalChangeFiles != d.Detectors.S1.LocalChangeFiles || s1.LocalChangeLines != d.Detectors.S1.LocalChangeLines {
+		t.Fatalf("a larger local-change limit judges more runs, a project cannot raise it: %+v", s1)
+	}
+	if s1.RatioWindow != d.Detectors.S1.RatioWindow || s1.ExpensiveCheckSec != d.Detectors.S1.ExpensiveCheckSec {
+		t.Fatalf("a project made the ratio window or the expensive check stricter: %+v", s1)
+	}
+	if s8.CeilingHours != 6 || s8.CeilingTokens != 50_000_000 {
+		t.Fatalf("a project cannot remove or raise the user's ceiling: %+v", s8)
+	}
+	if s8.NoticeHours != d.Detectors.S8.NoticeHours || s8.WarnHours != 0 {
+		t.Fatalf("a project may turn a notice off but not lower it: %+v", s8)
+	}
+	if c.Detectors.S5.ReleasesPerHour != d.Detectors.S5.ReleasesPerHour {
+		t.Fatal("a project cannot lower the release rate")
+	}
+	// a project may lower the ceiling
+	if err := os.WriteFile(filepath.Join(project, ".samcheonpo.yml"), []byte("detectors:\n  s8_cost: {ceiling_hours: 2}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	if c, _, _ = Load(project); c.Detectors.S8.CeilingHours != 2 {
+		t.Fatalf("a project may tighten the ceiling: %v", c.Detectors.S8.CeilingHours)
+	}
+}

@@ -10,6 +10,7 @@ func TestUserOnlyCommandMatching(t *testing.T) {
 		"samcheonpo cmd skip",
 		"samcheonpo cmd edit 목표 변경",
 		"samcheonpo cmd rollback apply",
+		"samcheonpo cmd extend 2h",
 		"samcheonpo contract accept",
 		"~/.local/bin/samcheonpo cmd accept",
 		`"/home/u/.local/bin/samcheonpo" cmd keep normal`,
@@ -25,6 +26,8 @@ func TestUserOnlyCommandMatching(t *testing.T) {
 		`sh -lc "cd /w && samcheonpo cmd keep normal"`,
 		"cmd /c samcheonpo.exe cmd accept",
 		`powershell -NoProfile -Command "samcheonpo.exe cmd skip"`,
+		"bash <<'EOF'\nsamcheonpo cmd accept\nEOF",
+		"python3 - <<'PY'\nimport subprocess\nsubprocess.run(['samcheonpo','cmd','keep','normal'])\nPY",
 	} {
 		if !userOnlyCommand(c) {
 			t.Errorf("%q must be refused", c)
@@ -44,6 +47,8 @@ func TestUserOnlyCommandMatching(t *testing.T) {
 		"bash -c 'echo samcheonpo cmd accept'",
 		"bash run.sh samcheonpo cmd accept",
 		"cmd /c echo hello",
+		"cat >> docs/GUIDE.md <<'EOF'\n| 해제 | `samcheonpo cmd keep normal`은 에이전트 셸에서 거부된다 |\nEOF",
+		"python3 - <<'PY'\np.write_text(s.replace('`samcheonpo cmd accept`', '`samcheonpo cmd accept` 설명'))\nPY",
 	} {
 		if userOnlyCommand(c) {
 			t.Errorf("%q must be allowed", c)

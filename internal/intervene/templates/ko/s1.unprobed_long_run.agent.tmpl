@@ -1,0 +1,4 @@
+[삼천포] 관찰: `{{.cmd}}`은(는) {{if .seconds}}{{.seconds}}초{{else}}길게{{end}} 도는 실행인데, 같은 대상의 짧은 실행이 통과한 기록이 {{if .probe}}{{.probe}}초까지만{{else}}없다{{end}}.
+근거: 이벤트 {{.evidence}}. 지금 근거로 허용되는 길이는 {{.allowed}}초까지다{{if eq .kind "estimated"}}(실행 길이는 이름과 시간 제한에서 추정){{end}}.
+비용: {{.cost_summary}}
+계약: 목표는 {{.goal}}이다. 긴 실행이 중간에 실패하면 그때까지의 시간이 모두 사라진다.

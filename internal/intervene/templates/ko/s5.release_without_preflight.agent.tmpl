@@ -1,0 +1,4 @@
+[삼천포] 관찰: {{if eq .kind "ci_failed"}}원격 CI 결과(`{{.ci_cmd}}`)가 실패한 뒤 로컬에서 통과한 검사 없이{{else if eq .kind "unverified_change"}}직전 배포 뒤 코드를 고쳤는데 통과한 검사 없이{{else}}브라우저 시험 `{{.failing_cmd}}`이(가) 타이밍 실패로 남은 상태에서{{end}} `{{.cmd}}`로 배포하려 한다.
+근거: 이벤트 {{.evidence}}.
+비용: {{.cost_summary}}
+계약: 목표는 {{.goal}}이다. 원격 CI는 실패를 처음 찾는 곳이 아니라 로컬에서 통과한 것을 확인하는 곳이다.
