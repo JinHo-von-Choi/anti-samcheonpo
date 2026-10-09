@@ -26,7 +26,7 @@ type rejectMark struct {
 // did not change the result, the edits cannot satisfy the tool and the
 // decision goes to the user.
 func (e *Engine) trackRejection(ev *event.Event, sigs *[]Signal) {
-	if ev.Tool != event.ToolShell || !ev.Unknown || ev.ExitCode == nil || *ev.ExitCode == -1 || runID(ev) == "" {
+	if ev.Tool != event.ToolShell || !ev.Unknown || ev.ExitCode == nil || *ev.ExitCode == -1 || ev.Background || runID(ev) == "" {
 		return
 	}
 	m := e.St.mar

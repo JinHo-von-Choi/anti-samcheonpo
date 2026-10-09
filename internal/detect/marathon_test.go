@@ -282,3 +282,41 @@ func TestLongPauseIsNotActiveTime(t *testing.T) {
 		t.Fatalf("a night away is not work: %v", active)
 	}
 }
+
+// The failed CI run's log names a Go package; running that whole package
+// locally until it passes is the reproduction, whatever spelling the local
+// command uses for the package.
+func TestReleaseAfterCIFailureNamingAGoPackage(t *testing.T) {
+	b := newB(t, "x", nil)
+	log := "native-package (windows-11-arm)\tSource checks\t2026-10-09T14:28:11.3483757Z --- FAIL: TestSummary (0.93s)\n" +
+		"native-package (windows-11-arm)\tSource checks\t2026-10-09T14:28:11.3492061Z FAIL\tgithub.com/x/y/internal/live\t63.846s\n"
+	b.run("gh run view 37 --log-failed | tail -20", 0, log, time.Second)
+	b.write("internal/live/live_test.go", "h", []string{"a"}, []string{"b"})
+	b.run("go test ./internal/adapter", 0, "ok", time.Second)
+	if s := b.pre("git push origin v0.5.0"); s == nil || s.Facts["kind"] != "ci_failed" {
+		t.Fatalf("another package passing does not cover the failed one: %+v", s)
+	}
+	b.run("go test -race ./internal/live ./internal/adapter", 0, "ok", 3*time.Minute)
+	if s := b.pre("git push origin v0.5.0"); s != nil {
+		t.Fatalf("the failed package passing locally is the reproduction: %+v", s)
+	}
+}
+
+// A call started in the background exits at launch: its exit status is not a
+// test result or a CI result.
+func TestBackgroundRunIsNotAResult(t *testing.T) {
+	b := newB(t, "x", nil)
+	b.run("gh run watch 37 --exit-status", 1, "X failed", time.Second)
+	ev := shellRun("gh run watch 38 --exit-status", 0, "Command running in background", 0)
+	ev.Background = true
+	b.next(ev)
+	run := shellRun("pytest -q", 0, "Command running in background", 0)
+	run.Background = true
+	b.next(run)
+	if ExecutedVerify(run) {
+		t.Fatal("a background test run has no result yet")
+	}
+	if s := b.pre("git push origin v1.0.0"); s == nil || s.Facts["kind"] != "ci_failed" {
+		t.Fatalf("launching a CI watch in the background does not clear the failure: %+v", s)
+	}
+}

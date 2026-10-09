@@ -358,9 +358,11 @@ func (e *Engine) nondeterministic(norm string) bool {
 	return false
 }
 
-// ExecutedVerify reports whether ev is a verification that actually ran.
+// ExecutedVerify reports whether ev is a verification that actually ran to
+// its end. One started in the background exits at launch, so its status is
+// not a result.
 func ExecutedVerify(ev *event.Event) bool {
-	return ev.Category == event.CatVerify && ev.ExitCode != nil && *ev.ExitCode != -1
+	return ev.Category == event.CatVerify && ev.ExitCode != nil && *ev.ExitCode != -1 && !ev.Background
 }
 
 // failing reports a failed run. A check whose exit status a trailing read

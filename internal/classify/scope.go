@@ -599,10 +599,9 @@ func CIResult(cmd string, exitCode int, out string) string {
 			if strings.TrimSpace(out) != "" {
 				return CIFailed
 			}
-			return CIUnknown
 		case (prog == "gh" && w[1] == "run" && (w[2] == "watch" || w[2] == "view" || w[2] == "list")) || (prog == "glab" && w[1] == "ci" && (w[2] == "status" || w[2] == "view" || w[2] == "list")):
 			if exitCode != 0 {
-				return CIUnknown // the command itself failed; it says nothing about CI
+				continue // the command itself failed; it says nothing about CI
 			}
 			// --json output: the first conclusion is the run (or the latest
 			// run of a list); an empty one is a run still in progress
@@ -613,7 +612,7 @@ func CIResult(cmd string, exitCode int, out string) string {
 				case "failure", "timed_out", "startup_failure", "cancelled", "action_required":
 					return CIFailed
 				}
-				return CIUnknown
+				continue
 			}
 			for _, l := range strings.Split(out, "\n") {
 				switch {
@@ -623,10 +622,31 @@ func CIResult(cmd string, exitCode int, out string) string {
 					return CIPassed
 				}
 			}
-			return CIUnknown
 		}
 	}
 	return CIUnknown
+}
+
+// ciLogPrefixRe is the "job<TAB>step<TAB>timestamp " prefix gh puts on each
+// line of a run log.
+var ciLogPrefixRe = lazyre.New(`(?m)^[^\t\n]*\t[^\t\n]*\t(?:\d{4}-\d{2}-\d{2}T[\d:.]+Z )?`)
+
+// goPkgFailRe matches the package line of a failed Go test run.
+var goPkgFailRe = lazyre.New(`(?m)^FAIL\s+(\S+/\S+)\s+[\d.]+s\s*$`)
+
+// CILog returns a CI run log without the per-line job, step and time
+// prefix, so test runner output in it reads like local output.
+func CILog(out string) string { return ciLogPrefixRe.ReplaceAllString(out, "") }
+
+// FailedPackages lists the Go packages a test output reports as failed.
+func FailedPackages(out string) []string {
+	var pkgs []string
+	for _, m := range goPkgFailRe.FindAllStringSubmatch(out, -1) {
+		if !slices.Contains(pkgs, m[1]) {
+			pkgs = append(pkgs, m[1])
+		}
+	}
+	return pkgs
 }
 
 // maskReaders are commands that, run last, replace a check's exit status with

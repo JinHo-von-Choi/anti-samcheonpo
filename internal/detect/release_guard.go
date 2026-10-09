@@ -6,6 +6,7 @@ import (
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/classify"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testout"
 )
 
 // ciMark is the latest remote CI result the agent read that failed.
@@ -14,26 +15,31 @@ type ciMark struct {
 	ws    string
 	cmd   string
 	tests []string // failing tests the CI output named, when it named any
+	pkgs  []string // failing Go packages the CI output named
 }
 
 // trackRelease records remote CI results the agent read and the releases
 // that went out.
 func (e *Engine) trackRelease(ev *event.Event) {
-	if ev.Tool != event.ToolShell || ev.ExitCode == nil || *ev.ExitCode == -1 {
+	// a call started in the background exits when it is launched; its exit
+	// status says nothing about what it runs
+	if ev.Tool != event.ToolShell || ev.ExitCode == nil || *ev.ExitCode == -1 || ev.Background {
 		return
 	}
 	m := e.St.mar
+	log := classify.CILog(ev.Text)
 	switch classify.CIResult(cmdOf(ev), *ev.ExitCode, ev.Text) {
 	case classify.CIPassed:
 		m.ci = nil
 		return
 	case classify.CIFailed:
-		m.ci = &ciMark{seq: ev.Seq, ws: ev.WSBefore, cmd: ev.CmdNorm, tests: append([]string(nil), ev.FailedTests...)}
+		m.ci = &ciMark{seq: ev.Seq, ws: ev.WSBefore, cmd: ev.CmdNorm, tests: testout.FailedTests(log), pkgs: classify.FailedPackages(log)}
 		return
 	}
-	if m.ci != nil && len(ev.FailedTests) > 0 && ev.Category != event.CatVerify && ev.Seq > m.ci.seq {
-		// failing tests read back from the CI log after the failure
-		m.ci.tests = append(m.ci.tests, ev.FailedTests...)
+	if m.ci != nil && ev.Category != event.CatVerify && ev.Seq > m.ci.seq {
+		// failing tests read back from a saved CI log after the failure
+		m.ci.tests = append(m.ci.tests, testout.FailedTests(log)...)
+		m.ci.pkgs = append(m.ci.pkgs, classify.FailedPackages(log)...)
 	}
 	if k := classify.Release(cmdOf(ev)); k != classify.ReleaseNone && k != classify.ReleaseTag && *ev.ExitCode == 0 {
 		m.lastRelease, m.released = ev.Seq, true
@@ -114,11 +120,41 @@ func (e *Engine) reproduced(ci *ciMark) bool {
 		if e.wide(c) {
 			return true
 		}
-		if len(ci.tests) > 0 && coversTests(strings.Join(c.tests, " ")+" "+ev.CmdNorm, ci.tests) {
+		cmd := strings.Join(c.tests, " ") + " " + ev.CmdNorm
+		if len(ci.pkgs) > 0 && coversPackages(cmd, ci.pkgs) {
+			return true
+		}
+		if len(ci.tests) > 0 && coversTests(cmd, ci.tests) {
 			return true
 		}
 	}
 	return false
+}
+
+// coversPackages reports whether a command runs every failed Go package:
+// a package argument whose path ends the package's import path
+// (./internal/live for github.com/x/y/internal/live).
+func coversPackages(cmd string, pkgs []string) bool {
+	var args []string
+	for _, w := range strings.Fields(cmd) {
+		w = strings.TrimSuffix(strings.TrimPrefix(w, "./"), "/")
+		if w != "" && w != "..." && !strings.HasPrefix(w, "-") {
+			args = append(args, w)
+		}
+	}
+	for _, p := range pkgs {
+		found := false
+		for _, a := range args {
+			if p == a || strings.HasSuffix(p, "/"+a) {
+				found = true
+				break
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
 
 // coversTests reports whether a command names the file of every test.

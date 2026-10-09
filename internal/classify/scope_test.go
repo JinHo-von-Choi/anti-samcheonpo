@@ -2,6 +2,7 @@ package classify
 
 import (
 	"slices"
+	"strings"
 	"testing"
 )
 
@@ -217,5 +218,24 @@ func TestMaskedExit(t *testing.T) {
 		if got := MaskedExit(cmd); got != want {
 			t.Errorf("MaskedExit(%q) = %v, want %v", cmd, got, want)
 		}
+	}
+}
+
+func TestCILogAndFailedPackages(t *testing.T) {
+	raw := "job a\tstep b\t2026-10-09T14:28:11.3483757Z --- FAIL: TestX (0.9s)\n" +
+		"job a\tstep b\t2026-10-09T14:28:11.3492061Z FAIL\tgithub.com/x/y/internal/live\t63.846s\n"
+	log := CILog(raw)
+	if !strings.Contains(log, "\n--- FAIL: TestX") && !strings.HasPrefix(log, "--- FAIL: TestX") {
+		t.Fatalf("prefix not removed: %q", log)
+	}
+	if got := FailedPackages(log); !slices.Equal(got, []string{"github.com/x/y/internal/live"}) {
+		t.Fatalf("failed packages: %v", got)
+	}
+}
+
+func TestCIResultLooksPastStagesThatStateNothing(t *testing.T) {
+	cmd := "gh run list --limit 1 --json databaseId -q '.[0]'; gh run watch 9 --exit-status"
+	if got := CIResult(cmd, 0, "123"); got != CIPassed {
+		t.Fatalf("the watch after a list decides: %q", got)
 	}
 }
