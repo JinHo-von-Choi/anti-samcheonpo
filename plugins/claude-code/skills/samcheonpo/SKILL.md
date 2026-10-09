@@ -7,20 +7,20 @@ description: 삼천포(samcheonpo) 하네스를 설치·연결·점검하고, �
 
 삼천포는 AI 코딩 에이전트의 헛짓(같은 검사 반복, 요청 범위 이탈, 같은 실패 반복, 코드 밖 문제를 코드로 풀려는 시도, 허위 완료, 진척 없는 지출)을 실행 결과로 판정해 알리고, 경고를 무시하면 실행 전에 막는 로컬 하네스다. 모델을 호출하지 않고 기록은 사용자 컴퓨터에만 둔다.
 
-이 문서는 에이전트가 삼천포를 **세팅할 때**(1·2절)와 삼천포 아래에서 **일할 때**(3~6절) 따를 규칙이다. 사용자 환경을 바꾸는 일(설치·연결·제거·설정 파일 수정)은 사용자가 요청했을 때만 한다.
+아래는 에이전트가 삼천포를 **세팅할 때**(1·2절)와 삼천포 아래에서 **일할 때**(3~6절) 따를 규칙이다. 사용자 환경을 바꾸는 일(설치·연결·제거·설정 파일 수정)은 사용자가 요청했을 때만 한다.
 
 ## 1. 설치와 연결
 
 순서대로 하고, 각 단계의 결과를 확인한 뒤 다음으로 넘어간다.
 
 1. 설치 여부 확인: `samcheonpo --version`, `samcheonpo-hook --version`. 두 버전이 같아야 한다.
-2. 없으면 GitHub Releases에서 `samcheonpo_<버전>_linux_amd64.tar.gz`와 `SHA256SUMS`를 받는다.
+2. 없으면 GitHub Releases에서 플랫폼에 맞는 `samcheonpo_<버전>_<OS>_<아키텍처>.tar.gz`와 `SHA256SUMS`를 받는다(linux·darwin·windows, amd64·arm64).
    ```bash
-   sha256sum -c SHA256SUMS
-   tar -xzf samcheonpo_<버전>_linux_amd64.tar.gz
+   sha256sum -c --ignore-missing SHA256SUMS
+   tar -xzf samcheonpo_<버전>_<OS>_<아키텍처>.tar.gz
    mkdir -p ~/.local/bin && install -m 755 samcheonpo samcheonpo-hook ~/.local/bin/
    ```
-   두 파일은 같은 폴더에 둔다. Linux x86-64 외 플랫폼은 `go install`로 설치할 수 있지만 실제 실행은 확인되지 않았다고 사용자에게 알린다.
+   두 파일은 같은 폴더에 둔다. Windows는 Git for Windows가 있어야 검사 명령이 POSIX 문법대로 동작한다.
 3. 에이전트 연결: `samcheonpo install --agent claude` (또는 `codex`, `opencode`, `agy`, `hermes`, `openclaw`). 기존 훅과 상태줄은 보존된다. Hermes·OpenClaw 게이트웨이가 돌고 있으면 재시작해야 적용된다고 알린다.
    - "이미 설치되어 있다"가 나오면 `samcheonpo uninstall --agent <같은 에이전트>` 후 다시 설치한다. 업그레이드 때 플러그인 파일을 갱신하려면 이 절차가 필요하다.
 4. 점검: `samcheonpo doctor --agent <에이전트>`. `error` 항목이 없어야 한다. 에이전트 버전이 확인 범위 밖이라는 안내는 오류가 아니다(훅 형식이 맞는 동안 개입한다). `hook_shape` 경고가 나오면 그 에이전트의 훅 형식이 바뀐 것이므로 사용자에게 삼천포 업데이트가 필요하다고 알린다.
