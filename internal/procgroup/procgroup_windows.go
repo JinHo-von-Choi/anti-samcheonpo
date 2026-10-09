@@ -154,19 +154,21 @@ func LockExclusive(f *os.File) error {
 
 // HardLinked reports whether the file has more than one name. FileInfo does
 // not carry the link count on Windows, so the file is opened for attributes.
+// A file that cannot be inspected counts as hard-linked: the caller refuses to
+// rewrite what it cannot vouch for.
 func HardLinked(path string, _ fs.FileInfo) bool {
 	p, err := windows.UTF16PtrFromString(path)
 	if err != nil {
-		return false
+		return true
 	}
 	h, err := windows.CreateFile(p, windows.FILE_READ_ATTRIBUTES, windows.FILE_SHARE_READ|windows.FILE_SHARE_WRITE|windows.FILE_SHARE_DELETE, nil, windows.OPEN_EXISTING, windows.FILE_FLAG_OPEN_REPARSE_POINT, 0)
 	if err != nil {
-		return false
+		return true
 	}
 	defer windows.CloseHandle(h)
 	var info windows.ByHandleFileInformation
 	if err := windows.GetFileInformationByHandle(h, &info); err != nil {
-		return false
+		return true
 	}
 	return info.NumberOfLinks > 1
 }
