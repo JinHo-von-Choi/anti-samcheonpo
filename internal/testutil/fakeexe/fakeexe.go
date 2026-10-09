@@ -46,6 +46,7 @@ var behaviors = map[string]func(spec Spec, args []string) int{
 	"argsecho":   argsEcho,
 	"spawner":    spawner,
 	"dial":       dial,
+	"sleeppid":   sleepPID,
 }
 
 func init() {

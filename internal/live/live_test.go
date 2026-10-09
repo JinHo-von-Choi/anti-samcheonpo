@@ -676,9 +676,10 @@ func TestDaemonKilledMidSession(t *testing.T) {
 func TestCheckpointTimeoutKillsGroup(t *testing.T) {
 	dir := t.TempDir()
 	pidFile := filepath.Join(dir, "pid")
-	r := &Runner{Root: dir, Timeout: 300 * time.Millisecond}
+	r := &Runner{Root: dir, Timeout: 1500 * time.Millisecond}
 	start := time.Now()
-	res := r.Run([]contract.Check{{ID: "c1", Check: "sh -c 'echo $$ > " + filepath.ToSlash(pidFile) + "; sleep 30' & sleep 30"}}, false, nil)
+	child := fakeexe.Install(t, t.TempDir(), "sleeper", fakeexe.Spec{Behavior: "sleeppid"})
+	res := r.Run([]contract.Check{{ID: "c1", Check: `"` + filepath.ToSlash(child) + `" "` + filepath.ToSlash(pidFile) + `" & sleep 30`}}, false, nil)
 	if !res[0].TimedOut || res[0].Pass || time.Since(start) > 5*time.Second {
 		t.Fatalf("timeout result %+v after %v", res[0], time.Since(start))
 	}
@@ -691,9 +692,10 @@ func TestCheckpointTimeoutKillsGroup(t *testing.T) {
 			return
 		}
 	}
-	if pid > 0 {
-		t.Errorf("child process %d must be killed with the group", pid)
+	if pid == 0 {
+		t.Fatal("the child never recorded its process id")
 	}
+	t.Errorf("child process %d must be killed with the group", pid)
 }
 
 func TestCheckpointBusyAndMid(t *testing.T) {

@@ -10,6 +10,7 @@ import (
 	"os/exec"
 	"path/filepath"
 	"strings"
+	"time"
 )
 
 // ironLaws stands in for the iron-laws auditor: `iron-laws audit FILE --format
@@ -198,4 +199,18 @@ func dial(_ Spec, args []string) int {
 		return 0
 	}
 	return 3
+}
+
+// sleepPID writes its own process id to the file named by its first argument
+// and then sleeps for 30 seconds. The id is the operating system's, which is
+// not what a shell's $$ gives on Windows.
+func sleepPID(_ Spec, args []string) int {
+	if len(args) < 1 {
+		return 2
+	}
+	if err := os.WriteFile(args[0], []byte(fmt.Sprint(os.Getpid())), 0o644); err != nil {
+		return 1
+	}
+	time.Sleep(30 * time.Second)
+	return 0
 }
