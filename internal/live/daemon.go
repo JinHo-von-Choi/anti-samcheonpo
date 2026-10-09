@@ -69,16 +69,19 @@ type Daemon struct {
 	versions     map[string]string // agent -> probed version
 	versionProbe func(string) string
 	versionReady map[string]bool
-	db           *ledger.DB
-	prices       *cost.Table
-	last         time.Time
-	Idle         time.Duration
-	ln           net.Listener
-	ended        map[string]bool
-	serving      sync.WaitGroup
-	ending       sync.WaitGroup
-	done         chan struct{}
-	swarm        swarmRegistry
+	// probedAt is when an agent's version probe last finished; a probe that
+	// read no version is retried after probeRetry
+	probedAt map[string]time.Time
+	db       *ledger.DB
+	prices   *cost.Table
+	last     time.Time
+	Idle     time.Duration
+	ln       net.Listener
+	ended    map[string]bool
+	serving  sync.WaitGroup
+	ending   sync.WaitGroup
+	done     chan struct{}
+	swarm    swarmRegistry
 }
 
 // Run starts the daemon (blocking). It exits after Idle without requests.
@@ -430,8 +433,13 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 
 // ensureProbe requires d.mu. Unknown versions stay observation-only.
 func (d *Daemon) ensureProbe(agent string) {
-	if _, ok := d.versions[agent]; ok {
-		return
+	if v, ok := d.versions[agent]; ok {
+		// A probe that read no version (a slow start under load, a busy
+		// host) would leave every session of the agent observation-only
+		// until the daemon restarts; try again once probeRetry has passed.
+		if v != "" || !d.versionReady[agent] || time.Since(d.probedAt[agent]) < probeRetry {
+			return
+		}
 	}
 	if d.versions == nil {
 		d.versions = map[string]string{}
@@ -469,8 +477,16 @@ func (d *Daemon) probeAgent(agent string) {
 	}
 	d.mu.Lock()
 	d.versionReady[agent] = true
+	if d.probedAt == nil {
+		d.probedAt = map[string]time.Time{}
+	}
+	d.probedAt[agent] = time.Now()
 	d.mu.Unlock()
 }
+
+// probeRetry is how long a failed version probe stands before the next
+// hook of that agent probes again.
+var probeRetry = 30 * time.Second
 
 func (d *Daemon) drop(id string) {
 	d.mu.Lock()

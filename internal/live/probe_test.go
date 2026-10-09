@@ -92,3 +92,49 @@ func TestSlowVersionProbeDoesNotHoldDaemonOrLoseDraft(t *testing.T) {
 		t.Fatal("first draft not delivered on supported hook", message)
 	}
 }
+
+// A version probe that read nothing (a slow start on a busy host) does not
+// leave the agent observation-only until the daemon restarts: the next hook
+// after probeRetry probes again and applies the capabilities.
+func TestFailedVersionProbeIsRetried(t *testing.T) {
+	_, d := reliabilitySession(t)
+	old := probeRetry
+	t.Cleanup(func() { probeRetry = old })
+	var mu sync.Mutex
+	answer := ""
+	d.versions = map[string]string{}
+	d.versionProbe = func(string) string { mu.Lock(); defer mu.Unlock(); return answer }
+	status := func() (ready, tested bool) {
+		_, text, err := d.handle(Request{Event: "AgentStatus", Payload: json.RawMessage(`{"agent":"claude"}`)})
+		var state struct{ Ready, Tested bool }
+		if err != nil || json.Unmarshal([]byte(text), &state) != nil {
+			t.Fatal(err)
+		}
+		return state.Ready, state.Tested
+	}
+	for deadline := time.Now().Add(time.Second); ; time.Sleep(time.Millisecond) {
+		if ready, _ := status(); ready {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("first probe did not finish")
+		}
+	}
+	if _, tested := status(); tested {
+		t.Fatal("an empty version is not a tested one")
+	}
+	d.mu.Lock()
+	probeRetry = 0 // the retry interval has passed
+	d.mu.Unlock()
+	mu.Lock()
+	answer = "2.1.0"
+	mu.Unlock()
+	for deadline := time.Now().Add(time.Second); ; time.Sleep(time.Millisecond) {
+		if _, tested := status(); tested {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("a failed probe was never retried")
+		}
+	}
+}

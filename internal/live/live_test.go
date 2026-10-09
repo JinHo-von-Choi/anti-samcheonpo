@@ -559,14 +559,29 @@ func TestSummaryQuotesRequestNextToCurrentWork(t *testing.T) {
 		in["tool_response"] = map[string]any{"type": "create"}
 		h.send("PostToolUse", in)
 	}
-	time.Sleep(200 * time.Millisecond)
-	text, errText, ok := hookclient.Query("Command", CommandInput{Name: "summary", Root: h.proj}, 5*time.Second)
-	if !ok || errText != "" {
-		t.Fatalf("summary: %q %v", errText, ok)
-	}
-	for _, want := range []string{`요청한 일: "src/auth/session.py 만료 처리 고쳐 줘"`, "지금 하는 일: 최근에 src/theme/dark.css, src/auth/session.py를 바꿨다", "요청 범위 밖으로 보이는 변경: src/theme/dark.css"} {
-		if !strings.Contains(text, want) {
-			t.Fatalf("summary lacks %q:\n%s", want, text)
+	wants := []string{`요청한 일: "src/auth/session.py 만료 처리 고쳐 줘"`, "지금 하는 일: 최근에 src/theme/dark.css, src/auth/session.py를 바꿨다", "요청 범위 밖으로 보이는 변경: src/theme/dark.css"}
+	// the daemon observes hook events on its worker; a slow host takes
+	// longer to get there, so ask until the summary reflects both writes
+	var text string
+	for deadline := time.Now().Add(10 * time.Second); ; time.Sleep(50 * time.Millisecond) {
+		var errText string
+		var ok bool
+		text, errText, ok = hookclient.Query("Command", CommandInput{Name: "summary", Root: h.proj}, 5*time.Second)
+		if !ok || errText != "" {
+			t.Fatalf("summary: %q %v", errText, ok)
+		}
+		missing := ""
+		for _, want := range wants {
+			if !strings.Contains(text, want) {
+				missing = want
+				break
+			}
+		}
+		if missing == "" {
+			return
+		}
+		if time.Now().After(deadline) {
+			t.Fatalf("summary lacks %q:\n%s", missing, text)
 		}
 	}
 }
@@ -802,6 +817,7 @@ func TestPostToolNudgeStuckError(t *testing.T) {
 	for i := 0; i < 12 && !strings.Contains(nudge, "같은 오류가"); i++ {
 		p := filepath.Join(h.proj, "src", "a.py")
 		content := fmt.Sprintf("x = %d\n", i+10)
+		generation := h.workspaceGeneration()
 		_ = os.WriteFile(p, []byte(content), 0o644)
 		w := map[string]any{"tool_name": "Write", "tool_use_id": fmt.Sprintf("w%d", i), "tool_input": map[string]any{"file_path": p, "content": content}}
 		// advice is delivered with the next hook after it is raised, whichever
@@ -809,7 +825,8 @@ func TestPostToolNudgeStuckError(t *testing.T) {
 		nudge += ctxOf(h.send("PreToolUse", w)) + "\n"
 		w["tool_response"] = map[string]any{"type": "update"}
 		nudge += ctxOf(h.send("PostToolUse", w)) + "\n"
-		time.Sleep(150 * time.Millisecond)
+		// the attempt counts once the daemon has the new workspace state
+		h.settleWorkspace(generation)
 		o := h.shell(fmt.Sprintf("s%d", i), "python3 -m pytest", "Traceback (most recent call last):\n  File \"/w/src/a.py\", line 1, in <module>\nNameError: name 'y' is not defined", 1)
 		nudge += ctxOf(o) + "\n"
 		time.Sleep(150 * time.Millisecond)

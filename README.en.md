@@ -313,7 +313,7 @@ Research experiment mode (`experiment: {enabled: true}`) defaults to off. When t
 | Agent | Support | Verified version |
 | --- | --- | --- |
 | Claude Code | Observe · nudge · block before running · status line · slash commands | 2.1.x |
-| Codex | Observe · nudge · block before running | 0.160.x |
+| Codex | Observe · nudge · block before running | 0.160.x–0.162.x |
 | opencode | Observe · nudge · block before running | 1.18.x |
 | Antigravity (agy) | Observe · nudge · block before running | 1.3.x |
 | Hermes | Observe · nudge · block before running | 0.21.x |
