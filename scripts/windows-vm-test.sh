@@ -48,7 +48,7 @@ if [ -z "$ARCH" ]; then
 fi
 
 if [ -n "$AS_USER" ]; then
-	GUEST_SC=$(prlctl exec "$VM" --current-user cmd /c "echo %USERPROFILE%" | tr -d '\r ')'\sc'
+	GUEST_SC=$(prlctl exec "$VM" --current-user cmd /c "echo %USERPROFILE%" | tr -d '\r ')'\sc-u'
 else
 	GUEST_SC='C:\sc'
 fi
@@ -67,11 +67,16 @@ else
 	PKGS=$(go list -f '{{if or .TestGoFiles .XTestGoFiles}}{{.ImportPath}}{{end}}' ./... | sed "s#^$MOD/##")
 fi
 
+# Windows treats an executable whose name contains install, setup, update or
+# patch as an installer and asks for elevation when a non-elevated user starts
+# it, which blocks an unattended run. The test binaries therefore get numbered
+# names, and pkgs.txt maps each number to its package.
 : >"$STAGE/pkgs.txt"
+i=0
 for p in $PKGS; do
-	n=$(echo "$p" | tr / _)
-	GOOS=windows GOARCH=$ARCH go test -c -o "$STAGE/bin/$n.test.exe" "./$p"
-	echo "$p" >>"$STAGE/pkgs.txt"
+	i=$((i + 1))
+	GOOS=windows GOARCH=$ARCH go test -c -o "$STAGE/bin/t$i.exe" "./$p"
+	echo "$i $p" >>"$STAGE/pkgs.txt"
 done
 GOOS=windows GOARCH=$ARCH go build -o "$STAGE/bin/samcheonpo.exe" ./cmd/samcheonpo
 GOOS=windows GOARCH=$ARCH go build -o "$STAGE/bin/samcheonpo-hook.exe" ./cmd/samcheonpo-hook
@@ -127,13 +132,14 @@ git config --global user.email t@t
 git config --global user.name t
 git config --global --replace-all safe.directory *
 set SAMCHEONPO_TEST_PEER_USER=1
-for /f "usebackq delims=" %%d in ("@SC@\pkgs.txt") do call :one %%d
+for /f "usebackq tokens=1,2" %%a in ("@SC@\pkgs.txt") do call :one %%a %%b
 goto :eof
 :one
-set "D=%1"
+set "I=%1"
+set "D=%2"
 set "N=%D:/=_%"
 pushd @SC@\repo\%D:/=\%
-@SC@\bin\%N%.test.exe -test.timeout=600s -test.v > @SC@\out\%N%.log 2>&1
+@SC@\bin\t%I%.exe -test.timeout=600s -test.v > @SC@\out\%N%.log 2>&1
 echo %D% exit=%errorlevel%
 popd
 goto :eof

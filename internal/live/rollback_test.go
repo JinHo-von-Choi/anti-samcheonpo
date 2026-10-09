@@ -7,6 +7,8 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testutil/fsx"
 )
 
 func rollbackSession(t *testing.T) *Session {
@@ -53,9 +55,7 @@ func TestRollbackNeverLeavesTheProjectThroughLinks(t *testing.T) {
 	// the agent writes inside the project, then src is swapped for a link
 	write(t, s, "w1", "src/keep.txt", "agent\n")
 	_ = os.RemoveAll(filepath.Join(s.Root, "src"))
-	if err := os.Symlink(outside, filepath.Join(s.Root, "src")); err != nil {
-		t.Fatal(err)
-	}
+	fsx.Symlink(t, outside, filepath.Join(s.Root, "src"))
 	out := applyPlan(t, s)
 	b, _ := os.ReadFile(filepath.Join(outside, "keep.txt"))
 	if string(b) != "outside\n" {

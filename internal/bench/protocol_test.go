@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testutil/fsx"
 )
 
 func TestScheduleSeedAndBlocks(t *testing.T) {
@@ -200,9 +201,7 @@ func TestTreeDigestContentAndSymlink(t *testing.T) {
 	if err != nil || a == b {
 		t.Fatal("missed content change")
 	}
-	if err := os.Symlink(p, filepath.Join(dir, "link")); err != nil {
-		t.Fatal(err)
-	}
+	fsx.Symlink(t, p, filepath.Join(dir, "link"))
 	if _, err := TreeDigest(dir); err == nil || !strings.Contains(err.Error(), "unsupported") {
 		t.Fatal("symlink accepted")
 	}

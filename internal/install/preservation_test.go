@@ -6,6 +6,8 @@ import (
 	"path/filepath"
 	"strings"
 	"testing"
+
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testutil/fsx"
 )
 
 func TestInstallRejectsInvalidSettingsWithoutMutation(t *testing.T) {
@@ -106,9 +108,7 @@ func TestGeneratedCleanupDoesNotFollowReplacedParent(t *testing.T) {
 	if err := os.Rename(child, outside); err != nil {
 		t.Fatal(err)
 	}
-	if err := os.Symlink(outside, child); err != nil {
-		t.Fatal(err)
-	}
+	fsx.Symlink(t, outside, child)
 	if err := removeGenerated(root, manifest, func(string) {}); err != nil {
 		t.Fatal(err)
 	}
