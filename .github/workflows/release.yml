@@ -43,8 +43,10 @@ jobs:
       - name: python3 name for Windows
         if: runner.os == 'Windows'
         run: |
-          py=$(command -v python)
-          cp "$py" "$(dirname "$py")/python3.exe"
+          if ! command -v python3 >/dev/null 2>&1; then
+            py=$(command -v python)
+            cp "$py" "$(dirname "$py")/python3.exe"
+          fi
       - name: Source checks (no paid model calls)
         run: |
           test -z "$(gofmt -l cmd internal plugins)"

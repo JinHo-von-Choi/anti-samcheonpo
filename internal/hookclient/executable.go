@@ -24,8 +24,11 @@ func (b *versionBytes) Write(p []byte) (int, error) {
 	return n, nil
 }
 
+// versionTimeout bounds how long the helper may take to report its version.
+var versionTimeout = 500 * time.Millisecond
+
 func TransportVersion(path string) string {
-	ctx, cancel := context.WithTimeout(context.Background(), 500*time.Millisecond)
+	ctx, cancel := context.WithTimeout(context.Background(), versionTimeout)
 	defer cancel()
 	cmd := exec.CommandContext(ctx, path, "--version")
 	cmd.WaitDelay = 50 * time.Millisecond
