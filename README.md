@@ -134,26 +134,28 @@ flowchart LR
 
 ## 설치
 
-### 릴리스 파일 (Linux x86-64)
+### 릴리스 파일
 
-[Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases)에서 `samcheonpo_0.3.1_linux_amd64.tar.gz`와 `SHA256SUMS`를 받습니다.
+[Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases)에서 환경에 맞는 `samcheonpo_0.4.0_<OS>_<아키텍처>.tar.gz`와 `SHA256SUMS`를 받습니다. 제공 파일은 linux·darwin·windows의 amd64와 arm64입니다. 파일마다 GitHub Actions의 같은 종류 러너에서 만들고 키 없는 설치·제거·감사·첫 훅 확인을 통과시켰습니다.
 
 ```bash
-sha256sum -c SHA256SUMS
-tar -xzf samcheonpo_0.3.1_linux_amd64.tar.gz
+sha256sum -c --ignore-missing SHA256SUMS   # macOS는 shasum -a 256 -c
+tar -xzf samcheonpo_0.4.0_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
 
+Windows는 같은 `tar -xzf`로 풀고 `samcheonpo.exe`와 `samcheonpo-hook.exe`를 PATH의 같은 폴더에 둡니다(Git for Windows 필요).
+
 두 실행 파일(`samcheonpo`, 가벼운 훅용 `samcheonpo-hook`)은 같은 폴더에 둡니다.
 
-### 소스에서 설치 (macOS·Linux arm64 등)
+### 소스에서 설치
 
 Go 1.27 이상이 필요합니다. 실제 에이전트 실행을 확인한 환경은 Linux x86-64뿐이며, macOS와 Windows의 확인 범위는 아래 지원 범위 표에 있습니다.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.3.1
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.3.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.4.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.4.0
 ```
 
 Windows는 Windows 10 1803 이상과 Git for Windows가 필요합니다. 전체 시험·적합성·훅 지연·릴리스 후보 smoke는 Windows 11 arm64에서 통과했고, Claude Code 실제 세션에서 훅 발화·반복 탐지·실행 전 차단까지 확인했고, 다른 에이전트는 아직 확인하지 않았습니다.

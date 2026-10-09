@@ -139,26 +139,28 @@ Dependency manifests (`package.json`, `requirements.txt` and the like) stay edit
 
 ## Install
 
-### Release archive (Linux x86-64)
+### Release archive
 
-Download `samcheonpo_0.3.1_linux_amd64.tar.gz` and `SHA256SUMS` from [Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases).
+Download `samcheonpo_0.4.0_<os>_<arch>.tar.gz` for your system and `SHA256SUMS` from [Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases). Archives exist for linux, darwin and windows on amd64 and arm64. Each was built on a GitHub Actions runner of its own kind and passed the keyless install, uninstall, audit and first-hook check.
 
 ```bash
-sha256sum -c SHA256SUMS
-tar -xzf samcheonpo_0.3.1_linux_amd64.tar.gz
+sha256sum -c --ignore-missing SHA256SUMS   # on macOS: shasum -a 256 -c
+tar -xzf samcheonpo_0.4.0_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
 
+On Windows, unpack with the same `tar -xzf` and put `samcheonpo.exe` and `samcheonpo-hook.exe` in one folder on your PATH (Git for Windows is required).
+
 Keep the primary binary `samcheonpo` beside `samcheonpo-hook` inside that same folder.
 
-### From source (macOS, Linux arm64, etc.)
+### From source
 
 Requires Go 1.27 or later. Linux x86-64 is the only platform verified with real agent runs; what is verified on macOS and Windows is in the support table below.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.3.1
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.3.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.4.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.4.0
 ```
 
 Windows needs Windows 10 1803 or later and Git for Windows. The full test suite, the conformance cases, the hook latency check and the release-candidate smoke pass on Windows 11 arm64; a real Claude Code session there fired the hooks, detected a repeat and refused the next run before it ran; other agents are not yet verified.

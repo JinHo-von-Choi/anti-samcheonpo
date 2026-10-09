@@ -38,7 +38,7 @@
 ## 릴리스 후보 만들기
 
 ```sh
-sh scripts/package-release.sh 0.3.1-dev /tmp/samcheonpo-release-new
+sh scripts/package-release.sh 0.4.0-dev /tmp/samcheonpo-release-new
 ```
 
 기존 출력 디렉터리를 덮어쓰지 않는다. 네이티브 플랫폼에서 두 실행 파일을 만들고, API 키 없는 분리 환경의 설치/제거·감사·기본 훅 검사를 실행한 뒤 tar.gz와 SHA256SUMS를 만든다. 교차 컴파일만으로 플랫폼 검증을 주장하지 않도록 호스트와 타깃이 다르면 거절한다. BUILD.txt에 버전·커밋·도구 체인·추적 파일 변경 여부를 기록한다. 산출물은 후보이며 스크립트는 게시하지 않는다.
