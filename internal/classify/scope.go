@@ -634,6 +634,29 @@ var ciLogPrefixRe = lazyre.New(`(?m)^[^\t\n]*\t[^\t\n]*\t(?:\d{4}-\d{2}-\d{2}T[\
 // goPkgFailRe matches the package line of a failed Go test run.
 var goPkgFailRe = lazyre.New(`(?m)^FAIL\s+(\S+/\S+)\s+[\d.]+s\s*$`)
 
+// CIRerun reports whether a command reruns a CI run as it was (gh run
+// rerun, glab ci retry): the same commit checked again remotely.
+func CIRerun(cmd string) bool {
+	for _, st := range fp.SplitStages(cmd) {
+		n, _ := fp.NormalizeCmd(st)
+		w := strings.Fields(n)
+		if len(w) < 3 {
+			continue
+		}
+		switch pathnorm.CommandBase(w[0]) {
+		case "gh":
+			if w[1] == "run" && w[2] == "rerun" {
+				return true
+			}
+		case "glab":
+			if w[1] == "ci" && (w[2] == "retry" || w[2] == "run") {
+				return true
+			}
+		}
+	}
+	return false
+}
+
 // CILog returns a CI run log without the per-line job, step and time
 // prefix, so test runner output in it reads like local output.
 func CILog(out string) string { return ciLogPrefixRe.ReplaceAllString(out, "") }

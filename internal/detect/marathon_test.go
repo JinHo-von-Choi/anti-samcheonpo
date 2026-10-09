@@ -357,3 +357,27 @@ func TestExpensiveRerunAfterSmallChangeIsWaste(t *testing.T) {
 		t.Fatal("the full rerun after a one-line change is waste")
 	}
 }
+
+// Rerunning the same failed CI run without a change and failing again is a
+// remote identical rerun: the rerun and the wait for it are waste.
+func TestCIRerunThatFailsAgainIsWaste(t *testing.T) {
+	b := newB(t, "x", nil)
+	b.run("gh run watch 5 --exit-status", 1, "X failed", time.Second)
+	rerun := shellRun("gh run rerun 5 --failed", 0, "", time.Second)
+	b.next(rerun)
+	watch := shellRun("gh run watch 5 --exit-status", 1, "X failed", time.Second)
+	b.next(watch)
+	for _, ev := range []*event.Event{rerun, watch} {
+		if _, ok := b.e.St.Wasted[ev.Seq]; !ok {
+			t.Fatalf("event %d (%s) is waste", ev.Seq, ev.CmdNorm)
+		}
+	}
+	c := newB(t, "x", nil)
+	c.run("gh run watch 5 --exit-status", 1, "X failed", time.Second)
+	again := shellRun("gh run rerun 5 --failed", 0, "", time.Second)
+	c.next(again)
+	c.run("gh run watch 5 --exit-status", 0, "✓ passed", time.Second)
+	if _, ok := c.e.St.Wasted[again.Seq]; ok {
+		t.Fatal("a rerun that passes (a flaky failure) is not waste")
+	}
+}

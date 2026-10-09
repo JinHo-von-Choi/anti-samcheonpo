@@ -30,10 +30,20 @@ func (e *Engine) trackRelease(ev *event.Event) {
 	log := classify.CILog(ev.Text)
 	switch classify.CIResult(cmdOf(ev), *ev.ExitCode, ev.Text) {
 	case classify.CIPassed:
-		m.ci, m.blindRelease = nil, 0
+		m.ci, m.blindRelease, m.ciRerun = nil, 0, 0
 		return
 	case classify.CIFailed:
 		m.ci = &ciMark{seq: ev.Seq, ws: ev.WSBefore, cmd: ev.CmdNorm, tests: testout.FailedTests(log), pkgs: classify.FailedPackages(log)}
+		if r := m.ciRerun; r > 0 {
+			// rerunning the same commit after a failure and failing again
+			// repeated a known result remotely
+			var seqs []int64
+			for i := len(e.St.Events) - 1; i >= 0 && e.St.Events[i].Seq >= r; i-- {
+				seqs = append(seqs, e.St.Events[i].Seq)
+			}
+			e.markWaste(seqs, "S1")
+			m.ciRerun = 0
+		}
 		if b := m.blindRelease; b > 0 {
 			// the release went out unchecked and CI failed: the release and
 			// the wait for its result were spent for nothing
@@ -44,6 +54,10 @@ func (e *Engine) trackRelease(ev *event.Event) {
 			e.markWaste(seqs, "S5")
 			m.blindRelease = 0
 		}
+		return
+	}
+	if m.ci != nil && *ev.ExitCode == 0 && classify.CIRerun(cmdOf(ev)) {
+		m.ciRerun = ev.Seq
 		return
 	}
 	if m.ci != nil && ev.Category != event.CatVerify && ev.Seq > m.ci.seq {

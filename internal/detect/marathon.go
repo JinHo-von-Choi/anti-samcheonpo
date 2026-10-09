@@ -26,7 +26,10 @@ type marathonState struct {
 	// fails, everything from it to the failure was spent waiting on a
 	// result the local check would have given
 	blindRelease int64
-	ui           map[string]*uiMark
+	// ciRerun is the seq of a CI rerun of the same commit after a failure
+	// (0: none pending); if it fails again, it repeated a known failure
+	ciRerun int64
+	ui      map[string]*uiMark
 	// scripts maps runner scripts written from a here-document to the
 	// tests they run; checkCost is the last run time of a test run by key.
 	scripts   map[string]scriptMark
