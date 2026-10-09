@@ -12,6 +12,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/sockpath"
 )
 
@@ -58,6 +59,10 @@ func TestCleanEnvironmentBinarySmoke(t *testing.T) {
 		_ = cmd.Run()
 		for deadline := time.Now().Add(3 * time.Second); time.Now().Before(deadline); time.Sleep(10 * time.Millisecond) {
 			if _, err := os.Stat(sockpath.Path()); os.IsNotExist(err) {
+				// the socket goes before the final ledger and receipt writes;
+				// the folder may only be removed once the daemon has exited,
+				// which is when its lock can be taken
+				daemonExited(t, filepath.Join(home, "run", "daemon.lock"))
 				return
 			}
 		}
@@ -116,4 +121,21 @@ func TestCleanEnvironmentBinarySmoke(t *testing.T) {
 	if !bytes.Contains(out, []byte("API 키 없이 원래 목표")) || !bytes.Contains(out, []byte("미승인")) {
 		t.Fatalf("basic monitor lost draft: %s", out)
 	}
+}
+
+// daemonExited waits until nothing holds the daemon's lock file any more.
+func daemonExited(t *testing.T, lock string) {
+	t.Helper()
+	for deadline := time.Now().Add(10 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		f, err := os.OpenFile(lock, os.O_RDWR, 0)
+		if err != nil {
+			return
+		}
+		held := procgroup.LockExclusive(f) != nil
+		f.Close()
+		if !held {
+			return
+		}
+	}
+	t.Error("the isolated smoke daemon kept running after its socket was removed")
 }
