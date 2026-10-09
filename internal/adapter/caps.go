@@ -119,28 +119,45 @@ func cmpVer(a, b [3]int) int {
 	return 0
 }
 
-// Resolve returns the capabilities for an agent at a version string. Unknown
-// agents, unparsable or untested versions get observation only.
+// Resolve returns the capabilities of a known agent and whether its version
+// lies in the range the captured fixtures cover. The version does not decide
+// the capabilities: a release outside the range usually sends the same hook
+// payloads, and the live daemon checks the payloads it actually receives
+// (falling back to observation when they stop matching). Agents without a
+// tested hook profile, and unknown agents, get observation only.
 func Resolve(agent, version string) (Caps, bool) {
 	p, ok := Profiles[agent]
 	if !ok {
 		return ObserveOnly, false
 	}
-	observe := ObserveOnly
-	observe.FailClosed = p.Caps.FailClosed
 	if p.Tested.Min == "" {
-		return observe, false
+		return Observe(agent), false
+	}
+	return p.Caps, InTestedRange(agent, version)
+}
+
+// Observe is observation only, keeping how the agent fails when a hook times
+// out.
+func Observe(agent string) Caps {
+	observe := ObserveOnly
+	observe.FailClosed = Profiles[agent].Caps.FailClosed
+	return observe
+}
+
+// InTestedRange reports whether a version string lies in the range of the
+// agent's captured hook fixtures.
+func InTestedRange(agent, version string) bool {
+	p, ok := Profiles[agent]
+	if !ok || p.Tested.Min == "" {
+		return false
 	}
 	v, ok := ParseVersion(version)
 	if !ok {
-		return observe, false
+		return false
 	}
 	lo, _ := ParseVersion(p.Tested.Min)
 	hi, _ := ParseVersion(p.Tested.Max)
-	if cmpVer(v, lo) < 0 || cmpVer(v, hi) > 0 {
-		return observe, false
-	}
-	return p.Caps, true
+	return cmpVer(v, lo) >= 0 && cmpVer(v, hi) <= 0
 }
 
 // ProbeVersion runs `<agent> --version` and returns the first line. The

@@ -69,6 +69,9 @@ type Daemon struct {
 	versions     map[string]string // agent -> probed version
 	versionProbe func(string) string
 	versionReady map[string]bool
+	// shapeBad holds, per agent, why one of its hook payloads stopped
+	// matching what the handlers read; such an agent is observed only
+	shapeBad map[string]string
 	// probedAt is when an agent's version probe last finished; a probe that
 	// read no version is retried after probeRetry
 	probedAt map[string]time.Time
@@ -327,12 +330,13 @@ func (d *Daemon) handleWith(req Request, slot *ackSlot) (json.RawMessage, string
 		d.mu.Lock()
 		d.ensureProbe(in.Agent)
 		version := d.versions[in.Agent]
-		caps, tested := adapter.Resolve(in.Agent, version)
+		_, tested := adapter.Resolve(in.Agent, version)
+		caps := d.capsFor(in.Agent)
 		ready, tracked := d.versionReady[in.Agent]
 		if !tracked && version != "" {
 			ready = true
 		}
-		b, _ := json.Marshal(map[string]any{"version": version, "ready": ready, "tested": tested, "caps": caps})
+		b, _ := json.Marshal(map[string]any{"version": version, "ready": ready, "tested": tested, "caps": caps, "shape_mismatch": d.shapeBad[in.Agent]})
 		d.mu.Unlock()
 		return nil, string(b), nil
 	case "Shutdown":
@@ -413,12 +417,19 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 		}
 		return s, nil
 	}
-	ver, ok := d.versions[agent]
-	if !ok {
+	if _, ok := d.versions[agent]; !ok {
 		d.ensureProbe(agent)
 	}
-	caps, _ := adapter.Resolve(agent, ver)
+	// until the probe has finished the agent is observed; after it, the
+	// profile applies whatever the version, as long as payloads match
+	caps := adapter.Observe(agent)
+	if ready, tracked := d.versionReady[agent]; ready || (!tracked && d.versions[agent] != "") {
+		caps = d.capsFor(agent)
+	}
 	s, err := newSession(id, agent, root, transcript, d.db, d.prices, caps)
+	if reason := d.shapeBad[agent]; reason != "" {
+		s.shapeNote = reason
+	}
 	if err != nil {
 		return nil, err
 	}
@@ -458,9 +469,9 @@ func (d *Daemon) probeAgent(agent string) {
 		probe = adapter.ProbeVersion
 	}
 	version := probe(agent)
-	caps, _ := adapter.Resolve(agent, version)
 	d.mu.Lock()
 	d.versions[agent] = version
+	caps := d.capsFor(agent)
 	var sessions []*Session
 	for _, s := range d.sessions {
 		if s.Agent == agent {

@@ -23,7 +23,7 @@ description: 삼천포(samcheonpo) 하네스를 설치·연결·점검하고, �
    두 파일은 같은 폴더에 둔다. Linux x86-64 외 플랫폼은 `go install`로 설치할 수 있지만 실제 실행은 확인되지 않았다고 사용자에게 알린다.
 3. 에이전트 연결: `samcheonpo install --agent claude` (또는 `codex`, `opencode`, `agy`, `hermes`, `openclaw`). 기존 훅과 상태줄은 보존된다. Hermes·OpenClaw 게이트웨이가 돌고 있으면 재시작해야 적용된다고 알린다.
    - "이미 설치되어 있다"가 나오면 `samcheonpo uninstall --agent <같은 에이전트>` 후 다시 설치한다. 업그레이드 때 플러그인 파일을 갱신하려면 이 절차가 필요하다.
-4. 점검: `samcheonpo doctor --agent <에이전트>`. `error` 항목이 없어야 한다.
+4. 점검: `samcheonpo doctor --agent <에이전트>`. `error` 항목이 없어야 한다. 에이전트 버전이 확인 범위 밖이라는 안내는 오류가 아니다(훅 형식이 맞는 동안 개입한다). `hook_shape` 경고가 나오면 그 에이전트의 훅 형식이 바뀐 것이므로 사용자에게 삼천포 업데이트가 필요하다고 알린다.
    - `ledger: 원장 무결성/스키마 확인 실패 (읽은 버전 N)`는 업그레이드 직후 원장이 아직 갱신되지 않은 상태다. `samcheonpo sessions`를 한 번 실행하면 갱신된다. 원장을 지우지 않는다.
 5. 첫 가치는 연결 없이도 나온다: `samcheonpo audit --since 30d`로 지난 기록의 헛짓 영수증을 보여 준다. 기록이 없으면 비어 있어도 정상이다.
 6. 새 에이전트 세션부터 적용된다고 사용자에게 알린다.

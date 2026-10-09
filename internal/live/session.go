@@ -107,6 +107,9 @@ type Session struct {
 	failedEdits       map[string]ledger.FailedAttempt
 	produceSinceCheck int
 	lastPrimary       *detect.Signal
+	// shapeNote is why this agent's hook payloads stopped matching and the
+	// session was dropped to observation, "" while they match.
+	shapeNote string
 	// ironSeen holds external error-hiding findings already reported, by
 	// path, rule and line text, so a finding is reported once.
 	ironSeen          map[string]bool

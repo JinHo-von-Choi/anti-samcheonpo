@@ -320,6 +320,8 @@ Research experiment mode (`experiment: {enabled: true}`) defaults to off. When t
 | OpenClaw | Observe · nudge (from the next request) · block before running | 2026.7.x |
 | GitHub Copilot · Cursor | Observe only | |
 
+"Verified version" is the range whose hook payloads were captured into the tests. Other versions are not switched off: after an agent update, nudges and blocks continue as long as the hook payloads still carry the session, tool name, call ID, tool input (shell command, file path, patch) and result. Once a payload arrives whose shape actually changed, that agent is observed only, and the status line and `samcheonpo doctor` say why.
+
 - agy: hooks do not carry tool results. Because of this, exit codes, output, and tokens are read straight from the conversation transcript, and a shell result is applied at the next event. agy lacks a session-end event, so no end-of-session receipt is written.
 - OpenClaw: no hook changes the tool result that the model sees during a run. Advice attaches to the next request instead. Until that happens, repeats within the same run are not blocked.
 

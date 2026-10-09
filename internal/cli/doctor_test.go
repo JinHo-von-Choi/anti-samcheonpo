@@ -74,11 +74,34 @@ func TestDoctorReportsExperimentAndCapabilities(t *testing.T) {
 	if c := got["capabilities"]; !strings.Contains(c.Message, "실행 전 차단 가능") {
 		t.Fatalf("a tested Claude Code reports pre-tool blocking: %+v", c)
 	}
-	report = diagnose("claude", root, "/no/samcheonpo", filepath.Join(home, "ledger.db"), func(string) string { return "" }, func() bool { return false })
-	for _, c := range report.Checks {
-		if c.ID == "capabilities" && !strings.Contains(c.Message, "실행 전 차단 불가") {
-			t.Fatalf("an unverified agent is observation only: %+v", c)
+	// a version outside the captured range, or one that could not be read,
+	// does not switch the agent off: the daemon judges the payloads it gets
+	for _, v := range []string{"2.4.0", ""} {
+		report = diagnose("claude", root, "/no/samcheonpo", filepath.Join(home, "ledger.db"), func(string) string { return v }, func() bool { return false })
+		got = map[string]diagnostic{}
+		for _, c := range report.Checks {
+			got[c.ID] = c
 		}
+		if c := got["capabilities"]; !strings.Contains(c.Message, "실행 전 차단 가능") {
+			t.Fatalf("version %q keeps the capabilities: %+v", v, c)
+		}
+	}
+	if a := got["agent_version"]; a.State != "warning" || !strings.Contains(a.Message, "읽지 못했음") {
+		t.Fatalf("an unread version is reported: %+v", a)
+	}
+	old := shapeMismatch
+	shapeMismatch = func(string) string { return "PreToolUse(Bash): 셸 명령 없음" }
+	t.Cleanup(func() { shapeMismatch = old })
+	report = diagnose("claude", root, "/no/samcheonpo", filepath.Join(home, "ledger.db"), func(string) string { return "2.4.0" }, func() bool { return false })
+	got = map[string]diagnostic{}
+	for _, c := range report.Checks {
+		got[c.ID] = c
+	}
+	if h := got["hook_shape"]; h.State != "warning" || !strings.Contains(h.Message, "셸 명령 없음") {
+		t.Fatalf("a payload mismatch the daemon saw is reported: %+v", h)
+	}
+	if c := got["capabilities"]; !strings.Contains(c.Message, "실행 전 차단 불가") {
+		t.Fatalf("after a payload mismatch the agent is observation only: %+v", c)
 	}
 }
 

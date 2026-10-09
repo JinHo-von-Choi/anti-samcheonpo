@@ -77,10 +77,19 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 	}
 	version := probe(agent)
 	caps, tested := adapter.Resolve(agent, version)
-	if tested {
+	switch {
+	case tested:
 		add("agent_version", "ok", fmt.Sprintf("%s 버전이 캡처 fixture 시험 범위에 있음; 실제 세션 권한·제품 효과 인증은 아님", agent))
-	} else {
-		add("agent_version", "warning", fmt.Sprintf("%s 미설치·버전 미확인·시험 범위 밖 중 하나. 관찰 전용이며 감사 기능은 별도로 사용 가능", agent))
+	case caps == adapter.Observe(agent):
+		add("agent_version", "warning", fmt.Sprintf("%s는 훅 개입을 지원하지 않는 에이전트라 관찰만 함", agent))
+	case version == "":
+		add("agent_version", "warning", fmt.Sprintf("%s 버전을 읽지 못했음(미설치이거나 응답 지연). 설치돼 있다면 데몬이 다시 확인하고, 실제 훅 형식이 맞는 동안 개입함", agent))
+	default:
+		add("agent_version", "ok", fmt.Sprintf("%s %s는 캡처 fixture 범위 밖이지만 버전으로 막지 않음; 데몬이 받은 훅 형식이 다르면 그때 관찰 전용으로 낮춤", agent, version))
+	}
+	if reason := shapeMismatch(agent); reason != "" {
+		caps = adapter.Observe(agent)
+		add("hook_shape", "warning", "데몬이 받은 훅 형식이 달라 관찰 전용으로 낮춤: "+reason+". 에이전트 업데이트로 훅이 바뀐 것으로 보이며 삼천포 업데이트가 필요함")
 	}
 	add("capabilities", "ok", capabilityText(caps))
 	if ping() {
@@ -157,4 +166,21 @@ func doctorCmd() *cobra.Command {
 	c.Flags().StringVar(&agent, "agent", "claude", "진단할 에이전트")
 	c.Flags().StringVar(&format, "format", "text", "text|json")
 	return c
+}
+
+// shapeMismatch asks a running daemon why it dropped an agent to
+// observation after a hook payload stopped matching; "" when it did not, or
+// when no daemon answers. It changes nothing.
+var shapeMismatch = func(agent string) string {
+	text, errText, ok := hookclient.Query("AgentStatus", map[string]string{"agent": agent}, 300*time.Millisecond)
+	if !ok || errText != "" {
+		return ""
+	}
+	var st struct {
+		Shape string `json:"shape_mismatch"`
+	}
+	if json.Unmarshal([]byte(text), &st) != nil {
+		return ""
+	}
+	return st.Shape
 }

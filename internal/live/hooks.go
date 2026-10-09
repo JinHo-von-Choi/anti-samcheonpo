@@ -155,6 +155,10 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 	if err != nil {
 		return nil, nil, err
 	}
+	if reason := hookShape(name, in); reason != "" {
+		// the payload is no longer what the handlers read: observe only
+		d.markShapeBad(agent, reason)
+	}
 	if name != "SessionEnd" {
 		s.opMu.RLock()
 		defer s.opMu.RUnlock()

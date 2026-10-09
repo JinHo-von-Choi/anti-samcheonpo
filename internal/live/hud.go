@@ -34,6 +34,9 @@ func (s *Session) hudState() notify.HUDState {
 	if s.Cfg.Experiment.Enabled {
 		parts = append(parts, "[실험 모드: 일부 안내 보류]")
 	}
+	if s.shapeNote != "" {
+		parts = append(parts, "[훅 형식 불일치: 관찰만 함 ("+s.shapeNote+")]")
+	}
 	if n := s.preLate.Load(); n > 0 {
 		parts = append(parts, fmt.Sprintf("[실행 전 판정 시간 초과 %d건: 그 판정은 전달되지 않았을 수 있음]", n))
 	}
