@@ -482,7 +482,6 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 	s.mu.Lock()
 	lp := v
 	s.lastPrimary = &lp // the user can keep/steer the verdict they just saw
-	defer s.broadcastHUD()
 	route, escalated := s.routeFor(v)
 	if route != "block" || !s.caps.BlockPre {
 		if route == "block" {
@@ -493,6 +492,7 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 		if route == "advice" && s.caps.InjectPre {
 			s.noteAdvice(in.Ack, s.adviceKey(v))
 		}
+		s.broadcastHUD()
 		s.mu.Unlock()
 		if route == "observe" {
 			return nil
@@ -513,6 +513,7 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 	if v.Level >= detect.L3 {
 		s.unresolved = &v
 	}
+	s.broadcastHUD()
 	s.mu.Unlock()
 	return hookOut(map[string]any{"hookSpecificOutput": map[string]any{
 		"hookEventName":            "PreToolUse",

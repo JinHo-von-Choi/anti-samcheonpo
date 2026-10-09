@@ -682,11 +682,16 @@ func TestCheckpointTimeoutKillsGroup(t *testing.T) {
 	if !res[0].TimedOut || res[0].Pass || time.Since(start) > 5*time.Second {
 		t.Fatalf("timeout result %+v after %v", res[0], time.Since(start))
 	}
-	time.Sleep(100 * time.Millisecond)
-	b, _ := os.ReadFile(pidFile)
 	var pid int
-	fmt.Sscan(string(b), &pid)
-	if pid > 0 && processAlive(pid) {
+	for deadline := time.Now().Add(5 * time.Second); time.Now().Before(deadline); time.Sleep(20 * time.Millisecond) {
+		b, _ := os.ReadFile(pidFile)
+		fmt.Sscan(string(b), &pid)
+		// the process ends shortly after the kill is issued, not with it
+		if pid > 0 && !processAlive(pid) {
+			return
+		}
+	}
+	if pid > 0 {
 		t.Errorf("child process %d must be killed with the group", pid)
 	}
 }
