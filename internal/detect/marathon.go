@@ -21,7 +21,12 @@ type marathonState struct {
 	releases    []time.Time
 	lastRelease int64 // seq of the latest release that went out
 	released    bool
-	ui          map[string]*uiMark
+	// blindRelease is the seq of a release that went out while the rules
+	// said it needed a local check first (0: none pending): if CI then
+	// fails, everything from it to the failure was spent waiting on a
+	// result the local check would have given
+	blindRelease int64
+	ui           map[string]*uiMark
 	// scripts maps runner scripts written from a here-document to the
 	// tests they run; checkCost is the last run time of a test run by key.
 	scripts   map[string]scriptMark
@@ -77,6 +82,7 @@ func (e *Engine) marathon(ev *event.Event, sigs *[]Signal) {
 			e.add(sigs, *s)
 		}
 	}
+	e.wasteBeforeRun(ev)
 	e.trackScope(ev)
 	e.trackScripts(ev)
 	e.trackProbe(ev)
@@ -107,4 +113,22 @@ func (e *Engine) preGuard(ev *event.Event, live bool) *Signal {
 		return s
 	}
 	return e.fullSuiteCheck(ev, live)
+}
+
+// wasteBeforeRun charges a call that ran although the long-session rules
+// judged it before it ran (in live mode the agent was told and went on):
+// an unchecked release is held until its CI result shows whether it was
+// wasted; an expensive rerun after a small change is waste itself.
+func (e *Engine) wasteBeforeRun(ev *event.Event) {
+	if ev.Tool != event.ToolShell || ev.ExitCode == nil || *ev.ExitCode == -1 || ev.Background {
+		return
+	}
+	if s := e.releaseCheck(ev, false); s != nil && *ev.ExitCode == 0 && s.Rule == "s5.release_without_preflight" {
+		e.St.mar.blindRelease = ev.Seq
+	}
+	if ExecutedVerify(ev) {
+		if s := e.fullSuiteCheck(ev, false); s != nil {
+			e.markWaste([]int64{ev.Seq}, "S1")
+		}
+	}
 }

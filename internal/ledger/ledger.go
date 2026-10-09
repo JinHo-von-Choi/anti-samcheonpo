@@ -349,7 +349,8 @@ func (d *DB) RecordIntervention(v detect.Signal, session, channel string) error 
 func (d *DB) EventsOf(id string) ([]*event.Event, error) {
 	rows, err := d.Query(`SELECT seq,COALESCE(ts,''),kind,COALESCE(tool,''),COALESCE(raw_tool,''),COALESCE(paths,'[]'),exit_code,cost_micro_krw,
 		tokens_in,tokens_out,tokens_cache_read,tokens_cache_write,COALESCE(model,''),COALESCE(category,''),COALESCE(bucket,''),COALESCE(symptom,''),
-		COALESCE(summary,''),COALESCE(source_ref,''),priced FROM event WHERE session_id=? ORDER BY seq`, id)
+		COALESCE(summary,''),COALESCE(source_ref,''),priced,COALESCE(cmd_fp,''),COALESCE(ws_before,''),COALESCE(ws_after,''),COALESCE(result_fp,''),forced
+		FROM event WHERE session_id=? ORDER BY seq`, id)
 	if err != nil {
 		return nil, err
 	}
@@ -359,11 +360,13 @@ func (d *DB) EventsOf(id string) ([]*event.Event, error) {
 		ev := &event.Event{SessionID: id}
 		var tss, paths, kind, cat string
 		var exit sql.NullInt64
-		var priced int
+		var priced, forced int
 		if err := rows.Scan(&ev.Seq, &tss, &kind, &ev.Tool, &ev.RawTool, &paths, &exit, &ev.CostMicroKRW, &ev.Usage.In, &ev.Usage.Out,
-			&ev.Usage.CacheRead, &ev.Usage.CacheWrite, &ev.Usage.Model, &cat, &ev.Bucket, &ev.Symptom, &ev.Summary, &ev.SourceRef, &priced); err != nil {
+			&ev.Usage.CacheRead, &ev.Usage.CacheWrite, &ev.Usage.Model, &cat, &ev.Bucket, &ev.Symptom, &ev.Summary, &ev.SourceRef, &priced,
+			&ev.CmdFP, &ev.WSBefore, &ev.WSAfter, &ev.ResultFP, &forced); err != nil {
 			return nil, err
 		}
+		ev.Forced = forced == 1
 		ev.TS, _ = time.Parse(time.RFC3339Nano, tss)
 		ev.Kind = event.Kind(kind)
 		ev.Category = event.Category(cat)

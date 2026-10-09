@@ -212,6 +212,10 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 	}
 	s.eng = detect.NewEngine(cfg, s.engineContract(), s.acc.State == contract.StateAccepted, "live", root, id, "")
 	s.eng.FirstPrompt = s.firstPrompt
+	if err := s.restoreHistory(); err != nil {
+		s.ws.Close()
+		return nil, err
+	}
 	s.notifier = notify.New(cfg)
 	s.hud = notify.NewHUDManager()
 	if jc := cfg.Detectors.S3.Judge; jc.Provider != "" && (cfg.Privacy.ExternalJudge || isLocal(jc.BaseURL)) {

@@ -50,11 +50,12 @@ func (e *Engine) trackUITiming(ev *event.Event, sigs *[]Signal) {
 		return
 	}
 	u.fired = true
+	waste := e.markWaste(u.seqs[1:], "S2")
 	kind := "repeat"
 	if u.tweak {
 		kind = "tweak"
 	}
-	e.add(sigs, Signal{Detector: "S2", Rule: "s2.flaky_ui_race", Confidence: 0.75, Level: L1, Evidence: append([]int64(nil), u.seqs...),
+	e.add(sigs, Signal{Detector: "S2", Rule: "s2.flaky_ui_race", Confidence: 0.75, Level: L1, WasteMicro: waste, Evidence: append([]int64(nil), u.seqs...),
 		Facts: map[string]any{"cmd": u.cmd, "count": u.count, "kind": kind}})
 }
 

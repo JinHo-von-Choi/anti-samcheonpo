@@ -30,10 +30,20 @@ func (e *Engine) trackRelease(ev *event.Event) {
 	log := classify.CILog(ev.Text)
 	switch classify.CIResult(cmdOf(ev), *ev.ExitCode, ev.Text) {
 	case classify.CIPassed:
-		m.ci = nil
+		m.ci, m.blindRelease = nil, 0
 		return
 	case classify.CIFailed:
 		m.ci = &ciMark{seq: ev.Seq, ws: ev.WSBefore, cmd: ev.CmdNorm, tests: testout.FailedTests(log), pkgs: classify.FailedPackages(log)}
+		if b := m.blindRelease; b > 0 {
+			// the release went out unchecked and CI failed: the release and
+			// the wait for its result were spent for nothing
+			var seqs []int64
+			for i := len(e.St.Events) - 1; i >= 0 && e.St.Events[i].Seq >= b; i-- {
+				seqs = append(seqs, e.St.Events[i].Seq)
+			}
+			e.markWaste(seqs, "S5")
+			m.blindRelease = 0
+		}
 		return
 	}
 	if m.ci != nil && ev.Category != event.CatVerify && ev.Seq > m.ci.seq {

@@ -208,3 +208,11 @@ func (p *Parser) SetRoot(root string) {
 // AddEvent appends an externally built event (prompt, stop, compact) with a
 // sequence number.
 func (p *Parser) AddEvent(ev *event.Event) { p.add(ev) }
+
+// ContinueAt makes the next event's sequence number n, so a session resumed
+// by a restarted daemon continues after the events it already recorded.
+func (p *Parser) ContinueAt(n int64) {
+	if n > p.nextSeq {
+		p.nextSeq = n
+	}
+}

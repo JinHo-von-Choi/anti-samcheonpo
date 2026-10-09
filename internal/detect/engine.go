@@ -1594,6 +1594,14 @@ func Arm(session, rule string) string {
 	}
 }
 
+// ReserveIDs makes verdict IDs continue after n, so a session resumed by a
+// restarted daemon does not reuse the IDs of verdicts it already stored.
+func (e *Engine) ReserveIDs(n int) {
+	if n > e.nextID {
+		e.nextID = n
+	}
+}
+
 // AddCost adds cost that arrived after an event was observed (live usage).
 func (e *Engine) AddCost(ev *event.Event, micro int64) {
 	// Unpriced token updates can have zero monetary delta.

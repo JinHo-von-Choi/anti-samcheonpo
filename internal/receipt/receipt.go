@@ -18,7 +18,7 @@ import (
 
 // SymptomName maps symptom codes to plain Korean names.
 var SymptomName = map[string]string{
-	"S1": "검증 쳇바퀴", "S2": "실패 루프", "S3": "맥락 이탈", "S4": "헛바퀴 탐색", "S5": "거짓 완료와 우회",
+	"S1": "검증 쳇바퀴", "S2": "실패 루프", "S3": "맥락 이탈", "S4": "헛바퀴 탐색", "S5": "거짓 완료·우회·검증 없는 배포",
 	"S6": "역량 한계", "S7": "기억 부패", "S8": "비용 폭주", "revert": "되돌림",
 }
 

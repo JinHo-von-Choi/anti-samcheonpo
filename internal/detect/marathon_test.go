@@ -320,3 +320,40 @@ func TestBackgroundRunIsNotAResult(t *testing.T) {
 		t.Fatalf("launching a CI watch in the background does not clear the failure: %+v", s)
 	}
 }
+
+// A release that went out unchecked and then failed CI is waste: the
+// release and every call up to the failure (waiting on and polling CI).
+func TestUncheckedReleaseThatFailsCIIsWaste(t *testing.T) {
+	b := newB(t, "x", nil)
+	b.run("gh run watch 1 --exit-status", 1, "X failed", time.Second)
+	push := shellRun("git push origin v1.0.1", 0, "", time.Second)
+	b.next(push)
+	if _, ok := b.e.St.Wasted[push.Seq]; ok {
+		t.Fatal("not waste before CI answers")
+	}
+	poll := shellRun("gh run list --limit 1", 0, "in_progress", time.Second)
+	b.next(poll)
+	watch := shellRun("gh run watch 2 --exit-status", 1, "X failed again", time.Second)
+	b.next(watch)
+	for _, ev := range []*event.Event{push, poll, watch} {
+		if _, ok := b.e.St.Wasted[ev.Seq]; !ok {
+			t.Fatalf("event %d (%s) is waste after the unchecked release failed CI", ev.Seq, ev.CmdNorm)
+		}
+	}
+	_, _, waste, _ := b.e.St.UsageSummary()
+	if waste == 0 {
+		t.Fatal("the waste share counts it")
+	}
+}
+
+// An expensive rerun after a small change, run anyway, is waste.
+func TestExpensiveRerunAfterSmallChangeIsWaste(t *testing.T) {
+	b := newB(t, "x", nil)
+	b.run("pytest -q", 1, "1 failed", 30*time.Minute)
+	b.write("lib/a.py", "h", []string{"a"}, []string{"b"})
+	rerun := shellRun("pytest -q", 1, "1 failed", 30*time.Minute)
+	b.next(rerun)
+	if _, ok := b.e.St.Wasted[rerun.Seq]; !ok {
+		t.Fatal("the full rerun after a one-line change is waste")
+	}
+}
