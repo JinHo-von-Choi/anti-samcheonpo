@@ -793,32 +793,26 @@ func TestWatchInvalidates(t *testing.T) {
 func TestPostToolNudgeStuckError(t *testing.T) {
 	h := startDaemon(t)
 	h.send("UserPromptSubmit", map[string]any{"prompt": "src/a.py 오류 고쳐 줘"})
-	var nudge string
+	var nudge string // every piece of advice delivered so far
 	// an attempt counts only once the daemon has recomputed the workspace
 	// fingerprint after the edit, which takes several git process starts; a
 	// host with slow process creation needs more attempts than a fast one
-	for i := 0; i < 12 && nudge == ""; i++ {
+	for i := 0; i < 12 && !strings.Contains(nudge, "같은 오류가"); i++ {
 		p := filepath.Join(h.proj, "src", "a.py")
 		content := fmt.Sprintf("x = %d\n", i+10)
 		_ = os.WriteFile(p, []byte(content), 0o644)
 		w := map[string]any{"tool_name": "Write", "tool_use_id": fmt.Sprintf("w%d", i), "tool_input": map[string]any{"file_path": p, "content": content}}
 		// advice is delivered with the next hook after it is raised, whichever
 		// event that turns out to be
-		if c := ctxOf(h.send("PreToolUse", w)); c != "" {
-			nudge = c
-		}
+		nudge += ctxOf(h.send("PreToolUse", w)) + "\n"
 		w["tool_response"] = map[string]any{"type": "update"}
-		if c := ctxOf(h.send("PostToolUse", w)); c != "" {
-			nudge = c
-		}
+		nudge += ctxOf(h.send("PostToolUse", w)) + "\n"
 		time.Sleep(150 * time.Millisecond)
 		o := h.shell(fmt.Sprintf("s%d", i), "python3 -m pytest", "Traceback (most recent call last):\n  File \"/w/src/a.py\", line 1, in <module>\nNameError: name 'y' is not defined", 1)
-		if c := ctxOf(o); c != "" {
-			nudge = c
-		}
+		nudge += ctxOf(o) + "\n"
 		time.Sleep(150 * time.Millisecond)
 	}
-	if !strings.Contains(nudge, "같은 오류가") || !strings.HasPrefix(nudge, "[삼천포] 관찰:") {
+	if !strings.Contains(nudge, "같은 오류가") || !strings.Contains(nudge, "[삼천포] 관찰:") {
 		t.Fatalf("stuck error must reach the agent through additionalContext: %q", nudge)
 	}
 }
