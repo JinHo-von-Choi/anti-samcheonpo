@@ -156,7 +156,7 @@ go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.3.1
 go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.3.1
 ```
 
-Windows는 Windows 10 1803 이상과 Git for Windows가 필요합니다. 전체 시험·적합성·훅 지연·릴리스 후보 smoke는 Windows 11 arm64에서 통과했고, 실제 에이전트 세션 연결은 아직 확인하지 않았습니다.
+Windows는 Windows 10 1803 이상과 Git for Windows가 필요합니다. 전체 시험·적합성·훅 지연·릴리스 후보 smoke는 Windows 11 arm64에서 통과했고, Claude Code 실제 세션에서 훅 발화·반복 탐지·실행 전 차단까지 확인했고, 다른 에이전트는 아직 확인하지 않았습니다.
 
 ---
 
@@ -302,7 +302,7 @@ swarm:
 | Linux x86-64 | 실제 설치·제거·훅 지연(p95 10ms 이내)·실제 에이전트 실행 확인 |
 | macOS | 소스 설치. GitHub Actions의 macOS 러너에서 데몬·훅·되돌리기를 포함한 전체 시험과 적합성 사례 통과. 실제 에이전트 실행은 미확인 |
 | Linux arm64 | 소스 설치 가능, 실제 실행 미확인 |
-| Windows | 소스 설치. Windows 11 arm64에서 전체 시험, 적합성 17건, 훅 지연(200회 응답 200), 릴리스 후보의 설치·제거·감사·첫 훅 smoke 통과. 실제 에이전트 실행과 x64는 미확인. 검사 명령은 Git for Windows의 bash로 실행 |
+| Windows | 소스 설치. Windows 11 arm64에서 전체 시험, 적합성 17건, 훅 지연(200회 응답 200), 릴리스 후보의 설치·제거·감사·첫 훅 smoke 통과. Claude Code 실제 세션(훅 발화·반복 탐지·실행 전 차단)과 CI의 x64는 확인했고, 다른 에이전트는 미확인. 검사 명령은 Git for Windows의 bash로 실행 |
 | WSL | Linux 실행 파일로 미확인 |
 
 ---
