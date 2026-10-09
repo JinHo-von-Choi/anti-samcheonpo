@@ -142,11 +142,11 @@ Dependency manifests (`package.json`, `requirements.txt` and the like) stay edit
 
 ### Release archive
 
-Grab `samcheonpo_0.5.0_<os>_<arch>.tar.gz` and `SHA256SUMS` from [Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases). Archives exist for linux, darwin and windows on amd64 and arm64. Each package was built on its matching GitHub Actions runner and passed keyless install, uninstall, audit, and first-hook checks.
+Grab `samcheonpo_0.5.1_<os>_<arch>.tar.gz` and `SHA256SUMS` from [Releases](https://github.com/JinHo-von-Choi/anti-samcheonpo/releases). Archives exist for linux, darwin and windows on amd64 and arm64. Each package was built on its matching GitHub Actions runner and passed keyless install, uninstall, audit, and first-hook checks.
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS   # on macOS: shasum -a 256 -c
-tar -xzf samcheonpo_0.5.0_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.5.1_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -160,8 +160,8 @@ Keep the primary `samcheonpo` binary right alongside `samcheonpo-hook` in that f
 Go 1.27 or later is required. Linux x86-64 is the sole platform verified with live agent runs; see the support table below for macOS and Windows coverage.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.5.0
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.5.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.5.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.5.1
 ```
 
 Windows requires Windows 10 1803 or later alongside Git for Windows. The full test suite, conformance cases, hook latency check, and release-candidate smoke tests pass on Windows 11 arm64. A real Claude Code run there triggered hooks, flagged a repeat, and blocked the subsequent run before execution. Other agents remain unverified.
