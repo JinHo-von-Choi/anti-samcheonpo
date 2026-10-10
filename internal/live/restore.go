@@ -44,6 +44,7 @@ func (s *Session) restoreHistory() error {
 	// the receipt lists the verdicts as they were delivered, not as the
 	// replay with less evidence would raise them again
 	s.eng.Verdicts = vs
+	s.restoreIronLaws(vs)
 	s.eng.RestoreReliabilityVerdicts(vs)
 	var last *event.Reliability
 	for i := len(evs) - 1; i >= 0; i-- {

@@ -227,7 +227,7 @@ func NewEngine(cfg config.Config, c *contract.Contract, accepted bool, mode, roo
 	if c != nil && len(c.Scope.Allow) > 0 {
 		e.St.scopeKnown = true
 	} else {
-		e.St.allowGuess = workScope(firstPrompt)
+		e.St.allowGuess = e.guessedScope(firstPrompt)
 	}
 	return e
 }
@@ -797,19 +797,7 @@ func (e *Engine) inScope(rel string) (in bool, known bool) {
 	if len(e.St.allowGuess) == 0 {
 		return true, false
 	}
-	if pathnorm.IsAbs(rel) {
-		return false, true
-	}
-	for _, g := range e.St.allowGuess {
-		if g == rel {
-			return true, true
-		}
-		pre := strings.TrimSuffix(g, "/**")
-		if strings.HasPrefix(rel, pre+"/") || rel == pre {
-			return true, true
-		}
-	}
-	return false, true
+	return inGuess(e.St.allowGuess, rel), true
 }
 
 func (e *Engine) production(ev *event.Event, sigs *[]Signal) {
@@ -1032,7 +1020,13 @@ func workScope(prompt string) []string {
 func inGuess(globs []string, rel string) bool {
 	for _, g := range globs {
 		pre := strings.TrimSuffix(g, "/**")
-		if g == rel || rel == pre || strings.HasPrefix(rel, pre+"/") {
+		if g == rel {
+			return true
+		}
+		if pathnorm.IsAbs(g) && !strings.HasSuffix(g, "/**") {
+			continue
+		}
+		if rel == pre || strings.HasPrefix(rel, pre+"/") {
 			return true
 		}
 	}
@@ -1054,7 +1048,7 @@ func (e *Engine) Retarget(goal string) {
 		return
 	}
 	st.prevGuess = st.allowGuess
-	st.allowGuess = workScope(goal)
+	st.allowGuess = e.guessedScope(goal)
 	st.guessOut = map[string]int{}
 	st.compacted = false
 }

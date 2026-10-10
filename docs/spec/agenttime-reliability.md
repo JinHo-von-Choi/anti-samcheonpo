@@ -181,7 +181,7 @@ AgentTime 기록 모음에는 공개 배포 자료의 경로(`metadata_path`), �
 
 전달 후보 수만으로 실제 훅 출력이나 사용자의 대응을 확인할 수는 없다. 보고서는 전체·적용 가능 기록을 나눠 정밀도(precision), 재현율(recall), 오탐률(FPR)과 Wilson 신뢰구간을 제공한다. 분모가 0이면 비율은 `null`이다. 파싱에 실패한 원본도 제외 사유와 함께 남긴다.
 
-현재 판정기 버전은 `samcheonpo-eval/0.3.0`이다. 보고서에는 manifest·라벨·설정 해시와 단가표 버전을 함께 기록한다. `effectiveness_validated`는 `false`로 남는다. 이 명령은 제품 효과를 자동 인증하지 않는다.
+현재 판정기 버전은 `samcheonpo-eval/0.3.1`이다. 보고서에는 manifest·라벨·설정 해시와 단가표 버전을 함께 기록한다. `effectiveness_validated`는 `false`로 남는다. 이 명령은 제품 효과를 자동 인증하지 않는다.
 
 ### 전달 설정을 가정해서 평가하기
 

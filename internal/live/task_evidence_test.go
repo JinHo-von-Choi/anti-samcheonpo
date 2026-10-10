@@ -37,6 +37,10 @@ done:
 	if len(results) != 1 || results[0].Evidence == nil || !results[0].Pass {
 		t.Fatalf("%+v", results)
 	}
+	var count int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM progress WHERE session_id=? AND criteria_met=1 AND criteria_total=1`, s.ID).Scan(&count); err != nil || count != 1 {
+		t.Fatalf("missing actual checkpoint progress: %d %v", count, err)
+	}
 	e := results[0].Evidence
 	if e.Key.TaskID != s.task.ID || e.Key.Revision != s.intentRevision.Number || e.SessionID != s.ID {
 		t.Fatalf("wrong attribution: %+v", e)

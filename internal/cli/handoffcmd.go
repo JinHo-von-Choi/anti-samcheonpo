@@ -10,7 +10,6 @@ import (
 
 	"github.com/spf13/cobra"
 
-	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/analyze"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
@@ -160,80 +159,5 @@ func handoffCmd() *cobra.Command {
 	c.Flags().StringVar(&format, "format", "text", "출력 형식 (text|json); JSON은 로컬 원문을 포함하며 공유용 비식별 자료가 아님")
 	c.AddCommand(handoffInspectCmd())
 	c.AddCommand(handoffLinkCmd())
-	return c
-}
-
-func reportCmd() *cobra.Command {
-	var since string
-	c := &cobra.Command{
-		Use:   "report",
-		Short: "에이전트별·프로젝트별 헛짓률 비교",
-		RunE: func(cmd *cobra.Command, args []string) error {
-			t, err := ParseSince(since, time.Now())
-			if err != nil {
-				return err
-			}
-			db, err := openDB()
-			if err != nil {
-				return err
-			}
-			defer db.Close()
-			rows, err := db.Sessions(t, "all", "")
-			if err != nil {
-				return err
-			}
-			type agg struct {
-				n                     int
-				t                     analyze.Totals
-				verified, progressCnt int
-			}
-			byAgent := map[string]*agg{}
-			ids := make([]string, len(rows))
-			for i, r := range rows {
-				ids[i] = r.ID
-			}
-			bt := db.BucketTotals(ids)
-			for _, r := range rows {
-				a := byAgent[r.Agent]
-				if a == nil {
-					a = &agg{t: analyze.Totals{BucketMicro: map[string]int64{}, SymptomMicro: map[string]int64{}}}
-					byAgent[r.Agent] = a
-				}
-				a.n++
-				x := bt[r.ID]
-				a.t.Micro += x.Micro
-				a.t.Tokens += x.Tokens
-				a.t.UnpricedTokens += x.UnpricedTokens
-				for k, v := range x.BucketMicro {
-					a.t.BucketMicro[k] += v
-				}
-				for k, v := range x.SymptomMicro {
-					a.t.SymptomMicro[k] += v
-				}
-				if r.Grade == analyze.GradeVerified {
-					a.verified++
-				}
-			}
-			w := cmd.OutOrStdout()
-			fmt.Fprintf(w, "%-9s %6s %14s %8s %8s %10s\n", "에이전트", "세션", "총 지출", "헛짓률", "진척률", "검증 진척")
-			var names []string
-			for k := range byAgent {
-				names = append(names, k)
-			}
-			sort.Strings(names)
-			for _, k := range names {
-				a := byAgent[k]
-				pct := func(v int64) float64 {
-					if a.t.Micro == 0 {
-						return 0
-					}
-					return float64(v) / float64(a.t.Micro) * 100
-				}
-				fmt.Fprintf(w, "%-9s %6d %13s원 %7.1f%% %7.1f%% %10d\n", k, a.n, contract.Comma(cost.Won(a.t.Micro)), pct(a.t.SymptomTotal()), pct(a.t.BucketMicro[analyze.BucketProgress]), a.verified)
-			}
-			return nil
-		},
-	}
-	c.Flags().StringVar(&since, "since", "30d", "기간")
 	return c
 }

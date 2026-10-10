@@ -21,7 +21,7 @@ import (
 )
 
 // EvaluatorVersion identifies the detector rule set; recorded in receipt seals.
-const EvaluatorVersion = "samcheonpo-eval/0.3.0"
+const EvaluatorVersion = "samcheonpo-eval/0.3.1"
 
 // Buckets of the receipt.
 const (

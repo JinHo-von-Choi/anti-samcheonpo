@@ -94,6 +94,9 @@ func data(v detect.Signal, c Context) map[string]any {
 		d["kindname"] = kindNames[k]
 		if strings.HasPrefix(k, "iron_laws:") {
 			d["kindname"] = "오철칙 " + strings.TrimPrefix(k, "iron_laws:") + " 예외 은폐"
+			if n := toInt(v.Facts["finding_count"]); n > 1 {
+				d["kindname"] = fmt.Sprint(d["kindname"]) + fmt.Sprintf(" (같은 편집에서 %d개 지적)", n)
+			}
 		}
 		if d["kindname"] == "" {
 			d["kindname"] = k

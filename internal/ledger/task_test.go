@@ -123,10 +123,22 @@ func TestUpgradeV2LedgerPreservesAnalysisAndRollsBackFailure(t *testing.T) {
 		}
 	}
 	raw.Exec(`INSERT INTO schema_version VALUES(2)`)
+	// The current writer also records unsealed observation metadata. Remove
+	// that table after seeding to construct the exact v2 schema footprint.
+	meta, err := migrations.ReadFile("migrations/0009_session_observation.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = raw.Exec(string(meta)); err != nil {
+		t.Fatal(err)
+	}
 	old := &DB{raw}
 	r := result(t)
 	before, err := old.SaveAnalysis(r, 1, 2, nil)
 	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = raw.Exec(`DROP TABLE session_observation`); err != nil {
 		t.Fatal(err)
 	}
 	// Force migration 3 to fail after its first CREATE statement.
@@ -156,7 +168,10 @@ func TestUpgradeV2LedgerPreservesAnalysisAndRollsBackFailure(t *testing.T) {
 	if err != nil || after.Head != before.Head || after.Spec != before.Spec {
 		t.Fatalf("legacy seal changed: %+v %v", after, err)
 	}
-	if d.Version() != 8 {
+	if _, err = d.Observation(r.Session.ID); err != sql.ErrNoRows {
+		t.Fatalf("legacy metadata invented: %v", err)
+	}
+	if d.Version() != 9 {
 		t.Fatal(d.Version())
 	}
 }

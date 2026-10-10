@@ -255,3 +255,31 @@ func TestFileHashIgnoresLineEndings(t *testing.T) {
 		t.Fatal("different contracts must not hash alike")
 	}
 }
+
+func TestCurrentStateWithMissingSigningKeyIsReadOnly(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SAMCHEONPO_HOME", home)
+	root := t.TempDir()
+	if err := os.MkdirAll(Dir(root), 0700); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(Path(root), []byte(good), 0600); err != nil {
+		t.Fatal(err)
+	}
+	c, raw, err := Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = Accept(root, c, raw, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	if err = os.Remove(acceptanceKeyPath()); err != nil {
+		t.Fatal(err)
+	}
+	if st := CurrentState(root, c, raw); st.State == StateAccepted {
+		t.Fatal("missing key kept trusted acceptance")
+	}
+	if _, err = os.Stat(acceptanceKeyPath()); !os.IsNotExist(err) {
+		t.Fatalf("diagnosis created key: %v", err)
+	}
+}

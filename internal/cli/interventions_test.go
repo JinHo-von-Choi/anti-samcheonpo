@@ -59,3 +59,34 @@ func TestInterventionsCountsStagesPerRule(t *testing.T) {
 		}
 	}
 }
+
+func TestInterventionsAgentFilterAndUnknownReason(t *testing.T) {
+	t.Setenv("SAMCHEONPO_HOME", t.TempDir())
+	db, err := openDB()
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, agent := range []string{"claude", "hermes"} {
+		a := recovery.Attempt{Version: "recovery/1", ID: agent, Agent: agent, SessionID: agent, CauseKey: agent, VerdictID: agent, Rule: "s2.stuck_error", CreatedAt: time.Now(), Stage: recovery.Proposed, Route: "observe", Observation: "unsupported_delivery"}
+		if err = db.SaveRecovery(a); err != nil {
+			t.Fatal(err)
+		}
+		if err = a.Advance(recovery.Censored, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		if err = db.SaveRecovery(a); err != nil {
+			t.Fatal(err)
+		}
+	}
+	db.Close()
+	cmd := interventionsCmd()
+	var out bytes.Buffer
+	cmd.SetOut(&out)
+	cmd.SetArgs([]string{"--since", "all", "--agent", "hermes", "--by-agent"})
+	if err = cmd.Execute(); err != nil {
+		t.Fatal(err)
+	}
+	if !strings.Contains(out.String(), "hermes/s2.stuck_error") || !strings.Contains(out.String(), "hermes/unsupported_delivery: 1") || strings.Contains(out.String(), "claude/") {
+		t.Fatalf("%s", out.String())
+	}
+}

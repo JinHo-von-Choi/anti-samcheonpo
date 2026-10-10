@@ -3,6 +3,7 @@ package live
 import (
 	"bufio"
 	"encoding/json"
+	"fmt"
 	"net"
 	"strings"
 	"testing"
@@ -11,6 +12,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/recovery"
 )
 
@@ -135,7 +137,10 @@ func TestRecoveryEffectWindowStartsAfterDeliveryAndDoesNotClaimResolved(t *testi
 	if s.recoveries[0].Stage != recovery.Delivered {
 		t.Fatal("proposal-time window credited as post-delivery observation")
 	}
-	s.trackOutcomes(&event.Event{Seq: 40})
+	s.recoveries[0].ObservationBasis = "completed_command"
+	s.recoveries[0].TargetHash = fp.Hash("test-command")
+	zero := 0
+	s.trackOutcomes(&event.Event{Seq: 40, Kind: event.KindTool, Tool: event.ToolShell, ExecFP: "test-command", ExecCertain: true, ExitCode: &zero})
 	got := s.recoveries[0]
 	if got.Stage != recovery.EffectObserved || got.Observation != "no_recurrence_observed" {
 		t.Fatalf("%+v", got)
@@ -173,5 +178,77 @@ func TestEnvironmentSummaryDoesNotSendUserIntoAnotherCodeLoop(t *testing.T) {
 	summary := s.plainSummary()
 	if strings.Contains(summary, "통과하도록 고쳐") || !strings.Contains(summary, "외부 조건 변경") {
 		t.Fatal(summary)
+	}
+}
+
+func TestRecoveryUnrelatedEventsCannotProveNoRecurrence(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	a := proposeTestRecovery(t, s)
+	out := json.RawMessage(`{"text":"` + recoveryMarker(a.ID) + `"}`)
+	s.markRecoveryOutput(out, recovery.Emitted)
+	s.markRecoveryOutput(out, recovery.Delivered)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.trackOutcomes(&event.Event{Seq: 11, Kind: event.KindTool, Tool: event.ToolRead})
+	got := s.recoveries[0]
+	if got.Stage != recovery.Censored || got.Observation != "no_relevant_observation" {
+		t.Fatalf("%+v", got)
+	}
+}
+
+func TestRecoveryRequiresSameExecutionAndCompletedAudit(t *testing.T) {
+	zero := 0
+	a := recovery.Attempt{ObservationBasis: "completed_command", TargetHash: fp.Hash("run-a")}
+	if relevantRecoveryEvent(a, &event.Event{Kind: event.KindTool, Tool: event.ToolShell, CmdFP: "run-a", ExitCode: &zero}) {
+		t.Fatal("uncertain execution used as evidence")
+	}
+	if relevantRecoveryEvent(a, &event.Event{Kind: event.KindTool, Tool: event.ToolShell, ExecFP: "run-b", ExecCertain: true, ExitCode: &zero}) {
+		t.Fatal("different execution used as evidence")
+	}
+	s, _ := reliabilitySession(t)
+	a = proposeTestRecovery(t, s)
+	out := json.RawMessage(`{"text":"` + recoveryMarker(a.ID) + `"}`)
+	s.markRecoveryOutput(out, recovery.Emitted)
+	s.markRecoveryOutput(out, recovery.Delivered)
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	s.recoveries[0].ObservationBasis = "same_path"
+	s.recoveries[0].TargetHash = fp.Hash("io.py")
+	s.trackOutcomes(&event.Event{Seq: 11, Kind: event.KindTool, Tool: event.ToolEdit, Paths: []string{"io.py"}})
+	if got := s.recoveries[0]; got.Stage != recovery.Censored || got.Observation != "related_check_unconfirmed" {
+		t.Fatalf("async audit absence credited: %+v", got)
+	}
+}
+
+func TestRecoveryRecurrenceMustMatchTarget(t *testing.T) {
+	for _, same := range []bool{false, true} {
+		t.Run(fmt.Sprint(same), func(t *testing.T) {
+			s, _ := reliabilitySession(t)
+			a := proposeTestRecovery(t, s)
+			out := json.RawMessage(`{"text":"` + recoveryMarker(a.ID) + `"}`)
+			s.markRecoveryOutput(out, recovery.Emitted)
+			s.markRecoveryOutput(out, recovery.Delivered)
+			s.mu.Lock()
+			defer s.mu.Unlock()
+			s.recoveries[0].ObservationBasis = "completed_command"
+			s.recoveries[0].TargetHash = fp.Hash("run-a")
+			zero := 0
+			run := "run-b"
+			if same {
+				run = "run-a"
+			}
+			seen := &event.Event{Seq: 5, Kind: event.KindTool, Tool: event.ToolShell, ExecFP: run, ExecCertain: true, ExitCode: &zero}
+			s.eng.St.Events = append(s.eng.St.Events, seen)
+			s.eng.Verdicts = append(s.eng.Verdicts, detect.Signal{Seq: 5, Rule: a.Rule, Level: detect.L1})
+			s.trackOutcomes(seen)
+			s.trackOutcomes(&event.Event{Seq: 11, Kind: event.KindTool, Tool: event.ToolShell, ExecFP: "run-a", ExecCertain: true, ExitCode: &zero})
+			want := "no_recurrence_observed"
+			if same {
+				want = "recurrence_observed"
+			}
+			if got := s.recoveries[0]; got.Observation != want {
+				t.Fatalf("%+v", got)
+			}
+		})
 	}
 }

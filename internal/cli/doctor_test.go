@@ -14,7 +14,7 @@ func TestDoctorInCleanHomeDoesNotCreateStateOrRequireKeys(t *testing.T) {
 	t.Setenv("SAMCHEONPO_HOME", home)
 	t.Setenv("ANTHROPIC_API_KEY", "")
 	report := diagnose("claude", root, "/no/samcheonpo", filepath.Join(home, "ledger.db"), func(string) string { return "" }, func() bool { return false })
-	var judge, ledger bool
+	var judge, ledger, completion bool
 	for _, c := range report.Checks {
 		if c.State == "error" {
 			t.Fatalf("clean offline install reported fatal error: %+v", c)
@@ -25,8 +25,11 @@ func TestDoctorInCleanHomeDoesNotCreateStateOrRequireKeys(t *testing.T) {
 		if c.ID == "ledger" && c.State == "warning" {
 			ledger = true
 		}
+		if c.ID == "completion" && c.State == "warning" && strings.Contains(c.Message, "완료 미확인") {
+			completion = true
+		}
 	}
-	if !judge || !ledger {
+	if !judge || !ledger || !completion {
 		t.Fatalf("%+v", report)
 	}
 	if _, err := os.Stat(home); !os.IsNotExist(err) {

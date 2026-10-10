@@ -9,6 +9,7 @@ import (
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/config"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/spf13/cobra"
@@ -76,6 +77,17 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 		add("rollout", "ok", fmt.Sprintf("개입 단계 %s, 세션당 차단 상한 %d회", cfg.Rollout.Mode, cfg.Rollout.EscalateMaxBlocks))
 	}
 	version := probe(agent)
+	k, raw, contractErr := contract.Load(project)
+	switch {
+	case contractErr != nil:
+		add("completion", "warning", "완료 조건을 읽을 수 없음; 원문을 출력하지 않았고 검사를 실행하지 않았음")
+	case k == nil:
+		add("completion", "warning", "완료 미확인: 계약 없음. contract show로 후보를 확인하고 사용자 수락 후 체크포인트로 확인")
+	case contract.CurrentState(project, k, raw).State != contract.StateAccepted:
+		add("completion", "warning", "완료 미확인: 현재 조건이 수락되지 않았음. contract show로 초안·수락 상태 확인")
+	default:
+		add("completion", "ok", fmt.Sprintf("수락된 완료 조건 %d개; 수락은 통과 증거가 아님. 실제 체크포인트 결과로 완료 확인", len(k.Done)))
+	}
 	caps, tested := adapter.Resolve(agent, version)
 	switch {
 	case tested:

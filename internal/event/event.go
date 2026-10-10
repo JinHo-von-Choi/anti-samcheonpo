@@ -153,6 +153,10 @@ type PatchFile struct {
 
 // Session is a parsed agent session.
 type Session struct {
+	// Observation closure is separate from a confirmed agent SessionEnd and
+	// stays outside the legacy canonical seal and public session payload.
+	ObservationClosedAt    time.Time `json:"-"`
+	ObservationCloseReason string    `json:"-"`
 	// Optional v2 task association; omitted from legacy v1 canonical rows.
 	TaskID       string    `json:"task_id,omitempty"`
 	TaskRevision uint64    `json:"task_revision,omitempty"`

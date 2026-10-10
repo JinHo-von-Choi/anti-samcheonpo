@@ -223,6 +223,24 @@ func (d *DB) SaveAnalysis(r *analyze.Result, size, mtime int64, msgs func(detect
 			return sl, err
 		}
 	}
+	last := time.Time{}
+	for _, ev := range s.Events {
+		if ev.TS.After(last) {
+			last = ev.TS
+		}
+	}
+	if last.IsZero() {
+		last = s.StartedAt
+	}
+	reason, closed := s.ObservationCloseReason, s.ObservationClosedAt
+	if reason == "" {
+		reason = "audit_snapshot"
+		closed = time.Now()
+	}
+	if _, err := tx.Exec(`INSERT INTO session_observation(session_id,agent,last_activity_at,closed_at,close_reason,evaluator_version) VALUES(?,?,?,?,?,?)
+		ON CONFLICT(session_id) DO UPDATE SET last_activity_at=excluded.last_activity_at,closed_at=excluded.closed_at,close_reason=excluded.close_reason,evaluator_version=excluded.evaluator_version WHERE session_observation.agent=excluded.agent`, s.ID, s.Agent, ts(last), ts(closed), reason, analyze.EvaluatorVersion); err != nil {
+		return sl, err
+	}
 	return sl, tx.Commit()
 }
 
@@ -254,17 +272,18 @@ func firstLine(s string, n int) string {
 
 // SessionRow is a summary row for listing.
 type SessionRow struct {
-	ID, Agent, Model, Project, Grade, Prompt, Source string
-	Started, Ended                                   time.Time
-	Micro, Tokens, Unpriced, WasteMicro, WasteTokens int64
-	FormatOK                                         bool
-	QuotaPct                                         float64
+	ID, Agent, Model, Project, Grade, Prompt, Source, Mode string
+	Analyzed                                               time.Time
+	Started, Ended                                         time.Time
+	Micro, Tokens, Unpriced, WasteMicro, WasteTokens       int64
+	FormatOK                                               bool
+	QuotaPct                                               float64
 }
 
 // Sessions lists analyzed sessions started after since.
 func (d *DB) Sessions(since time.Time, agent, project string) ([]SessionRow, error) {
 	q := `SELECT id,agent,COALESCE(model,''),COALESCE(project_path,''),COALESCE(grade,''),COALESCE(first_prompt_summary,''),COALESCE(source_path,''),
-		COALESCE(started_at,''),COALESCE(ended_at,''),total_micro_krw,total_tokens,unpriced_tokens,waste_micro_krw,waste_tokens,format_ok,COALESCE(quota_used_pct,0)
+		COALESCE(started_at,''),COALESCE(ended_at,''),total_micro_krw,total_tokens,unpriced_tokens,waste_micro_krw,waste_tokens,format_ok,COALESCE(quota_used_pct,0),mode,COALESCE(analyzed_at,'')
 		FROM session WHERE (started_at IS NULL OR started_at >= ?)`
 	args := []any{since.UTC().Format(time.RFC3339Nano)}
 	if agent != "" && agent != "all" {
@@ -284,14 +303,15 @@ func (d *DB) Sessions(since time.Time, agent, project string) ([]SessionRow, err
 	var out []SessionRow
 	for rows.Next() {
 		var r SessionRow
-		var st, en string
+		var st, en, at string
 		var fok int
 		if err := rows.Scan(&r.ID, &r.Agent, &r.Model, &r.Project, &r.Grade, &r.Prompt, &r.Source, &st, &en, &r.Micro, &r.Tokens, &r.Unpriced,
-			&r.WasteMicro, &r.WasteTokens, &fok, &r.QuotaPct); err != nil {
+			&r.WasteMicro, &r.WasteTokens, &fok, &r.QuotaPct, &r.Mode, &at); err != nil {
 			return nil, err
 		}
 		r.Started, _ = time.Parse(time.RFC3339Nano, st)
 		r.Ended, _ = time.Parse(time.RFC3339Nano, en)
+		r.Analyzed, _ = time.Parse(time.RFC3339Nano, at)
 		r.FormatOK = fok == 1
 		out = append(out, r)
 	}
@@ -490,7 +510,7 @@ func (d *DB) BucketTotals(ids []string) map[string]analyze.Totals {
 // UpsertLive creates or refreshes a live session row.
 func (d *DB) UpsertLive(id, agent, root, transcript, model string) error {
 	res, err := d.Exec(`INSERT INTO session(id,agent,model,project_path,mode,source_path,started_at,analyzed_at) VALUES (?,?,?,?,?,?,?,?)
-		ON CONFLICT(id) DO UPDATE SET model=COALESCE(NULLIF(excluded.model,''),session.model), mode='live' WHERE session.agent=excluded.agent`,
+		ON CONFLICT(id) DO UPDATE SET model=COALESCE(NULLIF(excluded.model,''),session.model), mode='live',ended_at=NULL WHERE session.agent=excluded.agent`,
 		id, agent, model, root, "live", transcript, time.Now().UTC().Format(time.RFC3339Nano), time.Now().UTC().Format(time.RFC3339))
 	if err != nil {
 		return err
@@ -502,7 +522,7 @@ func (d *DB) UpsertLive(id, agent, root, transcript, model string) error {
 	if n == 0 {
 		return fmt.Errorf("session ID belongs to another agent")
 	}
-	return nil
+	return d.startObservation(id, agent)
 }
 
 func (d *DB) CheckSessionAgent(id, agent string) error {
@@ -528,10 +548,10 @@ func (d *DB) InsertLiveEvent(id string, ev *event.Event) error {
 		exit = *ev.ExitCode
 	}
 	_, err := d.Exec(`INSERT OR REPLACE INTO event(session_id,seq,ts,kind,tool,raw_tool,cmd_fp,paths,ws_before,ws_after,result_fp,exit_code,
-		tokens_in,tokens_out,tokens_cache_read,tokens_cache_write,model,cost_micro_krw,priced,category,category_basis,forced,summary)
-		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
+		tokens_in,tokens_out,tokens_cache_read,tokens_cache_write,model,cost_micro_krw,priced,category,category_basis,forced,summary,source_ref)
+		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		id, ev.Seq, ts(ev.TS), string(ev.Kind), ev.Tool, ev.RawTool, ev.CmdFP, string(paths), ev.WSBefore, ev.WSAfter, ev.ResultFP, exit,
-		ev.Usage.In, ev.Usage.Out, ev.Usage.CacheRead, ev.Usage.CacheWrite, ev.Usage.Model, ev.CostMicroKRW, b2i(ev.Priced), string(ev.Category), "live", b2i(ev.Forced), ev.Summary)
+		ev.Usage.In, ev.Usage.Out, ev.Usage.CacheRead, ev.Usage.CacheWrite, ev.Usage.Model, ev.CostMicroKRW, b2i(ev.Priced), string(ev.Category), "live", b2i(ev.Forced), ev.Summary, ev.SourceRef)
 	return err
 }
 

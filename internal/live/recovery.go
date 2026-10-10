@@ -18,6 +18,7 @@ func recoveryMarker(id string) string { return intervene.RecoveryMarker(id) }
 // proposeRecovery is called under s.mu. It reserves a bounded proposal before
 // queueing, so repeated warnings cannot create a self-perpetuating nudge loop.
 func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bool) {
+	var target *event.Event
 	var failed bool
 	var errorText string
 	var signatures []string
@@ -27,6 +28,7 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 		if ev.Seq > v.Seq {
 			continue
 		}
+		target = ev
 		failed = ev.IsError || ev.ExitCode != nil && *ev.ExitCode != 0
 		errorText = ev.Text
 		signatures = ev.ErrFPs
@@ -57,6 +59,18 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	decision := policy.Decide("advice", policy.Capabilities{Inject: s.caps.InjectPre || s.caps.InjectPost || s.caps.PromptInject, UserMessage: s.caps.UserMessage})
 	now := time.Now().UTC()
 	a := recovery.Attempt{Version: "recovery/1", ID: fp.Hash(s.Agent, s.ID, v.ID, key, now.Format(time.RFC3339Nano)), Agent: s.Agent, SessionID: s.ID, Revision: s.contractRevision, CauseKey: key, VerdictID: v.ID, Rule: v.Rule, Seq: v.Seq, Prescription: p, Stage: recovery.Proposed, CreatedAt: now, Route: decision.Route}
+	if target != nil && target.Tool == event.ToolShell && target.ExecCertain && target.ExecFP != "" && (strings.HasPrefix(v.Rule, "s1.") || strings.HasPrefix(v.Rule, "s2.")) {
+		a.ObservationBasis = "completed_command"
+		a.TargetHash = fp.Hash(target.ExecFP)
+	} else if p, ok := v.Facts["path"].(string); ok && p != "" {
+		a.ObservationBasis = "same_path"
+		a.TargetHash = fp.Hash(p)
+	} else if v.Rule == "s4.read_only_streak" {
+		a.ObservationBasis = "produce_after_read_streak"
+	}
+	if decision.Route == "observe" {
+		a.DeliveryReason = "no_supported_advice_route"
+	}
 	s.recoveries = append(s.recoveries, a)
 	s.saveRecovery(a)
 	if decision.Route == "observe" {
@@ -116,30 +130,95 @@ func (s *Session) markRecoveryOutput(out json.RawMessage, stage recovery.Stage) 
 	}
 }
 
+// relevantRecoveryEvent requires an actual completed action, not a message or
+// an unrelated read. Hashes link the target without retaining command/path text.
+func relevantRecoveryEvent(a recovery.Attempt, ev *event.Event) bool {
+	if ev.Kind != event.KindTool {
+		return false
+	}
+	switch a.ObservationBasis {
+	case "completed_command":
+		return ev.Tool == event.ToolShell && !ev.Background && ev.ExitCode != nil && ev.ExecCertain && ev.ExecFP != "" && fp.Hash(ev.ExecFP) == a.TargetHash
+	case "same_path":
+		if ev.Tool != event.ToolWrite && ev.Tool != event.ToolEdit {
+			return false
+		}
+		for _, p := range ev.Paths {
+			if fp.Hash(p) == a.TargetHash {
+				return true
+			}
+		}
+	case "produce_after_read_streak":
+		return (ev.Tool == event.ToolWrite || ev.Tool == event.ToolEdit) && !ev.IsError && len(ev.Paths) > 0
+	}
+	return false
+}
+
 func (s *Session) trackOutcomes(ev *event.Event) {
 	for i := range s.recoveries {
 		a := &s.recoveries[i]
+		if a.Stage == recovery.EffectObserved || a.Stage == recovery.Censored {
+			continue
+		}
 		start := a.Seq
 		if a.DeliveredAt != nil {
 			start = a.DeliveredSeq
 		}
-		if a.Stage == recovery.EffectObserved || a.Stage == recovery.Censored || ev.Seq < start+10 {
+		if ev.Seq <= start || ev.Seq <= a.ObservedThrough {
 			continue
 		}
 		a.ObservedThrough = ev.Seq
-		if a.DeliveredAt == nil {
-			a.Observation = "delivery_unconfirmed"
-			_ = a.Advance(recovery.Censored, time.Now())
-			s.dropRecoveryMessage(a.ID)
-		} else {
-			a.Observation = "no_recurrence_observed"
-			for _, v := range s.eng.Verdicts {
-				if v.Rule == a.Rule && v.Seq > start && v.Seq <= ev.Seq {
-					a.Observation = "recurrence_observed"
-					break
+		if a.DeliveredAt != nil && a.Revision == s.contractRevision && relevantRecoveryEvent(*a, ev) {
+			a.RelevantOpportunities++
+		}
+		if ev.Seq < start+10 {
+			s.saveRecovery(*a)
+			continue
+		}
+		a.Observation = "delivery_unconfirmed"
+		next := recovery.Censored
+		if a.DeliveredAt != nil {
+			a.Observation = "no_relevant_observation"
+			if a.Revision != s.contractRevision {
+				a.Observation = "target_revision_changed"
+			}
+			if a.Revision == s.contractRevision && a.RelevantOpportunities > 0 {
+				// An asynchronous external audit cannot prove absence of a finding just
+				// because its result has not arrived. Path-only opportunities stay unknown.
+				a.Observation = "related_check_unconfirmed"
+				if a.ObservationBasis != "same_path" {
+					a.Observation = "no_recurrence_observed"
+					next = recovery.EffectObserved
+				}
+				for _, v := range s.eng.Verdicts {
+					if v.Rule != a.Rule || v.Seq <= start || v.Seq > ev.Seq || v.Level <= detect.L0 {
+						continue
+					}
+					matched := false
+					if a.ObservationBasis == "same_path" {
+						p, _ := v.Facts["path"].(string)
+						matched = p != "" && fp.Hash(p) == a.TargetHash
+					} else if a.ObservationBasis == "produce_after_read_streak" {
+						matched = true
+					} else {
+						for _, seen := range s.eng.St.Events {
+							if seen.Seq == v.Seq && relevantRecoveryEvent(*a, seen) {
+								matched = true
+								break
+							}
+						}
+					}
+					if matched {
+						a.Observation = "recurrence_observed"
+						next = recovery.EffectObserved
+						break
+					}
 				}
 			}
-			_ = a.Advance(recovery.EffectObserved, time.Now())
+		}
+		_ = a.Advance(next, time.Now())
+		if next == recovery.Censored {
+			s.dropRecoveryMessage(a.ID)
 		}
 		s.saveRecovery(*a)
 		if s.db != nil {

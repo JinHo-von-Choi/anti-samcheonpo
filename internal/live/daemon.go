@@ -171,7 +171,7 @@ func Run(dbPath string, idle time.Duration) error {
 	d.mu.Unlock()
 	var finalErr error
 	for _, s := range sessions {
-		if _, err := s.Finalize(); err != nil {
+		if _, err := s.CloseObservation(); err != nil {
 			finalErr = errors.Join(finalErr, fmt.Errorf("세션 %s: %w", s.ID, err))
 		}
 	}

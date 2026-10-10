@@ -446,13 +446,17 @@ func acceptanceMACFor(root string, a Acceptance) (string, error) {
 	if err != nil {
 		return "", err
 	}
+	return acceptanceMACWithKey(root, a, key), nil
+}
+
+func acceptanceMACWithKey(root string, a Acceptance, key []byte) string {
 	a.MAC = ""
 	b, _ := json.Marshal(a)
 	m := hmac.New(sha256.New, key)
 	m.Write([]byte(root))
 	m.Write([]byte{0})
 	m.Write(b)
-	return hex.EncodeToString(m.Sum(nil)), nil
+	return hex.EncodeToString(m.Sum(nil))
 }
 
 // validMAC accepts a record signed for any spelling of the project path: new
@@ -461,12 +465,18 @@ func validMAC(project string, a Acceptance) bool {
 	if a.MAC == "" {
 		return false
 	}
+	// Verification is read-only: a missing key revokes authority instead of
+	// creating a new signing key from a diagnostic or contract show command.
+	key, err := os.ReadFile(acceptanceKeyPath())
+	if err != nil || len(key) < 32 {
+		return false
+	}
 	roots, err := pathnorm.Spellings(project)
 	if err != nil {
 		return false
 	}
 	for _, root := range roots {
-		if want, err := acceptanceMACFor(root, a); err == nil && hmac.Equal([]byte(want), []byte(a.MAC)) {
+		if want := acceptanceMACWithKey(root, a, key); hmac.Equal([]byte(want), []byte(a.MAC)) {
 			return true
 		}
 	}

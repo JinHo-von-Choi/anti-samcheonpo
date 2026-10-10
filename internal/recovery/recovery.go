@@ -138,6 +138,11 @@ const (
 )
 
 type Attempt struct {
+	ObservationBasis      string `json:"observation_basis,omitempty"`
+	TargetHash            string `json:"target_hash,omitempty"`
+	RelevantOpportunities int    `json:"relevant_opportunities,omitempty"`
+	DeliveryReason        string `json:"delivery_reason,omitempty"`
+
 	Version         string       `json:"version"`
 	ID              string       `json:"id"`
 	Agent           string       `json:"agent"`

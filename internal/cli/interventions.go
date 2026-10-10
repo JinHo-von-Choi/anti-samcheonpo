@@ -14,7 +14,8 @@ import (
 // proposed, emitted, delivered, acknowledged, effect observed, or censored.
 // Reaching a stage is not evidence that the prescription helped.
 func interventionsCmd() *cobra.Command {
-	var since string
+	var since, agent string
+	var byAgent bool
 	c := &cobra.Command{
 		Use:   "interventions",
 		Short: "규칙별 처방이 제안·전달·인지·효과 관측 중 어디까지 갔는지 센다",
@@ -34,11 +35,22 @@ func interventionsCmd() *cobra.Command {
 			}
 			type row struct{ proposed, emitted, delivered, acked, effect, recur, censored int }
 			by := map[string]*row{}
+			reasons := map[string]int{}
 			for _, a := range as {
-				r := by[a.Rule]
+				if agent != "all" && a.Agent != agent {
+					continue
+				}
+				key := a.Rule
+				if byAgent {
+					key = a.Agent + "/" + a.Rule
+				}
+				if a.Stage == recovery.Censored {
+					reasons[a.Agent+"/"+a.Observation]++
+				}
+				r := by[key]
 				if r == nil {
 					r = &row{}
-					by[a.Rule] = r
+					by[key] = r
 				}
 				r.proposed++
 				if a.EmittedAt != nil {
@@ -76,10 +88,20 @@ func interventionsCmd() *cobra.Command {
 				r := by[rule]
 				fmt.Fprintf(w, "%-24s %5d %5d %5d %5d %8d %8d %6d\n", rule, r.proposed, r.emitted, r.delivered, r.acked, r.effect, r.recur, r.censored)
 			}
+			var reasonKeys []string
+			for k := range reasons {
+				reasonKeys = append(reasonKeys, k)
+			}
+			sort.Strings(reasonKeys)
+			for _, k := range reasonKeys {
+				fmt.Fprintf(w, "미관측 사유 %s: %d\n", k, reasons[k])
+			}
 			fmt.Fprintln(w, "재발 없음은 관찰 창에서 같은 판정이 다시 나오지 않았다는 뜻이며 처방의 인과 효과가 아니다.")
 			return nil
 		},
 	}
 	c.Flags().StringVar(&since, "since", "30d", "기간")
+	c.Flags().StringVar(&agent, "agent", "all", "에이전트 또는 all")
+	c.Flags().BoolVar(&byAgent, "by-agent", false, "에이전트·규칙별 집계")
 	return c
 }

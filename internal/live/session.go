@@ -217,6 +217,12 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 		s.ws.Close()
 		return nil, err
 	}
+	if db != nil {
+		if err := db.UpsertLive(id, agent, root, transcript, s.parser.Session.Model); err != nil {
+			s.ws.Close()
+			return nil, err
+		}
+	}
 	s.notifier = notify.New(cfg)
 	s.hud = notify.NewHUDManager()
 	if jc := cfg.Detectors.S3.Judge; jc.Provider != "" && (cfg.Privacy.ExternalJudge || isLocal(jc.BaseURL)) {
@@ -431,7 +437,8 @@ func (s *Session) observe(ev *event.Event) []detect.Signal {
 		}
 	}
 	if !s.closed && s.Cfg.Rollout.Mode != "shadow" && ev.Category == event.CatProduce && s.Cfg.IronLaws.Enabled && ev.Kind == event.KindTool {
-		go s.ironLawsCheck(ev)
+		snapshots := s.captureIronLaws(ev)
+		go s.ironLawsCheck(ev, snapshots)
 	}
 	if ev.Category == event.CatProduce {
 		s.produceSinceCheck++
@@ -610,6 +617,16 @@ func (s *Session) record(v detect.Signal, channel string) {
 }
 
 func (s *Session) persistEvent(ev *event.Event) {
+	if ev.SourceRef == "" {
+		kind := "observed-event:"
+		if ev.CallID != "" {
+			kind = "observed-call:"
+		}
+		ev.SourceRef = kind + fp.Hash(s.Agent, s.ID, ev.CallID, fmt.Sprint(ev.Seq))
+	} else if !strings.HasPrefix(ev.SourceRef, "observed-call:") && !strings.HasPrefix(ev.SourceRef, "observed-event:") && !strings.HasPrefix(ev.SourceRef, "source-hash:") {
+		ev.SourceRef = "source-hash:" + fp.Hash(ev.SourceRef)
+	}
+
 	if s.db == nil {
 		return
 	}
@@ -889,6 +906,15 @@ func (s *Session) measuredUsage() (tokens, unpriced, waste, idleTokens int64) {
 // Finalize performs hindsight reclassification, saves the ledger and writes
 // the receipt file (SessionEnd).
 func (s *Session) Finalize() (string, error) {
+	return s.finalize("session_end")
+}
+
+// CloseObservation saves the observed activity without inventing an agent end.
+func (s *Session) CloseObservation() (string, error) {
+	return s.finalize("daemon_shutdown")
+}
+
+func (s *Session) finalize(reason string) (string, error) {
 	s.finalizeMu.Lock()
 	defer s.finalizeMu.Unlock()
 	s.opMu.Lock()
@@ -924,7 +950,11 @@ func (s *Session) Finalize() (string, error) {
 	s.ws.Close()
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.censorRecoveries("session_ended_before_effect_observation")
+	censorReason := "session_ended_before_effect_observation"
+	if reason != "session_end" {
+		censorReason = "observation_closed_before_effect_observation"
+	}
+	s.censorRecoveries(censorReason)
 	if judgeWasPending {
 		s.recordUnfinishedJudge()
 	}
@@ -944,7 +974,12 @@ func (s *Session) Finalize() (string, error) {
 	if sess.StartedAt.IsZero() && len(st0(s)) > 0 {
 		sess.StartedAt = st0(s)[0].TS
 	}
-	sess.EndedAt = time.Now()
+	sess.ObservationClosedAt = time.Now()
+	sess.ObservationCloseReason = reason
+	sess.EndedAt = time.Time{}
+	if reason == "session_end" {
+		sess.EndedAt = sess.ObservationClosedAt
+	}
 	sess.FirstPrompt = s.firstPrompt
 	res := analyze.Finalize(sess, s.eng, s.CfgHash, s.prices.Version)
 	if met, total := s.criteria(); total > 0 {

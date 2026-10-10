@@ -120,7 +120,7 @@ flowchart LR
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
-tar -xzf samcheonpo_0.6.0_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.7.0_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -132,8 +132,8 @@ samcheonpo doctor
 Go 1.27 이상이 필요합니다.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.6.0
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.6.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.7.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.7.0
 ```
 
 ## 빠른 시작
@@ -294,6 +294,8 @@ detectors:
 - [에이전트용 지침](plugins/claude-code/skills/samcheonpo/SKILL.md): AI가 삼천포를 세팅하고 경고에 맞게 행동하는 규칙. Claude Code 플러그인에 함께 설치됩니다
 - 규격: [진척 계약](docs/spec/progress-contract-v1.md) · [근거 원장](docs/spec/evidence-ledger-v1.md) · [영수증 표시](docs/spec/receipt-billing.md) · [복구와 코드 밖 원인](docs/spec/recovery-v1.md) · [인수인계](docs/spec/handoff-v1-draft.md) · [대기·정체 안내와 기록 평가](docs/spec/agenttime-reliability.md)
 - 평가 도구: `samcheonpo bench`, `samcheonpo bench ab`, `samcheonpo gaps`, `samcheonpo interventions`, `samcheonpo eval corpus`(현재 작업 트리)
+- 기록 비교: `samcheonpo report --since 30d --mode live`. 단가 미확인은 무료로 표시하지 않으며, 수집 범위와 완료 근거를 함께 보여 준다.
+- 안내 이력: `samcheonpo interventions --by-agent`. 관련 행동이 없는 관측 창은 재발 없음으로 단정하지 않는다.
 - [적합성 사례](conformance/): 다른 구현을 같은 규격으로 채점하는 시험 모음
 
 ## 라이선스
