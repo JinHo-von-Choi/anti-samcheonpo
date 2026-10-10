@@ -217,6 +217,13 @@ func (d *DB) SaveAnalysis(r *analyze.Result, size, mtime int64, msgs func(detect
 	if _, err := tx.Exec(`INSERT OR REPLACE INTO session_seal(session_id, seal) VALUES (?,?)`, s.ID, string(sj)); err != nil {
 		return sl, err
 	}
+	payload, err := encodeSnapshot(r)
+	if err != nil {
+		return sl, err
+	}
+	if _, err := tx.Exec(`INSERT OR REPLACE INTO receipt_snapshot(session_id,payload) VALUES (?,?)`, s.ID, string(payload)); err != nil {
+		return sl, err
+	}
 	if s.SourcePath != "" {
 		if _, err := tx.Exec(`INSERT OR REPLACE INTO audit_source(path,session_id,agent,size,mtime,eval_version) VALUES (?,?,?,?,?,?)`,
 			s.SourcePath, s.ID, s.Agent, size, mtime, analyze.EvaluatorVersion); err != nil {

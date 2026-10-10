@@ -103,3 +103,24 @@ models:
     cache_read: 0.175
     valid_from: 2026-01-01
     source: https://developers.openai.com/api/docs/pricing
+  - model: mimo-v2.6-flash-free
+    input: 0
+    output: 0
+    cache_write: 0
+    cache_read: 0
+    valid_from: 2026-01-01
+    source: https://models.dev
+  - model: mimo-v2.5-free
+    input: 0
+    output: 0
+    cache_write: 0
+    cache_read: 0
+    valid_from: 2026-01-01
+    source: https://models.dev
+  - model: big-pickle
+    input: 0
+    output: 0
+    cache_write: 0
+    cache_read: 0
+    valid_from: 2026-01-01
+    source: https://models.dev

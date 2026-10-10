@@ -132,6 +132,13 @@ func TestUpgradeV2LedgerPreservesAnalysisAndRollsBackFailure(t *testing.T) {
 	if _, err = raw.Exec(string(meta)); err != nil {
 		t.Fatal(err)
 	}
+	snapshotSchema, err := migrations.ReadFile("migrations/0010_receipt_snapshot.sql")
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err = raw.Exec(string(snapshotSchema)); err != nil {
+		t.Fatal(err)
+	}
 	old := &DB{raw}
 	r := result(t)
 	before, err := old.SaveAnalysis(r, 1, 2, nil)
@@ -139,6 +146,9 @@ func TestUpgradeV2LedgerPreservesAnalysisAndRollsBackFailure(t *testing.T) {
 		t.Fatal(err)
 	}
 	if _, err = raw.Exec(`DROP TABLE session_observation`); err != nil {
+		t.Fatal(err)
+	}
+	if _, err = raw.Exec(`DROP TABLE receipt_snapshot`); err != nil {
 		t.Fatal(err)
 	}
 	// Force migration 3 to fail after its first CREATE statement.
@@ -171,7 +181,7 @@ func TestUpgradeV2LedgerPreservesAnalysisAndRollsBackFailure(t *testing.T) {
 	if _, err = d.Observation(r.Session.ID); err != sql.ErrNoRows {
 		t.Fatalf("legacy metadata invented: %v", err)
 	}
-	if d.Version() != 9 {
+	if d.Version() != 10 {
 		t.Fatal(d.Version())
 	}
 }

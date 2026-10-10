@@ -15,7 +15,7 @@ func TestBuiltinTable(t *testing.T) {
 		t.Fatal(err)
 	}
 	for _, m := range tb.Models {
-		if m.Source == "" || m.Input <= 0 || m.Output <= 0 {
+		if m.Source == "" || m.Input < 0 || m.Output < 0 {
 			t.Errorf("row %+v", m)
 		}
 	}
@@ -50,6 +50,20 @@ func TestMicroKRW(t *testing.T) {
 	}
 	if _, ok := tb.MicroKRW(event.Usage{In: 10, Model: "unknown"}, time.Now()); ok {
 		t.Error("unpriced usage must report ok=false (never 0 won)")
+	}
+}
+
+func TestFreeModelPrices(t *testing.T) {
+	tb, err := Load("")
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, model := range []string{"mimo-v2.6-flash-free", "mimo-v2.5-free", "big-pickle"} {
+		u := event.Usage{In: 1_000_000, Out: 500_000, Model: model}
+		got, ok := tb.MicroKRW(u, time.Now())
+		if !ok || got != 0 {
+			t.Errorf("%s: micro-won=%d priced=%v, want 0 and true", model, got, ok)
+		}
 	}
 }
 

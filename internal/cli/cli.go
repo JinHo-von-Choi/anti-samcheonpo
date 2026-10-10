@@ -36,7 +36,7 @@ import (
 )
 
 // Version is set at build time.
-var Version = "0.7.0"
+var Version = "0.7.1"
 
 var (
 	flagDB        string
@@ -415,6 +415,8 @@ func trunc(s string, n int) string {
 	return string(r[:n]) + "…"
 }
 
+var errNoSource = errors.New("원본 기록 파일이 없다")
+
 // reanalyze re-runs a stored session from its source.
 func reanalyze(db *ledger.DB, id string) (*analyze.Result, sources.File, error) {
 	full, src, agent, err := db.SourceOf(id)
@@ -422,10 +424,13 @@ func reanalyze(db *ledger.DB, id string) (*analyze.Result, sources.File, error) 
 		return nil, sources.File{}, fmt.Errorf("세션 %s를 원장에서 찾지 못했다. 먼저 samcheonpo audit을 실행한다: %w", id, err)
 	}
 	if src == "" {
-		return nil, sources.File{}, fmt.Errorf("세션 %s의 원본 기록 경로가 없다", full)
+		return nil, sources.File{}, fmt.Errorf("세션 %s: %w", full, errNoSource)
 	}
 	st, err := os.Stat(src)
 	if err != nil {
+		if os.IsNotExist(err) {
+			return nil, sources.File{}, fmt.Errorf("세션 %s: %w", full, errNoSource)
+		}
 		return nil, sources.File{}, err
 	}
 	f := sources.File{Path: src, Agent: agent, Size: st.Size(), MTime: st.ModTime().UnixNano()}
@@ -459,10 +464,16 @@ func receiptCmd() *cobra.Command {
 			}
 			defer db.Close()
 			r, _, err := reanalyze(db, args[0])
+			var sl seal.Seal
+			stored := errors.Is(err, errNoSource)
+			if stored {
+				r, sl, err = db.StoredResult(args[0])
+			} else if err == nil {
+				sl, _ = ledger.BuildSeal(r)
+			}
 			if err != nil {
 				return err
 			}
-			sl, _ := ledger.BuildSeal(r)
 			s := r.Session
 			observation := cost.ObserveSession(s, r.PriceVersion)
 			budget, err := db.JudgeBudget(s.Agent, s.ID)
@@ -481,8 +492,18 @@ func receiptCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			criteria := [2]int{}
+			if stored && sl.Spec != "" {
+				criteria = [2]int{r.Criteria.Met, r.Criteria.Total}
+			}
 			rc := receipt.Build(receipt.Input{Title: receipt.SessionTitle(s.StartedAt, s.ID, s.Agent), Agent: s.Agent, Audit: s.Mode == "audit",
-				Totals: r.Totals, Grade: r.Grade, Verdicts: r.Verdicts, Seal: &sl, Billing: observation, Recoveries: recoveries})
+				Totals: r.Totals, Grade: r.Grade, Verdicts: r.Verdicts, Seal: &sl, Billing: observation, Recoveries: recoveries, Criteria: criteria})
+			if stored {
+				rc.Notices = append(rc.Notices, "원본 기록 없이 저장된 분석 결과를 표시합니다")
+				if sl.Spec == "" {
+					rc.Notices = append(rc.Notices, "구버전 저장 기록: 계측 상태와 근거 사슬을 완전히 복원할 수 없어 봉인 검증은 지원하지 않습니다")
+				}
+			}
 			if !r.FormatOK {
 				rc.Notices = append(rc.Notices, "형식 인식 실패: 판정을 중단하고 비용만 합산했다")
 			}
@@ -505,7 +526,7 @@ func receiptCmd() *cobra.Command {
 			default:
 				fmt.Fprint(w, rc.Text())
 			}
-			if share && format != "json" {
+			if share && format != "json" && sl.Head != "" {
 				fmt.Fprintf(w, "\n이 숫자는 samcheonpo verify로 다시 계산할 수 있다 (봉인 %s).\n", sl.Short())
 			}
 			return nil
@@ -770,6 +791,17 @@ func verifyCmd() *cobra.Command {
 				return fmt.Errorf("봉인이 없다: %w", err)
 			}
 			r, _, err := reanalyze(db, full)
+			if errors.Is(err, errNoSource) {
+				_, snapshotSeal, snapshotErr := db.StoredResult(full)
+				if snapshotErr != nil {
+					return snapshotErr
+				}
+				if snapshotSeal.Spec == "" {
+					return errors.New("구버전 저장 기록은 근거 사슬을 완전히 복원할 수 없다. 원본 기록을 복구하고 다시 audit한다")
+				}
+				fmt.Fprintf(w, "일치: 저장 분석 봉인 %s, 행 %d개, 합계 %s원 (원본 기록 재분석 아님)\n", snapshotSeal.Short(), snapshotSeal.Rows, contract.Comma(cost.Won(snapshotSeal.TotalMicro)))
+				return nil
+			}
 			if err != nil {
 				return err
 			}

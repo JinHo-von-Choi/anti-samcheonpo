@@ -84,7 +84,7 @@ v0.6.0에 포함했으며 로컬 시험을 수행했다.
 ## 릴리스 후보 직접 만들기
 
 ```sh
-sh scripts/package-release.sh 0.7.0-dev ./release-out
+sh scripts/package-release.sh 0.7.1-dev ./release-out
 ```
 
 현재 플랫폼에서 두 실행 파일을 빌드하고, API 키 없는 격리 환경에서 설치·제거·감사·첫 훅을 확인한 뒤 `tar.gz`와 `SHA256SUMS`를 만든다. 출력 폴더가 이미 있으면 덮어쓰지 않고, 호스트와 대상 플랫폼이 다르면 거절한다. `BUILD.txt`에 버전, 커밋, 도구 체인, 작업 트리 변경 여부를 남긴다.

@@ -120,7 +120,7 @@ flowchart LR
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
-tar -xzf samcheonpo_0.7.0_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.7.1_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -132,9 +132,11 @@ samcheonpo doctor
 Go 1.27 이상이 필요합니다.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.7.0
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.7.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.7.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.7.1
 ```
+
+원본 기록이 없으면 `receipt`는 마지막 완료 분석의 저장본을 표시하고, `verify`는 저장 분석의 봉인을 확인한다. 구버전 기록은 검증 한계를 표시한다. v0.7.1은 원장 스키마 10을 사용하므로 업그레이드 전에 원장을 백업해야 한다. 스키마 10은 v0.7.0 이하에서 열 수 없다.
 
 ## 빠른 시작
 
