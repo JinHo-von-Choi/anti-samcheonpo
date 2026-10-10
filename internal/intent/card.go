@@ -9,22 +9,24 @@ import (
 
 // Card is a presentation of intent and existing authority, never a grant.
 type Card struct {
-	TaskID        string               `json:"task_id,omitempty"`
-	Revision      uint64               `json:"revision,omitempty"`
-	Source        *Source              `json:"source,omitempty"`
-	LatestMessage string               `json:"latest_message,omitempty"`
-	Goal          string               `json:"goal"`
-	RequestedGoal string               `json:"requested_goal,omitempty"`
-	Certainty     string               `json:"certainty"`
-	Authority     string               `json:"authority"`
-	State         contract.State       `json:"state"`
-	Criteria      []contract.Check     `json:"criteria"`
-	Allowed       []string             `json:"allowed"`
-	Protected     []string             `json:"protected"`
-	Forbidden     []string             `json:"forbidden"`
-	BudgetKRW     int64                `json:"budget_krw"`
-	BudgetMinutes int                  `json:"budget_minutes"`
-	Candidates    []contract.Candidate `json:"candidates,omitempty"`
+	Temporal         *contract.TemporalRequirement `json:"temporal_requirement,omitempty"`
+	TemporalConflict bool                          `json:"temporal_conflict,omitempty"`
+	TaskID           string                        `json:"task_id,omitempty"`
+	Revision         uint64                        `json:"revision,omitempty"`
+	Source           *Source                       `json:"source,omitempty"`
+	LatestMessage    string                        `json:"latest_message,omitempty"`
+	Goal             string                        `json:"goal"`
+	RequestedGoal    string                        `json:"requested_goal,omitempty"`
+	Certainty        string                        `json:"certainty"`
+	Authority        string                        `json:"authority"`
+	State            contract.State                `json:"state"`
+	Criteria         []contract.Check              `json:"criteria"`
+	Allowed          []string                      `json:"allowed"`
+	Protected        []string                      `json:"protected"`
+	Forbidden        []string                      `json:"forbidden"`
+	BudgetKRW        int64                         `json:"budget_krw"`
+	BudgetMinutes    int                           `json:"budget_minutes"`
+	Candidates       []contract.Candidate          `json:"candidates,omitempty"`
 }
 
 func GoalCard(c *contract.Contract, acceptance contract.Acceptance, requested string, candidates []contract.Candidate) Card {
@@ -33,6 +35,7 @@ func GoalCard(c *contract.Contract, acceptance contract.Acceptance, requested st
 		card.State = contract.StateDraft
 	}
 	if c != nil {
+		card.Temporal, card.TemporalConflict = c.TemporalRequirement, c.TemporalConflict(0)
 		card.Goal = c.Goal
 		card.Criteria = append([]contract.Check(nil), c.Done...)
 		card.Allowed = append([]string(nil), c.Scope.Allow...)
@@ -53,6 +56,19 @@ func GoalCard(c *contract.Contract, acceptance contract.Acceptance, requested st
 func (c Card) Text() string {
 	var b strings.Builder
 	b.WriteString("AI는 이렇게 이해했습니다.\n")
+	if t := c.Temporal; t != nil {
+		fmt.Fprintf(&b, "시간 조건: %s", t.Kind)
+		if t.Seconds > 0 {
+			fmt.Fprintf(&b, " · 최소 %d초 관찰", t.Seconds)
+		}
+		if t.CheckID != "" {
+			fmt.Fprintf(&b, " · %s 확인까지 관찰", t.CheckID)
+		}
+		b.WriteString("\n")
+	}
+	if c.TemporalConflict {
+		b.WriteString("시간 조건과 명시 상한이 충돌합니다. 조건을 고치기 전에는 대기 판정을 유보합니다.\n")
+	}
 	// What should change, in the user's words, comes first; files are
 	// reference detail for whoever can read them.
 	if c.Goal != "" {

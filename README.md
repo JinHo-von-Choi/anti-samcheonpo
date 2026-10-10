@@ -80,7 +80,10 @@ AI에게 이렇게 말해 보세요: "같은 시험을 다시 돌리지 말고, 
 | 코드 밖 문제 | 설치되지 않은 의존성, 꺼진 서비스, 권한, 포트 점유 | 소스 수정 보류, 사람이 할 일 안내 |
 | 허위 완료 | 시험 삭제·skip·단언 약화, 오류 숨기기, 완료 조건이 실패한 채 "완료" | 귀띔 → 반복 시 차단 |
 | 배포 연타 | CI 실패를 로컬에서 재현하지 않고 재배포, 실패한 CI를 그대로 다시 돌리기, 시간당 배포 횟수 초과 | 귀띔 → 태그가 바뀌어도 반복 시 차단 |
+| 완료 뒤 대기·진행 정체 | 완료 검사를 통과한 뒤 계속 기다림, 수정해도 같은 검사에서 실패가 줄지 않음 | 기본은 기록만, 사용자가 켜면 가벼운 안내 |
 | 비용 폭주 | 진척 없는 지출, 예산 초과, 세션 시간·토큰 과다 | 알림 → 확인 → 상한에서 정지 |
+
+대기·정체 안내는 기다리는 이유와 검사 결과를 확인할 수 있을 때만 제공합니다. 두 규칙은 작업을 차단하지 않습니다. 안내를 켜는 방법은 [대기 반복·진행 정체 안내](docs/spec/agenttime-reliability.md)에 있습니다. v0.6.0에 추가했으며 실제 비용·완료율 효과는 아직 검증하지 않았습니다.
 
 ### 코드 밖 문제
 
@@ -117,7 +120,7 @@ flowchart LR
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
-tar -xzf samcheonpo_0.5.3_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.6.0_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -129,8 +132,8 @@ samcheonpo doctor
 Go 1.27 이상이 필요합니다.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.5.3
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.5.3
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.6.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.6.0
 ```
 
 ## 빠른 시작
@@ -233,8 +236,9 @@ budget: {krw: 5000, minutes: 40}               # 넘으면 정지
 
 ```yaml
 rollout:
-  mode: recommend            # shadow: 기록만 | recommend: 귀띔, 무시하면 차단
-  escalate_max_blocks: 3     # 세션당 차단 상한. 0이면 차단하지 않음
+  mode: recommend            # shadow: 기록만 | recommend: 귀띔, 승격 가능한 규칙만 반복 시 차단
+  escalate_max_blocks: 3     # 반복 귀띔의 차단 상한. 명시적 보호·예산은 별도
+  recommend_rules: []        # 사용자 설정에서만 대기·정체 안내를 명시적으로 선택
 contract:
   draft: off                 # on이면 작업마다 계약 초안 요청
 notify:
@@ -253,6 +257,7 @@ detectors:
     releases_per_hour: 2
 ```
 
+- 대기 반복(`s1.explicit_waiting`)과 진행 정체(`s8.progress_stall`)는 기본으로 기록만 합니다. 안내를 받으려면 사용자 설정의 `rollout.recommend_rules`에 원하는 규칙을 넣습니다. 기록 전용 목록인 `shadow_rules`에 남아 있으면 계속 기록만 합니다. 두 규칙의 최고 수준은 가벼운 안내(L1)입니다.
 - 활동 시간은 이벤트 사이 공백이 30분을 넘는 구간을 빼고 셉니다. 계약의 `budget.minutes`도 같은 상한으로 집행합니다.
 - 프로젝트 설정은 사용자 설정을 **약하게만** 바꿀 수 있습니다. 차단 상한·예산·세션 상한은 낮추기만 하고, 외부 전송·알림 목적지·외부 프로그램은 끄기만 할 수 있습니다.
 - 부모·자식 세션 묶음은 `samcheonpo handoff link`로 이었거나 에이전트가 부모 세션 ID를 보낸 경우에만 생깁니다.
@@ -287,8 +292,8 @@ detectors:
 - [처음 사용하기](docs/getting-started.md): 설치부터 운영 규칙까지
 - [지원 범위](docs/support-matrix.md): 플랫폼과 에이전트별로 확인한 것
 - [에이전트용 지침](plugins/claude-code/skills/samcheonpo/SKILL.md): AI가 삼천포를 세팅하고 경고에 맞게 행동하는 규칙. Claude Code 플러그인에 함께 설치됩니다
-- 규격: [진척 계약](docs/spec/progress-contract-v1.md) · [근거 원장](docs/spec/evidence-ledger-v1.md) · [영수증 표시](docs/spec/receipt-billing.md) · [복구와 코드 밖 원인](docs/spec/recovery-v1.md) · [인수인계](docs/spec/handoff-v1-draft.md)
-- 평가 도구: `samcheonpo bench`, `samcheonpo bench ab`, `samcheonpo gaps`, `samcheonpo interventions`
+- 규격: [진척 계약](docs/spec/progress-contract-v1.md) · [근거 원장](docs/spec/evidence-ledger-v1.md) · [영수증 표시](docs/spec/receipt-billing.md) · [복구와 코드 밖 원인](docs/spec/recovery-v1.md) · [인수인계](docs/spec/handoff-v1-draft.md) · [대기·정체 안내와 기록 평가](docs/spec/agenttime-reliability.md)
+- 평가 도구: `samcheonpo bench`, `samcheonpo bench ab`, `samcheonpo gaps`, `samcheonpo interventions`, `samcheonpo eval corpus`(현재 작업 트리)
 - [적합성 사례](conformance/): 다른 구현을 같은 규격으로 채점하는 시험 모음
 
 ## 라이선스

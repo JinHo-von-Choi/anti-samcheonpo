@@ -230,6 +230,7 @@ func evalCmd() *cobra.Command {
 	c.Flags().StringVar(&set, "set", "holdout", "holdout | calibration")
 	c.Flags().StringVar(&format, "format", "text", "text | json")
 	c.Flags().BoolVar(&interventions, "interventions", false, "개입 실험 결과")
+	c.AddCommand(corpusCmd())
 	return c
 }
 

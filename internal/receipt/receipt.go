@@ -277,6 +277,10 @@ func Describe(v detect.Signal) string {
 		return 0
 	}
 	switch v.Rule {
+	case "s1.explicit_waiting":
+		return fmt.Sprintf("명시적 대기 %d회 · 추정(%s)", num("count"), str("eligibility"))
+	case "s8.progress_stall":
+		return fmt.Sprintf("관련 검사 %s에서 개선 없는 실패 %d회 · 추정", str("check_id"), num("failures"))
 	case "s1.identical_rerun":
 		return fmt.Sprintf("같은 검증 %d회, 그 사이 코드 변화 없음 (%s)", num("count"), short(str("cmd"), 40))
 	case "s1.evidence_rerun":

@@ -57,10 +57,11 @@ type Check struct {
 
 // Contract is .samcheonpo/contract.yml.
 type Contract struct {
-	Spec  string  `yaml:"spec,omitempty" json:"spec,omitempty"`
-	Goal  string  `yaml:"goal" json:"goal"`
-	Done  []Check `yaml:"done" json:"done"`
-	Scope struct {
+	TemporalRequirement *TemporalRequirement `yaml:"temporal_requirement,omitempty" json:"temporal_requirement,omitempty"`
+	Spec                string               `yaml:"spec,omitempty" json:"spec,omitempty"`
+	Goal                string               `yaml:"goal" json:"goal"`
+	Done                []Check              `yaml:"done" json:"done"`
+	Scope               struct {
 		Allow   []string `yaml:"allow" json:"allow"`
 		Protect []string `yaml:"protect" json:"protect"`
 	} `yaml:"scope" json:"scope"`
@@ -181,6 +182,24 @@ func Parse(b []byte) (*Contract, []ValidationError) {
 	}
 	if c.Budget.KRW < 0 || c.Budget.Minutes < 0 || c.Budget.SameErrorRetries < 0 {
 		errs = append(errs, ValidationError{"budget", "음수는 허용하지 않는다"})
+	}
+	if t := c.TemporalRequirement; t != nil {
+		switch t.Kind {
+		case "completion":
+			if t.Seconds != 0 || t.CheckID != "" {
+				errs = append(errs, ValidationError{"temporal_requirement", "completion에는 seconds/check_id를 지정하지 않는다"})
+			}
+		case "minimum_duration":
+			if t.Seconds <= 0 || t.CheckID != "" {
+				errs = append(errs, ValidationError{"temporal_requirement", "minimum_duration에는 양수 seconds만 필요하다"})
+			}
+		case "observe_until":
+			if !ids[t.CheckID] || t.Seconds != 0 {
+				errs = append(errs, ValidationError{"temporal_requirement", "observe_until에는 done의 check_id만 필요하다"})
+			}
+		default:
+			errs = append(errs, ValidationError{"temporal_requirement.kind", "completion, minimum_duration, observe_until 중 하나가 필요하다"})
+		}
 	}
 	return &c, errs
 }

@@ -83,6 +83,10 @@ func (s *Session) recordIntent(change intent.Change, source intent.Source) error
 	}
 	// Evidence is bound to an intent revision, including attributable followups.
 	// Do not keep a green completion count from the previous revision.
+	s.temporalStart = time.Now()
+	if s.eng != nil {
+		s.eng.ResetReliability()
+	}
 	s.checks = map[string]CheckResult{}
 	s.parser.Session.TaskID, s.parser.Session.TaskRevision = task.ID, r.Number
 	if change.Kind != intent.Followup {
@@ -103,6 +107,7 @@ func (s *Session) recordIntentCommand(change intent.Change) error {
 
 func (s *Session) goalCard(requested string) intent.Card {
 	card := intent.GoalCard(s.c, s.acc, requested, nil)
+	card.TemporalConflict = s.c != nil && s.c.TemporalConflict(s.Cfg.Detectors.S8.CeilingHours*3600)
 	if r := s.intentRevision; r != nil {
 		if card.Goal == "" {
 			card.Goal = r.Goal

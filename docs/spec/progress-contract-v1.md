@@ -37,6 +37,7 @@ explore: false                                            # 선택, 조사 작�
 | `done[].isolation` | 생략 또는 `worktree` |
 | `scope.allow`, `scope.protect` | doublestar 글롭(`**` 포함). 경로는 프로젝트 루트 기준 상대 경로, 구분자는 `/` |
 | `budget.*` | 0 이상의 정수. 0은 제한 없음 |
+| `temporal_requirement` | 선택형 관찰 조건. `completion`, `minimum_duration`(양수 `seconds`), `observe_until`(선언된 `done`의 `check_id`). 생략은 unknown이며 예산 상한과 별개 |
 | `forbid[]` | `테스트` 또는 `test`를 포함한 항목은 테스트 파일 쓰기 금지로, `의존성`, `dependenc`, `라이브러리`를 포함한 항목은 의존성 파일 변경 금지로 해석한다 |
 
 ### 1.2 경로
@@ -92,3 +93,7 @@ draft ──accept──▶ accepted ──(계약 내용 변경)──▶ stale
 ## 5. 적합성
 
 `conformance/`의 사례는 이 규격과 [Evidence Ledger v1](evidence-ledger-v1.md)의 적합성 시험이다. 구현은 `<구현 명령> <사례 입력>`으로 실행되어 Evidence Ledger v1 형식의 결과를 내야 하며, `samcheonpo-conformance --impl "<구현 명령>"`이 기대값과 대조한다.
+
+## 선택형 시간 조건
+
+`temporal_requirement`의 `completion`, `minimum_duration`, `observe_until` 형식과 재수락·관찰 근거는 [세션 신뢰성 관찰](agenttime-reliability.md)을 따른다. 생략은 unknown이며 예산 상한이나 실행 권한을 확대하지 않는다. 이 필드도 수락 authority hash에 포함돼 변경하면 재수락이 필요하다. v1의 일반 체크포인트 통과만으로 현재 입력·환경에 맞는 재사용 근거를 보장하지 않으므로, 이 필드만 추가해서 실시간 대기 안내를 활성화할 수는 없다.

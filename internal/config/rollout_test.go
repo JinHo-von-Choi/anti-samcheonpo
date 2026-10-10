@@ -78,3 +78,63 @@ func TestProjectCanAddButNotRemoveShadowRules(t *testing.T) {
 		t.Fatalf("a project adds shadow rules but keeps the user's: %v %v", cfg.Rollout.ShadowRules, err)
 	}
 }
+
+func TestReliabilityShadowRequiresUserOptIn(t *testing.T) {
+	home, project := t.TempDir(), t.TempDir()
+	t.Setenv("SAMCHEONPO_HOME", home)
+	rules := []string{"s1.explicit_waiting", "s8.progress_stall"}
+	cfg, _, err := Load(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rules {
+		if !slices.Contains(cfg.Rollout.ShadowRules, r) {
+			t.Fatal("not shadow by default", r)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(project, ".samcheonpo.yml"), []byte("rollout: {shadow_rules: []}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err = Load(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rules {
+		if !slices.Contains(cfg.Rollout.ShadowRules, r) {
+			t.Fatal("project opted user into delivery", r)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(home, "config.yml"), []byte("rollout: {mode: recommend, shadow_rules: [s1.review_repeat, s1.verify_after_docs]}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err = Load(project)
+	if err != nil {
+		t.Fatal(err)
+	}
+	for _, r := range rules {
+		if !slices.Contains(cfg.Rollout.ShadowRules, r) {
+			t.Fatal("legacy user config implicitly opted in", r)
+		}
+	}
+	if err := os.WriteFile(filepath.Join(project, ".samcheonpo.yml"), []byte("rollout: {shadow_rules: [], recommend_rules: [s1.explicit_waiting, s8.progress_stall]}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err = Load(project)
+	if err != nil || len(cfg.Rollout.RecommendRules) != 0 || !slices.Contains(cfg.Rollout.ShadowRules, rules[0]) {
+		t.Fatalf("project granted recommendation: %+v %v", cfg.Rollout, err)
+	}
+	if err := os.WriteFile(filepath.Join(home, "config.yml"), []byte("rollout: {recommend_rules: [s1.explicit_waiting]}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err = Load(project)
+	if err != nil || slices.Contains(cfg.Rollout.ShadowRules, rules[0]) || !slices.Contains(cfg.Rollout.ShadowRules, rules[1]) {
+		t.Fatalf("scoped user opt-in ignored: %+v %v", cfg.Rollout, err)
+	}
+	if err := os.WriteFile(filepath.Join(project, ".samcheonpo.yml"), []byte("rollout: {shadow_rules: [s1.explicit_waiting]}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err = Load(project)
+	if err != nil || !slices.Contains(cfg.Rollout.ShadowRules, rules[0]) {
+		t.Fatalf("project cannot restrict opted-in rule: %+v %v", cfg.Rollout, err)
+	}
+}

@@ -38,6 +38,7 @@ type CheckResult struct {
 	SideEffect  bool                   `json:"side_effect"`
 	Skipped     string                 `json:"skipped,omitempty"`
 	Failed      []string               `json:"failed_tests,omitempty"`
+	ErrorFPs    []string               `json:"error_fps,omitempty"`
 	Errors      int                    `json:"errors"`
 	ResultFP    string                 `json:"result_fp"`
 	Duration    time.Duration          `json:"duration"`
@@ -210,7 +211,8 @@ func (r *Runner) one(c contract.Check) CheckResult {
 	res.Truncated = truncated
 	res.Pass = code == 0 && !timedOut && !truncated
 	res.Failed = testout.FailedTests(outText)
-	res.Errors = len(fp.ErrorFPs(outText))
+	res.ErrorFPs = fp.ErrorFPs(outText)
+	res.Errors = len(res.ErrorFPs)
 	ec := code
 	res.ResultFP = fp.ResultFP(&ec, fp.ErrorFPs(outText), res.Failed)
 	if c.Isolation != "worktree" && r.WS != nil && before != "" {

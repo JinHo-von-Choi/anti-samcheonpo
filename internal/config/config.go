@@ -55,15 +55,20 @@ type Rollout struct {
 	// mode: new rules start here until their false positive rate is measured.
 	// A project file can add rules but not remove the user's.
 	ShadowRules []string `yaml:"shadow_rules" json:"shadow_rules"`
+	// RecommendRules explicitly opts in to newly introduced advisory rules.
+	// Only the user config can grant this; omission from a legacy shadow list
+	// does not enable a new rule after an upgrade.
+	RecommendRules []string `yaml:"recommend_rules" json:"recommend_rules"`
 }
 
 // Detectors holds thresholds; all are initial values tuned on the calibration set.
 type Detectors struct {
 	S1 struct {
-		RepeatNudgeAt int     `yaml:"repeat_nudge_at" json:"repeat_nudge_at"`
-		RatioWindow   int     `yaml:"ratio_window" json:"ratio_window"`
-		Ratio         float64 `yaml:"ratio" json:"ratio"`
-		TestBloat     float64 `yaml:"test_bloat" json:"test_bloat"`
+		ExplicitWaitingRepeats int     `yaml:"explicit_waiting_repeats" json:"explicit_waiting_repeats"`
+		RepeatNudgeAt          int     `yaml:"repeat_nudge_at" json:"repeat_nudge_at"`
+		RatioWindow            int     `yaml:"ratio_window" json:"ratio_window"`
+		Ratio                  float64 `yaml:"ratio" json:"ratio"`
+		TestBloat              float64 `yaml:"test_bloat" json:"test_bloat"`
 		// A whole-suite run after a change smaller than both limits (files
 		// changed, lines changed) is a local change checked at full cost.
 		// 0 turns the rule off.
@@ -122,6 +127,8 @@ type Detectors struct {
 		Compactions int `yaml:"compactions" json:"compactions"`
 	} `yaml:"s7_memory_rot" json:"s7"`
 	S8 struct {
+		StallFailures          int     `yaml:"stall_failures" json:"stall_failures"`
+		StallToolEvents        int     `yaml:"stall_tool_events" json:"stall_tool_events"`
 		VelocityMultiplier     float64 `yaml:"velocity_multiplier" json:"velocity_multiplier"`
 		VelocityFloorKRWPerMin int64   `yaml:"velocity_floor_krw_per_min" json:"velocity_floor_krw_per_min"`
 		IdleSpendFloorKRW      int64   `yaml:"idle_spend_floor_krw" json:"idle_spend_floor_krw"`
@@ -192,7 +199,10 @@ func Default() Config {
 	c := Config{Language: "ko", Currency: "KRW"}
 	c.Rollout.Mode = "recommend"
 	c.Rollout.EscalateMaxBlocks = 3
-	c.Rollout.ShadowRules = []string{"s1.verify_after_docs", "s1.review_repeat"}
+	c.Rollout.ShadowRules = []string{"s1.verify_after_docs", "s1.review_repeat", "s1.explicit_waiting", "s8.progress_stall"}
+	c.Detectors.S1.ExplicitWaitingRepeats = 3
+	c.Detectors.S8.StallFailures = 3
+	c.Detectors.S8.StallToolEvents = 5
 	c.Levels = Levels{NudgeCooldownEvents: 5, PauseOn: []string{"same_error_8", "budget_100", "protect_path"}, MaxStopBlocks: 2}
 	c.Detectors.S1.RepeatNudgeAt = 3
 	c.Detectors.S1.RatioWindow = 20
@@ -263,6 +273,7 @@ func Load(projectDir string) (Config, string, error) {
 		userMode := c.Rollout.Mode
 		userEscalate := c.Rollout.EscalateMaxBlocks
 		userShadow := append([]string(nil), c.Rollout.ShadowRules...)
+		userRecommend := append([]string(nil), c.Rollout.RecommendRules...)
 		userTreeKRW := c.Swarm.TreeKRW
 		userRules := make(map[string]string, len(c.Rollout.ValidatedRules))
 		for rule, digest := range c.Rollout.ValidatedRules {
@@ -271,7 +282,27 @@ func Load(projectDir string) (Config, string, error) {
 		if err := yaml.Unmarshal(b, &c); err != nil {
 			return c, "", fmt.Errorf("%s: %w", p, err)
 		}
+		if i == 0 {
+			var declared struct {
+				Rollout struct {
+					ShadowRules *[]string `yaml:"shadow_rules"`
+				} `yaml:"rollout"`
+			}
+			if err := yaml.Unmarshal(b, &declared); err != nil {
+				return c, "", fmt.Errorf("%s: %w", p, err)
+			}
+			for _, rule := range []string{"s1.explicit_waiting", "s8.progress_stall"} {
+				if slices.Contains(c.Rollout.RecommendRules, rule) {
+					if declared.Rollout.ShadowRules == nil {
+						c.Rollout.ShadowRules = slices.DeleteFunc(c.Rollout.ShadowRules, func(r string) bool { return r == rule })
+					}
+				} else if !slices.Contains(c.Rollout.ShadowRules, rule) {
+					c.Rollout.ShadowRules = append(c.Rollout.ShadowRules, rule)
+				}
+			}
+		}
 		if i == 1 {
+			c.Rollout.RecommendRules = userRecommend
 			// Repository settings can restrict, but cannot grant, external access.
 			c.Privacy.ExternalJudge = allowExternal && c.Privacy.ExternalJudge
 			// Programs to run and destinations to send to belong to the user.

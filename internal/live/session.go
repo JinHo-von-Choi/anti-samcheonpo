@@ -61,6 +61,7 @@ type Session struct {
 	c                *contract.Contract
 	acc              contract.Acceptance
 	contractRevision uint64
+	temporalStart    time.Time // monotonic measurement; restarts begin a new observation segment
 	checkMu          sync.Mutex
 	opMu             sync.RWMutex
 	finalizeMu       sync.Mutex
@@ -223,6 +224,8 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 			s.judge = j
 		}
 	}
+	// Watch records unavailability for reliability evidence. It must not
+	// enqueue an intervention during observation-only session startup.
 	_ = s.ws.Watch(4000)
 	go func() {
 		ctx, cancel := withTimeout(60 * time.Second)
@@ -289,6 +292,10 @@ func (s *Session) setContract(c *contract.Contract, acc contract.Acceptance) {
 		s.produceSinceCheck = 0
 		s.pendingDraft = ""
 		s.drifts = 0
+		s.temporalStart = time.Now()
+		if s.eng != nil {
+			s.eng.ResetReliability()
+		}
 	}
 	s.c, s.acc = c, acc
 	accepted := c != nil && acc.State == contract.StateAccepted
@@ -396,6 +403,7 @@ func (s *Session) observe(ev *event.Event) []detect.Signal {
 	if ev.Kind == event.KindTool && (ev.Mutating || ev.Unknown || ev.Category == event.CatProduce || (ev.WSBefore != "" && ev.WSAfter != "" && ev.WSBefore != ev.WSAfter)) {
 		s.checks = map[string]CheckResult{}
 	}
+	s.observeReliability(ev)
 	if ev.Usage.Total() > 0 {
 		ev.CostMicroKRW, ev.Priced = s.prices.MicroKRW(ev.Usage, ev.TS)
 	} else {
@@ -464,11 +472,14 @@ func (s *Session) deliver(sigs []detect.Signal) {
 			continue
 		}
 		cp := v
-		s.lastPrimary = &cp
 		if (s.Cfg.Rollout.Mode == "shadow" || slices.Contains(s.Cfg.Rollout.ShadowRules, v.Rule)) && !policy.ExplicitGuardrail(v.Rule) {
+			if !policy.AdviceOnly(v.Rule) {
+				s.lastPrimary = &cp
+			}
 			s.record(v, "shadow")
 			continue
 		}
+		s.lastPrimary = &cp
 		ctx := s.msgContext()
 		if v.Level >= detect.L2 {
 			s.unresolved = &cp
@@ -770,6 +781,7 @@ func (s *Session) checkpoint(mid bool) []CheckResult {
 	met, total, reused := 0, 0, 0
 	newly := false
 	for _, r := range res {
+		s.recordReliabilityCheck(r)
 		if r.Evidence != nil && s.task != nil && s.db != nil {
 			s.recordStorageError(s.db.SaveEvidence(*r.Evidence))
 		}

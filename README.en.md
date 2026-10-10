@@ -83,7 +83,10 @@ The status line starts with the current state:
 | Outside-the-code problems | Missing dependency, service down, permissions, port in use | Hold source edits, tell you what a person must do |
 | False completion | Deleting, skipping or weakening tests, hiding errors, claiming "done" while the done-check fails | Nudge → block on repeat |
 | Release spamming | Re-releasing without reproducing a CI failure locally, rerunning a failed CI unchanged, too many releases per hour | Nudge → block on repeat, even with a new tag |
+| Waiting after completion · stalled progress | Keeps waiting after completion checks pass, or changes input without reducing failures in the same check | Records only by default; light advice when enabled |
 | Runaway cost | Spending without progress, over budget, very long sessions in time or tokens | Notice → confirm → stop at the ceiling |
+
+Waiting and stalled-progress advice requires enough evidence to check the reason for waiting and the test results. These two rules never block work. See [waiting and stalled-progress advice](docs/spec/agenttime-reliability.md) (Korean) to enable them. These rules are included in v0.6.0; effects on cost and completion rate remain unverified.
 
 ### Problems outside the code
 
@@ -120,7 +123,7 @@ Download `samcheonpo_<version>_<os>_<arch>.tar.gz` and `SHA256SUMS` from [Releas
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
-tar -xzf samcheonpo_0.5.3_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.6.0_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -132,8 +135,8 @@ Keep `samcheonpo` and the hook helper `samcheonpo-hook` in the same folder. On W
 Requires Go 1.27 or later.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.5.3
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.5.3
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.6.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.6.0
 ```
 
 ## Quick start
@@ -236,8 +239,9 @@ User settings live in `~/.samcheonpo/config.yml`, project settings in `.samcheon
 
 ```yaml
 rollout:
-  mode: recommend            # shadow: record only | recommend: nudge, block when ignored
-  escalate_max_blocks: 3     # blocks per session; 0 disables blocking
+  mode: recommend            # shadow: record only | recommend: nudge, eligible rules may block on repeat
+  escalate_max_blocks: 3     # escalation cap; explicit protection and budgets are separate
+  recommend_rules: []        # opt into waiting/stall advice in the user config only
 contract:
   draft: off                 # on: ask for a contract draft for every task
 notify:
@@ -256,6 +260,7 @@ detectors:
     releases_per_hour: 2
 ```
 
+- Waiting (`s1.explicit_waiting`) and stalled progress (`s8.progress_stall`) record observations without advice by default. To receive advice, add either rule to `rollout.recommend_rules` in your user settings. Rules still named in the record-only `shadow_rules` list stay silent. These two rules provide light advice (L1) at most.
 - Active time excludes gaps longer than 30 minutes between events. A contract's `budget.minutes` is enforced as the same ceiling.
 - Project settings can only **loosen** user settings. Block caps, budgets and ceilings can only go down; remote sending, notification targets and external programs can only be turned off.
 - Parent and child sessions are grouped only when linked with `samcheonpo handoff link` or when the agent sends a parent session ID.
@@ -290,8 +295,8 @@ Linux, macOS and Windows 10 1803 or later are supported. On Windows, checks run 
 - [Getting started](docs/getting-started.md) (Korean): from install to day-to-day rules
 - [Support](docs/support-matrix.md) (Korean): what is verified per platform and agent
 - [Agent guide](plugins/claude-code/skills/samcheonpo/SKILL.md) (Korean): how an agent sets up Samcheonpo and responds to warnings. Installed with the Claude Code plugin
-- Specs: [progress contract](docs/spec/progress-contract-v1.md) · [evidence ledger](docs/spec/evidence-ledger-v1.md) · [receipt display](docs/spec/receipt-billing.md) · [recovery](docs/spec/recovery-v1.md) · [handoff](docs/spec/handoff-v1-draft.md)
-- Evaluation: `samcheonpo bench`, `samcheonpo bench ab`, `samcheonpo gaps`, `samcheonpo interventions`
+- Specs: [progress contract](docs/spec/progress-contract-v1.md) · [evidence ledger](docs/spec/evidence-ledger-v1.md) · [receipt display](docs/spec/receipt-billing.md) · [recovery](docs/spec/recovery-v1.md) · [handoff](docs/spec/handoff-v1-draft.md) · [waiting/stall advice and record evaluation](docs/spec/agenttime-reliability.md)
+- Evaluation: `samcheonpo bench`, `samcheonpo bench ab`, `samcheonpo gaps`, `samcheonpo interventions`, `samcheonpo eval corpus` (current working tree)
 - [Conformance cases](conformance/): tests for scoring other implementations against the same spec
 
 ## License

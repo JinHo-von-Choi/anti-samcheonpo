@@ -21,7 +21,7 @@ import (
 )
 
 // EvaluatorVersion identifies the detector rule set; recorded in receipt seals.
-const EvaluatorVersion = "samcheonpo-eval/0.2.0"
+const EvaluatorVersion = "samcheonpo-eval/0.3.0"
 
 // Buckets of the receipt.
 const (
@@ -41,15 +41,17 @@ const (
 
 // Result is the outcome of analyzing one session.
 type Result struct {
-	Session      *event.Session
-	Verdicts     []detect.Signal
-	Totals       Totals
-	Grade        string
-	Criteria     struct{ Met, Total int }
-	ConfigHash   string
-	PriceVersion string
-	ContractHash string
-	FormatOK     bool
+	ReliabilityEvicted  uint64
+	ReliabilityDeferred uint64
+	Session             *event.Session
+	Verdicts            []detect.Signal
+	Totals              Totals
+	Grade               string
+	Criteria            struct{ Met, Total int }
+	ConfigHash          string
+	PriceVersion        string
+	ContractHash        string
+	FormatOK            bool
 }
 
 // Totals are micro-won and token sums per bucket and symptom.
@@ -98,7 +100,9 @@ func Run(s *event.Session, opt Options) (*Result, error) {
 	r.FormatOK = formatOK(s)
 	s.FormatFailed = !r.FormatOK
 	for _, ev := range s.Events {
-		classify.Initial(ev, copt)
+		if ev.Tool != "checkpoint_check" {
+			classify.Initial(ev, copt)
+		}
 		if ev.Tool == event.ToolShell && ev.Category == event.CatProduce {
 			for _, m := range rmRe.FindAllStringSubmatch(ev.CmdNorm, -1) {
 				for _, f := range strings.Fields(m[1]) {
@@ -120,11 +124,16 @@ func Run(s *event.Session, opt Options) (*Result, error) {
 		return r, nil
 	}
 	for i, ev := range s.Events {
-		eng.Observe(ev)
+		if ev.Tool == "checkpoint_check" {
+			eng.ObserveReliabilityFact(ev)
+		} else {
+			eng.Observe(ev)
+		}
 		if ev.Kind == event.KindMessage && turnEnds(s.Events, i) {
 			eng.TurnEnd(ev, nil)
 		}
 	}
+	r.ReliabilityEvicted, r.ReliabilityDeferred = eng.ReliabilityStats()
 	r.Verdicts = eng.Verdicts
 	reclassify(s, eng, r)
 	return r, nil

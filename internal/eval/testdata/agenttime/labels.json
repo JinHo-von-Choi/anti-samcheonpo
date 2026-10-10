@@ -1,0 +1,72 @@
+{
+  "version": "reliability-corpus/1",
+  "labeler": "local-regression-fixture",
+  "labels": [
+    {
+      "run_id": "wait-positive",
+      "rule": "s1.explicit_waiting",
+      "positive": true,
+      "raw_wait": true
+    },
+    {
+      "run_id": "wait-positive",
+      "rule": "s8.progress_stall",
+      "positive": false
+    },
+    {
+      "run_id": "wait-pending",
+      "rule": "s1.explicit_waiting",
+      "positive": false,
+      "raw_wait": true
+    },
+    {
+      "run_id": "wait-pending",
+      "rule": "s8.progress_stall",
+      "positive": false
+    },
+    {
+      "run_id": "wait-linked",
+      "rule": "s1.explicit_waiting",
+      "positive": false,
+      "raw_wait": true
+    },
+    {
+      "run_id": "wait-linked",
+      "rule": "s8.progress_stall",
+      "positive": false
+    },
+    {
+      "run_id": "wait-unknown",
+      "rule": "s1.explicit_waiting",
+      "positive": false,
+      "raw_wait": true
+    },
+    {
+      "run_id": "wait-unknown",
+      "rule": "s8.progress_stall",
+      "positive": false
+    },
+    {
+      "run_id": "stall-positive",
+      "rule": "s1.explicit_waiting",
+      "positive": false,
+      "raw_wait": false
+    },
+    {
+      "run_id": "stall-positive",
+      "rule": "s8.progress_stall",
+      "positive": true
+    },
+    {
+      "run_id": "stall-improved",
+      "rule": "s1.explicit_waiting",
+      "positive": false,
+      "raw_wait": false
+    },
+    {
+      "run_id": "stall-improved",
+      "rule": "s8.progress_stall",
+      "positive": false
+    }
+  ]
+}

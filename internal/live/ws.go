@@ -25,18 +25,19 @@ var skipDirs = map[string]bool{".git": true, "node_modules": true, "vendor": tru
 
 // Workspace computes live workspace fingerprints.
 type Workspace struct {
-	Root       string
-	Scope      []string // glob prefixes used when the tree is too large
-	isGit      bool
-	gitDir     string
-	mu         sync.Mutex
-	computeMu  sync.Mutex
-	cache      map[string]statEntry
-	cur        string
-	dirty      bool
-	generation uint64
-	watcher    *fsnotify.Watcher
-	Warn       string
+	Root        string
+	Scope       []string // glob prefixes used when the tree is too large
+	isGit       bool
+	gitDir      string
+	mu          sync.Mutex
+	computeMu   sync.Mutex
+	cache       map[string]statEntry
+	cur         string
+	dirty       bool
+	generation  uint64
+	watchFailed bool
+	watcher     *fsnotify.Watcher
+	Warn        string
 	// life is canceled by Close; running computations stop and Close waits.
 	life context.Context
 	stop context.CancelFunc
@@ -272,25 +273,45 @@ func (w *Workspace) scopeFiles() []string {
 func (w *Workspace) Watch(maxDirs int) error {
 	wt, err := fsnotify.NewWatcher()
 	if err != nil {
+		w.markWatchFailure()
 		return err
 	}
 	w.watcher = wt
 	n := 0
-	_ = filepath.WalkDir(w.Root, func(p string, d fs.DirEntry, err error) error {
-		if err != nil || !d.IsDir() {
+	walkErr := filepath.WalkDir(w.Root, func(p string, d fs.DirEntry, err error) error {
+		if err != nil && p == w.Root {
+			return err
+		}
+		if err != nil {
+			w.markWatchFailure()
+			return nil
+		}
+		if !d.IsDir() {
 			return nil
 		}
 		if p != w.Root && skipDirs[d.Name()] {
 			return filepath.SkipDir
 		}
 		if n >= maxDirs {
+			w.markWatchFailure()
 			return filepath.SkipAll
 		}
-		if wt.Add(p) == nil {
+		if addErr := wt.Add(p); addErr == nil {
 			n++
+		} else {
+			w.markWatchFailure()
+			if p == w.Root {
+				return addErr
+			}
 		}
 		return nil
 	})
+	if walkErr != nil {
+		w.markWatchFailure()
+		_ = wt.Close()
+		w.watcher = nil
+		return walkErr
+	}
 	go func() {
 		for {
 			select {
@@ -304,13 +325,16 @@ func (w *Workspace) Watch(maxDirs int) error {
 				w.Invalidate()
 				if ev.Op&fsnotify.Create != 0 {
 					if st, err := os.Stat(ev.Name); err == nil && st.IsDir() && !skipDirs[filepath.Base(ev.Name)] {
-						_ = wt.Add(ev.Name)
+						if err := wt.Add(ev.Name); err != nil {
+							w.markWatchFailure()
+						}
 					}
 				}
 			case _, ok := <-wt.Errors:
 				if !ok {
 					return
 				}
+				w.markWatchFailure()
 			}
 		}
 	}()
@@ -364,4 +388,19 @@ func untracked(ctx context.Context, root string) []string {
 
 func withTimeout(d time.Duration) (context.Context, context.CancelFunc) {
 	return context.WithTimeout(context.Background(), d)
+}
+
+// WatchUnavailable reports lost filesystem observation without inventing a
+// tool-event queue gap or resetting existing costs and limits.
+func (w *Workspace) WatchUnavailable() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.watchFailed
+}
+func (w *Workspace) markWatchFailure() {
+	w.mu.Lock()
+	w.watchFailed = true
+	w.dirty = true
+	w.generation++
+	w.mu.Unlock()
 }

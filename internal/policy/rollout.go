@@ -16,6 +16,9 @@ func RolloutRoute(mode, rule string, evidence map[string]string) string {
 	if mode == "shadow" {
 		return "observe"
 	}
+	if AdviceOnly(rule) {
+		return "advice"
+	}
 	if mode != "validated" {
 		return "advice"
 	}
@@ -24,6 +27,11 @@ func RolloutRoute(mode, rule string, evidence map[string]string) string {
 		return "advice"
 	}
 	return "block"
+}
+
+// AdviceOnly rules cannot block, even with an operator evaluation digest.
+func AdviceOnly(rule string) bool {
+	return rule == "s1.explicit_waiting" || rule == "s8.progress_stall"
 }
 
 // ExplicitGuardrail reports rules that enforce a limit the user set: a

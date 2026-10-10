@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"net"
 	"net/http"
@@ -13,6 +14,7 @@ import (
 	"regexp"
 	"strings"
 	"sync"
+	"syscall"
 	"testing"
 	"time"
 
@@ -791,13 +793,19 @@ func TestWatchInvalidates(t *testing.T) {
 		t.Fatal(err)
 	}
 	if err := w.Watch(100); err != nil {
+		w.Close()
+		if errors.Is(err, syscall.ENOSPC) || errors.Is(err, syscall.EMFILE) {
+			t.Skipf("host inotify resources unavailable: %v", err)
+		}
 		t.Fatal(err)
 	}
 	defer w.Close()
 	if _, fresh := w.Current(); !fresh {
 		t.Fatal("fresh after compute")
 	}
-	_ = os.WriteFile(filepath.Join(dir, "user-edit.txt"), []byte("x"), 0o644)
+	if err := os.WriteFile(filepath.Join(dir, "user-edit.txt"), []byte("x"), 0o644); err != nil {
+		t.Fatal(err)
+	}
 	for i := 0; i < 100; i++ {
 		if _, fresh := w.Current(); !fresh {
 			return

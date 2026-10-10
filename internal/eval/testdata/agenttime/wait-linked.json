@@ -1,0 +1,142 @@
+[
+  {
+    "reliability": {
+      "task_id": "task",
+      "revision": 1,
+      "authority_hash": "e696ee861f3999d45715abc25444ce1b",
+      "complete": true,
+      "criteria_met": true,
+      "observation": "none",
+      "wait": "linked",
+      "phase": "result",
+      "wait_kind": "sleep"
+    },
+    "session_id": "wait-linked",
+    "seq": 1,
+    "ts": "1970-01-01T09:01:41+09:00",
+    "kind": "tool",
+    "tool": "shell",
+    "call_id": "1",
+    "exit_code": 0,
+    "usage": {
+      "in": 0,
+      "out": 0,
+      "cache_read": 0,
+      "cache_write": 0
+    },
+    "cost_micro_krw": 0,
+    "priced": false
+  },
+  {
+    "reliability": {
+      "task_id": "task",
+      "revision": 1,
+      "authority_hash": "e696ee861f3999d45715abc25444ce1b",
+      "complete": true,
+      "criteria_met": true,
+      "observation": "none",
+      "wait": "linked",
+      "phase": "result",
+      "wait_kind": "sleep"
+    },
+    "session_id": "wait-linked",
+    "seq": 2,
+    "ts": "1970-01-01T09:01:42+09:00",
+    "kind": "tool",
+    "tool": "shell",
+    "call_id": "2",
+    "exit_code": 0,
+    "usage": {
+      "in": 0,
+      "out": 0,
+      "cache_read": 0,
+      "cache_write": 0
+    },
+    "cost_micro_krw": 0,
+    "priced": false
+  },
+  {
+    "reliability": {
+      "task_id": "task",
+      "revision": 1,
+      "authority_hash": "e696ee861f3999d45715abc25444ce1b",
+      "complete": true,
+      "criteria_met": true,
+      "observation": "none",
+      "wait": "linked",
+      "phase": "result",
+      "wait_kind": "sleep"
+    },
+    "session_id": "wait-linked",
+    "seq": 3,
+    "ts": "1970-01-01T09:01:43+09:00",
+    "kind": "tool",
+    "tool": "shell",
+    "call_id": "3",
+    "exit_code": 0,
+    "usage": {
+      "in": 0,
+      "out": 0,
+      "cache_read": 0,
+      "cache_write": 0
+    },
+    "cost_micro_krw": 0,
+    "priced": false
+  },
+  {
+    "reliability": {
+      "task_id": "task",
+      "revision": 1,
+      "authority_hash": "e696ee861f3999d45715abc25444ce1b",
+      "complete": true,
+      "criteria_met": true,
+      "observation": "none",
+      "wait": "linked",
+      "phase": "result",
+      "wait_kind": "sleep"
+    },
+    "session_id": "wait-linked",
+    "seq": 4,
+    "ts": "1970-01-01T09:01:44+09:00",
+    "kind": "tool",
+    "tool": "shell",
+    "call_id": "4",
+    "exit_code": 0,
+    "usage": {
+      "in": 0,
+      "out": 0,
+      "cache_read": 0,
+      "cache_write": 0
+    },
+    "cost_micro_krw": 0,
+    "priced": false
+  },
+  {
+    "reliability": {
+      "task_id": "task",
+      "revision": 1,
+      "authority_hash": "e696ee861f3999d45715abc25444ce1b",
+      "complete": true,
+      "criteria_met": true,
+      "observation": "none",
+      "wait": "linked",
+      "phase": "result",
+      "wait_kind": "sleep"
+    },
+    "session_id": "wait-linked",
+    "seq": 5,
+    "ts": "1970-01-01T09:01:45+09:00",
+    "kind": "tool",
+    "tool": "shell",
+    "call_id": "5",
+    "exit_code": 0,
+    "usage": {
+      "in": 0,
+      "out": 0,
+      "cache_read": 0,
+      "cache_write": 0
+    },
+    "cost_micro_krw": 0,
+    "priced": false
+  }
+]

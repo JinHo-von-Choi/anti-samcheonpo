@@ -329,6 +329,9 @@ func (s *Session) buildTool(in HookInput) *event.Event {
 		s.parser.Cwd = in.Cwd
 	}
 	ev := s.parser.HookToolUse(in.ToolName, id, in.ToolInput, time.Now())
+	ev.Reliability = s.reliabilityBoundary()
+	ev.Reliability.Phase = "input"
+	ev.Reliability.SourceMissing = in.ToolUseID == ""
 	s.classifyEvent(ev)
 	return ev
 }
@@ -574,6 +577,9 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 		s.trackAfter(ev.CallID, ev.Paths)
 	}
 	ev.TS = time.Now()
+	if ev.Reliability != nil {
+		ev.Reliability.Phase = "result"
+	}
 	if !started.IsZero() && ev.DurationMS == 0 {
 		ev.DurationMS = ev.TS.Sub(started).Milliseconds()
 	}

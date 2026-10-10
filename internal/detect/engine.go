@@ -18,6 +18,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/policy"
 )
 
 // Level is an intervention level L0-L4.
@@ -52,12 +53,15 @@ type Signal struct {
 
 // Engine runs all detectors over a session's events.
 type Engine struct {
-	Cfg      config.Config
-	Contract *contract.Contract
-	Accepted bool
-	Mode     string // live | audit
-	Root     string
-	Session  string
+	reliability *reliabilityState
+	// Restoring rebuilds candidate state without issuing new reliability verdicts.
+	Restoring bool
+	Cfg       config.Config
+	Contract  *contract.Contract
+	Accepted  bool
+	Mode      string // live | audit
+	Root      string
+	Session   string
 	// FirstPrompt is used to infer scope in audit mode.
 	FirstPrompt string
 
@@ -209,6 +213,7 @@ type editHist struct {
 // NewEngine creates an engine.
 func NewEngine(cfg config.Config, c *contract.Contract, accepted bool, mode, root, session, firstPrompt string) *Engine {
 	e := &Engine{Cfg: cfg, Contract: c, Accepted: accepted, Mode: mode, Root: root, Session: session, FirstPrompt: firstPrompt,
+		reliability:   newReliabilityState(),
 		cooldownUntil: map[string]int64{}, cooldownLevel: map[string]Level{}, escalate: map[string]Level{},
 		guard: NewAssertionGuard()}
 	e.St = &State{
@@ -308,6 +313,10 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 	}
 	e.cost(ev, &sigs)
 	e.sessionLength(ev, &sigs)
+	e.reliabilityObservation(ev, &sigs)
+	if e.Restoring {
+		sigs = slicesDeleteReliability(sigs)
+	}
 	return e.combine(ev, sigs)
 }
 
@@ -612,7 +621,10 @@ func (e *Engine) reviewRepeat(ev *event.Event, sigs *[]Signal) {
 	if purpose == "" {
 		return
 	}
-	key := ev.WSBefore + "|" + purpose
+	key := fp.Hash(ev.WSBefore, purpose, reliabilityScope(ev.Reliability), fmt.Sprint(e.reliability.reviewEpoch))
+	if r := ev.Reliability; r != nil {
+		key = fp.Hash(key, r.InputHash, r.EnvironmentHash)
+	}
 	e.St.reviews[key]++
 	if n := e.St.reviews[key]; n >= 2 {
 		e.add(sigs, Signal{Detector: "S1", Rule: "s1.review_repeat", Confidence: 0.7, Level: L1, Evidence: []int64{ev.Seq},
@@ -1530,6 +1542,11 @@ func (e *Engine) combine(ev *event.Event, sigs []Signal) []Signal {
 		if s.Confidence < 0.5 {
 			s.Level = L0
 		}
+		if policy.AdviceOnly(s.Rule) {
+			s.Level = min(s.Level, L1)
+			s.WasteMicro = 0
+			s.Estimate = true
+		}
 		if s.Level == L0 {
 			continue
 		}
@@ -1544,34 +1561,36 @@ func (e *Engine) combine(ev *event.Event, sigs []Signal) []Signal {
 			}
 		}
 		// a stronger signal than the one that started the cooldown is new information
-		if until, ok := e.cooldownUntil[s.Rule]; ok && ev.Seq <= until && s.Level <= e.cooldownLevel[s.Rule] {
+		coolKey := reliabilityCooldown(*s)
+		if until, ok := e.cooldownUntil[coolKey]; ok && ev.Seq <= until && s.Level <= e.cooldownLevel[coolKey] {
 			s.Suppressed = true
-			if e.escalate[s.Rule] < 1 {
+			if !policy.AdviceOnly(s.Rule) && e.escalate[s.Rule] < 1 {
 				e.escalate[s.Rule] = 1
 			}
 			continue
 		}
-		if b := e.escalate[s.Rule]; b > 0 {
+		if b := e.escalate[s.Rule]; b > 0 && !policy.AdviceOnly(s.Rule) {
 			s.Level += b
 			if s.Level > L4 {
 				s.Level = L4
 			}
 			delete(e.escalate, s.Rule)
 		}
-		if best < 0 || s.Level > sigs[best].Level {
+		if best < 0 || (!reliabilityShadow(e, *s) && reliabilityShadow(e, sigs[best])) || (reliabilityShadow(e, *s) == reliabilityShadow(e, sigs[best]) && (s.Level > sigs[best].Level || (s.Level == sigs[best].Level && !policy.AdviceOnly(s.Rule) && policy.AdviceOnly(sigs[best].Rule)))) {
 			best = i
 		}
 	}
 	if best >= 0 {
 		sigs[best].Primary = true
-		e.cooldownUntil[sigs[best].Rule] = ev.Seq + cool
-		e.cooldownLevel[sigs[best].Rule] = sigs[best].Level
+		key := reliabilityCooldown(sigs[best])
+		e.cooldownUntil[key] = ev.Seq + cool
+		e.cooldownLevel[key] = sigs[best].Level
 		if sigs[best].Level == L1 && e.Mode == "live" && e.Cfg.Experiment.Enabled && sigs[best].Detector != "S5" {
 			sigs[best].Arm = Arm(e.Session, sigs[best].Rule)
 		}
 	}
 	for _, s := range sigs {
-		if s.Estimate {
+		if s.Estimate && !policy.AdviceOnly(s.Rule) {
 			for _, sq := range s.Evidence {
 				e.St.Estimated[sq] = true
 			}

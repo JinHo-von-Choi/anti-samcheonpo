@@ -1,0 +1,78 @@
+{
+  "version": "reliability-corpus/1",
+  "cohort": "local-fixture",
+  "runs": [
+    {
+      "id": "wait-positive",
+      "benchmark": "local",
+      "task_raw_id": "wait-positive",
+      "split": "eval",
+      "path": "wait-positive.json",
+      "format": "normalized",
+      "sha256": "fe4214817c599ab1fd9ee6181933db0e71db77ceb6fe6a732a9f59250e8204da",
+      "contract_path": "contract.yml",
+      "contract_sha256": "d01dd94a002e50a3192632d02ff1e8684b0b9ab185e6e6b2acec5655ebc011c5",
+      "provenance": "regression scenario fixed before scoring"
+    },
+    {
+      "id": "wait-pending",
+      "benchmark": "local",
+      "task_raw_id": "wait-pending",
+      "split": "eval",
+      "path": "wait-pending.json",
+      "format": "normalized",
+      "sha256": "02855f4e7e5d728915a5e72bc08664b11bf1db654529c28c2fac1878a04d97c9",
+      "contract_path": "contract.yml",
+      "contract_sha256": "d01dd94a002e50a3192632d02ff1e8684b0b9ab185e6e6b2acec5655ebc011c5",
+      "provenance": "regression scenario fixed before scoring"
+    },
+    {
+      "id": "wait-linked",
+      "benchmark": "local",
+      "task_raw_id": "wait-linked",
+      "split": "eval",
+      "path": "wait-linked.json",
+      "format": "normalized",
+      "sha256": "dade4d8cd5f3bf6897fb7a137bbd9670bfbfe1a8e4ecf0968d47cca695a2eaf1",
+      "contract_path": "contract.yml",
+      "contract_sha256": "d01dd94a002e50a3192632d02ff1e8684b0b9ab185e6e6b2acec5655ebc011c5",
+      "provenance": "regression scenario fixed before scoring"
+    },
+    {
+      "id": "wait-unknown",
+      "benchmark": "local",
+      "task_raw_id": "wait-unknown",
+      "split": "eval",
+      "path": "wait-unknown.json",
+      "format": "normalized",
+      "sha256": "f7a07f4b90d686151acdbec6c391c98a80aae4a12479b4b5fcc72e71df625340",
+      "contract_path": "contract.yml",
+      "contract_sha256": "d01dd94a002e50a3192632d02ff1e8684b0b9ab185e6e6b2acec5655ebc011c5",
+      "provenance": "regression scenario fixed before scoring"
+    },
+    {
+      "id": "stall-positive",
+      "benchmark": "local",
+      "task_raw_id": "stall-positive",
+      "split": "eval",
+      "path": "stall-positive.json",
+      "format": "normalized",
+      "sha256": "96ad810360e563540cfc99894ebf5cd8eb17e5d0db1aae88bba13b5584dca910",
+      "contract_path": "contract.yml",
+      "contract_sha256": "d01dd94a002e50a3192632d02ff1e8684b0b9ab185e6e6b2acec5655ebc011c5",
+      "provenance": "regression scenario fixed before scoring"
+    },
+    {
+      "id": "stall-improved",
+      "benchmark": "local",
+      "task_raw_id": "stall-improved",
+      "split": "eval",
+      "path": "stall-improved.json",
+      "format": "normalized",
+      "sha256": "c288cca220dcbc9fff12ef9947080b2d51b70ffbce548ec4eb45e50de9567a19",
+      "contract_path": "contract.yml",
+      "contract_sha256": "d01dd94a002e50a3192632d02ff1e8684b0b9ab185e6e6b2acec5655ebc011c5",
+      "provenance": "regression scenario fixed before scoring"
+    }
+  ]
+}

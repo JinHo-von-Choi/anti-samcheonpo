@@ -26,17 +26,35 @@ func (s *Session) restoreHistory() error {
 	if err != nil {
 		return err
 	}
+	s.eng.Restoring = true
+	defer func() { s.eng.Restoring = false }()
 	for _, ev := range evs {
 		if ev.Tool == event.ToolShell && ev.CmdNorm == "" {
 			ev.CmdNorm = strings.TrimPrefix(ev.Summary, "shell: ")
 		}
 		ev.Basis = "live"
-		s.eng.Observe(ev)
+		if ev.Tool == "checkpoint_check" {
+			s.eng.ObserveReliabilityFact(ev)
+		} else {
+			s.eng.Observe(ev)
+		}
 	}
 	s.parser.ContinueAt(evs[len(evs)-1].Seq + 1)
 	s.eng.ReserveIDs(len(vs) + len(s.eng.Verdicts) + 1)
 	// the receipt lists the verdicts as they were delivered, not as the
 	// replay with less evidence would raise them again
 	s.eng.Verdicts = vs
+	s.eng.RestoreReliabilityVerdicts(vs)
+	var last *event.Reliability
+	for i := len(evs) - 1; i >= 0; i-- {
+		if evs[i].Reliability != nil {
+			last = evs[i].Reliability
+			break
+		}
+	}
+	current := s.reliabilityBoundary()
+	if last == nil || last.TaskID != current.TaskID || last.Revision != current.Revision || last.AuthorityHash != current.AuthorityHash {
+		s.eng.ResetReliability()
+	}
 	return nil
 }
