@@ -19,7 +19,9 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/claude"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/codex"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/alignment"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/analyze"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/assessment"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/classify"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/config"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
@@ -37,18 +39,31 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/recovery"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rules"
 )
 
 // Session is the live state of one agent session.
 type Session struct {
-	task                        *intent.Task
-	intentRevision              *intent.Revision
-	taskLink                    *intent.SessionLink
-	recoveries                  []recovery.Attempt
-	ID, Agent, Root, Transcript string
-	Cfg                         config.Config
-	CfgHash                     string
+	alignmentGraph                *alignment.Graph
+	ledgerPath                    string
+	linkedSummary                 *assessment.LinkedSummary
+	linkedPending                 map[string]linkedTrigger
+	linkedGeneration              uint64
+	linkedUnavailable, linkedBusy bool
+	linkedAt                      time.Time
+	linkedCancel                  context.CancelFunc
+	linkedDone                    chan struct{}
+	linkedSeen                    map[string]bool
+	linkedScope                   string
+	assessmentCache               *hudAssessmentCache
+	task                          *intent.Task
+	intentRevision                *intent.Revision
+	taskLink                      *intent.SessionLink
+	recoveries                    []recovery.Attempt
+	ID, Agent, Root, Transcript   string
+	Cfg                           config.Config
+	CfgHash                       string
 
 	mu               sync.Mutex
 	parser           *claude.Parser
@@ -212,16 +227,21 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 		s.censorRecoveries("session_restarted_before_effect_observation")
 	}
 	s.eng = detect.NewEngine(cfg, s.engineContract(), s.acc.State == contract.StateAccepted, "live", root, id, "")
+	s.loadCandidatePack()
 	s.eng.FirstPrompt = s.firstPrompt
 	if err := s.restoreHistory(); err != nil {
 		s.ws.Close()
 		return nil, err
 	}
+	s.restoreLinkedSeen()
 	if db != nil {
 		if err := db.UpsertLive(id, agent, root, transcript, s.parser.Session.Model); err != nil {
 			s.ws.Close()
 			return nil, err
 		}
+	}
+	if db != nil {
+		s.ledgerPath, _ = db.FilePath()
 	}
 	s.notifier = notify.New(cfg)
 	s.hud = notify.NewHUDManager()
@@ -293,6 +313,13 @@ func (s *Session) setContract(c *contract.Contract, acc contract.Acceptance) {
 	next, _ := json.Marshal(c)
 	if string(old) != string(next) || s.acc.State != acc.State || !s.acc.AcceptedAt.Equal(acc.AcceptedAt) {
 		s.censorRecoveries("intent_revision_changed")
+		s.alignmentGraph = nil
+		s.linkedSummary = nil
+		s.linkedPending = nil
+		s.linkedGeneration++
+		if s.linkedCancel != nil {
+			s.linkedCancel()
+		}
 		s.contractRevision++
 		s.checks = map[string]CheckResult{}
 		s.produceSinceCheck = 0
@@ -417,6 +444,8 @@ func (s *Session) observe(ev *event.Event) []detect.Signal {
 	}
 	lastProgress := s.eng.St.LastProgress
 	sigs := s.eng.Observe(ev)
+	s.annotateRequirements(ev)
+	sigs = append(sigs, s.groundedClaimSignals(ev)...)
 	if s.eng.St.LastProgress != lastProgress && s.eng.St.LastProgress == ev.Seq && detect.ExecutedVerify(ev) && ev.ExitCode != nil && *ev.ExitCode == 0 {
 		s.snapshotProgress(ev.Seq, ev.CmdNorm)
 	}
@@ -428,9 +457,10 @@ func (s *Session) observe(ev *event.Event) []detect.Signal {
 	s.trackOutcomes(ev)
 	s.trackAttempts(ev)
 	s.deliver(sigs)
-	if !s.closed && s.queueRejected.Load() == 0 && ev.Kind == event.KindTool && s.judge != nil {
+	s.scheduleLinked(ev)
+	if !s.closed && s.queueRejected.Load() == 0 && (ev.Kind == event.KindTool || ev.Kind == event.KindMessage && judge.ClaimSummary(ev.Text) != "") && s.judge != nil {
 		s.toolsSinceJudge++
-		if s.toolsSinceJudge >= max(1, s.Cfg.Detectors.S3.JudgeEveryEvents) && !s.judging {
+		if (s.toolsSinceJudge >= max(1, s.Cfg.Detectors.S3.JudgeEveryEvents) || ev.Kind == event.KindMessage) && !s.judging {
 			s.toolsSinceJudge = 0
 			s.judging = true
 			go s.runJudge()
@@ -475,14 +505,18 @@ func (s *Session) deliver(sigs []detect.Signal) {
 			}
 		}
 		s.persistVerdict(v)
+		if v.Suppressed {
+			s.recordDecision(v, "cooldown")
+		}
 		if !v.Primary || v.Level == detect.L0 || v.Suppressed {
 			continue
 		}
 		cp := v
-		if (s.Cfg.Rollout.Mode == "shadow" || slices.Contains(s.Cfg.Rollout.ShadowRules, v.Rule)) && !policy.ExplicitGuardrail(v.Rule) {
+		if (s.Cfg.Rollout.Mode == "shadow" || slices.Contains(s.Cfg.Rollout.ShadowRules, v.Rule) || rulepack.IsLearned(v.Rule) && !slices.Contains(s.Cfg.Rollout.RecommendRules, v.Rule)) && !policy.ExplicitGuardrail(v.Rule) {
 			if !policy.AdviceOnly(v.Rule) {
 				s.lastPrimary = &cp
 			}
+			s.recordDecision(v, "shadow")
 			s.record(v, "shadow")
 			continue
 		}
@@ -497,6 +531,7 @@ func (s *Session) deliver(sigs []detect.Signal) {
 		}
 		attempt, prescription, proposed := s.proposeRecovery(v)
 		if !proposed {
+			s.recordDecision(v, "recovery_unavailable")
 			continue
 		}
 		if v.Arm != "fact" {
@@ -557,6 +592,9 @@ func (s *Session) adviceKey(v detect.Signal) string {
 	}
 	if target == "" {
 		target, _ = v.Facts["cmd"].(string)
+	}
+	if target == "" {
+		target, _ = v.Facts["target_hash"].(string)
 	}
 	return policy.EscalationKey(revision, v.Rule, kind, target)
 }
@@ -926,6 +964,10 @@ func (s *Session) finalize(reason string) (string, error) {
 		return p, nil
 	}
 	s.closed = true
+	if s.linkedCancel != nil {
+		s.linkedCancel()
+	}
+	linkedDone := s.linkedDone
 	judgeWasPending := s.judgeBudget.Pending
 	if judgeWasPending {
 		if s.judgeCancel != nil {
@@ -943,6 +985,9 @@ func (s *Session) finalize(reason string) (string, error) {
 	}
 	s.queueMu.Unlock()
 	<-s.workerDone
+	if linkedDone != nil {
+		<-linkedDone
+	}
 	// Attribute the final transcript delta only after queued calls are known.
 	s.pollUsageMode(true)
 	s.checkMu.Lock()
@@ -1192,7 +1237,7 @@ func (s *Session) runJudge() {
 	s.mu.Lock()
 	st := s.eng.St
 	cfg := s.Cfg.Detectors.S3
-	if s.closed || s.queueRejected.Load() > 0 || s.acc.State != contract.StateAccepted || s.c == nil || st.TotalMicro <= s.watchCost || s.judge == nil {
+	if s.closed || s.queueRejected.Load() > 0 || strings.TrimSpace(s.firstPrompt) == "" && s.c == nil || st.TotalMicro <= s.watchCost || s.judge == nil {
 		s.mu.Unlock()
 		return
 	}
@@ -1202,7 +1247,23 @@ func (s *Session) runJudge() {
 		return
 	}
 	limit := min(int64(float64(st.TotalMicro-s.watchCost)*cfg.MaxWatchCostRatio), cfg.MaxWatchKRW*1000000)
-	in := judge.Input{Goal: s.c.Goal}
+	in := judge.Input{Goal: s.firstPrompt}
+	accepted := s.c != nil && s.acc.State == contract.StateAccepted
+	checksHash := ""
+	if accepted {
+		in.Goal = s.c.Goal
+		checksHash = s.c.ChecksHash()
+		for _, check := range s.c.Done {
+			in.Requirements = append(in.Requirements, check.ID+": "+check.Check+check.Manual)
+		}
+	}
+	graph := s.requirementGraph()
+	in.Graph = &graph
+	for _, o := range graph.Observations {
+		if !slices.Contains(in.EvidenceIDs, o.ID) {
+			in.EvidenceIDs = append(in.EvidenceIDs, o.ID)
+		}
+	}
 	revision := s.contractRevision
 	inputBytes := len(in.Goal)
 	if inputBytes > cfg.MaxJudgeInputBytes {
@@ -1211,14 +1272,28 @@ func (s *Session) runJudge() {
 		return
 	}
 	for i := len(st.Events) - 1; i >= 0 && len(in.Recent) < 15; i-- {
-		if ev := st.Events[i]; ev.Kind == event.KindTool && ev.Category != event.CatWatch {
-			if len(ev.Summary) > cfg.MaxJudgeInputBytes-inputBytes {
+		if ev := st.Events[i]; ev.Category != event.CatWatch {
+			summary := ev.Summary
+			if ev.Kind == event.KindMessage {
+				summary = judge.ClaimSummary(ev.Text)
+				if summary == "" {
+					continue
+				}
+			}
+			if ev.Kind == event.KindPrompt {
+				summary = "user follow-up: " + judge.BoundedText(ev.Text, 512)
+			}
+			if ev.Kind != event.KindTool && ev.Kind != event.KindMessage && ev.Kind != event.KindPrompt {
+				continue
+			}
+			if len(summary) > cfg.MaxJudgeInputBytes-inputBytes {
 				s.judgeBudgetReason = "판정 입력 크기 상한을 넘어 호출하지 않았다"
 				s.mu.Unlock()
 				return
 			}
-			inputBytes += len(ev.Summary)
-			in.Recent = append([]string{ev.Summary}, in.Recent...)
+			inputBytes += len(summary)
+			in.Recent = append([]string{fmt.Sprintf("event:%d %s", ev.Seq, summary)}, in.Recent...)
+			in.EvidenceIDs = append(in.EvidenceIDs, ev.Seq)
 		}
 	}
 	prompt := judge.Prompt(in)
@@ -1230,7 +1305,7 @@ func (s *Session) runJudge() {
 	// Reserve a conservative byte-based input estimate plus framing allowance.
 	// Provider billing can differ; an underestimate stops subsequent calls.
 	model := judge.EffectiveModel(cfg.Judge.Provider, cfg.Judge.Model)
-	estimate, priced := s.prices.MicroKRW(event.Usage{In: int64(len(prompt) + 4096), Out: 16, Model: model}, time.Now())
+	estimate, priced := s.prices.MicroKRW(event.Usage{In: int64(len(prompt) + 4096), Out: 256, Model: model}, time.Now())
 	if !priced {
 		s.judgeBudgetReason = "판정 모델 단가가 미확인이라 호출하지 않았다"
 		s.mu.Unlock()
@@ -1240,7 +1315,7 @@ func (s *Session) runJudge() {
 	if s.intentRevision != nil {
 		intentRevision = s.intentRevision.Number
 	}
-	key := fp.Hash(fmt.Sprint(intentRevision), s.c.ChecksHash(), s.acc.FileHash, cfg.Judge.Provider, model, cfg.Judge.BaseURL, prompt)
+	key := fp.Hash(fmt.Sprint(intentRevision), checksHash, s.acc.FileHash, cfg.Judge.Provider, model, cfg.Judge.BaseURL, prompt)
 	if err := s.judgeBudget.Reserve(key, estimate, limit, cfg.MaxJudgeCalls); err != nil {
 		s.judgeBudgetReason = err.Error()
 		s.mu.Unlock()
@@ -1259,6 +1334,7 @@ func (s *Session) runJudge() {
 	s.mu.Unlock()
 	defer cancel()
 	v, err := s.judge.Judge(ctx, in)
+	v = judge.Validate(v, in)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	if s.closed {
@@ -1290,14 +1366,34 @@ func (s *Session) runJudge() {
 	s.parser.AddEvent(ev)
 	s.eng.ObserveWatch(ev)
 	s.eng.AddCost(ev, ev.CostMicroKRW)
+	ev.Requirements = graph.Progress()
 	s.persistEvent(ev)
+	if v.Label == judge.Unknown {
+		s.recordDecision(detect.Signal{Rule: "s3.drift", Seq: ev.Seq}, "semantic_unknown")
+	}
 	if !known {
 		return
 	}
 	// Preserve incurred usage, but an old goal's verdict cannot judge a new
 	// direction or restore scope enforcement while a draft awaits acceptance.
-	if revision != s.contractRevision || s.acc.State != contract.StateAccepted {
+	currentGoal := s.firstPrompt
+	currentAccepted := s.c != nil && s.acc.State == contract.StateAccepted
+	if currentAccepted {
+		currentGoal = s.c.Goal
+	}
+	if revision != s.contractRevision || accepted != currentAccepted || in.Goal != currentGoal {
 		return
+	}
+	for _, issue := range v.Issues {
+		rule := "s3.requirement_substitution"
+		if issue.Kind == "partial_completion" {
+			rule = "s5.partial_done"
+		}
+		if issue.Kind == "repeated_permission" {
+			rule = "s3.repeated_permission"
+		}
+		sig := detect.Signal{Detector: strings.ToUpper(strings.Split(rule, ".")[0]), Rule: rule, Level: detect.L1, Confidence: 0.6, Estimate: true, Evidence: issue.Evidence, Facts: map[string]any{"kind": issue.Kind, "source": "semantic_judge", "requirements": issue.Requirements, "claims": issue.Claims, "results": issue.Results, "authorizations": issue.Authorizations}}
+		s.deliver(s.eng.Emit(ev, []detect.Signal{sig}))
 	}
 	if v.Label == judge.Drift {
 		s.drifts++
@@ -1305,7 +1401,7 @@ func (s *Session) runJudge() {
 		s.drifts = 0
 	}
 	if s.drifts == 2 {
-		sig := detect.Signal{Detector: "S3", Rule: "s3.drift", Confidence: 0.7, Level: detect.L2, Evidence: []int64{ev.Seq},
+		sig := detect.Signal{Detector: "S3", Rule: "s3.drift", Confidence: 0.7, Level: detect.L1, Estimate: true, Evidence: []int64{ev.Seq},
 			Facts: map[string]any{"count": 2}}
 		s.deliver(s.eng.Emit(ev, []detect.Signal{sig}))
 	}

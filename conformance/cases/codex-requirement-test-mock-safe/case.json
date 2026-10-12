@@ -1,0 +1,8 @@
+{
+  "input": "input.jsonl",
+  "agent": "codex",
+  "expect": {
+    "contract_state": "draft",
+    "rules": []
+  }
+}

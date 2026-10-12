@@ -21,6 +21,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/patch"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/research"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testout"
 )
 
@@ -330,7 +331,7 @@ func (p *Parser) textItem(it map[string]any, ts time.Time, ref string) {
 		if strings.TrimSpace(t) == "" {
 			return
 		}
-		p.add(&event.Event{Kind: event.KindPrompt, TS: ts, SourceRef: ref, Summary: "prompt", Text: t})
+		p.add(&event.Event{PromptOrigin: "user", Kind: event.KindPrompt, TS: ts, SourceRef: ref, Summary: "prompt", Text: t})
 		if p.sess.FirstPrompt == "" && !strings.HasPrefix(strings.TrimSpace(t), "<") {
 			p.sess.FirstPrompt = t
 		}
@@ -398,6 +399,7 @@ func (p *Parser) item(pl map[string]any, ts time.Time, ref string) {
 		ch, _ := it["changes"].(map[string]any)
 		ev := &event.Event{Kind: event.KindTool, TS: ts, SourceRef: ref, RawTool: "apply_patch", Tool: event.ToolEdit,
 			WriteHashes: map[string]string{}, AddedLines: map[string]int{}, RemovedLines: map[string]int{}}
+		ev.ResultObserved = true
 		for path, v := range ch {
 			c, _ := v.(map[string]any)
 			rp := p.rel(path)
@@ -489,6 +491,8 @@ func (p *Parser) shellEvent(cmd string, ts time.Time, ref, raw string) *event.Ev
 	// Codex reads files through the shell; keep the path for re-read detection.
 	if m := readCmdRe.FindStringSubmatch(ev.CmdNorm); m != nil {
 		ev.Paths = []string{p.rel(strings.Trim(m[1], `'"`))}
+		id, host := research.Reference(ev.Paths[0])
+		ev.ResearchSources = []event.ResearchSource{{ReferenceHash: id, HostHash: host}}
 	}
 	p.add(ev)
 	p.pending = append(p.pending, ev)
@@ -496,6 +500,7 @@ func (p *Parser) shellEvent(cmd string, ts time.Time, ref, raw string) *event.Ev
 }
 
 func (p *Parser) setResult(ev *event.Event, code int, out string) {
+	ev.ResultObserved = true
 	ev.ExitCode = &code
 	ev.IsError = code != 0
 	if code >= 0 {
@@ -507,6 +512,12 @@ func (p *Parser) setResult(ev *event.Event, code int, out string) {
 		ev.FailedTests = testout.FailedTests(t)
 	}
 	ev.ResultFP = fp.ResultFP(ev.ExitCode, ev.ErrFPs, ev.FailedTests)
+	if out != "" {
+		ev.ObservationFP = fp.Hash(out)
+		if ev.Tool == event.ToolWeb {
+			ev.ResearchSources = append(ev.ResearchSources, research.References(out)...)
+		}
+	}
 	if len(out) > 4000 {
 		out = out[len(out)-4000:]
 	}
@@ -556,10 +567,22 @@ func (p *Parser) responseItem(pl map[string]any, ptype string, ts time.Time, ref
 			ev = p.patchEvent(input, ts, ref)
 		default:
 			ev = &event.Event{Kind: event.KindTool, TS: ts, SourceRef: ref, RawTool: name, Tool: event.ToolOther, Summary: name}
+			if name == "web.run" || name == "web_run" || name == "web__run" {
+				ev.Tool = event.ToolWeb
+				ev.Category = event.CatExplore
+			}
 			p.add(ev)
 			p.pending = append(p.pending, ev)
 		}
 		ev.CallID = callID
+		if args, ok := pl["arguments"].(string); ok {
+			var original any
+			if json.Unmarshal([]byte(args), &original) == nil {
+				ev.ActionFP = fp.Action(name, original)
+			}
+		} else if input, ok := pl["input"].(string); ok {
+			ev.ActionFP = fp.Action(name, input)
+		}
 		p.byCall[callID] = ev
 		p.sess.ToolUses++
 	case "function_call_output", "custom_tool_call_output":
@@ -570,7 +593,20 @@ func (p *Parser) responseItem(pl map[string]any, ptype string, ts time.Time, ref
 		}
 		delete(p.byCall, callID)
 		p.sess.ToolUsesPaired++
+		ev.ResultObserved = true
 		out := outputText(pl["output"])
+		if ev.Tool == event.ToolEdit || ev.Tool == event.ToolWrite {
+			text := strings.ToLower(strings.TrimSpace(out))
+			if strings.HasPrefix(text, "error:") || strings.Contains(text, "apply_patch verification failed") {
+				ev.IsError = true
+			}
+		}
+		if out != "" && ev.Tool != event.ToolShell {
+			ev.ObservationFP = fp.Hash(out)
+			if ev.Tool == event.ToolWeb {
+				ev.ResearchSources = research.References(out)
+			}
+		}
 		if ev.Tool == event.ToolShell {
 			code := 0
 			if m := exitCodeRe.FindStringSubmatch(out); m != nil {
@@ -588,7 +624,7 @@ func (p *Parser) responseItem(pl map[string]any, ptype string, ts time.Time, ref
 		role, _ := pl["role"].(string)
 		t := itemText(pl["content"])
 		if role == "user" && strings.TrimSpace(t) != "" && !strings.HasPrefix(strings.TrimSpace(t), "<") {
-			p.add(&event.Event{Kind: event.KindPrompt, TS: ts, SourceRef: ref, Summary: "prompt", Text: t})
+			p.add(&event.Event{PromptOrigin: "user", Kind: event.KindPrompt, TS: ts, SourceRef: ref, Summary: "prompt", Text: t})
 			if p.sess.FirstPrompt == "" {
 				p.sess.FirstPrompt = t
 			}

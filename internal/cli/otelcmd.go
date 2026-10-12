@@ -9,7 +9,11 @@ import (
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/otel"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/analyze"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/assessment"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/config"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 )
 
 func importOtelCmd() *cobra.Command {
@@ -53,4 +57,46 @@ func importOtelCmd() *cobra.Command {
 			return nil
 		},
 	}
+}
+
+func exportRedactedOTLP(cmd *cobra.Command, id, out string) error {
+	db, err := ledger.OpenReadOnly(dbPath())
+	if err != nil {
+		return err
+	}
+	defer db.Close()
+	full, _, agent, err := db.SourceOf(id)
+	if err != nil {
+		return err
+	}
+	evs, err := db.EventsOf(full)
+	if err != nil {
+		return err
+	}
+	vs, err := db.VerdictsOf(full)
+	if err != nil {
+		return err
+	}
+	channels, err := db.DeliveryChannels(full)
+	if err != nil {
+		return err
+	}
+	s := &event.Session{ID: full, Agent: agent, Events: evs}
+	if len(evs) > 0 {
+		s.StartedAt = evs[0].TS
+		s.EndedAt = evs[len(evs)-1].TS
+	}
+	a := assessment.BuildRecorded(evs, vs, channels)
+	b, err := otel.EncodeRedactedAssessment(s, a)
+	if err != nil {
+		return err
+	}
+	if out == "" {
+		out = fp.Hash("conversation", full) + ".otlp.jsonl"
+	}
+	if err = writeAtomicMode(out, append(b, '\n'), 0600); err != nil {
+		return err
+	}
+	_, err = fmt.Fprintln(cmd.OutOrStdout(), out)
+	return err
 }

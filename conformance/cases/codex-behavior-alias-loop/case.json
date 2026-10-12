@@ -1,0 +1,11 @@
+{
+  "input": "input.jsonl",
+  "agent": "codex",
+  "expect": {
+    "contract_state": "draft",
+    "rules": [
+      "s2.behavior_loop@L1"
+    ]
+  },
+  "same_verdicts_as": "claude-behavior-alias-loop"
+}

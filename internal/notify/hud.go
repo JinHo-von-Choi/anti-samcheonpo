@@ -1,6 +1,11 @@
 package notify
 
 import (
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/alignment"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/assessment"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/research"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/verification"
 	"sync"
 	"time"
 )
@@ -16,6 +21,15 @@ const hudChannelBuffer = 1
 // HUDState is the non-developer facing snapshot rendered by the intervention
 // HUD: what is happening, how much it costs, and what to press.
 type HUDState struct {
+	SessionID       string                    `json:"session_id,omitempty"`
+	Alignment       *alignment.Graph          `json:"alignment,omitempty"`
+	Linked          *assessment.LinkedSummary `json:"linked,omitempty"`
+	Verification    *verification.Plan        `json:"verification,omitempty"`
+	Assessment      *assessment.Summary       `json:"assessment,omitempty"`
+	Work            *intent.Work              `json:"work,omitempty"`
+	Research        *research.State           `json:"research,omitempty"`
+	WasteRatioText  string                    `json:"waste_ratio_text,omitempty"`
+	WasteRatioBasis string                    `json:"waste_ratio_basis,omitempty"`
 	// StatusText is the short verdict shown to the user, e.g. "순조로움",
 	// "지켜보는 중", "지금 끼어드세요", "확인 불가".
 	StatusText string `json:"status_text"`
@@ -80,6 +94,61 @@ func BuildStateUpdate(state HUDState) HUDPayload {
 	commands := make([]string, len(state.PresetCommands))
 	copy(commands, state.PresetCommands)
 	state.PresetCommands = commands
+	if state.Alignment != nil {
+		cp := *state.Alignment
+		cp.Requirements = append(cp.Requirements[:0:0], cp.Requirements...)
+		for i := range cp.Requirements {
+			cp.Requirements[i].Evidence = append([]int64(nil), cp.Requirements[i].Evidence...)
+		}
+		cp.Observations = append(cp.Observations[:0:0], cp.Observations...)
+		state.Alignment = &cp
+	}
+	if state.Linked != nil {
+		cp := *state.Linked
+		cp.Cycles = append(cp.Cycles[:0:0], cp.Cycles...)
+		for i := range cp.Cycles {
+			cp.Cycles[i].HandoffReturn = append(cp.Cycles[i].HandoffReturn[:0:0], cp.Cycles[i].HandoffReturn...)
+			cp.Cycles[i].Sessions = append([]string(nil), cp.Cycles[i].Sessions...)
+			cp.Cycles[i].Evidence = append(cp.Cycles[i].Evidence[:0:0], cp.Cycles[i].Evidence...)
+		}
+		state.Linked = &cp
+	}
+	if state.Assessment != nil {
+		cp := *state.Assessment
+		gaps := assessment.GapTracker{Gaps: cp.Coverage.Gaps}
+		cp.Coverage.Gaps = gaps.Snapshot()
+		cp.Requirements = append(cp.Requirements[:0:0], cp.Requirements...)
+		for i := range cp.Requirements {
+			cp.Requirements[i].Evidence = append([]int64(nil), cp.Requirements[i].Evidence...)
+		}
+		cp.Reasons = make(map[string]int, len(state.Assessment.Reasons))
+		for k, v := range state.Assessment.Reasons {
+			cp.Reasons[k] = v
+		}
+		state.Assessment = &cp
+	}
+	if state.Research != nil {
+		cp := *state.Research
+		cp.Questions = append(cp.Questions[:0:0], cp.Questions...)
+		cp.Links = append(cp.Links[:0:0], cp.Links...)
+		state.Research = &cp
+	}
+	if state.Work != nil {
+		cp := *state.Work
+		cp.Remaining = append([]string(nil), cp.Remaining...)
+		state.Work = &cp
+	}
+	if state.Verification != nil {
+		cp := *state.Verification
+		cp.Items = append(cp.Items[:0:0], cp.Items...)
+		for i := range cp.Items {
+			if cp.Items[i].ExpiresAt != nil {
+				at := *cp.Items[i].ExpiresAt
+				cp.Items[i].ExpiresAt = &at
+			}
+		}
+		state.Verification = &cp
+	}
 
 	return HUDPayload{
 		Type:        HUDPayloadType,

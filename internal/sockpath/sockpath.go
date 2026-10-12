@@ -34,15 +34,27 @@ func Path() string {
 			p = filepath.Join(d, "samcheonpo.sock")
 		}
 	}
+	return shortPath(p, os.TempDir(), UserID())
+}
+
+func UserID() string {
+	user := fmt.Sprint(os.Getuid())
+	if os.Getuid() < 0 {
+		user = os.Getenv("USERNAME")
+	}
+	return user
+}
+
+// ForHome resolves an explicit home without mutating the caller's environment.
+func ForHome(home, tmp, user string) string {
+	return shortPath(filepath.Join(home, "run", "samcheonpo.sock"), tmp, user)
+}
+
+func shortPath(p, tmp, user string) string {
 	if len(p) <= maxLen {
 		return p
 	}
 	h := sha256.Sum256([]byte(p))
-	user := fmt.Sprint(os.Getuid())
-	if os.Getuid() < 0 { // Windows has no numeric uid
-		user = os.Getenv("USERNAME")
-	}
-	tmp := os.TempDir()
 	fallback := filepath.Join(tmp, fmt.Sprintf("samcheonpo-%s-%s.sock", user, hex.EncodeToString(h[:6])))
 	if len(fallback) <= maxLen {
 		return fallback

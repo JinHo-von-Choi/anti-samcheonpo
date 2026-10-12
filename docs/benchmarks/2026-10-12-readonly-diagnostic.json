@@ -1,0 +1,33 @@
+{
+  "source": "existing_claude_ledger_readonly",
+  "schema_before": 10,
+  "schema_after": 10,
+  "scope": "one_existing_session; no precision, recall or effectiveness claim",
+  "assessment": {
+    "rollout_basis": "recorded",
+    "state": "finding_without_cost",
+    "confirmed": 0,
+    "candidates": 0,
+    "findings": 2,
+    "shadow": 0,
+    "cost_basis": "money",
+    "waste_ratio": "0%",
+    "cost_attribution": "unattributed_findings",
+    "completion": "unknown",
+    "coverage": {
+      "shell_calls": 125,
+      "completed_shell_results": 98,
+      "workspace_known": 105,
+      "result_known": 98,
+      "total_collection": "unknown"
+    },
+    "reasons": {
+      "completion_unobserved": 1,
+      "contract_unaccepted": 1,
+      "missing_exit": 27,
+      "missing_result": 27,
+      "missing_ws": 20
+    },
+    "progress": {}
+  }
+}

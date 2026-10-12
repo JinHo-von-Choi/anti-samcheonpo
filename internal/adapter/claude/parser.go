@@ -22,6 +22,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/patch"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/research"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rules"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testout"
 )
@@ -372,6 +373,9 @@ func (p *Parser) toolUse(b block, ts time.Time, ref string, side bool) *event.Ev
 	}
 	var in map[string]any
 	_ = json.Unmarshal(b.Input, &in)
+	if in != nil {
+		ev.ActionFP = fp.Action(b.Name, in)
+	}
 	str := func(k string) string {
 		if v, ok := in[k].(string); ok {
 			return v
@@ -401,6 +405,9 @@ func (p *Parser) toolUse(b block, ts time.Time, ref string, side bool) *event.Ev
 		ev.Background, _ = in["run_in_background"].(bool)
 	case event.ToolRead:
 		ev.Paths = []string{p.rel(str("file_path"))}
+		if id, host := research.Reference(ev.Paths[0]); id != "" {
+			ev.ResearchSources = []event.ResearchSource{{ReferenceHash: id, HostHash: host}}
+		}
 		ev.Summary = "read " + ev.Paths[0]
 	case event.ToolSearch:
 		if s := str("path"); s != "" {
@@ -435,6 +442,9 @@ func (p *Parser) toolUse(b block, ts time.Time, ref string, side bool) *event.Ev
 		}
 		p.edit(ev, b.Name, in)
 	case event.ToolWeb:
+		if id, host := research.Reference(str("url")); id != "" {
+			ev.ResearchSources = []event.ResearchSource{{ReferenceHash: id, HostHash: host}}
+		}
 		ev.Summary = strings.ToLower(b.Name)
 	case event.ToolTodo, event.ToolTask:
 		ev.Summary = strings.ToLower(b.Name)
@@ -584,7 +594,11 @@ func (p *Parser) prompt(text string, ts time.Time, ref string, meta bool) {
 	if t == "" {
 		return
 	}
-	ev := &event.Event{Kind: event.KindPrompt, TS: ts, SourceRef: ref, Summary: "prompt", Text: t}
+	origin := "user"
+	if meta {
+		origin = "meta"
+	}
+	ev := &event.Event{PromptOrigin: origin, Kind: event.KindPrompt, TS: ts, SourceRef: ref, Summary: "prompt", Text: t}
 	ev.Forced = rules.Current().ForcedPrompts.Match(t)
 	p.add(ev)
 	if p.Session.FirstPrompt == "" && !meta && !strings.HasPrefix(t, "<") && !strings.HasPrefix(t, "Caveat:") {
@@ -621,6 +635,10 @@ func (p *Parser) toolResult(b block, tur *toolUseResult) {
 	}
 	delete(p.byCallID, b.ToolUseID)
 	p.Session.ToolUsesPaired++
+	ev.ResultObserved = true
+	if ev.Tool == event.ToolWeb {
+		ev.ResearchSources = append(ev.ResearchSources, research.References(contentText(b.Content))...)
+	}
 	var text string
 	if ev.Tool == event.ToolShell || b.IsError {
 		text = contentText(b.Content)
@@ -648,6 +666,14 @@ func (p *Parser) toolResult(b block, tur *toolUseResult) {
 		}
 	}
 	ev.IsError = b.IsError
+	if !b.IsError && (ev.Tool == event.ToolRead || ev.Tool == event.ToolSearch || ev.Tool == event.ToolWeb || ev.Tool == event.ToolTask || ev.Tool == event.ToolOther) {
+		if body := contentText(b.Content); body != "" {
+			ev.ObservationFP = fp.Hash(body)
+		}
+	}
+	if ev.Tool == event.ToolShell && out != "" {
+		ev.ObservationFP = fp.Hash(out)
+	}
 	if ev.Tool == event.ToolShell {
 		code := 0
 		if b.IsError {

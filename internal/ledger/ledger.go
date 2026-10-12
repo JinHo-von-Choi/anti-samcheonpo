@@ -156,7 +156,15 @@ func (d *DB) SaveAnalysis(r *analyze.Result, size, mtime int64, msgs func(detect
 	if err == nil && existingAgent != s.Agent {
 		return sl, fmt.Errorf("session ID belongs to another agent")
 	}
-	for _, t := range []string{"event", "verdict"} {
+	var hasObservation int
+	if err := tx.QueryRow(`SELECT COUNT(*) FROM sqlite_master WHERE type='table' AND name='event_observation'`).Scan(&hasObservation); err != nil {
+		return sl, err
+	}
+	tables := []string{"event", "verdict"}
+	if hasObservation > 0 {
+		tables = append(tables, "event_observation")
+	}
+	for _, t := range tables {
 		if _, err := tx.Exec(`DELETE FROM `+t+` WHERE session_id=?`, s.ID); err != nil {
 			return sl, err
 		}
@@ -192,6 +200,18 @@ func (d *DB) SaveAnalysis(r *analyze.Result, size, mtime int64, msgs func(detect
 		if _, err := stmt.Exec(s.ID, ev.Seq, ts(ev.TS), string(ev.Kind), ev.Tool, ev.RawTool, ev.CmdFP, string(paths), ev.WSBefore, ev.WSAfter,
 			ev.ResultFP, exit, ev.Usage.In, ev.Usage.Out, ev.Usage.CacheRead, ev.Usage.CacheWrite, ev.Usage.Model, ev.CostMicroKRW, b2i(ev.Priced),
 			string(ev.Category), ev.Basis, ev.Bucket, ev.Symptom, b2i(ev.Estimated), b2i(ev.Forced), b2i(ev.Parent), ev.Summary, ev.SourceRef, rows[i].Chain); err != nil {
+			return sl, err
+		}
+	}
+	for _, ev := range s.Events {
+		if hasObservation == 0 {
+			break
+		}
+		payload, err := observationJSON(ev)
+		if err != nil {
+			return sl, err
+		}
+		if _, err := tx.Exec(`INSERT INTO event_observation(session_id,seq,payload) VALUES(?,?,?)`, s.ID, ev.Seq, string(payload)); err != nil {
 			return sl, err
 		}
 	}
@@ -376,7 +396,7 @@ func (d *DB) RecordIntervention(v detect.Signal, session, channel string) error 
 func (d *DB) EventsOf(id string) ([]*event.Event, error) {
 	rows, err := d.Query(`SELECT seq,COALESCE(ts,''),kind,COALESCE(tool,''),COALESCE(raw_tool,''),COALESCE(paths,'[]'),exit_code,cost_micro_krw,
 		tokens_in,tokens_out,tokens_cache_read,tokens_cache_write,COALESCE(model,''),COALESCE(category,''),COALESCE(bucket,''),COALESCE(symptom,''),
-		COALESCE(summary,''),COALESCE(source_ref,''),priced,COALESCE(cmd_fp,''),COALESCE(ws_before,''),COALESCE(ws_after,''),COALESCE(result_fp,''),forced
+		COALESCE(summary,''),COALESCE(source_ref,''),priced,COALESCE(cmd_fp,''),COALESCE(ws_before,''),COALESCE(ws_after,''),COALESCE(result_fp,''),forced,estimated
 		FROM event WHERE session_id=? ORDER BY seq`, id)
 	if err != nil {
 		return nil, err
@@ -387,13 +407,14 @@ func (d *DB) EventsOf(id string) ([]*event.Event, error) {
 		ev := &event.Event{SessionID: id}
 		var tss, paths, kind, cat string
 		var exit sql.NullInt64
-		var priced, forced int
+		var priced, forced, estimated int
 		if err := rows.Scan(&ev.Seq, &tss, &kind, &ev.Tool, &ev.RawTool, &paths, &exit, &ev.CostMicroKRW, &ev.Usage.In, &ev.Usage.Out,
 			&ev.Usage.CacheRead, &ev.Usage.CacheWrite, &ev.Usage.Model, &cat, &ev.Bucket, &ev.Symptom, &ev.Summary, &ev.SourceRef, &priced,
-			&ev.CmdFP, &ev.WSBefore, &ev.WSAfter, &ev.ResultFP, &forced); err != nil {
+			&ev.CmdFP, &ev.WSBefore, &ev.WSAfter, &ev.ResultFP, &forced, &estimated); err != nil {
 			return nil, err
 		}
 		ev.Forced = forced == 1
+		ev.Estimated = estimated == 1
 		ev.TS, _ = time.Parse(time.RFC3339Nano, tss)
 		ev.Kind = event.Kind(kind)
 		ev.Category = event.Category(cat)
@@ -405,7 +426,14 @@ func (d *DB) EventsOf(id string) ([]*event.Event, error) {
 		}
 		out = append(out, ev)
 	}
-	return out, rows.Err()
+	if err := rows.Err(); err != nil {
+		return nil, err
+	}
+	rows.Close()
+	if err := d.loadEventObservations(id, out); err != nil {
+		return nil, err
+	}
+	return out, nil
 }
 
 // VerdictsOf loads a session's verdicts.
@@ -549,17 +577,32 @@ func (d *DB) CheckSessionAgent(id, agent string) error {
 
 // InsertLiveEvent writes one live event (replaced by SaveAnalysis at SessionEnd).
 func (d *DB) InsertLiveEvent(id string, ev *event.Event) error {
+	payload, err := observationJSON(ev)
+	if err != nil {
+		return err
+	}
+	tx, err := d.Begin()
+	if err != nil {
+		return err
+	}
+	defer tx.Rollback()
 	paths, _ := json.Marshal(ev.Paths)
 	var exit any
 	if ev.ExitCode != nil {
 		exit = *ev.ExitCode
 	}
-	_, err := d.Exec(`INSERT OR REPLACE INTO event(session_id,seq,ts,kind,tool,raw_tool,cmd_fp,paths,ws_before,ws_after,result_fp,exit_code,
+	_, err = tx.Exec(`INSERT OR REPLACE INTO event(session_id,seq,ts,kind,tool,raw_tool,cmd_fp,paths,ws_before,ws_after,result_fp,exit_code,
 		tokens_in,tokens_out,tokens_cache_read,tokens_cache_write,model,cost_micro_krw,priced,category,category_basis,forced,summary,source_ref)
 		VALUES (?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?,?)`,
 		id, ev.Seq, ts(ev.TS), string(ev.Kind), ev.Tool, ev.RawTool, ev.CmdFP, string(paths), ev.WSBefore, ev.WSAfter, ev.ResultFP, exit,
 		ev.Usage.In, ev.Usage.Out, ev.Usage.CacheRead, ev.Usage.CacheWrite, ev.Usage.Model, ev.CostMicroKRW, b2i(ev.Priced), string(ev.Category), "live", b2i(ev.Forced), ev.Summary, ev.SourceRef)
-	return err
+	if err != nil {
+		return err
+	}
+	if _, err = tx.Exec(`INSERT INTO event_observation(session_id,seq,payload) VALUES(?,?,?) ON CONFLICT(session_id,seq) DO UPDATE SET payload=excluded.payload`, id, ev.Seq, string(payload)); err != nil {
+		return err
+	}
+	return tx.Commit()
 }
 
 // UpdateLiveCost updates the usage and cost of a live event.

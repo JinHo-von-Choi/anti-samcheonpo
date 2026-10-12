@@ -214,17 +214,12 @@ func ParseFile(path string) ([]*event.Session, error) {
 			}
 			s.ToolUses++
 			s.ToolUsesPaired++
-			code := 0
-			if x.sp.Status != nil && x.sp.Status.Code == 2 {
-				code = 1
-			}
-			if n, ok := a["samcheonpo.exit_code"]; ok && n.IntValue != nil {
-				c, _ := strconv.Atoi(*n.IntValue)
-				code = c
-			}
-			if ev.Tool == event.ToolShell {
-				ev.ExitCode = &code
-				ev.ResultFP = fp.ResultFP(ev.ExitCode, nil, nil)
+			// Transport status alone cannot prove a shell exit status.
+			if n, ok := a["samcheonpo.exit_code"]; ok && n.IntValue != nil && ev.Tool == event.ToolShell {
+				if code, err := strconv.Atoi(*n.IntValue); err == nil {
+					ev.ExitCode = &code
+					ev.ResultFP = fp.ResultFP(ev.ExitCode, nil, nil)
+				}
 			}
 			items[sid] = append(items[sid], ev)
 		case op == "chat" || op == "text_completion" || op == "generate_content":
@@ -324,7 +319,7 @@ func Encode(s *event.Session) ([]byte, error) {
 		id := fp.Hash("span", s.ID, strconv.FormatInt(ev.Seq, 10))[:16]
 		u := ev.Usage
 		if u.Total() > 0 {
-			spans = append(spans, span{TraceID: trace, SpanID: id + "c", ParentSpanID: root, Name: "chat " + u.Model, StartTimeUnixNano: t(ev.TS.Add(-time.Nanosecond)), EndTimeUnixNano: t(ev.TS),
+			spans = append(spans, span{TraceID: trace, SpanID: fp.Hash("chat", s.ID, strconv.FormatInt(ev.Seq, 10))[:16], ParentSpanID: root, Name: "chat " + u.Model, StartTimeUnixNano: t(ev.TS.Add(-time.Nanosecond)), EndTimeUnixNano: t(ev.TS),
 				Attributes: []keyValue{kv("gen_ai.operation.name", sv("chat")), kv("gen_ai.conversation.id", sv(s.ID)), kv("gen_ai.request.model", sv(u.Model)),
 					kv("gen_ai.usage.input_tokens", iv(u.In+u.CacheRead+u.CacheWrite)), kv("gen_ai.usage.output_tokens", iv(u.Out)),
 					kv("gen_ai.usage.cache_read.input_tokens", iv(u.CacheRead)), kv("gen_ai.usage.cache_creation.input_tokens", iv(u.CacheWrite)),

@@ -138,3 +138,23 @@ func TestReliabilityShadowRequiresUserOptIn(t *testing.T) {
 		t.Fatalf("project cannot restrict opted-in rule: %+v %v", cfg.Rollout, err)
 	}
 }
+
+func TestNewBehaviorRulesRequireUserOptIn(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SAMCHEONPO_HOME", home)
+	project := t.TempDir()
+	if err := os.WriteFile(filepath.Join(project, ".samcheonpo.yml"), []byte("rollout: {recommend_rules: [s2.behavior_loop], shadow_rules: []}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err := Load(project)
+	if err != nil || !slices.Contains(cfg.Rollout.ShadowRules, "s2.behavior_loop") {
+		t.Fatal("project added advisory delivery", err)
+	}
+	if err = os.WriteFile(filepath.Join(home, "config.yml"), []byte("rollout: {recommend_rules: [s2.behavior_loop]}\n"), 0600); err != nil {
+		t.Fatal(err)
+	}
+	cfg, _, err = Load(project)
+	if err != nil || slices.Contains(cfg.Rollout.ShadowRules, "s2.behavior_loop") || !slices.Contains(cfg.Rollout.ShadowRules, "s4.research_repeat") {
+		t.Fatal("user opt-in not scoped to selected rule", err)
+	}
+}

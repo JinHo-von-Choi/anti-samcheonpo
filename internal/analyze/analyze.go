@@ -18,10 +18,11 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
 )
 
 // EvaluatorVersion identifies the detector rule set; recorded in receipt seals.
-const EvaluatorVersion = "samcheonpo-eval/0.3.1"
+const EvaluatorVersion = "samcheonpo-eval/0.6.0"
 
 // Buckets of the receipt.
 const (
@@ -80,11 +81,12 @@ func (t Totals) PriceCoverage() float64 {
 
 // Options configures an analysis run.
 type Options struct {
-	Config     config.Config
-	ConfigHash string
-	Prices     *cost.Table
-	Contract   *contract.Contract
-	Accepted   bool
+	CandidatePack *rulepack.Pack
+	Config        config.Config
+	ConfigHash    string
+	Prices        *cost.Table
+	Contract      *contract.Contract
+	Accepted      bool
 }
 
 var rmRe = lazyre.New(`(?:^|&&|;|\|\|)\s*(?:git\s+)?rm\s+(?:-[a-zA-Z]+\s+)*([^;&|]+)`)
@@ -118,6 +120,11 @@ func Run(s *event.Session, opt Options) (*Result, error) {
 	opt.Prices.Apply(s.Events)
 	virtualWS(s.Events)
 	eng := detect.NewEngine(cfg, opt.Contract, opt.Accepted, "audit", s.ProjectPath, s.ID, s.FirstPrompt)
+	if opt.CandidatePack != nil {
+		if err := eng.ConfigureCandidates(*opt.CandidatePack); err != nil {
+			return nil, err
+		}
+	}
 	if !r.FormatOK {
 		// format change stops judgement; costs are still summed
 		reclassify(s, eng, r)

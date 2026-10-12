@@ -16,15 +16,18 @@ import (
 )
 
 // gapsCmd samples spans the rules do not count as waste but that look like
-// reported waste, for human labeling. It reads transcripts only and never
+// reported waste, for human labeling. It reads transcripts or ledger and never
 // writes the ledger.
 func gapsCmd() *cobra.Command {
-	var since, agent, out string
+	var since, agent, out, source string
 	var perPattern int
 	c := &cobra.Command{
 		Use:   "gaps",
 		Short: "헛짓으로 분류되지 않은 의심 구간을 사람 판정용으로 뽑는다 (원장에 쓰지 않음)",
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if perPattern < 1 {
+				return fmt.Errorf("per-pattern은 1 이상")
+			}
 			t, err := ParseSince(since, time.Now())
 			if err != nil {
 				return err
@@ -37,15 +40,34 @@ func gapsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
+			if source != "all" && source != "transcript" && source != "ledger" {
+				return fmt.Errorf("source는 all, transcript 또는 ledger")
+			}
 			var all []analyze.Gap
+			if source != "transcript" {
+				all, err = ledgerGaps(t, agent)
+				if err != nil {
+					return err
+				}
+			}
+			ledgerIDs := map[string]bool{}
+			for _, g := range all {
+				ledgerIDs[g.Session] = true
+			}
+
 			failed := 0
 			for _, f := range sources.Find(agent, t, claudeDir(), codexDir()) {
+				if source == "ledger" {
+					break
+				}
 				r, err := analyzeFile(f, cfg, config.Hash(cfg), prices)
 				if err != nil {
 					failed++
 					continue
 				}
-				all = append(all, analyze.Gaps(r)...)
+				if !ledgerIDs[r.Session.ID] {
+					all = append(all, analyze.Gaps(r)...)
+				}
 			}
 			byPattern := map[string][]analyze.Gap{}
 			for _, g := range all {
@@ -96,7 +118,8 @@ func gapsCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&since, "since", "30d", "기간")
-	c.Flags().StringVar(&agent, "agent", "", "claude | codex (기본 전체)")
+	c.Flags().StringVar(&agent, "agent", "", "에이전트 (기본 전체)")
+	c.Flags().StringVar(&source, "source", "transcript", "transcript | ledger | all")
 	c.Flags().StringVar(&out, "out", "", "표본 JSONL 경로 (새 파일만)")
 	c.Flags().IntVar(&perPattern, "per-pattern", 20, "형태별 표본 수")
 	return c

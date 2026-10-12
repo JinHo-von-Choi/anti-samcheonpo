@@ -1,0 +1,8 @@
+{
+  "input": "input.jsonl",
+  "agent": "claude",
+  "expect": {
+    "contract_state": "draft",
+    "rules": []
+  }
+}

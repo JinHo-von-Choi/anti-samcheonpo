@@ -32,6 +32,7 @@ type CorpusRollout struct {
 	ShadowRules []string `json:"shadow_rules"`
 }
 type CorpusManifest struct {
+	Rules             []string       `json:"rules,omitempty"`
 	EvaluationRollout *CorpusRollout `json:"evaluation_rollout,omitempty"`
 	MetadataPath      string         `json:"metadata_path,omitempty"`
 	MetadataSHA256    string         `json:"metadata_sha256,omitempty"`
@@ -290,7 +291,18 @@ func EvaluateCorpus(manifestPath, labelsPath, set string) (CorpusReport, error) 
 	}
 	rep.ConfigSHA256 = corpusDigest(cfgBytes)
 	rep.EvaluationRollout = CorpusRollout{Experiment: cfg.Experiment.Enabled, Mode: cfg.Rollout.Mode, ShadowRules: append([]string(nil), cfg.Rollout.ShadowRules...)}
-	rules := []string{"s1.explicit_waiting", "s8.progress_stall"}
+	rules := manifest.Rules
+	if len(rules) == 0 {
+		rules = []string{"s1.explicit_waiting", "s8.progress_stall"}
+	}
+	allowedRules := []string{"s1.explicit_waiting", "s8.progress_stall", "s2.behavior_loop", "s4.research_repeat", "s1.delegation_loop", "s3.requirement_substitution", "s3.repeated_permission", "s5.partial_done"}
+	seenRules := map[string]bool{}
+	for _, rule := range rules {
+		if !slices.Contains(allowedRules, rule) || seenRules[rule] {
+			return rep, fmt.Errorf("unknown or duplicate evaluation rule")
+		}
+		seenRules[rule] = true
+	}
 	for _, run := range manifest.Runs {
 		if run.Split != set {
 			continue
@@ -491,6 +503,7 @@ func replayCorpusRun(base, scratch string, run CorpusRun, rr CorpusRunReport, pr
 		return rr, fmt.Errorf("adapter format/usage pairing incomplete")
 	}
 	for _, ev := range session.Events {
+		behaviorApplicability(&rr, ev, session.FirstPrompt)
 		r := ev.Reliability
 		if r == nil || !r.Complete {
 			rr.Unknown++

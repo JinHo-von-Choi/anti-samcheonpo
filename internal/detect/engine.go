@@ -17,8 +17,11 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/policy"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/research"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
 )
 
 // Level is an intervention level L0-L4.
@@ -53,7 +56,11 @@ type Signal struct {
 
 // Engine runs all detectors over a session's events.
 type Engine struct {
-	reliability *reliabilityState
+	Research      *research.Tracker
+	learned       *rulepack.Matcher
+	learnedDigest string
+	behavior      *behaviorState
+	reliability   *reliabilityState
 	// Restoring rebuilds candidate state without issuing new reliability verdicts.
 	Restoring bool
 	Cfg       config.Config
@@ -311,6 +318,10 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 		e.refine(ev)
 		e.tool(ev, &sigs)
 	}
+	e.observeBehavior(ev, &sigs)
+	e.observeRequirementChanges(ev, &sigs)
+	e.observeResearchProgress(ev)
+	e.observeLearned(ev, &sigs)
 	e.cost(ev, &sigs)
 	e.sessionLength(ev, &sigs)
 	e.reliabilityObservation(ev, &sigs)
@@ -1204,7 +1215,7 @@ func IsExploreTask(prompt string) bool {
 	if len(p) > 600 {
 		p = p[:600]
 	}
-	return exploreTaskRe.MatchString(p) && !buildTaskRe.MatchString(p)
+	return intent.ResearchRequest(p) || (exploreTaskRe.MatchString(p) && !buildTaskRe.MatchString(p))
 }
 
 func minutesSince(a, b time.Time) int {

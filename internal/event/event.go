@@ -71,6 +71,20 @@ func (u *Usage) Add(o Usage) {
 
 // Event is one normalized occurrence in an agent session.
 type Event struct {
+	ResearchSources    []ResearchSource      `json:"research_sources,omitempty"`
+	ActionFP           string                `json:"action_fp,omitempty"`
+	ResearchLinks      []ResearchLink        `json:"research_links,omitempty"`
+	ResultObserved     bool                  `json:"result_observed,omitempty"`
+	RequirementChanges []RequirementChange   `json:"requirement_changes,omitempty"`
+	PromptOrigin       string                `json:"prompt_origin,omitempty"`
+	ObservationFP      string                `json:"observation_fp,omitempty"`
+	Requirements       []RequirementProgress `json:"requirements,omitempty"`
+	Decisions          []Decision            `json:"decisions,omitempty"`
+	WorkProgress       WorkProgress          `json:"work_progress,omitempty"`
+	BehaviorSelection  string                `json:"behavior_selection,omitempty"`
+	BehaviorContext    string                `json:"behavior_context,omitempty"`
+	BehaviorTarget     string                `json:"behavior_target,omitempty"`
+	BehaviorResult     string                `json:"behavior_result,omitempty"`
 	// Reliability contains harness observations, never model self-reports.
 	Reliability *Reliability `json:"reliability,omitempty"`
 	SessionID   string       `json:"session_id"`
@@ -136,6 +150,12 @@ type Event struct {
 	Patch []PatchFile `json:"-"`
 }
 
+type RequirementChange struct {
+	RequirementID string `json:"requirement_id"`
+	Kind          string `json:"kind"`
+	PathHash      string `json:"path_hash"`
+}
+
 // EditRef records an edit when the prior file content is unknown.
 type EditRef struct {
 	Path    string `json:"path"`
@@ -182,4 +202,18 @@ type Session struct {
 	QuotaKnown      bool    `json:"quota_known,omitempty"`
 	QuotaWindowMin  int     `json:"quota_window_min,omitempty"`
 	ReportedCostUSD float64 `json:"reported_cost_usd,omitempty"`
+}
+
+type ResearchSource struct {
+	ReferenceHash string `json:"reference_hash"`
+	HostHash      string `json:"host_hash,omitempty"`
+}
+
+// ResearchLink records an observed citation, never verification of the claim.
+type ResearchLink struct {
+	Claim      int64  `json:"claim"`
+	SourceHash string `json:"source_hash"`
+	Evidence   int64  `json:"evidence"`
+	Kind       string `json:"kind"`
+	Meaning    string `json:"meaning"`
 }

@@ -141,6 +141,9 @@ func reportCmd() *cobra.Command {
 				if denom == 0 || x.Tokens == 0 {
 					return "미확인"
 				}
+				if n > 0 && 100*float64(n)/float64(denom) < 0.1 {
+					return "<0.1%"
+				}
 				return fmt.Sprintf("%.1f%%", 100*float64(n)/float64(denom))
 			}
 			coverage := "미확인"

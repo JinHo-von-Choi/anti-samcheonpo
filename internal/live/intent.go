@@ -78,6 +78,14 @@ func (s *Session) recordIntent(change intent.Change, source intent.Source) error
 	}
 	same := s.task != nil && s.intentRevision != nil && s.task.ID == task.ID && s.intentRevision.Number == r.Number
 	s.task, s.intentRevision, s.taskLink = &task, &r, &link
+	s.alignmentGraph = nil
+	s.linkedSummary = nil
+	s.linkedPending = nil
+	s.linkedGeneration++
+	s.linkedAt = time.Time{}
+	if s.linkedCancel != nil {
+		s.linkedCancel()
+	}
 	if !same {
 		s.loadFailedAttempts()
 	}
@@ -99,7 +107,7 @@ func (s *Session) recordIntent(change intent.Change, source intent.Source) error
 }
 
 func (s *Session) recordIntentCommand(change intent.Change) error {
-	ev := &event.Event{Kind: event.KindPrompt, TS: time.Now(), Summary: "explicit intent command", Text: change.Goal, Basis: "live"}
+	ev := &event.Event{PromptOrigin: "user", Kind: event.KindPrompt, TS: time.Now(), Summary: "explicit intent command", Text: change.Goal, Basis: "live"}
 	s.parser.AddEvent(ev)
 	s.observe(ev)
 	return s.recordIntent(change, intentSource(s, ev))
@@ -114,6 +122,9 @@ func (s *Session) goalCard(requested string) intent.Card {
 		}
 		card.TaskID, card.Revision, card.Source = r.TaskID, r.Number, &r.Source
 		card.LatestMessage = r.Message
+	}
+	if s.eng != nil {
+		card.Work = intent.DescribeWork(card.Goal, s.eng.St.Events)
 	}
 	return card
 }

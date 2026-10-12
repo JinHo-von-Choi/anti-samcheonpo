@@ -254,7 +254,7 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 func (s *Session) onPrompt(in HookInput) json.RawMessage {
 	s.flushTurn()
 	s.mu.Lock()
-	ev := &event.Event{Kind: event.KindPrompt, TS: time.Now(), Summary: "prompt", Text: in.Prompt, Basis: "live"}
+	ev := &event.Event{PromptOrigin: "user", Kind: event.KindPrompt, TS: time.Now(), Summary: "prompt", Text: in.Prompt, Basis: "live"}
 	ev.Forced = rules.Current().ForcedPrompts.Match(strings.TrimSpace(in.Prompt))
 	s.parser.AddEvent(ev)
 	s.prompts++

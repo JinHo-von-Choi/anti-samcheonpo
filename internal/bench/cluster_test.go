@@ -45,7 +45,7 @@ func TestClusterComparisonPairingReproducibilityAndCosts(t *testing.T) {
 }
 
 func TestClusterWithholdsUnknownDegenerateAndCorrelatedSamples(t *testing.T) {
-	for _, kind := range []string{"monitor", "agent-cost", "versions", "one-task", "constant"} {
+	for _, kind := range []string{"monitor", "agent-cost", "versions", "observed-model", "price-version", "evaluator-version", "monitor-build", "one-task", "constant"} {
 		t.Run(kind, func(t *testing.T) {
 			rows := clusterRows()
 			switch kind {
@@ -55,6 +55,14 @@ func TestClusterWithholdsUnknownDegenerateAndCorrelatedSamples(t *testing.T) {
 				rows[0].CostKnown = false
 			case "versions":
 				rows[0].Model = "other"
+			case "observed-model":
+				rows[0].ObservedModel = "different-actual-model"
+			case "price-version":
+				rows[0].PriceVersion = "other-price"
+			case "evaluator-version":
+				rows[0].EvaluatorVersion = "different-evaluator"
+			case "monitor-build":
+				rows[0].MonitorBinarySHA256 = "different-monitor-build"
 			case "one-task":
 				for i := range rows {
 					rows[i].Task = "same"

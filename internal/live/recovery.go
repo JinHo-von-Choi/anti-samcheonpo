@@ -42,10 +42,28 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	}
 	// prose without a failed run is not evidence: exit 0 reads no cause from it
 	res, cause := recovery.DiagnoseExecution(v.Rule, exit, errorText)
-	key := fp.Hash(string(cause), v.Rule, strings.Join(signatures, "|"))
+	behaviorTarget, _ := v.Facts["target_hash"].(string)
+	key := fp.Hash(string(cause), v.Rule, strings.Join(signatures, "|"), behaviorTarget)
 	p, ok := recovery.Select(cause, key, s.contractRevision, s.recoveries)
 	if !ok {
 		return recovery.Attempt{}, "", false
+	}
+	switch v.Rule {
+	case "s1.linked_loop":
+		p.Action = "연결된 세션의 동일 대상·결과 근거를 합치고, 새 입력·환경·결과를 확인할 다음 행동을 선택한다."
+		p.StopCondition = "새 근거가 없으면 같은 재시도를 멈추고 남은 질문이나 실패 원인을 정리한다."
+	case "s4.research_repeat":
+		p.Action = "미해결 질문 하나와 이미 얻은 근거를 대조하고, 새 근거가 필요한 검색만 선택한다."
+		p.StopCondition = "같은 자료뿐이면 검색을 멈추고 현재 근거와 남은 질문을 정리한다."
+	case "s1.delegation_loop":
+		p.Action = "같은 리뷰를 재위임하기 전에 새 관점·추가 근거·담당자를 정리한다."
+		p.StopCondition = "새 근거가 없으면 현재 결과를 합치고 남은 완료 조건을 확인한다."
+	case "s5.partial_done":
+		p.Action = "요청 항목별 결과와 누락을 대조하고, 승인 범위 안에서 남은 작업을 계속한다."
+		p.StopCondition = "부분 산출물과 전체 완료를 구분하고 항목별 근거를 남긴다."
+	case "s3.repeated_permission":
+		p.Action = "이미 명시된 승인 범위를 확인하고 그 안의 다음 작업을 진행한다."
+		p.StopCondition = "범위·외부 영향·복구 가능성이 바뀌는 선택만 사용자에게 확인한다."
 	}
 	if res.Category == recovery.CategoryExternalEnvironment {
 		p.Shell = res.PrescribedAction
@@ -59,7 +77,10 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	decision := policy.Decide("advice", policy.Capabilities{Inject: s.caps.InjectPre || s.caps.InjectPost || s.caps.PromptInject, UserMessage: s.caps.UserMessage})
 	now := time.Now().UTC()
 	a := recovery.Attempt{Version: "recovery/1", ID: fp.Hash(s.Agent, s.ID, v.ID, key, now.Format(time.RFC3339Nano)), Agent: s.Agent, SessionID: s.ID, Revision: s.contractRevision, CauseKey: key, VerdictID: v.ID, Rule: v.Rule, Seq: v.Seq, Prescription: p, Stage: recovery.Proposed, CreatedAt: now, Route: decision.Route}
-	if target != nil && target.Tool == event.ToolShell && target.ExecCertain && target.ExecFP != "" && (strings.HasPrefix(v.Rule, "s1.") || strings.HasPrefix(v.Rule, "s2.")) {
+	if hash, ok := v.Facts["target_hash"].(string); ok && hash != "" {
+		a.ObservationBasis = "behavior_target"
+		a.TargetHash = hash
+	} else if target != nil && target.Tool == event.ToolShell && target.ExecCertain && target.ExecFP != "" && (strings.HasPrefix(v.Rule, "s1.") || strings.HasPrefix(v.Rule, "s2.")) {
 		a.ObservationBasis = "completed_command"
 		a.TargetHash = fp.Hash(target.ExecFP)
 	} else if p, ok := v.Facts["path"].(string); ok && p != "" {
@@ -70,6 +91,7 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	}
 	if decision.Route == "observe" {
 		a.DeliveryReason = "no_supported_advice_route"
+		s.recordDecision(v, "unsupported_route")
 	}
 	s.recoveries = append(s.recoveries, a)
 	s.saveRecovery(a)
@@ -137,6 +159,8 @@ func relevantRecoveryEvent(a recovery.Attempt, ev *event.Event) bool {
 		return false
 	}
 	switch a.ObservationBasis {
+	case "behavior_target":
+		return !ev.Background && ev.BehaviorTarget != "" && ev.BehaviorTarget == a.TargetHash && (ev.ExitCode != nil || ev.BehaviorResult != "")
 	case "completed_command":
 		return ev.Tool == event.ToolShell && !ev.Background && ev.ExitCode != nil && ev.ExecCertain && ev.ExecFP != "" && fp.Hash(ev.ExecFP) == a.TargetHash
 	case "same_path":

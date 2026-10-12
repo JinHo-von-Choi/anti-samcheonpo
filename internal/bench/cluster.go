@@ -45,8 +45,9 @@ func compareClusters(rows []TrialResult, base, arm string, comparisons int) Clus
 			c.Reason = "실험 식별자·버전·독립 채점 근거 누락"
 			return c
 		}
-		meta := r.Agent + "/" + r.AgentVersion + "/" + r.Model + "/" + r.PolicyVersion
-		conditions[r.Arm] = r.Agent + "/" + r.AgentVersion + "/" + r.Model
+		condition := r.Agent + "/" + r.AgentVersion + "/" + r.Model + "/" + r.ObservedModel + "/" + r.PriceVersion + "/" + r.EvaluatorVersion
+		meta := condition + "/" + r.PolicyVersion + "/" + r.MonitorBinarySHA256 + "/" + r.MonitorConfigSHA256
+		conditions[r.Arm] = condition
 		if old, ok := metadata[r.Arm]; ok && old != meta {
 			c.Reason = "실행 방식 안에서 모델/정책/에이전트 조건이 바뀜"
 			return c

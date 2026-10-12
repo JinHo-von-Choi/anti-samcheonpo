@@ -9,6 +9,7 @@ import (
 
 // Card is a presentation of intent and existing authority, never a grant.
 type Card struct {
+	Work             Work                          `json:"work"`
 	Temporal         *contract.TemporalRequirement `json:"temporal_requirement,omitempty"`
 	TemporalConflict bool                          `json:"temporal_conflict,omitempty"`
 	TaskID           string                        `json:"task_id,omitempty"`
@@ -50,12 +51,18 @@ func GoalCard(c *contract.Contract, acceptance contract.Acceptance, requested st
 	if acceptance.RequestedGoal != "" {
 		card.RequestedGoal = acceptance.RequestedGoal
 	}
+	goal := card.Goal
+	if goal == "" {
+		goal = requested
+	}
+	card.Work = InferWork(goal)
 	return card
 }
 
 func (c Card) Text() string {
 	var b strings.Builder
 	b.WriteString("AI는 이렇게 이해했습니다.\n")
+
 	if t := c.Temporal; t != nil {
 		fmt.Fprintf(&b, "시간 조건: %s", t.Kind)
 		if t.Seconds > 0 {
@@ -79,6 +86,9 @@ func (c Card) Text() string {
 	}
 	if c.LatestMessage != "" && c.LatestMessage != c.RequestedGoal {
 		fmt.Fprintf(&b, "최근 요청 기록: %s\n", c.LatestMessage)
+	}
+	if c.Work.Kind != "" {
+		fmt.Fprintf(&b, "작업 해석: %s · 현재 단계: %s (추정)\n남은 확인: %s\n", c.Work.KindText(), c.Work.PhaseText(), strings.Join(c.Work.Remaining, ", "))
 	}
 	for _, check := range c.Criteria {
 		if check.Manual != "" {

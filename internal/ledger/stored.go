@@ -25,13 +25,17 @@ func encodeSnapshot(r *analyze.Result) ([]byte, error) {
 	for _, ev := range r.Session.Events {
 		snap.Events = append(snap.Events, &event.Event{
 			SessionID: ev.SessionID, Seq: ev.Seq, TS: ev.TS, Kind: ev.Kind,
-			Tool: ev.Tool, RawTool: ev.RawTool, CmdFP: ev.CmdFP, Paths: ev.Paths,
+			RequirementChanges: ev.RequirementChanges,
+			ResultObserved:     ev.ResultObserved,
+			Tool:               ev.Tool, RawTool: ev.RawTool, CmdFP: ev.CmdFP, Paths: ev.Paths,
 			WriteHashes: ev.WriteHashes, WSBefore: ev.WSBefore, WSAfter: ev.WSAfter,
 			ExitCode: ev.ExitCode, ErrFPs: ev.ErrFPs, FailedTests: ev.FailedTests,
 			ResultFP: ev.ResultFP, Usage: ev.Usage, CostMicroKRW: ev.CostMicroKRW,
 			Priced: ev.Priced, Category: ev.Category, Bucket: ev.Bucket,
 			Symptom: ev.Symptom, Estimated: ev.Estimated, Forced: ev.Forced,
 			Parent: ev.Parent, Basis: ev.Basis, Summary: ev.Summary, SourceRef: ev.SourceRef,
+			PromptOrigin: ev.PromptOrigin, ObservationFP: ev.ObservationFP, Requirements: ev.Requirements, Decisions: ev.Decisions, WorkProgress: ev.WorkProgress, BehaviorSelection: ev.BehaviorSelection, BehaviorContext: ev.BehaviorContext, BehaviorTarget: ev.BehaviorTarget, BehaviorResult: ev.BehaviorResult,
+			ExecFP: ev.ExecFP, ExecCertain: ev.ExecCertain, Background: ev.Background, Reliability: ev.Reliability,
 		})
 	}
 	return json.Marshal(snap)

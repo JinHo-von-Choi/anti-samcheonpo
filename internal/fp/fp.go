@@ -5,6 +5,7 @@ package fp
 import (
 	"crypto/sha256"
 	"encoding/hex"
+	"encoding/json"
 	"path"
 	"sort"
 	"strconv"
@@ -13,6 +14,19 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lazyre"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 )
+
+// Action hashes the original tool and complete decoded arguments. Missing or
+// oversized arguments remain unknown; output and credentials are never copied.
+func Action(tool string, input any) string {
+	if tool == "" || input == nil {
+		return ""
+	}
+	raw, err := json.Marshal(input)
+	if err != nil || len(raw) > 2<<20 {
+		return ""
+	}
+	return Hash("native-action/1", tool, string(raw))
+}
 
 // Hash returns the first 16 bytes of SHA-256 of the joined parts, hex encoded.
 func Hash(parts ...string) string {
@@ -50,7 +64,13 @@ var opaqueLead = map[string]bool{"eval": true, "source": true, ".": true, "expor
 // or folds. dir is the shell's directory relative to the project ("" for the
 // root). certain is false when the command uses constructs whose effect the
 // text does not show; such runs must never be blocked as repeats.
-func ExecFP(cmd, dir string) (id string, certain bool) {
+func ExecFP(cmd, dir string) (id string, certain bool) { return execIdentity(cmd, dir, false) }
+
+// ExecutionContext hashes only declared directory/environment/timeout effects.
+// It cannot establish the external environment or grant repeat-block authority.
+func ExecutionContext(cmd, dir string) (string, bool) { return execIdentity(cmd, dir, true) }
+
+func execIdentity(cmd, dir string, contextOnly bool) (id string, certain bool) {
 	s := protectQuoted(strings.TrimSpace(cmd))
 	env := map[string]string{}
 	var wrappers []string
@@ -107,6 +127,9 @@ func ExecFP(cmd, dir string) (id string, certain bool) {
 	parts := make([]string, 0, len(keys))
 	for _, k := range keys {
 		parts = append(parts, k+"="+env[k])
+	}
+	if contextOnly {
+		return Hash("exec-context/1", dir, strings.Join(parts, "\x00"), strings.Join(wrappers, "\x00")), certain
 	}
 	return Hash("exec/2", dir, strings.Join(parts, "\x00"), strings.Join(wrappers, "\x00"), norm), certain
 }

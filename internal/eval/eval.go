@@ -28,10 +28,12 @@ type Label struct {
 	// intervention at this span would have been right (yes | no | unsure), and
 	// what was confirmed afterwards (resolved | unresolved | unknown). Empty
 	// means the span was labeled for occurrence only.
-	Justified string `json:"justified,omitempty"`
-	Outcome   string `json:"outcome,omitempty"`
-	Labeler   string `json:"labeler,omitempty"`
-	Meta      *Meta  `json:"meta,omitempty"`
+	Justified          string `json:"justified,omitempty"`
+	Outcome            string `json:"outcome,omitempty"`
+	Labeler            string `json:"labeler,omitempty"`
+	Meta               *Meta  `json:"meta,omitempty"`
+	ReviewSourceDigest string `json:"review_source_digest,omitempty"`
+	ReviewQueueDigest  string `json:"review_queue_digest,omitempty"`
 }
 
 // Meta is session-level labeling information.
@@ -143,6 +145,10 @@ func LoadLabels(dir string) ([]Label, error) {
 				}
 				lb.Labeler = l.Name()
 				out = append(out, lb)
+			}
+			if err := sc.Err(); err != nil {
+				fh.Close()
+				return nil, fmt.Errorf("%s: %w", f, err)
 			}
 			fh.Close()
 		}

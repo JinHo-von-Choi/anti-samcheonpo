@@ -12,6 +12,8 @@ import (
 
 func rulesCmd() *cobra.Command {
 	c := &cobra.Command{Use: "rules", Short: "규칙 데이터 확인"}
+	c.AddCommand(candidatesCmd())
+	c.AddCommand(learningCmds()...)
 	c.AddCommand(&cobra.Command{
 		Use:   "check [rules.yml]",
 		Short: "규칙 파일의 패턴과 사례를 검사한다 (인자가 없으면 현재 적용 규칙)",

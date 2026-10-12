@@ -152,3 +152,23 @@ func TestExecFPKeepsWhatMakesRunsDifferent(t *testing.T) {
 		}
 	}
 }
+
+func TestExecutionContextPreservesDeclaredEffectsWithoutCommandIdentity(t *testing.T) {
+	a, ok := ExecutionContext("MODE=dev timeout 5 pytest -q", "")
+	if !ok {
+		t.Fatal("known context lost")
+	}
+	b, ok := ExecutionContext("MODE=dev timeout 5 pytest -vv", "")
+	if !ok || a != b {
+		t.Fatal("cosmetic command detail affects declared context")
+	}
+	for _, cmd := range []string{"MODE=prod timeout 5 pytest -q", "MODE=dev timeout 50 pytest -q", "cd sub && MODE=dev timeout 5 pytest -q"} {
+		c, _ := ExecutionContext(cmd, "")
+		if a == c {
+			t.Fatal("environment/limit/directory change lost")
+		}
+	}
+	if _, ok = ExecutionContext("source secret.env; pytest", ""); ok {
+		t.Fatal("opaque environment accepted")
+	}
+}

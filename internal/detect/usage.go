@@ -2,14 +2,14 @@ package detect
 
 import "github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 
-type usagePart struct{ tokens, unpriced, waste, fresh int64 }
+type usagePart struct{ tokens, unpriced, waste, wasteTokens, fresh int64 }
 
 type usageCache struct {
-	count                         int
-	progress                      int64
-	parts                         map[*event.Event]usagePart
-	dirty                         map[*event.Event]bool
-	tokens, unpriced, waste, idle int64
+	count                                      int
+	progress                                   int64
+	parts                                      map[*event.Event]usagePart
+	dirty                                      map[*event.Event]bool
+	tokens, unpriced, waste, wasteTokens, idle int64
 	// fresh is input, output and cache writes: tokens without cache reads,
 	// which repeat the same context every turn and dwarf the rest.
 	fresh int64
@@ -50,11 +50,13 @@ func (s *State) refreshUsage() *usageCache {
 		}
 		if _, ok := s.Wasted[ev.Seq]; ok {
 			next.waste = ev.CostMicroKRW
+			next.wasteTokens = next.tokens
 		}
 		c.tokens += next.tokens - old.tokens
 		c.fresh += next.fresh - old.fresh
 		c.unpriced += next.unpriced - old.unpriced
 		c.waste += next.waste - old.waste
+		c.wasteTokens += next.wasteTokens - old.wasteTokens
 		if ev.Seq > c.progress {
 			c.idle += next.tokens - old.tokens
 		}
@@ -81,3 +83,5 @@ func (s *State) refreshUsage() *usageCache {
 	}
 	return c
 }
+
+func (s *State) WasteTokens() int64 { return s.refreshUsage().wasteTokens }

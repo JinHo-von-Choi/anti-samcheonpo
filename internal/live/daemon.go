@@ -525,6 +525,7 @@ func (d *Daemon) latest(root, id string) *Session {
 		if s := d.sessions[id]; s != nil {
 			return s
 		}
+		return nil
 	}
 	var cands []*Session
 	for _, s := range d.sessions {

@@ -1,0 +1,10 @@
+{
+  "input": "input.jsonl",
+  "agent": "codex",
+  "expect": {
+    "contract_state": "draft",
+    "rules": [
+      "s3.requirement_substitution@L1"
+    ]
+  }
+}

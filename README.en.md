@@ -123,7 +123,7 @@ Download `samcheonpo_<version>_<os>_<arch>.tar.gz` and `SHA256SUMS` from [Releas
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
-tar -xzf samcheonpo_0.7.1_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.8.0_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -135,11 +135,11 @@ Keep `samcheonpo` and the hook helper `samcheonpo-hook` in the same folder. On W
 Requires Go 1.27 or later.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.7.1
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.7.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.8.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.8.0
 ```
 
-When the source transcript is unavailable, `receipt` displays the last completed analysis and `verify` checks its stored seal. Legacy records show their verification limits. v0.7.1 uses ledger schema 10; back up the ledger before upgrading. v0.7.0 and older cannot open schema 10.
+When the source transcript is unavailable, `receipt` displays the last completed analysis and `verify` checks its stored seal. Legacy records show their verification limits. v0.8.0 uses ledger schema 11; back up the ledger before upgrading. v0.7.1 and older cannot open schema 11. Existing seal formats and analysis history are preserved.
 
 ## Quick start
 
@@ -315,3 +315,12 @@ Linux, macOS and Windows 10 1803 or later are supported. On Windows, checks run 
 `samcheonpo report --since 30d --mode live` compares agent observations, separating live sessions from audits. Missing prices use token ratios and show price coverage; unknown usage is not zero cost. Activity classifications and checkpoint observations do not certify completion. `samcheonpo interventions --by-agent` also lists reasons why an outcome could not be observed. A window without relevant actions does not establish absence of recurrence.
 
 The v0.7.0 ledger schema 9 separates daemon observation closure from actual session termination. Legacy records retain their timestamps and seals, with unknown closure evidence. Back up the ledger before upgrading: v0.6.0 cannot open schema 9.
+
+
+## Detection assessment and review dashboard (v0.8.0)
+
+`samcheonpo why` and `samcheonpo coverage` distinguish findings, cost attribution and missing observations. A displayed 0% does not establish normal behavior. New behavior-loop, repeated-research, linked-session and request-bound change candidates default to shadow recording and cannot block tools.
+
+`samcheonpo dashboard` provides a loopback-only authenticated view of goals, remaining requirements, evidence and review intervals. Remote users connect through SSH forwarding. `eval prepare-review` freezes a review queue; `label --queue` or the blind web view binds answers to its source and queue digests. CLI and web writes share process locks and reject stale overwrites and duplicate votes.
+
+`eval compare` reports descriptive confusion matrices, Wilson precision/recall intervals and unknown reasons on the same eligible review intervals. Missing denominators remain null. Reference heuristics are normalized projections, not competing SDK executions. Actual independent human reviews and live on/off outcome/cost effects remain unverified. Cursor/Copilot continue to be observation-only. See [implementation and validation](docs/benchmarks/2026-10-13-full-plan-validation.md).

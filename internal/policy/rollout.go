@@ -3,6 +3,7 @@ package policy
 import (
 	"encoding/hex"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
 )
 
 // RolloutRoute requires an operator-declared evaluation digest for blocking.
@@ -31,7 +32,7 @@ func RolloutRoute(mode, rule string, evidence map[string]string) string {
 
 // AdviceOnly rules cannot block, even with an operator evaluation digest.
 func AdviceOnly(rule string) bool {
-	return rule == "s1.explicit_waiting" || rule == "s8.progress_stall"
+	return rulepack.IsLearned(rule) || rule == "s3.drift" || rule == "s1.explicit_waiting" || rule == "s8.progress_stall" || rule == "s2.behavior_loop" || rule == "s4.research_repeat" || rule == "s1.delegation_loop" || rule == "s1.linked_loop" || rule == "s5.partial_done" || rule == "s3.requirement_substitution" || rule == "s3.repeated_permission"
 }
 
 // ExplicitGuardrail reports rules that enforce a limit the user set: a

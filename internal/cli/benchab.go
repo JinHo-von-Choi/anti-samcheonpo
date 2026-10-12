@@ -4,8 +4,10 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"math"
 	"os"
 	"path/filepath"
+	"strings"
 
 	"github.com/spf13/cobra"
 
@@ -79,10 +81,13 @@ func benchABCmd() *cobra.Command {
 
 func benchReportCmd() *cobra.Command {
 	var baseline, format string
+	var margin, goal float64
+	var check bool
 	c := &cobra.Command{
-		Use:   "report <결과.jsonl>...",
-		Short: "비교 실행 결과를 표로 만든다 (다른 도구가 제출한 결과 포함)",
-		Args:  cobra.MinimumNArgs(1),
+		Use:          "report <결과.jsonl>...",
+		SilenceUsage: true,
+		Short:        "비교 실행 결과를 표로 만든다 (다른 도구가 제출한 결과 포함)",
+		Args:         cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var rows []bench.TrialResult
 			for _, p := range args {
@@ -117,16 +122,45 @@ func benchReportCmd() *cobra.Command {
 			if err := bench.ValidateRows(rows); err != nil {
 				return err
 			}
-			ss := bench.Summarize(rows, baseline)
+			if math.IsNaN(margin) || math.IsNaN(goal) || margin < 0 || margin > 1 || goal < 0 || goal > 1 {
+				return fmt.Errorf("판정 기준은 0~1 범위여야 한다")
+			}
+			ss := bench.SummarizeWithGates(rows, baseline, margin, goal)
+			gateErr := func() error {
+				if !check {
+					return nil
+				}
+				comparisons := 0
+				for _, s := range ss {
+					if s.IsBaseline {
+						continue
+					}
+					comparisons++
+					if s.NonInferior == nil || s.MeetsCostGoal == nil {
+						return fmt.Errorf("%s: 근거 부족으로 효과 판정 보류", s.Arm)
+					}
+					if !*s.NonInferior || !*s.MeetsCostGoal {
+						return fmt.Errorf("%s: 사전 지정 성공률·총비용 기준 미충족", s.Arm)
+					}
+				}
+				if comparisons == 0 {
+					return fmt.Errorf("비교군이 없다")
+				}
+				return nil
+			}
 			if format == "json" {
 				b, _ := json.MarshalIndent(ss, "", "  ")
 				fmt.Fprintln(cmd.OutOrStdout(), string(b))
-				return nil
+				return gateErr()
 			}
-			fmt.Fprint(cmd.OutOrStdout(), bench.Markdown(ss))
-			return nil
+			fmt.Fprintf(cmd.OutOrStdout(), "사전 기준: 성공률 허용 감소 %.1f%%p · 감시 포함 완료당 비용 절감 %.1f%%\n", margin*100, goal*100)
+			fmt.Fprint(cmd.OutOrStdout(), strings.Replace(bench.Markdown(ss), "비용 20% 절감", "비용 기준 충족", 1))
+			return gateErr()
 		},
 	}
+	c.Flags().Float64Var(&margin, "success-margin", 0.02, "사전 지정 성공률 비열등 허용 감소(비율)")
+	c.Flags().Float64Var(&goal, "cost-goal", 0.15, "사전 지정 감시 포함 완료당 비용 최소 절감(비율)")
+	c.Flags().BoolVar(&check, "check", false, "근거 부족·효과 기준 미충족이면 실패 종료")
 	c.Flags().StringVar(&baseline, "baseline", "off", "기준 실행 방식")
 	c.Flags().StringVar(&format, "format", "md", "md | json")
 	return c

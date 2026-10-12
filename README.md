@@ -120,7 +120,7 @@ flowchart LR
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
-tar -xzf samcheonpo_0.7.1_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.8.0_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -132,11 +132,11 @@ samcheonpo doctor
 Go 1.27 이상이 필요합니다.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.7.1
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.7.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.8.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.8.0
 ```
 
-원본 기록이 없으면 `receipt`는 마지막 완료 분석의 저장본을 표시하고, `verify`는 저장 분석의 봉인을 확인한다. 구버전 기록은 검증 한계를 표시한다. v0.7.1은 원장 스키마 10을 사용하므로 업그레이드 전에 원장을 백업해야 한다. 스키마 10은 v0.7.0 이하에서 열 수 없다.
+원본 기록이 없으면 `receipt`는 마지막 완료 분석의 저장본을 표시하고, `verify`는 저장 분석의 봉인을 확인한다. 구버전 기록은 검증 한계를 표시한다. v0.8.0은 원장 스키마 11을 사용하므로 업그레이드 전에 원장을 백업해야 한다. 스키마 11은 v0.7.1 이하에서 열 수 없다. 기존 봉인 형식과 분석 이력은 유지한다.
 
 ## 빠른 시작
 
@@ -193,6 +193,51 @@ samcheonpo uninstall --agent claude
 ```
 
 설치 전 상태로 되돌립니다. 사용자가 고친 파일과 기록은 지우지 않습니다.
+
+## 0%와 탐지 근거 확인
+
+`0%`는 계측된 비용·토큰 중 낭비로 분류한 비율입니다. 정상 작업이나 완료를 보장하지 않습니다. 작은 양수는 `<0.1%`로 표시하고, 탐지 후보·비용 귀속·종료 결과 누락·완료 근거를 분리해서 보여 줍니다.
+
+```sh
+samcheonpo why SESSION
+samcheonpo coverage SESSION --format json
+samcheonpo task-coverage SESSION
+samcheonpo gaps --source ledger --agent all --since 7d
+samcheonpo label SESSION --labeler human --start 10 --end 15 --symptom S2 --outcome unknown
+samcheonpo rules candidates --labels labels --split split.json --out candidates.json
+samcheonpo export SESSION --otel --redact -o session.otlp.jsonl
+samcheonpo bench report results.jsonl --baseline off --success-margin .02 --cost-goal .15 --check
+```
+
+`why`·`coverage`·`task-coverage`는 원장을 생성하거나 마이그레이션하지 않는 읽기 전용 조회입니다. `task-coverage`는 명시적으로 연결한 작업만 조회합니다. 개선 후보는 학습 분할 라벨만 사용하며 정책을 자동 적용하지 않습니다. 비식별 OTLP는 원문·명령·경로·원래 대화 ID를 빼고 로컬 파일로만 저장합니다.
+
+새 반복·의미 탐지는 기본 기록 전용입니다. 실제 안내를 받을 규칙은 사용자 설정의 `rollout.recommend_rules`로 선택합니다. 상세 동작과 검증 범위는 [탐지 개선 구현](docs/spec/detection-assessment.md)에 있습니다.
+
+같은 작업에 연결된 세션의 반복은 실행 중에도 근거와 함께 집계하며, `s1.linked_loop`를 선택하면 안내합니다. 요구사항·에이전트 주장·실제 검사 결과는 별도 그래프로 연결합니다. 완료 주장을 실제 완료로 확정하지 않습니다.
+
+사람 라벨에서 실행 가능한 반복 규칙을 만들고, 고정된 독립 평가를 통과한 팩만 생성할 수 있습니다.
+
+```sh
+samcheonpo rules propose --labels labels --split split.json --out proposal.json
+samcheonpo rules evaluate proposal.json --labels labels --split split.json --out evaluation.json --check
+samcheonpo rules promote proposal.json --labels labels --split split.json --out rulepack.json
+```
+
+`promote`는 원래 라벨과 원장으로 평가를 다시 계산합니다. 선택형 `--install`도 기본 기록 전용이며 안내는 출력된 정확한 규칙 ID를 사용자 `recommend_rules`에 추가해야 합니다. 판정 정확도와 실제 비용 절감 효과는 구분합니다. 조건과 한계는 [2차 구현 규격](docs/spec/detection-phase2.md)에 있습니다.
+
+## 작업 화면과 실제 검토 자료
+
+```sh
+samcheonpo eval prepare-review --since 30d --out review
+samcheonpo dashboard --review-queue review/review-queue.json
+samcheonpo eval compare --queue review/review-queue.json --labels labels --format json
+```
+
+화면은 기본적으로 `127.0.0.1:18773`에서 열립니다. 시작할 때 출력한 파일의 접근 코드로 로그인합니다. 실제 원장은 루프백에서만 제공하며 원격 장비에서는 SSH 포워딩을 사용합니다. 화면의 계속·정상 작업·방향 조정은 선택한 실행 세션의 기존 명령에 연결됩니다. 요청·남은 조건·검사 재사용 근거와 조사 출처 연결을 구분해서 표시합니다. 인용을 관측했다고 주장 자체를 검증한 것은 아닙니다.
+
+검토 큐는 후보 200구간·미검토 대조 400구간을 목표로 실제 원장에서 표집합니다. 정상 여부는 사람이 판단해야 합니다. 원장과 접근 가능한 원본의 해시를 고정하고 같은 원본은 중복 표집하지 않습니다. 독립 검토 화면은 탐지 판정·표집 유형·다른 사람의 답을 숨깁니다. 신고는 구간만 검토한 기록이며 전체 세션 검토나 실행 승인으로 계산하지 않습니다. 같은 검토자의 중복 제출과 고정 자료의 변경을 거절합니다. 고정 큐의 신고에는 원장·큐 지문을 함께 저장합니다. CLI에서는 `label`의 `--queue`와 `--start --end --symptom`을 함께 지정해야 고정 큐 평가용 답변으로 연결됩니다. 원본·큐 결속이 없는 과거 라벨은 보존하되 이 비교의 정답으로 사용하지 않습니다.
+
+`eval compare`는 같은 구간에 명시된 반복 호출·파일별 편집 횟수 휴리스틱을 비교합니다. 외부 SDK를 실행한 결과나 효과 검증이 아닙니다. 원본 해시와 이벤트 순서가 일치할 때만 원본 호출을 사용하고, 부족한 근거는 미확인으로 남깁니다. 최신 규칙의 재생 후보도 함께 기록하며 실행 중 전달·회복으로 계산하지 않습니다. 비교 지표는 두 검토자 ID의 합의와 모든 비교기의 판정 근거가 갖춰진 공통 구간에서만 계산하며, precision·recall의 분모가 없으면 `null`입니다. 불일치와 관측 누락은 별도로 집계합니다. 검토 큐는 층화 표본이므로 이 수치를 모집단 정확도로 일반화하지 않습니다. CLI·웹 저장은 프로세스 간 잠금과 원자적 파일 교체를 공유하며, CLI 검토 중 다른 답변이 저장되면 오래된 저장으로 덮지 않고 재검토를 요청합니다. 두 사람의 실제 독립 검토와 on/off 실행 효과 인수는 별도입니다. 전체 진행·남은 조건은 [전체 플랜 추적](docs/spec/full-plan-progress.md)에 기록합니다.
 
 ## 되돌리기
 
@@ -310,3 +355,5 @@ detectors:
   Made by <a href="mailto:jinho.von.choi@nerdvana.kr">Jinho Choi</a> &nbsp;|&nbsp;
   <a href="https://buymeacoffee.com/jinho.von.choi">Buy me a coffee</a>
 </p>
+
+실제 A/B에서 설치된 구버전 감시 데몬을 섞지 않으려면 실행 방식 설정에 `monitor: samcheonpo`, `monitor_executable: /절대/경로/samcheonpo`, `monitor_rollout: shadow` 또는 `recommend`를 지정합니다. 신규 권고 규칙은 `recommend_rules` 목록에 정확한 advisory 규칙 ID를 지정합니다. 지정 빌드와 설정 사본은 시행별로 고정하며 사용자 환경의 에이전트 권한·모델·인증을 변경하지 않습니다. 전체 시간과 감시 포함 토큰을 기록하되 측정 누락은 0으로 계산하지 않습니다.

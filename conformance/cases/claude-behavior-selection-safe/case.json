@@ -1,0 +1,10 @@
+{
+  "input": "input.jsonl",
+  "agent": "claude",
+  "expect": {
+    "contract_state": "draft",
+    "not_rules": [
+      "s2.behavior_loop"
+    ]
+  }
+}

@@ -199,7 +199,7 @@ func Default() Config {
 	c := Config{Language: "ko", Currency: "KRW"}
 	c.Rollout.Mode = "recommend"
 	c.Rollout.EscalateMaxBlocks = 3
-	c.Rollout.ShadowRules = []string{"s1.verify_after_docs", "s1.review_repeat", "s1.explicit_waiting", "s8.progress_stall"}
+	c.Rollout.ShadowRules = []string{"s1.verify_after_docs", "s1.review_repeat", "s1.explicit_waiting", "s8.progress_stall", "s2.behavior_loop", "s4.research_repeat", "s1.delegation_loop", "s1.linked_loop", "s5.partial_done", "s3.requirement_substitution", "s3.repeated_permission"}
 	c.Detectors.S1.ExplicitWaitingRepeats = 3
 	c.Detectors.S8.StallFailures = 3
 	c.Detectors.S8.StallToolEvents = 5
@@ -291,7 +291,7 @@ func Load(projectDir string) (Config, string, error) {
 			if err := yaml.Unmarshal(b, &declared); err != nil {
 				return c, "", fmt.Errorf("%s: %w", p, err)
 			}
-			for _, rule := range []string{"s1.explicit_waiting", "s8.progress_stall"} {
+			for _, rule := range []string{"s1.explicit_waiting", "s8.progress_stall", "s2.behavior_loop", "s4.research_repeat", "s1.delegation_loop", "s1.linked_loop", "s3.requirement_substitution", "s3.repeated_permission", "s5.partial_done"} {
 				if slices.Contains(c.Rollout.RecommendRules, rule) {
 					if declared.Rollout.ShadowRules == nil {
 						c.Rollout.ShadowRules = slices.DeleteFunc(c.Rollout.ShadowRules, func(r string) bool { return r == rule })

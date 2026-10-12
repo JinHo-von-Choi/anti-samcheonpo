@@ -8,6 +8,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/policy"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
 )
 
 const reliabilityRecentLimit = 128
@@ -231,7 +232,7 @@ func (e *Engine) RestoreReliabilityVerdicts(vs []Signal) {
 }
 
 func reliabilityShadow(e *Engine, s Signal) bool {
-	return policy.AdviceOnly(s.Rule) && (e.Cfg.Rollout.Mode == "shadow" || slices.Contains(e.Cfg.Rollout.ShadowRules, s.Rule))
+	return policy.AdviceOnly(s.Rule) && (e.Cfg.Rollout.Mode == "shadow" || slices.Contains(e.Cfg.Rollout.ShadowRules, s.Rule) || rulepack.IsLearned(s.Rule) && !slices.Contains(e.Cfg.Rollout.RecommendRules, s.Rule))
 }
 
 // ObserveReliabilityFact records zero-cost harness check evidence without

@@ -23,6 +23,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/config"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/eval"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/sources"
@@ -49,13 +50,16 @@ type LiveTask struct {
 // task prompt, "{task}" by the task directory and "{root}" by the directory
 // the comparison was started from (commands run inside a trial copy).
 type Arm struct {
-	Cmd           []string          `yaml:"cmd"`
-	Env           map[string]string `yaml:"env"`
-	Agent         string            `yaml:"agent"`
-	AgentVersion  string            `yaml:"agent_version"`
-	Model         string            `yaml:"model"`
-	PolicyVersion string            `yaml:"policy_version"`
-	Monitor       string            `yaml:"monitor"` // none | samcheonpo; absent/other means unmeasured
+	Cmd               []string          `yaml:"cmd"`
+	Env               map[string]string `yaml:"env"`
+	Agent             string            `yaml:"agent"`
+	AgentVersion      string            `yaml:"agent_version"`
+	Model             string            `yaml:"model"`
+	PolicyVersion     string            `yaml:"policy_version"`
+	Monitor           string            `yaml:"monitor"` // none | samcheonpo; absent/other means unmeasured
+	MonitorExecutable string            `yaml:"monitor_executable"`
+	MonitorRollout    string            `yaml:"monitor_rollout"`
+	RecommendRules    []string          `yaml:"recommend_rules"`
 }
 
 // ABConfig is the live comparison configuration.
@@ -68,37 +72,46 @@ type ABConfig struct {
 
 // TrialResult is one result row. Other tools submit rows in the same format.
 type TrialResult struct {
-	PriceVersion      string `json:"price_version,omitempty"`
-	EvaluatorVersion  string `json:"evaluator_version,omitempty"`
-	GraderDurationMS  int64  `json:"grader_duration_ms"`
-	ProtocolVersion   string `json:"protocol_version,omitempty"`
-	RunID             string `json:"run_id,omitempty"`
-	Seed              int64  `json:"seed"`
-	Order             int    `json:"order"`
-	Agent             string `json:"agent,omitempty"`
-	AgentVersion      string `json:"agent_version,omitempty"`
-	Model             string `json:"model,omitempty"`
-	PolicyVersion     string `json:"policy_version,omitempty"`
-	TaskDigest        string `json:"task_digest,omitempty"`
-	GraderDigest      string `json:"grader_digest,omitempty"`
-	IndependentGrader bool   `json:"independent_grader"`
-	SessionID         string `json:"session_id,omitempty"`
-	CostSource        string `json:"cost_source,omitempty"`
-	CostError         string `json:"cost_error,omitempty"`
-	Arm               string `json:"arm"`
-	Task              string `json:"task"`
-	Group             string `json:"group,omitempty"`
-	Trial             int    `json:"trial"`
-	Verified          bool   `json:"verified"`
-	TotalKRW          int64  `json:"total_krw"`
-	WasteKRW          int64  `json:"waste_krw"`
-	CostKnown         bool   `json:"cost_known"`
-	MonitorKRW        *int64 `json:"monitor_krw,omitempty"` // nil: monitoring cost was not measured
-	MonitorCostError  string `json:"monitor_cost_error,omitempty"`
-	DurationMS        int64  `json:"duration_ms"`
-	Exit              int    `json:"agent_exit"`
-	TimedOut          bool   `json:"timed_out,omitempty"`
-	Error             string `json:"error,omitempty"`
+	PriceVersion        string       `json:"price_version,omitempty"`
+	EvaluatorVersion    string       `json:"evaluator_version,omitempty"`
+	GraderDurationMS    int64        `json:"grader_duration_ms"`
+	ProtocolVersion     string       `json:"protocol_version,omitempty"`
+	RunID               string       `json:"run_id,omitempty"`
+	Seed                int64        `json:"seed"`
+	Order               int          `json:"order"`
+	Agent               string       `json:"agent,omitempty"`
+	AgentVersion        string       `json:"agent_version,omitempty"`
+	Model               string       `json:"model,omitempty"`
+	ObservedModel       string       `json:"observed_model,omitempty"`
+	MonitorBinarySHA256 string       `json:"monitor_binary_sha256,omitempty"`
+	MonitorConfigSHA256 string       `json:"monitor_config_sha256,omitempty"`
+	MonitorSetupMS      int64        `json:"monitor_setup_ms"`
+	TotalDurationMS     int64        `json:"total_duration_ms"`
+	Usage               event.Usage  `json:"usage"`
+	UsageKnown          bool         `json:"usage_known"`
+	PolicyVersion       string       `json:"policy_version,omitempty"`
+	TaskDigest          string       `json:"task_digest,omitempty"`
+	GraderDigest        string       `json:"grader_digest,omitempty"`
+	IndependentGrader   bool         `json:"independent_grader"`
+	SessionID           string       `json:"session_id,omitempty"`
+	CostSource          string       `json:"cost_source,omitempty"`
+	CostError           string       `json:"cost_error,omitempty"`
+	Arm                 string       `json:"arm"`
+	Task                string       `json:"task"`
+	Group               string       `json:"group,omitempty"`
+	Trial               int          `json:"trial"`
+	Verified            bool         `json:"verified"`
+	TotalKRW            int64        `json:"total_krw"`
+	WasteKRW            int64        `json:"waste_krw"`
+	CostKnown           bool         `json:"cost_known"`
+	MonitorKRW          *int64       `json:"monitor_krw,omitempty"` // nil: monitoring cost was not measured
+	MonitorCostError    string       `json:"monitor_cost_error,omitempty"`
+	MonitorUsage        *event.Usage `json:"monitor_usage,omitempty"`
+	MonitorUsageError   string       `json:"monitor_usage_error,omitempty"`
+	DurationMS          int64        `json:"duration_ms"`
+	Exit                int          `json:"agent_exit"`
+	TimedOut            bool         `json:"timed_out,omitempty"`
+	Error               string       `json:"error,omitempty"`
 }
 
 // LoadLiveTasks reads <dir>/*/task.yml; each task has a repo/ directory.
@@ -185,7 +198,9 @@ func LoadABConfig(p string) (ABConfig, error) {
 
 // RunTrial runs one task under one arm in a fresh copy of the repository.
 // claudeDir is where the agent writes transcripts (found by session id).
-func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *cost.Table, claudeDir, work string) TrialResult {
+func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *cost.Table, claudeDir, work string) (result TrialResult) {
+	startedTrial := time.Now()
+	defer func() { result.TotalDurationMS = time.Since(startedTrial).Milliseconds() }()
 	r := TrialResult{ProtocolVersion: "2", Seed: c.Seed, Arm: armName, Task: t.Name, Group: t.Group, Trial: trial, Agent: a.Agent, AgentVersion: a.AgentVersion, Model: a.Model, PolicyVersion: a.PolicyVersion}
 	if len(a.Cmd) == 0 || prices == nil {
 		r.Error = "agent command and price table required"
@@ -241,6 +256,17 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 		env = append(env, k+"="+v)
 	}
 	env = append(env, "SAMCHEONPO_HOME="+filepath.Join(dir, "home"))
+	if a.MonitorExecutable != "" {
+		setupStart := time.Now()
+		finish, binaryHash, configHash, err := startTrialMonitor(a, repo, filepath.Join(dir, "home"), env)
+		r.MonitorSetupMS = time.Since(setupStart).Milliseconds()
+		if err != nil {
+			r.Error = err.Error()
+			return r
+		}
+		r.MonitorBinarySHA256, r.MonitorConfigSHA256 = binaryHash, configHash
+		defer finish()
+	}
 	codexDir := sources.CodexDir()
 	if home := a.Env["CODEX_HOME"]; home != "" {
 		codexDir = filepath.Join(home, "sessions")
@@ -264,6 +290,7 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 		if _, err := os.Stat(monitorPath); os.IsNotExist(err) {
 			zero := int64(0)
 			r.MonitorKRW = &zero
+			r.MonitorUsage = &event.Usage{}
 		} else {
 			r.MonitorCostError = "monitor declared disabled but ledger exists or is inaccessible"
 		}
@@ -277,6 +304,11 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 			r.MonitorKRW = &amount
 		} else {
 			r.MonitorCostError = err.Error()
+		}
+		if usage, err := ledger.MonitoringUsage(monitorPath); err == nil {
+			r.MonitorUsage = &usage
+		} else {
+			r.MonitorUsageError = err.Error()
 		}
 	default:
 		r.MonitorCostError = "monitor cost source not declared or unsupported"
@@ -326,6 +358,11 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 	} else if preexisting[s.SourcePath] {
 		r.CostError = "preexisting session transcript cannot supply whole-trial cost"
 	} else {
+		r.ObservedModel = s.Model
+		for _, ev := range s.Events {
+			r.Usage.Add(ev.Usage)
+		}
+		r.UsageKnown = s.UsageLines > 0 && s.UsageParsed == s.UsageLines && r.Usage.Total() > 0
 		cfg := config.Default()
 		if res, err := analyze.Run(s, analyze.Options{Config: cfg, ConfigHash: config.Hash(cfg), Prices: prices}); err == nil {
 			if res.FormatOK && res.Totals.PriceCoverage() == 1 {
@@ -444,17 +481,21 @@ func copyTree(src, dst string) error {
 
 // ArmSummary aggregates one arm.
 type ArmSummary struct {
-	Arm                  string        `json:"arm"`
-	Trials               int           `json:"trials"`
-	Verified             int           `json:"verified"`
-	Rate                 float64       `json:"success_rate"`
-	CI                   eval.Interval `json:"success_ci95"`
-	CostPerVerified      float64       `json:"krw_per_verified"` // NaN-free: 0 when nothing verified
-	WasteShare           float64       `json:"waste_share"`
-	CostKnown            int           `json:"cost_known"`
-	CostPerVerifiedKnown bool          `json:"cost_per_verified_known"`
-	CostMissingRate      float64       `json:"cost_missing_rate"`
-	TotalCostPerVerified *float64      `json:"krw_per_verified_including_monitor,omitempty"`
+	SuccessMargin          float64       `json:"success_margin"`
+	CostGoalThreshold      float64       `json:"cost_goal_threshold"`
+	Arm                    string        `json:"arm"`
+	Trials                 int           `json:"trials"`
+	Verified               int           `json:"verified"`
+	Rate                   float64       `json:"success_rate"`
+	CI                     eval.Interval `json:"success_ci95"`
+	CostPerVerified        float64       `json:"krw_per_verified"` // NaN-free: 0 when nothing verified
+	WasteShare             float64       `json:"waste_share"`
+	CostKnown              int           `json:"cost_known"`
+	CostPerVerifiedKnown   bool          `json:"cost_per_verified_known"`
+	CostMissingRate        float64       `json:"cost_missing_rate"`
+	TotalCostPerVerified   *float64      `json:"krw_per_verified_including_monitor,omitempty"`
+	TotalTokensPerVerified *float64      `json:"tokens_per_verified_including_monitor,omitempty"`
+	TotalMSPerVerified     *float64      `json:"total_ms_per_verified,omitempty"`
 	// Comparison against the baseline arm
 	DiffLo         float64            `json:"success_diff_lo,omitempty"`
 	NonInferior    *bool              `json:"non_inferior,omitempty"`
@@ -475,16 +516,34 @@ const (
 
 // Summarize groups result rows by arm and compares each to baseline.
 func Summarize(rows []TrialResult, baseline string) []ArmSummary {
+	return SummarizeWithGates(rows, baseline, NonInferiorMargin, CostGoal)
+}
+
+// SummarizeWithGates preserves paired-cluster confidence intervals and total
+// monitoring cost. Thresholds must be specified before inspecting results.
+func SummarizeWithGates(rows []TrialResult, baseline string, margin, goal float64) []ArmSummary {
 	by := map[string][]TrialResult{}
 	for _, r := range rows {
 		by[r.Arm] = append(by[r.Arm], r)
 	}
 	var out []ArmSummary
 	for arm, rs := range by {
-		s := ArmSummary{Arm: arm, Trials: len(rs), IsBaseline: arm == baseline}
+		s := ArmSummary{Arm: arm, Trials: len(rs), IsBaseline: arm == baseline, SuccessMargin: margin, CostGoalThreshold: goal}
 		var total, waste, monitor float64
 		monitorKnown := true
+		usageKnown, timeKnown := true, true
+		var tokens, elapsed float64
 		for _, r := range rs {
+			if !r.UsageKnown || r.MonitorUsage == nil {
+				usageKnown = false
+			} else {
+				tokens += float64(r.Usage.Total() + r.MonitorUsage.Total())
+			}
+			if r.TotalDurationMS <= 0 {
+				timeKnown = false
+			} else {
+				elapsed += float64(r.TotalDurationMS)
+			}
 			if r.Verified {
 				s.Verified++
 			}
@@ -500,6 +559,14 @@ func Summarize(rows []TrialResult, baseline string) []ArmSummary {
 			}
 		}
 		s.Rate = float64(s.Verified) / float64(s.Trials)
+		if s.Verified > 0 && usageKnown {
+			value := tokens / float64(s.Verified)
+			s.TotalTokensPerVerified = &value
+		}
+		if s.Verified > 0 && timeKnown {
+			value := elapsed / float64(s.Verified)
+			s.TotalMSPerVerified = &value
+		}
 		s.CI = eval.Wilson(s.Verified, s.Trials)
 		if s.Verified > 0 && s.CostKnown == s.Trials {
 			s.CostPerVerified = float64(total) / float64(s.Verified)
@@ -542,11 +609,11 @@ func Summarize(rows []TrialResult, baseline string) []ArmSummary {
 		comparison := compareClusters(rows, baseline, s.Arm, len(out)-1)
 		s.Comparison = &comparison
 		if comparison.SuccessDifference != nil {
-			ni := comparison.SuccessDifference.Lo >= -NonInferiorMargin
+			ni := comparison.SuccessDifference.Lo >= -margin
 			s.NonInferior = &ni
 		}
 		if comparison.CostReduction != nil {
-			goal := comparison.CostReduction.Lo >= CostGoal
+			goal := comparison.CostReduction.Lo >= goal
 			s.MeetsCostGoal = &goal
 		}
 		if base.CostPerVerifiedKnown && s.CostPerVerifiedKnown && base.CostPerVerified > 0 {

@@ -84,9 +84,16 @@ v0.6.0에 포함했으며 로컬 시험을 수행했다.
 ## 릴리스 후보 직접 만들기
 
 ```sh
-sh scripts/package-release.sh 0.7.1-dev ./release-out
+sh scripts/package-release.sh 0.8.0-dev ./release-out
 ```
 
 현재 플랫폼에서 두 실행 파일을 빌드하고, API 키 없는 격리 환경에서 설치·제거·감사·첫 훅을 확인한 뒤 `tar.gz`와 `SHA256SUMS`를 만든다. 출력 폴더가 이미 있으면 덮어쓰지 않고, 호스트와 대상 플랫폼이 다르면 거절한다. `BUILD.txt`에 버전, 커밋, 도구 체인, 작업 트리 변경 여부를 남긴다.
 
 `.github/workflows/release.yml`은 수동 실행(`workflow_dispatch`)으로 여섯 플랫폼의 후보를 만들어 artifact로 올린다. 태그와 GitHub Release는 만들지 않는다.
+
+
+## v0.8.0 추가 기능의 확인 범위
+
+행동 반복·조사 반복·인계·부분 완료·요청 제약 위반 신규 후보는 기본 shadow이며 차단하지 않는다. 관련 Go 회귀·경쟁 조건 검사와 Claude/Codex 네이티브 형식 적합성은 통과했지만 실제 독립 사람 라벨 정밀도·재현율, 실시간 안내 수신·회복, on/off 완료율·총비용 효과는 미확인이다. 새 규칙의 안내는 사용자의 정확한 `recommend_rules` 선택이 필요하다.
+
+웹 화면·구간 신고·고정 원본 보호·프로세스 간 저장 경합·원본/큐 결속·비교 지표는 시험으로 확인했다. 실제 자료 600구간에는 사람 정답이 없어 정확도는 미확인이다. Cursor CLI 인증 미비와 Copilot CLI의 호스트 파일 감시 한도로 이번 실제 연결 시험은 시작하지 못했으며 개입 지원을 확장하지 않는다. [검증 기록](benchmarks/2026-10-13-full-plan-validation.md)에 실제 자료와 남은 인수를 구분했다.

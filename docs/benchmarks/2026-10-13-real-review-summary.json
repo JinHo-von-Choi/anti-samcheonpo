@@ -1,0 +1,84 @@
+{
+  "version": "reference-comparison/3",
+  "review_intervals": 600,
+  "actual_human_label_records": 0,
+  "native_source_states": {
+    "native_frozen_bytes_verified": 520,
+    "native_sequence_mismatch": 41,
+    "native_source_not_frozen": 39
+  },
+  "current_replay_states": {
+    "offline_replay_not_delivered": 520,
+    "native_source_unverified": 80
+  },
+  "intervals_with_current_candidates": 68,
+  "current_replay_rule_occurrences": {
+    "s1.identical_rerun": 1,
+    "s1.test_bloat": 1,
+    "s3.config_bypass": 2,
+    "s3.out_of_scope": 23,
+    "s4.read_only_streak": 28,
+    "s4.research_repeat": 1,
+    "s5.answer_copy": 5,
+    "s5.error_hiding": 2,
+    "s5.false_done": 4,
+    "s5.test_weakening": 6,
+    "s8.forced_no_progress": 1,
+    "s8.idle_spend": 3
+  },
+  "reference_predicted_intervals": {
+    "identical_action_result": 0,
+    "per_file_edit_count": 0
+  },
+  "descriptive_scores": {
+    "unit": "frozen_review_interval",
+    "intervals": 600,
+    "common_evaluated_intervals": 0,
+    "unknown_review_reasons": {
+      "two_independent_human_reviews_required": 600
+    },
+    "reviewed_intervals_with_prediction_gaps": 0,
+    "scores": [
+      {
+        "detector": "current_rules",
+        "true_positive": 0,
+        "false_positive": 0,
+        "true_negative": 0,
+        "false_negative": 0,
+        "unknown_predictions": 165,
+        "precision": null,
+        "precision_ci": null,
+        "recall": null,
+        "recall_ci": null
+      },
+      {
+        "detector": "identical_action_result",
+        "true_positive": 0,
+        "false_positive": 0,
+        "true_negative": 0,
+        "false_negative": 0,
+        "unknown_predictions": 290,
+        "precision": null,
+        "precision_ci": null,
+        "recall": null,
+        "recall_ci": null
+      },
+      {
+        "detector": "per_file_edit_count",
+        "true_positive": 0,
+        "false_positive": 0,
+        "true_negative": 0,
+        "false_negative": 0,
+        "unknown_predictions": 80,
+        "precision": null,
+        "precision_ci": null,
+        "recall": null,
+        "recall_ci": null
+      }
+    ],
+    "release_validated": false
+  },
+  "actual_external_sdk_executed": false,
+  "effectiveness_validated": false,
+  "limitations": "실제 원장의 고정 구간에 대한 정규화 휴리스틱 비교. 외부 SDK는 실행하지 않음. 구형 원장의 원본 호출/결과 지문 부재는 unknown. 원장 후보를 층화 표집했으므로 모집단 정밀도·재현율로 일반화할 수 없음. 지표는 모든 비교기가 판정 가능하고 검토 답변이 합의된 동일 구간에서만 계산하며, 분모가 없으면 null이다. 구간 이전의 미관측·보류 근거도 보수적으로 유보한다. 사람 검토자 신원·독립성 확인 및 실사용 on/off 효과는 별도 인수."
+}

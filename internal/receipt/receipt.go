@@ -493,7 +493,7 @@ func (r Receipt) Text() string {
 			continue
 		}
 		label := strings.Repeat("  ", l.Indent) + l.Label
-		pct := fmt.Sprintf("%3.0f%%", l.Pct)
+		pct := cost.PercentageText(l.Pct)
 		if r.Unit == "unknown" {
 			pct = "—"
 		}
@@ -554,7 +554,7 @@ func (r Receipt) Markdown() string {
 		if r.Unit == "unknown" {
 			return "—"
 		}
-		return fmt.Sprintf("%.0f%%", n)
+		return cost.PercentageText(n)
 	}
 	fmt.Fprintf(&b, "| **%s** | **%s** | %s | %s |\n", r.Total.Label, r.amount(r.Total), percent(r.Total.Pct), r.Total.Note)
 	for _, l := range r.Lines {
@@ -564,7 +564,7 @@ func (r Receipt) Markdown() string {
 		fmt.Fprintf(&b, "| %s%s | %s | %s | %s |\n", strings.Repeat("&nbsp;&nbsp;", l.Indent-1), l.Label, r.amount(l), percent(l.Pct), mdEsc(l.Note))
 	}
 	if r.Estimated != nil {
-		fmt.Fprintf(&b, "| %s | %s | %.0f%% | %s |\n", r.Estimated.Label, r.amount(*r.Estimated), r.Estimated.Pct, r.Estimated.Note)
+		fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", r.Estimated.Label, r.amount(*r.Estimated), cost.PercentageText(r.Estimated.Pct), r.Estimated.Note)
 	}
 	b.WriteString("\n")
 	for _, f := range r.Footer {

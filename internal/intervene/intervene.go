@@ -14,6 +14,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/recovery"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
 )
 
 //go:embed templates/ko/*.tmpl
@@ -172,6 +173,12 @@ func toInt(x any) int64 {
 }
 
 func render(name string, d map[string]any) string {
+	for _, suffix := range []string{".agent.tmpl", ".user.tmpl", ".rx.tmpl", ".say.tmpl"} {
+		if strings.HasSuffix(name, suffix) && rulepack.IsLearned(strings.TrimSuffix(name, suffix)) {
+			name = "learned_repeat" + suffix
+			break
+		}
+	}
 	t := tmplsOnce().Lookup(name)
 	if t == nil {
 		return ""

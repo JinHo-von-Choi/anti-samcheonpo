@@ -47,7 +47,7 @@ func TestOpenAICompatible(t *testing.T) {
 	if err != nil || v.Label != Drift || v.Usage.In != 120 || v.Usage.Out != 2 || v.Usage.Model != "local-small" {
 		t.Fatalf("verdict %+v %v", v, err)
 	}
-	if got["model"] != "local-small" || got["max_tokens"].(float64) != 16 {
+	if got["model"] != "local-small" || got["max_tokens"].(float64) != 256 {
 		t.Errorf("request %v", got)
 	}
 }

@@ -26,17 +26,19 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intervene"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/seal"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/sources"
 )
 
 // Version is set at build time.
-var Version = "0.7.1"
+var Version = "0.8.0"
 
 var (
 	flagDB        string
@@ -57,8 +59,9 @@ func Root() *cobra.Command {
 	root.PersistentFlags().StringVar(&flagClaudeDir, "claude-dir", "", "Claude Code projects 경로")
 	root.PersistentFlags().StringVar(&flagCodexDir, "codex-dir", "", "Codex sessions 경로")
 	root.AddCommand(auditCmd(), gapsCmd(), interventionsCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(),
-		labelCmd(), evalCmd(), benchCmd(), debugCmd(), contractCmd(), specCmd(), importOtelCmd(), rulesCmd(), handoffCmd(), reportCmd())
+		labelCmd(), evalCmd(), benchCmd(), debugCmd(), contractCmd(), specCmd(), importOtelCmd(), rulesCmd(), handoffCmd(), reportCmd(), taskCoverageCmd(), diagnosticCmd("why"), diagnosticCmd("coverage"))
 	root.AddCommand(liveCommands()...)
+	root.AddCommand(dashboardCmd())
 	return root
 }
 
@@ -120,7 +123,12 @@ func analyzeFile(f sources.File, cfg config.Config, cfgHash string, prices *cost
 	if err != nil {
 		return nil, err
 	}
-	return analyze.Run(s, analyze.Options{Config: cfg, ConfigHash: cfgHash, Prices: prices})
+	opt := analyze.Options{Config: cfg, ConfigHash: cfgHash, Prices: prices}
+	if pack, err := rulepack.Load(filepath.Join(config.Home(), "learned-rules.json")); err == nil {
+		opt.CandidatePack = &pack
+		opt.ConfigHash = fp.Hash(cfgHash, rulepack.Digest(pack))
+	}
+	return analyze.Run(s, opt)
 }
 
 // Messages renders stored verdict messages.
@@ -361,7 +369,7 @@ func writeAudit(w io.Writer, rc receipt.Receipt, sums []sessionSummary, format s
 		fmt.Fprint(w, rc.Markdown())
 		fmt.Fprint(w, "\n### 헛짓 상위 세션\n\n| 세션 | 시작 | 헛짓 | 헛짓률 | 첫 요청 |\n| --- | --- | ---: | ---: | --- |\n")
 		for _, s := range top {
-			fmt.Fprintf(w, "| `%s` | %s | %s | %.0f%% | %s |\n", short8(s.ID), s.Started.Local().Format("01-02 15:04"), amountOf(rc, s.Totals), pctOf(s.Totals), strings.ReplaceAll(s.Prompt, "|", "\\|"))
+			fmt.Fprintf(w, "| `%s` | %s | %s | %s | %s |\n", short8(s.ID), s.Started.Local().Format("01-02 15:04"), amountOf(rc, s.Totals), cost.PercentageText(pctOf(s.Totals)), strings.ReplaceAll(s.Prompt, "|", "\\|"))
 		}
 		return nil
 	default:
@@ -642,12 +650,27 @@ func priceCmd() *cobra.Command {
 	return c
 }
 
-func writeAtomic(p string, b []byte) error {
-	tmp := p + ".tmp"
-	if err := os.WriteFile(tmp, b, 0o644); err != nil {
+func writeAtomic(p string, b []byte) error { return writeAtomicMode(p, b, 0644) }
+
+func writeAtomicMode(p string, b []byte, mode os.FileMode) error {
+	f, err := os.CreateTemp(filepath.Dir(p), "."+filepath.Base(p)+"-*.tmp")
+	if err != nil {
 		return err
 	}
-	return procgroup.Rename(tmp, p)
+	name := f.Name()
+	defer os.Remove(name)
+	if err = f.Chmod(mode); err != nil {
+		f.Close()
+		return err
+	}
+	if _, err = f.Write(b); err != nil {
+		f.Close()
+		return err
+	}
+	if err = f.Close(); err != nil {
+		return err
+	}
+	return procgroup.Rename(name, p)
 }
 
 func initCmd() *cobra.Command {
@@ -698,6 +721,9 @@ func exportCmd() *cobra.Command {
 		Short: "경로와 명령을 가린 재현 묶음, 또는 OTLP/JSON 트레이스",
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
+			if asOtel && redact {
+				return exportRedactedOTLP(cmd, args[0], out)
+			}
 			if asOtel {
 				db, err := openDB()
 				if err != nil {
@@ -708,7 +734,12 @@ func exportCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
-				b, err := otel.Encode(r.Session)
+				var b []byte
+				if redact {
+					b, err = otel.EncodeRedacted(r.Session)
+				} else {
+					b, err = otel.Encode(r.Session)
+				}
 				if err != nil {
 					return err
 				}
@@ -762,7 +793,7 @@ func exportCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVarP(&out, "output", "o", "", "출력 파일")
-	c.Flags().BoolVar(&redact, "redact", false, "경로·명령·원문 제외 재현 묶음")
+	c.Flags().BoolVar(&redact, "redact", false, "경로·명령·원문 제외 (묶음 또는 --otel과 함께 비식별 OTLP)")
 	c.Flags().BoolVar(&asOtel, "otel", false, "OpenTelemetry GenAI 트레이스(OTLP/JSON)로 내보내기 (정규화 명령과 경로 포함)")
 	return c
 }

@@ -23,7 +23,7 @@ var hudPresets = []string{"/samcheonpo:keep now", "/samcheonpo:keep normal", "/s
 // s.mu held.
 func (s *Session) hudState() notify.HUDState {
 	st := s.eng.St
-	h := notify.HUDState{}
+	h := notify.HUDState{SessionID: s.ID}
 	var parts []string
 	if n := s.queueRejected.Load(); n > 0 {
 		parts = append(parts, fmt.Sprintf("[관측 큐 포화: %d건 미처리]", n))
@@ -60,14 +60,15 @@ func (s *Session) hudState() notify.HUDState {
 	}
 	pct := 0
 	if st.TotalMicro > 0 {
-		pct = int(waste * 100 / st.TotalMicro)
+		pct = int(float64(waste) * 100 / float64(st.TotalMicro))
 	}
 	if h.UsageUnknown || st.TotalMicro == 0 {
 		parts = append(parts, "헛짓 비율 미확인")
 	} else {
 		h.WasteKRW = cost.Won(waste)
 		h.WastePercentage = pct
-		parts = append(parts, fmt.Sprintf("헛짓 %d%% (계측분)", pct))
+		h.WasteRatioText, h.WasteRatioBasis = cost.RatioText(waste, st.TotalMicro), "money"
+		parts = append(parts, "낭비 분류율 "+h.WasteRatioText+" (계측 금액)")
 	}
 	if active, tok, tier := s.eng.SessionLength(); tier > 0 {
 		h.SessionMinutes, h.SessionTokens, h.SessionTier = int(active.Minutes()), tok, tier
@@ -81,11 +82,52 @@ func (s *Session) hudState() notify.HUDState {
 		h.TreeKRW, h.TreeLimitKRW = spent, limit
 		parts = append(parts, fmt.Sprintf("군집 지출 %s원/%s원", contract.Comma(spent), contract.Comma(limit)))
 	}
+	assessment, work := s.currentAssessment(met, total)
+	h.Assessment = &assessment
+	h.Linked = s.linkedSummary
+	h.Alignment = s.alignmentGraph
+	if h.Alignment == nil {
+		g := s.requirementGraph()
+		s.alignmentGraph = &g
+		h.Alignment = &g
+	}
+	if len(h.Alignment.Requirements) > 0 {
+		work.Remaining = nil
+		for _, r := range h.Alignment.Requirements {
+			label := r.Label
+			if r.Status == "passing_evidence_candidate" {
+				label += " · 통과 근거의 현재성 확인"
+			}
+			work.Remaining = append(work.Remaining, label)
+		}
+	}
+	if s.linkedUnavailable {
+		assessment.Reasons["linked_unavailable"] = 1
+	}
+	h.Work = &work
+	if s.eng.Research != nil {
+		research := s.eng.Research.Snapshot()
+		h.Research = &research
+	}
+	plan := s.verificationCandidates()
+	h.Verification = &plan
+	if h.UsageUnknown {
+		h.WasteRatioText, h.WasteRatioBasis = assessment.WasteRatio, assessment.CostBasis
+	}
+	if assessment.CostAttribution == "unattributed_findings" {
+		parts = append(parts, "지적 비용 귀속 미확인")
+	}
+	if assessment.Findings > 0 {
+		parts = append(parts, fmt.Sprintf("판정 %d", assessment.Findings))
+	}
 	h.StatusText = s.stateLabel(met, total)
 	h.Summary = strings.Join(parts, " · ")
 	h.IsBlocked = s.unresolved != nil
 	h.Requested = s.firstPrompt
-	if s.c != nil && s.c.Goal != "" {
+	if s.intentRevision != nil {
+		h.Requested = s.intentRevision.Goal
+	}
+	if s.c != nil && s.c.Goal != "" && s.acc.RequestedGoal == "" && (s.intentRevision == nil || s.intentRevision.Goal == s.c.Goal) {
 		h.Requested = s.c.Goal
 	}
 	if p := s.lastPrimary; p != nil && p.Seq > st.LastProgress && p.Level >= detect.L1 {

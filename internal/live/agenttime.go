@@ -5,6 +5,7 @@ import (
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/verification"
 )
@@ -62,6 +63,21 @@ func (s *Session) observeReliability(ev *event.Event) {
 		return
 	}
 	r.Complete = s.queueRejected.Load() == 0 && s.storageErr == nil && (s.ws == nil || !s.ws.WatchUnavailable()) && !ev.Unknown && !ev.Background
+	addGap := func(code string) {
+		ev.Decisions = append(ev.Decisions, event.Decision{Rule: "observation.collection", Code: code, Evidence: []int64{ev.Seq}})
+	}
+	if s.queueRejected.Load() > 0 {
+		addGap("queue_saturated")
+	}
+	if s.storageErr != nil {
+		addGap("storage_error")
+	}
+	if s.ws != nil && s.ws.WatchUnavailable() {
+		addGap("watch_unavailable")
+	}
+	if ev.Unknown {
+		addGap("tool_schema_unknown")
+	}
 	r.Wait = event.ExplicitWait(ev)
 	if r.Wait != "" {
 		r.WaitKind = "sleep"
@@ -123,7 +139,11 @@ func (s *Session) recordReliabilityCheck(result CheckResult) {
 		ExitCode: &exit, FailedTests: append([]string(nil), result.Failed...), ResultFP: result.ResultFP, DurationMS: result.Duration.Milliseconds(), Reliability: r, Priced: true, Basis: "live"}
 	ev.ErrFPs = append([]string(nil), result.ErrorFPs...)
 	s.parser.AddEvent(ev)
+	ev.BehaviorTarget = detect.BehaviorTarget(ev)
+	ev.BehaviorResult = ev.ResultFP
 	sigs := s.eng.ObserveReliabilityFact(ev)
+	s.annotateRequirements(ev)
 	s.persistEvent(ev)
 	s.deliver(sigs)
+	s.scheduleLinked(ev)
 }

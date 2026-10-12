@@ -1,8 +1,11 @@
 package claude
 
 import (
+	"encoding/json"
+	"fmt"
 	"path/filepath"
 	"testing"
+	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 )
@@ -156,5 +159,23 @@ func TestUsageTrackerMovesEarlyMessageUsage(t *testing.T) {
 		if x.ToolUseID != "" && (x.Delta.Out < 0 || x.Delta.In < 0) {
 			t.Fatalf("tool deltas must not be negative: %+v", x)
 		}
+	}
+}
+
+func TestReadResultsAreFingerprintedWithoutRetainingBody(t *testing.T) {
+	p := NewParser("")
+	input := json.RawMessage(`{"file_path":"/p/paper.txt"}`)
+	for i := 0; i < 3; i++ {
+		id := fmt.Sprint(i)
+		ev := p.HookToolUse("Read", id, input, time.Now())
+		response := json.RawMessage(`{"file":{"content":"PRIVATE_BODY"}}`)
+		p.HookToolResult(id, response, false, "")
+		if ev.ObservationFP == "" || ev.Text != "" {
+			t.Fatalf("hashed result missing or retained: %+v", ev)
+		}
+	}
+	events := p.Session.Events
+	if events[0].ObservationFP != events[1].ObservationFP || events[1].ObservationFP != events[2].ObservationFP {
+		t.Fatal("identical read result fingerprint unstable")
 	}
 }

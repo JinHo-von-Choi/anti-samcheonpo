@@ -9,6 +9,7 @@ import (
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 )
 
 // HookToolUse creates a tool event from a PreToolUse/PostToolUse payload,
@@ -48,6 +49,24 @@ func (p *Parser) HookToolResult(id string, response json.RawMessage, isError boo
 	}
 	content, _ := json.Marshal(text)
 	p.toolResult(block{Type: "tool_result", ToolUseID: id, IsError: isError, Content: content}, tur)
+	if !isError && ev.Tool != event.ToolShell && ev.ObservationFP == "" {
+		var body map[string]json.RawMessage
+		if json.Unmarshal(response, &body) == nil {
+			if file, ok := body["file"]; ok {
+				var fields map[string]json.RawMessage
+				if json.Unmarshal(file, &fields) == nil {
+					if text := contentText(fields["content"]); text != "" {
+						ev.ObservationFP = fp.Hash(text)
+					}
+				}
+			}
+			if ev.ObservationFP == "" {
+				if text := contentText(body["content"]); text != "" {
+					ev.ObservationFP = fp.Hash(text)
+				}
+			}
+		}
+	}
 	return ev
 }
 

@@ -2,6 +2,8 @@ package cli
 
 import (
 	"bufio"
+	"bytes"
+	"encoding/hex"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -14,24 +16,30 @@ import (
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/bench"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/eval"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
 )
 
 func labelCmd() *cobra.Command {
-	var labeler, dir string
+	var labeler, dir, queuePath string
 	var page int
+	var start, end int64
+	var symptom, justified, outcome, note string
 	c := &cobra.Command{
 		Use:   "label <session-id>",
 		Short: "평가용 구간 표시",
 		Long: `세션 이벤트를 요약으로 보여 주고 헛짓 구간을 표시한다.
 명령: <시작> <끝> <증상 S1~S8|none> [메모] · x <번호> 원본 펼치기 · n 다음 쪽 · p 이전 쪽
-      goal <목표> · success yes|no|partial|unknown · q 저장 후 종료`,
+      goal <목표> · success yes|no|partial|unknown · reviewed yes|no 전체 확인 · q 저장 후 종료`,
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
-			if labeler == "" {
+			if page < 1 || page > 1000 {
+				return fmt.Errorf("page는 1~1000 범위여야 한다")
+			}
+			if labeler == "" || filepath.Base(labeler) != labeler || labeler == "." || labeler == ".." {
 				return fmt.Errorf("--labeler 이름이 필요하다")
 			}
-			db, err := openDB()
+			db, err := ledger.OpenReadOnly(dbPath())
 			if err != nil {
 				return err
 			}
@@ -44,13 +52,26 @@ func labelCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			out := filepath.Join(dir, labeler, full+".jsonl")
-			if err := os.MkdirAll(filepath.Dir(out), 0o755); err != nil {
+			out := filepath.Join(dir, labeler, hex.EncodeToString([]byte(full))+".jsonl")
+			// Preserve existing safe legacy files; never treat an arbitrary
+			// transcript session identifier as a filesystem path.
+			if !strings.ContainsAny(full, "/\\") && full != "." && full != ".." {
+				legacy := filepath.Join(dir, labeler, full+".jsonl")
+				if st, err := os.Stat(legacy); err == nil && st.Mode().IsRegular() {
+					out = legacy
+				}
+			}
+			if err := os.MkdirAll(filepath.Dir(out), 0o700); err != nil {
 				return err
 			}
 			var labels []eval.Label
-			meta := &eval.Meta{Success: "unknown", Reviewed: true}
-			if b, err := os.ReadFile(out); err == nil {
+			meta := &eval.Meta{Success: "unknown", Reviewed: false}
+			original, err := os.ReadFile(out)
+			if err != nil && !os.IsNotExist(err) {
+				return err
+			}
+			if err == nil {
+				b := original
 				for _, ln := range strings.Split(string(b), "\n") {
 					var l eval.Label
 					if json.Unmarshal([]byte(ln), &l) == nil {
@@ -63,17 +84,81 @@ func labelCmd() *cobra.Command {
 				}
 			}
 			w := cmd.OutOrStdout()
+			if cmd.Flags().Changed("start") || cmd.Flags().Changed("end") || cmd.Flags().Changed("symptom") {
+				if !cmd.Flags().Changed("start") || !cmd.Flags().Changed("end") || symptom == "" || start < 0 || end < start {
+					return fmt.Errorf("--start --end --symptom을 함께 지정")
+				}
+				if symptom != "none" && (len(symptom) != 2 || symptom[0] != 'S' || symptom[1] < '1' || symptom[1] > '8') {
+					return fmt.Errorf("증상은 S1~S8 또는 none")
+				}
+				if justified != "" && justified != "yes" && justified != "no" && justified != "unsure" {
+					return fmt.Errorf("justified는 yes|no|unsure")
+				}
+				if outcome != "" && outcome != "resolved" && outcome != "unresolved" && outcome != "unknown" {
+					return fmt.Errorf("outcome은 resolved|unresolved|unknown")
+				}
+				foundStart, foundEnd := false, false
+				for _, ev := range evs {
+					foundStart = foundStart || ev.Seq == start
+					foundEnd = foundEnd || ev.Seq == end
+				}
+				if !foundStart || !foundEnd {
+					return fmt.Errorf("원장에 없는 이벤트 구간")
+				}
+				var reviewSource, reviewQueue string
+				if queuePath != "" {
+					q, err := eval.LoadReviewQueue(queuePath)
+					if err != nil {
+						return err
+					}
+					matched := false
+					for _, item := range q.Items {
+						if item.Session != full || item.Start != start || item.End != end || item.SourceDigest != eval.ReviewSourceDigest(evs) {
+							continue
+						}
+						if item.NativeSourceSHA256 != "" {
+							var source string
+							if err := db.QueryRow(`SELECT COALESCE(source_path,'') FROM session WHERE id=?`, full).Scan(&source); err != nil {
+								return err
+							}
+							sha, err := eval.NativeSourceDigest(source)
+							if err != nil || sha != item.NativeSourceSHA256 {
+								return fmt.Errorf("고정된 원본 자료가 변경되었거나 접근할 수 없습니다")
+							}
+						}
+						reviewSource, reviewQueue, matched = item.SourceDigest, q.Digest, true
+						break
+					}
+					if !matched {
+						return fmt.Errorf("고정 검토 큐의 구간 또는 원장이 일치하지 않습니다")
+					}
+				}
+				meta.Reviewed = false
+				l := eval.Label{Session: full, Start: start, End: end, Symptom: symptom, Justified: justified, Outcome: outcome, Note: note, Labeler: labeler, ReviewSourceDigest: reviewSource, ReviewQueueDigest: reviewQueue}
+				for _, old := range labels {
+					if old.Start == l.Start && old.End == l.End && old.Symptom == l.Symptom {
+						return fmt.Errorf("같은 구간·증상 라벨이 이미 존재")
+					}
+				}
+				labels = append(labels, l)
+				return saveLabels(out, full, labeler, labels, meta, original, w)
+			}
+			if queuePath != "" {
+				return fmt.Errorf("고정 큐 신고는 --start --end --symptom으로 구간을 지정해야 합니다")
+			}
 			in := bufio.NewScanner(cmd.InOrStdin())
 			pg := 0
+			seenEvents := map[int64]bool{}
 			show := func() {
 				fmt.Fprintf(w, "\n세션 %s · 이벤트 %d개 · 쪽 %d/%d\n", short8(full), len(evs), pg+1, (len(evs)+page-1)/page)
 				for i := pg * page; i < len(evs) && i < (pg+1)*page; i++ {
 					ev := evs[i]
+					seenEvents[ev.Seq] = true
 					ec := ""
 					if ev.ExitCode != nil {
 						ec = fmt.Sprintf(" [exit %d]", *ev.ExitCode)
 					}
-					fmt.Fprintf(w, "%5d %-8s %-8s %s%s\n", ev.Seq, ev.Category, ev.Bucket, trunc(ev.Summary, 100), ec)
+					fmt.Fprintf(w, "%5d %-8s %s%s\n", ev.Seq, ev.Category, trunc(ev.Summary, 100), ec)
 				}
 				fmt.Fprint(w, "> ")
 			}
@@ -83,7 +168,7 @@ func labelCmd() *cobra.Command {
 				f := strings.Fields(line)
 				switch {
 				case line == "q":
-					return saveLabels(out, full, labels, meta, w)
+					return saveLabels(out, full, labeler, labels, meta, original, w)
 				case line == "n":
 					if (pg+1)*page < len(evs) {
 						pg++
@@ -103,6 +188,14 @@ func labelCmd() *cobra.Command {
 					meta.Goal = strings.TrimSpace(strings.TrimPrefix(line, "goal"))
 				case len(f) == 2 && f[0] == "success":
 					meta.Success = f[1]
+				case len(f) == 2 && f[0] == "reviewed":
+					if f[1] == "no" {
+						meta.Reviewed = false
+					} else if f[1] == "yes" && len(seenEvents) == len(evs) {
+						meta.Reviewed = true
+					} else {
+						fmt.Fprintln(w, "모든 쪽을 확인한 뒤 reviewed yes로 전체 검토를 명시해야 합니다")
+					}
 				case len(f) >= 3:
 					a, e1 := strconv.ParseInt(f[0], 10, 64)
 					b, e2 := strconv.ParseInt(f[1], 10, 64)
@@ -119,16 +212,72 @@ func labelCmd() *cobra.Command {
 				}
 				show()
 			}
-			return saveLabels(out, full, labels, meta, w)
+			return saveLabels(out, full, labeler, labels, meta, original, w)
 		},
 	}
+	c.Flags().Int64Var(&start, "start", 0, "한 번에 신고할 시작 이벤트")
+	c.Flags().Int64Var(&end, "end", 0, "한 번에 신고할 끝 이벤트")
+	c.Flags().StringVar(&symptom, "symptom", "", "S1~S8 또는 none")
+	c.Flags().StringVar(&justified, "justified", "", "개입 타당성 yes|no|unsure")
+	c.Flags().StringVar(&outcome, "outcome", "", "관련 후속 결과 resolved|unresolved|unknown")
+	c.Flags().StringVar(&note, "note", "", "사람 관측 메모")
 	c.Flags().StringVar(&labeler, "labeler", "", "표시자 이름")
 	c.Flags().StringVar(&dir, "dir", "labels", "표시 파일 디렉터리")
+	c.Flags().StringVar(&queuePath, "queue", "", "고정 검토 큐; 원장·원본·구간 검증 후 답변에 결속")
 	c.Flags().IntVar(&page, "page", 40, "한 쪽 이벤트 수")
 	return c
 }
 
-func saveLabels(out, sid string, labels []eval.Label, meta *eval.Meta, w io.Writer) error {
+func saveLabels(out, sid, labeler string, labels []eval.Label, meta *eval.Meta, original []byte, w io.Writer) error {
+	root := filepath.Dir(filepath.Dir(out))
+	unlock, err := eval.LockLabels(root)
+	if err != nil {
+		return err
+	}
+	defer unlock()
+	current, err := os.ReadFile(out)
+	if err != nil && !os.IsNotExist(err) {
+		return err
+	}
+	if !bytes.Equal(current, original) {
+		return fmt.Errorf("검토 중 다른 저장이 발생했습니다. 기존 답변을 덮지 않았습니다; 다시 열어 주세요")
+	}
+	// Existing votes loaded from this file may be preserved, but a new vote
+	// must not duplicate a web/legacy-file vote under the same reviewer ID.
+	oldIntervals := map[[2]int64]bool{}
+	for _, line := range strings.Split(string(original), "\n") {
+		var l eval.Label
+		if strings.TrimSpace(line) == "" {
+			continue
+		}
+		if err := json.Unmarshal([]byte(line), &l); err != nil {
+			return fmt.Errorf("기존 검토 파일 파싱 실패: %w", err)
+		}
+		if l.Meta == nil {
+			oldIntervals[[2]int64{l.Start, l.End}] = true
+		}
+	}
+	all, err := eval.LoadLabels(root)
+	if err != nil {
+		return err
+	}
+	seen := map[[2]int64]bool{}
+	for _, l := range labels {
+		key := [2]int64{l.Start, l.End}
+		if seen[key] {
+			return fmt.Errorf("같은 검토자의 구간 답변이 중복됩니다")
+		}
+		seen[key] = true
+		if oldIntervals[key] {
+			continue
+		}
+		for _, old := range all {
+			if old.Meta == nil && old.Session == sid && old.Labeler == labeler && old.Start == l.Start && old.End == l.End {
+				return fmt.Errorf("이 검토자는 같은 구간을 이미 제출했습니다")
+			}
+		}
+	}
+
 	var b strings.Builder
 	m, _ := json.Marshal(eval.Label{Session: sid, Meta: meta})
 	b.Write(m)
@@ -138,7 +287,7 @@ func saveLabels(out, sid string, labels []eval.Label, meta *eval.Meta, w io.Writ
 		b.Write(j)
 		b.WriteByte('\n')
 	}
-	if err := writeAtomic(out, []byte(b.String())); err != nil {
+	if err := eval.WriteLabelFile(out, []byte(b.String())); err != nil {
 		return err
 	}
 	fmt.Fprintf(w, "\n%s에 구간 %d개 저장\n", out, len(labels))
@@ -230,7 +379,7 @@ func evalCmd() *cobra.Command {
 	c.Flags().StringVar(&set, "set", "holdout", "holdout | calibration")
 	c.Flags().StringVar(&format, "format", "text", "text | json")
 	c.Flags().BoolVar(&interventions, "interventions", false, "개입 실험 결과")
-	c.AddCommand(corpusCmd())
+	c.AddCommand(corpusCmd(), reviewQueueCmd(), compareCmd())
 	return c
 }
 
