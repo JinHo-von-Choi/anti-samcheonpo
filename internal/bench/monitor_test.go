@@ -11,18 +11,19 @@ import (
 )
 
 func TestMonitorConfigurationCannotEnableBlockingOrUnrequestedRules(t *testing.T) {
+	binary := filepath.Join(t.TempDir(), "monitor")
 	for _, a := range []Arm{
-		{Monitor: "none", MonitorExecutable: "/test"},
+		{Monitor: "none", MonitorExecutable: binary},
 		{Monitor: "samcheonpo", MonitorExecutable: "relative"},
-		{Monitor: "samcheonpo", MonitorExecutable: "/test", MonitorRollout: "validated"},
-		{Monitor: "samcheonpo", MonitorExecutable: "/test", MonitorRollout: "shadow", RecommendRules: []string{"s2.behavior_loop"}},
-		{Monitor: "samcheonpo", MonitorExecutable: "/test", MonitorRollout: "recommend", RecommendRules: []string{"s8.budget"}},
+		{Monitor: "samcheonpo", MonitorExecutable: binary, MonitorRollout: "validated"},
+		{Monitor: "samcheonpo", MonitorExecutable: binary, MonitorRollout: "shadow", RecommendRules: []string{"s2.behavior_loop"}},
+		{Monitor: "samcheonpo", MonitorExecutable: binary, MonitorRollout: "recommend", RecommendRules: []string{"s8.budget"}},
 	} {
 		if _, err := monitorConfig(a); err == nil {
 			t.Fatal("unsafe experimental monitor config accepted", a)
 		}
 	}
-	c, err := monitorConfig(Arm{Monitor: "samcheonpo", MonitorExecutable: "/test", MonitorRollout: "recommend", RecommendRules: []string{"s2.behavior_loop"}})
+	c, err := monitorConfig(Arm{Monitor: "samcheonpo", MonitorExecutable: binary, MonitorRollout: "recommend", RecommendRules: []string{"s2.behavior_loop"}})
 	if err != nil || c.Rollout.EscalateMaxBlocks != 0 || len(c.Rollout.RecommendRules) != 1 {
 		t.Fatal(c.Rollout, err)
 	}

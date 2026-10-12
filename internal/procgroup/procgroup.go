@@ -28,6 +28,16 @@ func MkdirAllPrivate(path string) error {
 	return restrictToUser(path)
 }
 
+// MakeFilePrivate gives a newly created data file only owner access on Unix
+// and current-user/SYSTEM access on Windows. Call before writing private data;
+// unlike mode bits alone, this also protects files in an inherited Windows ACL.
+func MakeFilePrivate(path string) error {
+	if err := os.Chmod(path, 0600); err != nil {
+		return err
+	}
+	return restrictToUser(path)
+}
+
 // Rename renames oldpath over newpath. Windows refuses the rename while
 // another process still has newpath open (an editor, a virus scanner, a
 // concurrent reader), so it retries briefly before giving up.

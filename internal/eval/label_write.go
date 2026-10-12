@@ -16,7 +16,7 @@ func WriteLabelFile(path string, data []byte) error {
 	}
 	name := f.Name()
 	defer os.Remove(name)
-	if err = f.Chmod(0600); err == nil {
+	if err = procgroup.MakeFilePrivate(name); err == nil {
 		_, err = f.Write(data)
 	}
 	if err == nil {

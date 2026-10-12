@@ -59,7 +59,7 @@ func startTrialMonitor(a Arm, repo, home string, env []string) (func(), string, 
 	if err != nil {
 		return nil, "", "", err
 	}
-	if err = os.MkdirAll(home, 0700); err != nil {
+	if err = procgroup.MkdirAllPrivate(home); err != nil {
 		f.Close()
 		return nil, "", "", err
 	}

@@ -27,6 +27,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/notify"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/research"
 )
 
@@ -452,7 +453,7 @@ func (s *Server) label(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	path := filepath.Join(s.LabelsDir, in.Labeler)
-	if err = os.MkdirAll(path, 0700); err != nil {
+	if err = procgroup.MkdirAllPrivate(path); err != nil {
 		fail(w, err)
 		return
 	}
@@ -542,12 +543,17 @@ func AccessCode(path string) (string, error) {
 		return "", err
 	}
 	code := hex.EncodeToString(raw[:])
-	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+	if err := procgroup.MkdirAllPrivate(filepath.Dir(path)); err != nil {
 		return "", err
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return "", fmt.Errorf("새 접근 코드 파일 경로가 필요합니다: %w", err)
+	}
+	if err := procgroup.MakeFilePrivate(path); err != nil {
+		f.Close()
+		os.Remove(path)
+		return "", err
 	}
 	_, err = f.WriteString(code + "\n")
 	if closeErr := f.Close(); err == nil {

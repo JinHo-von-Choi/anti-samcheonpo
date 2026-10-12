@@ -12,7 +12,6 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/notify"
 	"net/http"
 	"net/http/httptest"
-	"os"
 	"path/filepath"
 	"strings"
 	"testing"
@@ -74,10 +73,7 @@ func TestDashboardProtectsLedgerAndPersistsRealInterval(t *testing.T) {
 		t.Fatalf("%+v %v", ls, err)
 	}
 	files, _ := filepath.Glob(filepath.Join(root, "labels", "human-a", "*"))
-	stat, err := os.Stat(files[0])
-	if err != nil || stat.Mode().Perm() != 0600 {
-		t.Fatal("label privacy")
-	}
+	assertPrivateDataFile(t, files[0])
 	bad := perform(s, "POST", "/api/label", `{"session":"fixture-session","labeler":"../escape","start":0,"end":2,"symptom":"S4","justified":"yes","outcome":"unknown"}`, true)
 	if bad.Code == 200 {
 		t.Fatal("path traversal allowed")

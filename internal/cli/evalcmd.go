@@ -17,6 +17,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/bench"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/eval"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
 )
 
@@ -61,7 +62,7 @@ func labelCmd() *cobra.Command {
 					out = legacy
 				}
 			}
-			if err := os.MkdirAll(filepath.Dir(out), 0o700); err != nil {
+			if err := procgroup.MkdirAllPrivate(filepath.Dir(out)); err != nil {
 				return err
 			}
 			var labels []eval.Label

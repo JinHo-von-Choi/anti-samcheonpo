@@ -49,19 +49,36 @@ func TestBootstrapRetainsFirstConnectionAndDoesNotRetryWarm(t *testing.T) {
 	defer ln.Close()
 	received := make(chan string, 1)
 	go func() {
-		server, e := ln.Accept()
-		if e != nil {
-			received <- ""
+		for {
+			server, e := ln.Accept()
+			if e != nil {
+				received <- ""
+				return
+			}
+			server.SetDeadline(time.Now().Add(time.Second))
+			line, readErr := bufio.NewReader(server).ReadString('\n')
+			server.Close()
+			// A dial whose 5ms context expires after the kernel connects
+			// can leave a closed connection queued in Accept. The daemon
+			// keeps accepting; this fixture must do so too. No request was
+			// written on such a connection, so this is not a request retry.
+			if readErr != nil && line == "" {
+				continue
+			}
+			received <- line
 			return
 		}
-		defer server.Close()
-		server.SetDeadline(time.Now().Add(time.Second))
-		line, _ := bufio.NewReader(server).ReadString('\n')
-		received <- line
 	}()
-	fmt.Fprintln(conn, `{"event":"UserPromptSubmit","payload":{"prompt":"first event"}}`)
-	if text := <-received; text != "{\"event\":\"UserPromptSubmit\",\"payload\":{\"prompt\":\"first event\"}}\n" {
-		t.Fatal("first event lost", text)
+	if _, err := fmt.Fprintln(conn, `{"event":"UserPromptSubmit","payload":{"prompt":"first event"}}`); err != nil {
+		t.Fatal("first event write failed", err)
+	}
+	select {
+	case text := <-received:
+		if text != "{\"event\":\"UserPromptSubmit\",\"payload\":{\"prompt\":\"first event\"}}\n" {
+			t.Fatal("first event lost", text)
+		}
+	case <-time.After(time.Second):
+		t.Fatal("first event not received")
 	}
 	warm, err := connectHook(path, func() { spawned++ })
 	if err != nil {
