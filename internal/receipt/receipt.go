@@ -78,6 +78,15 @@ type Input struct {
 	Seal       *seal.Seal
 	Criteria   [2]int
 	Summaries  map[int64]string // seq -> event summary (for evidence)
+	// Observation states what the analysis could not cover. It never
+	// changes a number; it says which numbers are unknown.
+	Observation analyze.Observation
+	// Blocked counts the tool calls the monitor stopped before they ran.
+	Blocked int
+	// JudgeSkippedLowRisk counts the tool calls that were left out of the
+	// semantic judge's budget because they carried low risk. It is a
+	// report of budget saved, not a count of defects.
+	JudgeSkippedLowRisk int
 }
 
 // Build creates a receipt model.
@@ -95,6 +104,22 @@ func Build(in Input) Receipt {
 	}
 	if in.Audit {
 		r.Notices = append(r.Notices, "소급 분석이라 맥락 이탈은 추정입니다")
+	}
+	// A lost or partial filesystem watch does not change any number here.
+	// It says which numbers cannot be read as complete.
+	switch in.Observation.WatchState {
+	case "unavailable":
+		r.Notices = append(r.Notices, "파일 감시를 잃어 작업 폴더 지문은 미확인이다")
+	case "degraded":
+		r.Notices = append(r.Notices, "일부 디렉터리만 감시해 작업 폴더 지문이 일부만 반영된다")
+	}
+	// A learned rule pack that could not be read leaves the learned rules
+	// out of the session. Saying so keeps "no rule fired" honest.
+	switch in.Observation.CandidatePack {
+	case "unreadable":
+		r.Notices = append(r.Notices, "학습 규칙 파일을 읽지 못해 학습 규칙을 적용하지 않았다")
+	case "invalid":
+		r.Notices = append(r.Notices, "학습 규칙 파일 형식이 올바르지 않아 학습 규칙을 적용하지 않았다")
 	}
 	if billing.UsageObserved {
 		r.Notices = append(r.Notices, fmt.Sprintf("API 단가 환산 · 단가 인식률 %d%%", int(r.PriceCoverage*100+0.5)))
@@ -201,6 +226,17 @@ func Build(in Input) Receipt {
 			label = "실시간이었다면 개입"
 		}
 		fl = append(fl, fmt.Sprintf("%s %d회 (%s)", label, n, strings.Join(parts, ", ")))
+	}
+	if in.Blocked > 0 {
+		// A block is an action, not a candidate. Counting it separately
+		// keeps "how many did the monitor catch" apart from "how many did
+		// it judge".
+		fl = append(fl, fmt.Sprintf("실행 전 차단 %d회", in.Blocked))
+	}
+	if in.JudgeSkippedLowRisk > 0 {
+		// The judge is spent where the behavior can do damage. This says
+		// how much of the budget was left alone.
+		fl = append(fl, fmt.Sprintf("위험 등급이 낮은 도구 호출 %d건을 의미 판정에서 제외", in.JudgeSkippedLowRisk))
 	}
 	r.Footer = fl
 	if in.Seal != nil {
@@ -382,6 +418,12 @@ func Describe(v detect.Signal) string {
 		return fmt.Sprintf("완료 조건 %d개 실패 상태에서 종료 시도", num("count"))
 	case "s3.protected_path":
 		return "보호 경로 수정 시도 (" + short(str("path"), 40) + ")"
+	case "s9.instruction_smuggling":
+		return "감시자를 속이려는 지시가 컨텍스트에 있음 (" + str("source") + ")"
+	case "s9.unverified_claim_request":
+		return "미수행 검사를 보고하라는 지시가 컨텍스트에 있음 (" + str("source") + ")"
+	case "s10.grader_access":
+		return "채점기·정답 경로 접근 시도 (" + short(str("path"), 40) + ")"
 	}
 	return v.Rule
 }

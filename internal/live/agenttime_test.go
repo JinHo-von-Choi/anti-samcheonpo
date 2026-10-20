@@ -182,7 +182,7 @@ func TestAgentTimeUnavailableWatchDefersWithoutQueueGap(t *testing.T) {
 	s := agenttimeAcceptedSession(t)
 	s.mu.Lock()
 	defer s.mu.Unlock()
-	s.ws.markWatchFailure()
+	s.ws.markWatchUnavailable(WatchReasonUnavailable)
 	before := s.queueRejected.Load()
 	for n := 1; n <= 4; n++ {
 		ev := observedWait(s, n)

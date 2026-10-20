@@ -20,6 +20,25 @@ type receiptSnapshot struct {
 	Events []*event.Event `json:"events"`
 }
 
+// ObservationOf returns the observation limits recorded with a session's
+// completed analysis. It reports an empty observation when the session has
+// no stored analysis yet, which means "not recorded", not "all observed".
+func (d *DB) ObservationOf(sessionID string) (analyze.Observation, error) {
+	var payload string
+	err := d.QueryRow(`SELECT payload FROM receipt_snapshot WHERE session_id=?`, sessionID).Scan(&payload)
+	if err == sql.ErrNoRows {
+		return analyze.Observation{}, nil
+	}
+	if err != nil {
+		return analyze.Observation{}, err
+	}
+	var snap receiptSnapshot
+	if err := json.Unmarshal([]byte(payload), &snap); err != nil {
+		return analyze.Observation{}, fmt.Errorf("세션 %s 저장 분석 읽기: %w", sessionID, err)
+	}
+	return snap.Result.Observation, nil
+}
+
 func encodeSnapshot(r *analyze.Result) ([]byte, error) {
 	snap := receiptSnapshot{Result: *r}
 	for _, ev := range r.Session.Events {
@@ -52,7 +71,7 @@ func (d *DB) snapshot(full string) (*analyze.Result, seal.Seal, error) {
 	if err != nil {
 		return nil, seal.Seal{}, err
 	}
-	if state == "open" {
+	if state == ObservationOpen {
 		return nil, seal.Seal{}, fmt.Errorf("세션 %s는 관측 중이다. 분석 완료 후 영수증을 발급한다", full)
 	}
 	var snap receiptSnapshot

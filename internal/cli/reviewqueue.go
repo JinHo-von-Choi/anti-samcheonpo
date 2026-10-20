@@ -89,7 +89,7 @@ func prepareQueue(db *ledger.DB, from time.Time, candidateTarget, controlTarget 
 		if err := db.QueryRow(`SELECT COALESCE(close_reason,'') FROM session_observation WHERE session_id=?`, row.ID).Scan(&state); err != nil && row.Mode != "audit" {
 			continue
 		}
-		if row.Mode != "audit" && (state == "" || state == "open") {
+		if row.Mode != "audit" && (state == "" || state == ledger.ObservationOpen) {
 			continue
 		}
 		events, err := db.EventsOf(row.ID)

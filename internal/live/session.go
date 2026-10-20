@@ -51,6 +51,8 @@ type Session struct {
 	linkedPending                 map[string]linkedTrigger
 	linkedGeneration              uint64
 	linkedUnavailable, linkedBusy bool
+	candidatePackState            string
+	blocks                        int
 	linkedAt                      time.Time
 	linkedCancel                  context.CancelFunc
 	linkedDone                    chan struct{}
@@ -83,6 +85,10 @@ type Session struct {
 	queueMu          sync.Mutex
 	queueClosed      bool
 	queueRejected    atomic.Uint64
+	// judgeLowRisk counts tool calls that were left out of the semantic
+	// judge's budget because they carried low risk. It is a report of
+	// budget saved, not a count of defects.
+	judgeLowRisk atomic.Uint64
 	// preLate counts pre-tool decisions that could not finish inside the
 	// hook client's deadline; such a block may never have reached the agent.
 	preLate         atomic.Uint64
@@ -145,6 +151,11 @@ type Session struct {
 	judgeBudget       judge.Budget
 	judgeBudgetReason string
 	judgeCancel       context.CancelFunc
+	// snapshotAt and snapshotEvents record the analysis snapshot that was
+	// last written, so a turn that observed nothing new does not write it
+	// again.
+	snapshotAt     time.Time
+	snapshotEvents int
 }
 
 type job struct {
@@ -252,6 +263,9 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 	}
 	// Watch records unavailability for reliability evidence. It must not
 	// enqueue an intervention during observation-only session startup.
+	// A failed watch is kept, not discarded: the workspace records the
+	// state, and the session reports it so that "available" never hides a
+	// blind monitor.
 	_ = s.ws.Watch(4000)
 	go func() {
 		ctx, cancel := withTimeout(60 * time.Second)
@@ -260,6 +274,25 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 	}()
 	go s.worker()
 	return s, nil
+}
+
+// watchState reports how much filesystem observation this session keeps.
+// A state other than ok means the workspace fingerprint cannot be trusted
+// to describe the whole tree, so anything derived from it is unknown
+// rather than clean.
+func (s *Session) watchState() string {
+	if s.ws == nil {
+		return WatchStateOK
+	}
+	return s.ws.WatchState()
+}
+
+// watchReason returns the controlled reason code for a lost watch.
+func (s *Session) watchReason() string {
+	if s.ws == nil {
+		return ""
+	}
+	return s.ws.WatchReason()
 }
 
 func (s *Session) applyOverrides() {
@@ -458,12 +491,24 @@ func (s *Session) observe(ev *event.Event) []detect.Signal {
 	s.trackAttempts(ev)
 	s.deliver(sigs)
 	s.scheduleLinked(ev)
-	if !s.closed && s.queueRejected.Load() == 0 && (ev.Kind == event.KindTool || ev.Kind == event.KindMessage && judge.ClaimSummary(ev.Text) != "") && s.judge != nil {
-		s.toolsSinceJudge++
-		if (s.toolsSinceJudge >= max(1, s.Cfg.Detectors.S3.JudgeEveryEvents) || ev.Kind == event.KindMessage) && !s.judging {
-			s.toolsSinceJudge = 0
-			s.judging = true
-			go s.runJudge()
+	if !s.closed && s.queueRejected.Load() == 0 && s.judge != nil {
+		// The semantic judge is the most expensive thing the monitor does.
+		// It is spent on behavior that can do damage: a shell command, a
+		// credential, a commit, or a claim about the result. A session that
+		// only reads is judged by the deterministic detectors, which cost
+		// nothing.
+		risky := ev.Kind == event.KindTool && policy.WorthJudgment(ev)
+		claim := ev.Kind == event.KindMessage && judge.ClaimSummary(ev.Text) != ""
+		if ev.Kind == event.KindTool && !risky {
+			s.judgeLowRisk.Add(1)
+		}
+		if risky || claim {
+			s.toolsSinceJudge++
+			if (s.toolsSinceJudge >= max(1, s.Cfg.Detectors.S3.JudgeEveryEvents) || claim) && !s.judging {
+				s.toolsSinceJudge = 0
+				s.judging = true
+				go s.runJudge()
+			}
 		}
 	}
 	if !s.closed && s.Cfg.Rollout.Mode != "shadow" && ev.Category == event.CatProduce && s.Cfg.IronLaws.Enabled && ev.Kind == event.KindTool {
@@ -649,8 +694,19 @@ func trunc(s string, n int) string {
 }
 
 func (s *Session) record(v detect.Signal, channel string) {
+	s.recordAction(v, channel, false)
+}
+
+// recordBlock records an intervention that stopped the tool call before it
+// ran. The action is recorded explicitly, because the agent channel also
+// carries a delivered advice.
+func (s *Session) recordBlock(v detect.Signal) {
+	s.recordAction(v, "agent", true)
+}
+
+func (s *Session) recordAction(v detect.Signal, channel string, blocked bool) {
 	if s.db != nil {
-		s.recordStorageError(s.db.RecordIntervention(v, s.ID, channel))
+		s.recordStorageError(s.db.RecordIntervention(v, s.ID, channel, blocked))
 	}
 }
 
@@ -944,19 +1000,138 @@ func (s *Session) measuredUsage() (tokens, unpriced, waste, idleTokens int64) {
 // Finalize performs hindsight reclassification, saves the ledger and writes
 // the receipt file (SessionEnd).
 func (s *Session) Finalize() (string, error) {
-	return s.finalize("session_end")
+	return s.finalize(ledger.ObservationSessionEnd)
 }
 
 // CloseObservation saves the observed activity without inventing an agent end.
 func (s *Session) CloseObservation() (string, error) {
-	return s.finalize("daemon_shutdown")
+	return s.finalize(ledger.ObservationDaemonShutdown)
+}
+
+// ReapObservation saves the observed activity of a session that went silent.
+//
+// The agent is not declared ended. The observation stops because the session
+// held on to the host without saying anything, and the record says so.
+func (s *Session) ReapObservation() (string, error) {
+	return s.finalize(ledger.ObservationIdleTimeout)
+}
+
+// analyzeSession computes the analysis of the session so far.
+//
+// The caller must hold s.mu and checkMu. The result carries the conditions
+// that bound what it can claim: a lost file watch and a learned rule pack
+// that could not be used. They sit outside the seal, because the seal
+// covers the events and their totals, not how complete the observation of
+// those events was.
+//
+// A snapshot classifies copies of the events and leaves the session's own
+// events alone; the final analysis classifies them in place. The two must
+// not be mixed. The reclassification writes the bucket and the category
+// back onto the events, so classifying the same event twice would classify
+// it from a category the first pass had already changed.
+func (s *Session) analyzeSession(snapshot bool) *analyze.Result {
+	sess := s.parser.Session
+	sess.Mode = "live"
+	if sess.StartedAt.IsZero() && len(st0(s)) > 0 {
+		sess.StartedAt = st0(s)[0].TS
+	}
+	sess.FirstPrompt = s.firstPrompt
+	var res *analyze.Result
+	if snapshot {
+		res = analyze.Snapshot(sess, s.eng, s.CfgHash, s.prices.Version)
+	} else {
+		res = analyze.Finalize(sess, s.eng, s.CfgHash, s.prices.Version)
+	}
+	res.Observation = analyze.Observation{WatchState: s.watchState(), WatchReason: s.watchReason(),
+		CandidatePack: s.candidatePackState}
+	res.Blocked = s.blocks
+	if met, total := s.criteria(); total > 0 {
+		res.Criteria.Met, res.Criteria.Total = met, total
+		if met > 0 {
+			res.Grade = analyze.GradeVerified
+		}
+	}
+	if s.c != nil && s.acc.State == contract.StateAccepted {
+		res.ContractHash = s.c.ChecksHash()
+	}
+	return res
+}
+
+// snapshotInterval throttles how often the analysis snapshot is written.
+//
+// The snapshot exists so that a daemon that dies does not take the analysis
+// with it. Writing it on every turn would cost more than it returns on a
+// long session, so it is written at most once a minute. A minute of
+// observation is the price of that saving.
+const snapshotInterval = time.Minute
+
+// saveSnapshot stores the analysis of the session so far.
+//
+// The receipt is issued when the session ends. If the daemon dies before
+// that, the analysis is already stored, and a receipt can be issued from it
+// without running the analysis again.
+//
+// The snapshot never closes the observation. A session that is still being
+// observed stays open, and an open session gets no receipt.
+func (s *Session) saveSnapshot() error {
+	if s.db == nil || s.eng == nil {
+		return nil
+	}
+	// finalizeMu keeps the snapshot away from the final analysis: both
+	// write the same rows, and the final one must win.
+	s.finalizeMu.Lock()
+	defer s.finalizeMu.Unlock()
+	s.checkMu.Lock()
+	defer s.checkMu.Unlock()
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.closed {
+		return nil
+	}
+	events := len(s.eng.St.Events)
+	if !s.snapshotAt.IsZero() {
+		// Nothing new was observed, so the stored snapshot still says it.
+		if events == s.snapshotEvents {
+			return nil
+		}
+		// A turn that observed a little is not worth a full rewrite.
+		if time.Since(s.snapshotAt) < snapshotInterval {
+			return nil
+		}
+	}
+	res := s.analyzeSession(true)
+	if err := analyze.CheckInvariant(res.Session, res.Totals); err != nil {
+		return err
+	}
+	if _, err := s.db.SaveSnapshot(res); err != nil {
+		return err
+	}
+	s.snapshotAt = time.Now()
+	s.snapshotEvents = events
+	return nil
+}
+
+// storeSnapshot writes the analysis snapshot of the session.
+//
+// The snapshot is a safety net, not the receipt: it exists so that a daemon
+// that dies does not take the analysis with it. A failure to write it is
+// logged and nothing more, because a failed safety net must not cost the
+// session its receipt.
+func (s *Session) storeSnapshot() {
+	if err := s.saveSnapshot(); err != nil {
+		fmt.Fprintf(os.Stderr, "samcheonpo: 세션 %s 분석 스냅샷 저장 실패: %v\n", s.ID, err)
+	}
 }
 
 func (s *Session) finalize(reason string) (string, error) {
-	s.finalizeMu.Lock()
-	defer s.finalizeMu.Unlock()
+	// The observation lock comes first. A hook that is already running holds
+	// it for reading, and the final analysis must wait for that hook. Taking
+	// the finalization lock first would let a hook that is storing a
+	// snapshot wait for a finalization that is waiting for the hook.
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
+	s.finalizeMu.Lock()
+	defer s.finalizeMu.Unlock()
 	s.mu.Lock()
 	if s.finalized {
 		p := s.receiptPath
@@ -996,7 +1171,7 @@ func (s *Session) finalize(reason string) (string, error) {
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	censorReason := "session_ended_before_effect_observation"
-	if reason != "session_end" {
+	if reason != ledger.ObservationSessionEnd {
 		censorReason = "observation_closed_before_effect_observation"
 	}
 	s.censorRecoveries(censorReason)
@@ -1015,27 +1190,13 @@ func (s *Session) finalize(reason string) (string, error) {
 		return "", fmt.Errorf("관측 큐 포화로 %d건을 처리하지 못해 완전한 영수증을 발행할 수 없습니다", n)
 	}
 	sess := s.parser.Session
-	sess.Mode = "live"
-	if sess.StartedAt.IsZero() && len(st0(s)) > 0 {
-		sess.StartedAt = st0(s)[0].TS
-	}
 	sess.ObservationClosedAt = time.Now()
 	sess.ObservationCloseReason = reason
 	sess.EndedAt = time.Time{}
-	if reason == "session_end" {
+	if reason == ledger.ObservationSessionEnd {
 		sess.EndedAt = sess.ObservationClosedAt
 	}
-	sess.FirstPrompt = s.firstPrompt
-	res := analyze.Finalize(sess, s.eng, s.CfgHash, s.prices.Version)
-	if met, total := s.criteria(); total > 0 {
-		res.Criteria.Met, res.Criteria.Total = met, total
-		if met > 0 {
-			res.Grade = analyze.GradeVerified
-		}
-	}
-	if s.c != nil && s.acc.State == contract.StateAccepted {
-		res.ContractHash = s.c.ChecksHash()
-	}
+	res := s.analyzeSession(false)
 	if s.db == nil {
 		s.finalized = true
 		return "", nil
@@ -1053,7 +1214,8 @@ func (s *Session) finalize(reason string) (string, error) {
 		billing.Missing = append(billing.Missing, "감시 판정 비용 미확인: 예약을 실제 지출이나 무료로 확정하지 않는다")
 	}
 	rc := receipt.Build(receipt.Input{Title: receipt.SessionTitle(sess.StartedAt, s.ID, s.Agent), Agent: s.Agent, Totals: res.Totals, Grade: res.Grade,
-		Verdicts: res.Verdicts, Seal: &sl, Criteria: [2]int{res.Criteria.Met, res.Criteria.Total}, Billing: billing, Recoveries: s.recoveries})
+		Verdicts: res.Verdicts, Seal: &sl, Criteria: [2]int{res.Criteria.Met, res.Criteria.Total}, Billing: billing, Recoveries: s.recoveries,
+		Observation: res.Observation, Blocked: res.Blocked, JudgeSkippedLowRisk: int(s.judgeLowRisk.Load())})
 	dir := filepath.Join(config.Home(), "receipts")
 	if err := procgroup.MkdirAllPrivate(dir); err != nil {
 		return "", err

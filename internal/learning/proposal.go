@@ -16,6 +16,21 @@ type Proposal struct {
 	TrainingLabelsDigest string                `json:"training_labels_digest"`
 	Sources              map[string]string     `json:"training_sources"`
 	Definitions          []rulepack.Definition `json:"definitions"`
+	// EvidenceTier says what kind of evidence the candidates were built
+	// from. It is empty when the proposal has no training labels.
+	EvidenceTier string `json:"evidence_tier,omitempty"`
+}
+
+// evidenceTier maps a label source to the pack tier it belongs to.
+//
+// A label a person made and a label a grader derived are both labels, but
+// they are not the same grade of evidence, and a pack that held both could
+// not say what it was holding.
+func evidenceTier(source string) string {
+	if source == eval.LabelSourceDerived {
+		return rulepack.EvidenceDerivedExecution
+	}
+	return rulepack.EvidenceHumanLabeled
 }
 
 func proposalDigest(p Proposal) string { p.Digest = ""; return rulepack.Digest(p) }
@@ -113,6 +128,27 @@ func ProposeWithGate(labels []eval.Label, split eval.Split, data map[string][]*e
 	}
 	sort.Slice(selected, func(i, j int) bool { return rulepack.Digest(selected[i]) < rulepack.Digest(selected[j]) })
 	p.TrainingLabelsDigest = rulepack.Digest(selected)
+	// The proposal is built from one grade of evidence. A rule learned
+	// from a person's label and a rule derived from a grader's verdict
+	// are not the same claim, and a proposal that held both could not say
+	// what it was holding.
+	tier := ""
+	for _, l := range selected {
+		if err := l.ValidateSource(); err != nil {
+			return p, err
+		}
+		t := l.Tier()
+		if tier == "" {
+			tier = t
+			continue
+		}
+		if t != tier {
+			return p, errors.New("학습 구간의 라벨 출처가 섞여 있다")
+		}
+	}
+	if tier != "" {
+		p.EvidenceTier = evidenceTier(tier)
+	}
 	for _, d := range defs {
 		p.Definitions = append(p.Definitions, d)
 	}
@@ -126,6 +162,11 @@ func ProposeWithGate(labels []eval.Label, split eval.Split, data map[string][]*e
 func (p Proposal) Validate() error {
 	if p.Version != "rule-proposal/1" || p.Digest != proposalDigest(p) || len(p.Definitions) == 0 || len(p.Definitions) > 32 {
 		return errors.New("invalid frozen proposal")
+	}
+	switch p.EvidenceTier {
+	case "", rulepack.EvidenceHumanLabeled, rulepack.EvidenceDerivedExecution:
+	default:
+		return errors.New("invalid proposal evidence tier")
 	}
 	if err := p.Gate.Validate(); err != nil {
 		return err

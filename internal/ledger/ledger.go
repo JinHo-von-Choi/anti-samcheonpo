@@ -34,7 +34,18 @@ func Open(path string) (*DB, error) {
 	if err := procgroup.MkdirAllPrivate(filepath.Dir(path)); err != nil {
 		return nil, err
 	}
-	db, err := sql.Open("sqlite", fileURI(path)+"?_pragma=journal_mode(WAL)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
+	// The journal mode and the vacuum mode are stated, not left to the
+	// default. WAL keeps a reader from blocking the daemon's writes.
+	//
+	// The vacuum mode is stated as "no automatic vacuum" on purpose.
+	// Incremental vacuum relocates pages while a transaction commits, and
+	// the commit is on the path a hook waits for: measured on this host,
+	// turning it on made roughly one hook in three hundred outrun its
+	// deadline. The space is given back by the explicit compact command
+	// instead, which runs off the hook path. Both modes are fixed before
+	// the first table exists, so a new ledger starts with the mode it is
+	// meant to keep.
+	db, err := sql.Open("sqlite", fileURI(path)+"?_pragma=journal_mode(WAL)&_pragma=auto_vacuum(0)&_pragma=busy_timeout(5000)&_pragma=foreign_keys(1)")
 	if err != nil {
 		return nil, err
 	}
@@ -261,7 +272,7 @@ func (d *DB) SaveAnalysis(r *analyze.Result, size, mtime int64, msgs func(detect
 	}
 	reason, closed := s.ObservationCloseReason, s.ObservationClosedAt
 	if reason == "" {
-		reason = "audit_snapshot"
+		reason = ObservationAuditSnapshot
 		closed = time.Now()
 	}
 	if _, err := tx.Exec(`INSERT INTO session_observation(session_id,agent,last_activity_at,closed_at,close_reason,evaluator_version) VALUES(?,?,?,?,?,?)
@@ -386,9 +397,15 @@ func (d *DB) LastFalsePositive(project, rule string) time.Time {
 }
 
 // RecordIntervention stores a proposal. Queueing is not proof of delivery.
-func (d *DB) RecordIntervention(v detect.Signal, session, channel string) error {
-	_, err := d.Exec(`INSERT INTO intervention(verdict_id,session_id,seq,channel,level,arm,delivery_state) VALUES (?,?,?,?,?,?,?)`,
-		v.ID, session, v.Seq, channel, int(v.Level), v.Arm, "proposed")
+func (d *DB) RecordIntervention(v detect.Signal, session, channel string, blocked bool) error {
+	// The rule travels with the intervention. The verdict table is
+	// rewritten on every analysis, so a row that only holds a verdict id
+	// can outlive the verdict it names and become unreadable.
+	//
+	// The blocked flag records the action, not the channel: the agent
+	// channel carries both a delivered advice and a stopped call.
+	_, err := d.Exec(`INSERT INTO intervention(verdict_id,session_id,seq,channel,level,arm,delivery_state,rule,blocked) VALUES (?,?,?,?,?,?,?,?,?)`,
+		v.ID, session, v.Seq, channel, int(v.Level), v.Arm, "proposed", v.Rule, b2i(blocked))
 	return err
 }
 

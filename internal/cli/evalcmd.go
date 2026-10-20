@@ -511,7 +511,7 @@ func benchCmd() *cobra.Command {
 	c.Flags().StringVar(&dir, "dir", "bench/scenarios", "과제 디렉터리")
 	c.Flags().StringVar(&format, "format", "text", "text | json")
 	c.Flags().IntVar(&runs, "runs", 2, "같은 과제 반복 실행 횟수 (결정성 확인)")
-	c.AddCommand(benchABCmd(), benchReportCmd(), benchPlanCmd(), benchReplayCmd())
+	c.AddCommand(benchABCmd(), benchReportCmd(), benchPlanCmd(), benchReplayCmd(), benchTasksCmd(), benchProbeCmd())
 	return c
 }
 

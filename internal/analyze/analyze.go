@@ -40,6 +40,22 @@ const (
 	GradeUnmeasured = "unmeasured"
 )
 
+// Observation records the conditions that bound what an analysis can claim.
+// It sits outside the seal on purpose: the seal covers the events and their
+// totals, not how complete the observation of those events was. A session
+// whose filesystem watch failed can still be sealed honestly, and the gap
+// travels with the stored result instead of being lost.
+type Observation struct {
+	// WatchState is "ok", "degraded" or "unavailable"; empty means the
+	// analysis did not observe a workspace.
+	WatchState string `json:"watch_state,omitempty"`
+	// WatchReason is a controlled reason code, never free text.
+	WatchReason string `json:"watch_reason,omitempty"`
+	// CandidatePack states whether the learned rules were applied:
+	// "loaded", "absent", "unreadable" or "invalid".
+	CandidatePack string `json:"candidate_pack,omitempty"`
+}
+
 // Result is the outcome of analyzing one session.
 type Result struct {
 	ReliabilityEvicted  uint64
@@ -53,6 +69,11 @@ type Result struct {
 	PriceVersion        string
 	ContractHash        string
 	FormatOK            bool
+	Observation         Observation
+	// Blocked counts the tool calls the monitor stopped before they ran.
+	// It is an action count, not a verdict count: the same verdict may be
+	// advised once and blocked later.
+	Blocked int
 }
 
 // Totals are micro-won and token sums per bucket and symptom.
@@ -322,10 +343,34 @@ func reclassify(s *event.Session, eng *detect.Engine, r *Result) {
 // Finalize reclassifies a live session from the engine state collected
 // during the session (SessionEnd).
 func Finalize(s *event.Session, eng *detect.Engine, cfgHash, priceVersion string) *Result {
+	return reclassified(s, eng, cfgHash, priceVersion, false)
+}
+
+// Snapshot computes the same analysis as Finalize without changing the
+// events it classifies.
+//
+// The reclassification writes the bucket and the category back onto the
+// events it reads. A session that was snapshotted between turns would then
+// be classified a second time from a category the first pass had already
+// changed, and its final totals would differ from those of a session that
+// was never snapshotted. The snapshot therefore classifies copies.
+func Snapshot(s *event.Session, eng *detect.Engine, cfgHash, priceVersion string) *Result {
+	return reclassified(s, eng, cfgHash, priceVersion, true)
+}
+
+func reclassified(s *event.Session, eng *detect.Engine, cfgHash, priceVersion string, copies bool) *Result {
 	r := &Result{Session: s, ConfigHash: cfgHash, PriceVersion: priceVersion, FormatOK: true}
 	// live events are observed by a worker and by the checkpoint runner;
 	// hindsight rules index by sequence order
 	evs := append([]*event.Event(nil), eng.St.Events...)
+	if copies {
+		own := make([]*event.Event, len(evs))
+		for i, e := range evs {
+			c := *e
+			own[i] = &c
+		}
+		evs = own
+	}
 	sort.SliceStable(evs, func(i, j int) bool { return evs[i].Seq < evs[j].Seq })
 	s.Events = evs
 	r.Verdicts = eng.Verdicts

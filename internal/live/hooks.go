@@ -522,8 +522,9 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 	}
 	delete(s.shell, ev.CallID)
 	ev.ExitCode = intPtr(-1) // blocked, never executed
+	s.blocks++
 	s.persistVerdict(v)
-	s.record(v, "agent")
+	s.recordBlock(v)
 	if v.Level >= detect.L3 {
 		s.unresolved = &v
 	}
@@ -736,8 +737,9 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 		sigs := s.eng.Emit(msg, []detect.Signal{sig})
 		var reason string
 		for _, v := range sigs {
+			s.blocks++
 			s.persistVerdict(v)
-			s.record(v, "agent")
+			s.recordBlock(v)
 			reason = intervene.Agent(v, s.msgContext(), "prescription")
 		}
 		if stopEscalated {
@@ -748,6 +750,7 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 		if nudge != "" {
 			reason = nudge + "\n\n" + reason
 		}
+		s.storeSnapshot()
 		return hookOut(map[string]any{"decision": "block", "reason": reason})
 	}
 	out := map[string]any{}
@@ -760,6 +763,7 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 	if user != "" {
 		out["systemMessage"] = user
 	}
+	s.storeSnapshot()
 	return hookOut(out)
 }
 

@@ -104,6 +104,24 @@ func (s *Session) hudState() notify.HUDState {
 	if s.linkedUnavailable {
 		assessment.Reasons["linked_unavailable"] = 1
 	}
+	// A lost filesystem watch makes the workspace fingerprint unknown, not
+	// clean. Reporting it here keeps "available" from hiding a blind
+	// monitor.
+	switch s.watchState() {
+	case WatchStateUnavailable:
+		assessment.Reasons["watch_unavailable"] = 1
+	case WatchStateDegraded:
+		assessment.Reasons["watch_degraded"] = 1
+	}
+	// A learned rule pack that exists but cannot be read is not the same
+	// as having no learned rules. Reporting the difference keeps a broken
+	// file from looking like a quiet monitor.
+	switch s.candidatePackState {
+	case "unreadable":
+		assessment.Reasons["learned_rules_unreadable"] = 1
+	case "invalid":
+		assessment.Reasons["learned_rules_invalid"] = 1
+	}
 	h.Work = &work
 	if s.eng.Research != nil {
 		research := s.eng.Research.Snapshot()

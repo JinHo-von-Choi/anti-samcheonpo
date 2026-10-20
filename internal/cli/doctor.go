@@ -11,6 +11,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/config"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hostlimit"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/spf13/cobra"
 )
@@ -27,6 +28,11 @@ type doctorReport struct {
 	Checks  []diagnostic `json:"checks"`
 }
 
+// watchBudget reports the host's file-watch instance budget. It is a
+// variable so a test can supply a budget without touching the host.
+var watchBudget = hostlimit.Inotify
+
+// diagnose states what the host can and cannot observe.
 func diagnose(agent, project, exe, db string, probe func(string) string, ping func() bool) doctorReport {
 	r := doctorReport{Version: Version, OS: runtime.GOOS, Arch: runtime.GOARCH}
 	add := func(id, state, message string) {
@@ -62,7 +68,7 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 		if cfg.Detectors.S3.Judge.Provider == "" {
 			add("judge", "ok", "의미 판정기 꺼짐; 기본 감사·감시는 API 키 없이 사용 가능")
 		} else {
-			add("judge", "warning", "의미 판정기 설정이 있음; 이 진단은 모델·네트워크 호출이나 인증 검사를 하지 않음")
+			add("judge", "warning", "의미 판정기 설정이 있음; 위험 등급이 높은 행동(셸·자격증명·커밋·완료 주장)에서만 호출하고 읽기·탐색은 결정론적 탐지기가 처리한다. 이 진단은 모델·네트워크 호출이나 인증 검사를 하지 않음")
 		}
 		if cfg.Privacy.ExternalJudge {
 			add("external_judge", "warning", "사용자 설정에서 외부 판정을 허용함; 정책을 변경하지 않았음")
@@ -117,8 +123,70 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 		add("ledger", "error", fmt.Sprintf("원장 무결성/스키마 확인 실패 (읽은 버전 %d); 원문·레코드는 출력하지 않음", version))
 	} else {
 		add("ledger", "ok", fmt.Sprintf("원장 읽기 전용 무결성 검사 통과, 스키마 %d", version))
+		addLedgerUsage(&r, db)
 	}
+	addWatchBudget(&r)
 	return r
+}
+
+// addLedgerUsage reports how much space the ledger takes and what fills it.
+// A ledger grows with every session and nothing in it ever shrinks, so the
+// size is what tells a user that the file has outgrown its usefulness.
+func addLedgerUsage(r *doctorReport, path string) {
+	add := func(id, state, message string) {
+		r.Checks = append(r.Checks, diagnostic{ID: id, State: state, Message: message})
+	}
+	size := ledger.FileSize(path)
+	if size == 0 {
+		return
+	}
+	db, err := ledger.OpenReadOnly(path)
+	if err != nil {
+		add("ledger_size", "warning", fmt.Sprintf("원장 용량을 읽지 못함 (%v); 원본·레코드는 출력하지 않음", err))
+		return
+	}
+	defer db.Close()
+	usage, err := db.Usage()
+	if err != nil {
+		add("ledger_size", "warning", "원장 행 집계에 실패함; 원본·레코드는 출력하지 않음")
+		return
+	}
+	mb := float64(size) / (1024 * 1024)
+	message := fmt.Sprintf("원장 %.0fMB · 세션 %d · 이벤트 %d · 판정 %d · 봉인 %d", mb, usage.Sessions, usage.Events, usage.Verdicts, usage.Sealed)
+	// The retention window is stated here so that the size of the file is
+	// read together with the rule that decides what stays in it.
+	threshold := fmt.Sprintf(". 보존 기준: 종료 %d일 지난 세션의 상세만 정리 대상이며 봉인·영수증·판정은 남는다", ledger.PruneDays)
+	switch {
+	case mb >= 1024:
+		add("ledger_size", "warning", message+". 원장은 계속 커지고 줄지 않는다"+threshold+". samcheonpo compact로 빈 공간을 회수할 수 있다")
+	case mb >= 256:
+		add("ledger_size", "ok", message+threshold)
+	default:
+		add("ledger_size", "ok", message+threshold)
+	}
+}
+
+// addWatchBudget reports how much of the host's file-watch budget is in
+// use. When the budget is exhausted the daemon can no longer open a
+// watcher, and the monitor keeps reporting "available" while observing
+// nothing. The check changes nothing on the host.
+func addWatchBudget(r *doctorReport) {
+	add := func(id, state, message string) {
+		r.Checks = append(r.Checks, diagnostic{ID: id, State: state, Message: message})
+	}
+	w := watchBudget()
+	if !w.Known {
+		add("watch_budget", "ok", "이 호스트는 파일 감시 인스턴스 한도를 노출하지 않는다")
+		return
+	}
+	switch {
+	case w.Used >= w.Limit:
+		add("watch_budget", "error", fmt.Sprintf("파일 감시 인스턴스 %d/%d 한도 소진. 감시기가 열리지 않아 삼천포가 작업 폴더 변화를 보지 못한다", w.Used, w.Limit))
+	case w.Ratio() >= 0.8:
+		add("watch_budget", "warning", fmt.Sprintf("파일 감시 인스턴스 %d/%d (%.0f%%). 한도에 닿으면 감시가 조용히 멈춘다", w.Used, w.Limit, w.Ratio()*100))
+	default:
+		add("watch_budget", "ok", fmt.Sprintf("파일 감시 인스턴스 %d/%d (%.0f%%)", w.Used, w.Limit, w.Ratio()*100))
+	}
 }
 
 // capabilityText states what the connected agent lets samcheonpo do.

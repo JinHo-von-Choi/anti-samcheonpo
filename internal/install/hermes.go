@@ -52,6 +52,13 @@ func InstallHermes(bin, dir string, out func(string)) error {
 		_ = os.Remove(dir)
 		return errors.New("hermes plugins enable 실패: " + strings.TrimSpace(string(b)) + " (" + err.Error() + ")")
 	}
+	// The bundle is recorded so that a later change to the installed files
+	// is visible instead of silent.
+	if m, err := BuildManifest("hermes", dir, []string{manifest, init}, true); err != nil {
+		out("무결성 기록을 남기지 못했다: " + err.Error())
+	} else if err := RecordManifest(m); err != nil {
+		out("무결성 기록을 남기지 못했다: " + err.Error())
+	}
 	out("Hermes 플러그인을 " + dir + "에 설치하고 켰다 (새 세션부터 적용, 게이트웨이는 재시작 후 적용)")
 	return nil
 }
@@ -85,6 +92,9 @@ func UninstallHermes(out func(string)) error {
 		if err := removeStandalone("hermes", p); err != nil {
 			return err
 		}
+	}
+	if err := ForgetManifest("hermes"); err != nil {
+		out("무결성 기록을 지우지 못했다: " + err.Error())
 	}
 	out("Hermes 플러그인 " + HermesPlugin + "를 제거했다")
 	return nil

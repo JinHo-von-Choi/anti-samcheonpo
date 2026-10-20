@@ -1,0 +1,75 @@
+{
+  "version": "harness-surface/1",
+  "vocabulary": {
+    "internal_harness": "에이전트가 스스로 읽는 파일. 삼천포는 이쪽을 고치지 않는다. 수정 대상은 감시 구성뿐이다.",
+    "external_harness": "삼천포가 에이전트를 감시하며 제공하는 구성. 계약을 붙이고 권고를 넣고 차단을 건다.",
+    "guide": "에이전트의 목표와 완료 조건을 담는 성분. 삼천포에서 계약·목표 카드가 이 역할이다.",
+    "sensor": "에이전트의 행동을 읽고 사실을 남기는 성분. 삼천포 전체가 이 역할이며, 규칙 팩은 이 성분의 편집 대상이다.",
+    "editable": "바꾸면 감시의 판정이 달라지는 성분. 삼천포에서는 규칙 팩 하나뿐이다."
+  },
+  "components": [
+    {
+      "name": "sensor",
+      "role": "sensor",
+      "external_term": "감시 센서",
+      "paths": ["internal/detect", "internal/ledger", "internal/receipt", "internal/analyze"],
+      "note": "도구 호출을 읽고 사실과 판정을 남긴다. 이 성분은 관찰만 한다."
+    },
+    {
+      "name": "guide",
+      "role": "guide",
+      "external_term": "가이드",
+      "paths": ["internal/contract", "internal/intent"],
+      "note": "목표와 완료 조건. 파일 표현은 .samcheonpo/contract.yml 과 원장 속 개정 기록이다."
+    },
+    {
+      "name": "editable",
+      "role": "editable",
+      "external_term": "편집 대상 성분",
+      "paths": ["internal/rulepack", "internal/learning", "internal/eval"],
+      "note": "규칙 팩은 유일하게 편집 대상이다. 파일 표현이 가능해 차분이 남는다."
+    },
+    {
+      "name": "policy",
+      "role": "external_harness",
+      "external_term": "외부 하네스",
+      "paths": ["internal/policy", "internal/config"],
+      "note": "권고·차단 경로와 개입 수위. 사용자 설정만 바꿀 수 있다."
+    },
+    {
+      "name": "injection",
+      "role": "guide",
+      "external_term": "가이드 주입",
+      "paths": ["internal/intervene", "internal/recovery"],
+      "note": "감지 결과를 에이전트에게 전달하는 통로. 실행 권한을 만들지 않는다."
+    },
+    {
+      "name": "adapter",
+      "role": "external_harness",
+      "external_term": "대리 실행기",
+      "paths": ["internal/adapter/claude", "internal/adapter/codex"],
+      "note": "에이전트별 사건을 하나의 사건 모형으로 옮기는 성분."
+    },
+    {
+      "name": "plugin",
+      "role": "external_harness",
+      "external_term": "플러그인",
+      "paths": ["plugins/claude-code", "plugins/opencode", "plugins/hermes", "plugins/openclaw"],
+      "note": "배포 산출물. 무결성 매니페스트의 대상이다."
+    },
+    {
+      "name": "distribution",
+      "role": "external_harness",
+      "external_term": "공급망 구성요소",
+      "paths": ["internal/install"],
+      "note": "설치·제거와 무결성 기록을 맡는다."
+    },
+    {
+      "name": "measurement",
+      "role": "external_harness",
+      "external_term": "실험 장치",
+      "paths": ["internal/bench", "internal/evasion", "internal/fp"],
+      "note": "오탐·회피 측정과 실행 동일성. 감시자가 아닌 실험 장치다."
+    }
+  ]
+}

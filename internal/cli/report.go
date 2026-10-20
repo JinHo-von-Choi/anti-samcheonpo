@@ -66,7 +66,8 @@ func reportCmd() *cobra.Command {
 			if err = db.QueryRow(`SELECT COALESCE(o.close_reason,'legacy_unknown'),COALESCE(o.evaluator_version,(SELECT json_extract(seal,'$.evaluator') FROM session_seal WHERE session_id=s.id),''),COALESCE((SELECT MAX(ts) FROM event WHERE session_id=s.id),o.last_activity_at,'') FROM session s LEFT JOIN session_observation o ON o.session_id=s.id WHERE s.id=?`, r.ID).Scan(&reason, &version, &last); err != nil {
 				return err
 			}
-			labels := map[string]string{"legacy_unknown": "기존 기록·종료 확인 불가", "open": "관측 중", "session_end": "실제 종료 확인", "daemon_shutdown": "데몬 관측 종료", "audit_snapshot": "감사 스냅샷"}
+			labels := map[string]string{"legacy_unknown": "기존 기록·종료 확인 불가", "open": "관측 중", "session_end": "실제 종료 확인",
+				"daemon_shutdown": "데몬 관측 종료", "daemon_lost": "데몬 손실로 관측 중단", "idle_timeout": "무활동으로 관측 중단", "audit_snapshot": "감사 스냅샷"}
 			label := labels[reason]
 			if label == "" {
 				label = "종료 사유 미확인"

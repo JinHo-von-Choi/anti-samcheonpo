@@ -25,7 +25,7 @@ import (
 )
 
 func liveCommands() []*cobra.Command {
-	return []*cobra.Command{daemonCmd(), hookCmd(), statuslineCmd(), slashCmd(), installCmd(), uninstallCmd(), benchHookCmd(), doctorCmd()}
+	return []*cobra.Command{daemonCmd(), hookCmd(), statuslineCmd(), slashCmd(), installCmd(), uninstallCmd(), pluginsCmd(), benchHookCmd(), doctorCmd()}
 }
 
 func daemonCmd() *cobra.Command {

@@ -44,6 +44,23 @@ func diagnosticCmd(name string) *cobra.Command {
 		if contractHash == "" {
 			s.Reasons["contract_unaccepted"]++
 		}
+		// The stored analysis carries what the observation could not cover.
+		// Reporting it here keeps "no finding" from reading as "nothing was
+		// wrong" when the monitor could not see the workspace.
+		if obs, err := db.ObservationOf(id); err == nil {
+			switch obs.WatchState {
+			case "unavailable":
+				s.Reasons["watch_unavailable"]++
+			case "degraded":
+				s.Reasons["watch_degraded"]++
+			}
+			switch obs.CandidatePack {
+			case "unreadable":
+				s.Reasons["learned_rules_unreadable"]++
+			case "invalid":
+				s.Reasons["learned_rules_invalid"]++
+			}
+		}
 		if format == "json" {
 			b, err := json.MarshalIndent(s, "", "  ")
 			if err != nil {
@@ -69,7 +86,7 @@ func diagnosticCmd(name string) *cobra.Command {
 }
 
 func reasonText(code string) string {
-	if text := map[string]string{"missing_exit": "종료 결과 없음", "missing_ws": "작업 폴더 지문 없음", "missing_result": "결과 지문 없음", "contract_unaccepted": "기록된 수락 계약 없음", "completion_unobserved": "현재 완료 근거 없음", "usage_unobserved": "사용량 미관측", "execution_context_unknown": "실행 환경·효과 해석 불가", "environment_unknown": "환경 동일성 미확인", "new_evidence": "새 근거·환경 변경", "shadow": "기록 전용 규칙", "cooldown": "반복 안내 억제", "background_pending": "백그라운드 실행 결과 대기", "rollout_unrecorded": "당시 전달 방식 기록 없음", "semantic_unknown": "의미 판정 근거 부족", "semantic_deferred": "의미 판정 호출 보류", "unsupported_route": "지원하는 전달 경로 없음", "candidate_limit": "후보 보관 상한", "flaky": "불안정한 검사"}[code]; text != "" {
+	if text := map[string]string{"missing_exit": "종료 결과 없음", "missing_ws": "작업 폴더 지문 없음", "missing_result": "결과 지문 없음", "contract_unaccepted": "기록된 수락 계약 없음", "completion_unobserved": "현재 완료 근거 없음", "usage_unobserved": "사용량 미관측", "execution_context_unknown": "실행 환경·효과 해석 불가", "environment_unknown": "환경 동일성 미확인", "new_evidence": "새 근거·환경 변경", "shadow": "기록 전용 규칙", "cooldown": "반복 안내 억제", "background_pending": "백그라운드 실행 결과 대기", "rollout_unrecorded": "당시 전달 방식 기록 없음", "semantic_unknown": "의미 판정 근거 부족", "semantic_deferred": "의미 판정 호출 보류", "unsupported_route": "지원하는 전달 경로 없음", "candidate_limit": "후보 보관 상한", "flaky": "불안정한 검사", "watch_unavailable": "파일 감시 없음", "watch_degraded": "파일 감시 일부", "learned_rules_unreadable": "학습 규칙 읽지 못함", "learned_rules_invalid": "학습 규칙 형식 오류"}[code]; text != "" {
 		return text
 	}
 	return code

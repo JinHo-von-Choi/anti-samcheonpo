@@ -16,19 +16,24 @@ import (
 
 // Config is the merged configuration (defaults < ~/.samcheonpo/config.yml < project .samcheonpo.yml).
 type Config struct {
-	Language                 string      `yaml:"language" json:"language"`
-	Currency                 string      `yaml:"currency" json:"currency"`
-	Levels                   Levels      `yaml:"levels" json:"levels"`
-	Detectors                Detectors   `yaml:"detectors" json:"detectors"`
-	VerifyCommands           []string    `yaml:"verify_commands" json:"verify_commands"`
-	NondeterministicCommands []string    `yaml:"nondeterministic_commands" json:"nondeterministic_commands"`
-	Contract                 ContractCfg `yaml:"contract" json:"contract"`
-	Notify                   Notify      `yaml:"notify" json:"notify"`
-	Privacy                  Privacy     `yaml:"privacy" json:"privacy"`
-	Experiment               Experiment  `yaml:"experiment" json:"experiment"`
-	Checkpoint               Checkpoint  `yaml:"checkpoint" json:"checkpoint"`
-	Rollout                  Rollout     `yaml:"rollout" json:"rollout"`
-	Swarm                    Swarm       `yaml:"swarm" json:"swarm"`
+	Language                 string    `yaml:"language" json:"language"`
+	Currency                 string    `yaml:"currency" json:"currency"`
+	Levels                   Levels    `yaml:"levels" json:"levels"`
+	Detectors                Detectors `yaml:"detectors" json:"detectors"`
+	VerifyCommands           []string  `yaml:"verify_commands" json:"verify_commands"`
+	NondeterministicCommands []string  `yaml:"nondeterministic_commands" json:"nondeterministic_commands"`
+	// ProtectedPaths are paths the agent must not touch. A tool call that
+	// reads or writes one is stopped before it runs. The list is empty by
+	// default; the benchmark fills it with the grader, the answer and the
+	// rubric so that a trial cannot read what it is graded against.
+	ProtectedPaths []string    `yaml:"protected_paths" json:"protected_paths"`
+	Contract       ContractCfg `yaml:"contract" json:"contract"`
+	Notify         Notify      `yaml:"notify" json:"notify"`
+	Privacy        Privacy     `yaml:"privacy" json:"privacy"`
+	Experiment     Experiment  `yaml:"experiment" json:"experiment"`
+	Checkpoint     Checkpoint  `yaml:"checkpoint" json:"checkpoint"`
+	Rollout        Rollout     `yaml:"rollout" json:"rollout"`
+	Swarm          Swarm       `yaml:"swarm" json:"swarm"`
 	// IronLaws links the iron-laws checker (path empty: look it up on PATH).
 	IronLaws struct {
 		Enabled bool   `yaml:"enabled" json:"enabled"`

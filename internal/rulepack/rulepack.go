@@ -21,12 +21,43 @@ type Definition struct {
 	Minimum  int            `json:"minimum"`
 	Window   int            `json:"window"`
 }
+
+// Evidence tiers. They say what kind of evidence the rules in a pack were
+// built from.
+//
+// A pack holds one tier. A rule learned from a person's label and a rule
+// derived from a machine's grade are not the same kind of claim, and a pack
+// that mixed them could not say what it was holding.
+const (
+	// EvidenceHumanLabeled means the rules were learned from spans a
+	// person labeled.
+	EvidenceHumanLabeled = "human_labeled"
+	// EvidenceDerivedExecution means the rules were learned from spans an
+	// independent grader judged.
+	EvidenceDerivedExecution = "derived_execution"
+)
+
 type Pack struct {
 	Version          string       `json:"version"`
 	Definitions      []Definition `json:"definitions"`
 	ProposalDigest   string       `json:"proposal_digest"`
 	EvaluationDigest string       `json:"evaluation_digest"`
 	Effectiveness    string       `json:"effectiveness"`
+	// EvidenceTier says what kind of evidence the rules were built from.
+	// It is empty in packs written before the tier existed, and every
+	// such pack was built from human labels.
+	EvidenceTier string `json:"evidence_tier,omitempty"`
+}
+
+// Tier returns the evidence tier of the pack.
+//
+// A pack written before the tier existed was built from human labels, so
+// that is what it counts as.
+func (p Pack) Tier() string {
+	if p.EvidenceTier == "" {
+		return EvidenceHumanLabeled
+	}
+	return p.EvidenceTier
 }
 
 func Digest(v any) string {
@@ -60,40 +91,85 @@ func (d Definition) Validate() error {
 	}
 	return nil
 }
-func Load(path string) (Pack, error) {
+
+// Load states describe why a rule pack could or could not be used.
+const (
+	// LoadLoaded means the pack was read and passed validation.
+	LoadLoaded = "loaded"
+	// LoadAbsent means no pack file exists. A machine that has never
+	// learned a rule has no pack file, so this is a normal state and not
+	// a failure.
+	LoadAbsent = "absent"
+	// LoadUnreadable means the file exists but could not be read or
+	// parsed.
+	LoadUnreadable = "unreadable"
+	// LoadInvalid means the file was read but did not satisfy the format.
+	LoadInvalid = "invalid"
+)
+
+// LoadReport describes one attempt to read a rule pack.
+type LoadReport struct {
+	Pack  Pack
+	State string
+	Err   error
+}
+
+// LoadWithState reads a rule pack and reports why it could not be used.
+// Callers that only need the pack use Load; callers that must tell "no
+// learned rules yet" apart from "the learned rules are broken" use this.
+func LoadWithState(path string) LoadReport {
 	var p Pack
 	f, err := os.Open(path)
 	if err != nil {
-		return p, err
+		if os.IsNotExist(err) {
+			return LoadReport{Pack: p, State: LoadAbsent}
+		}
+		return LoadReport{Pack: p, State: LoadUnreadable, Err: err}
 	}
 	defer f.Close()
 	st, err := f.Stat()
 	if err != nil || st.Size() > 1<<20 {
-		return p, errors.New("invalid rule pack size")
+		return LoadReport{Pack: p, State: LoadInvalid, Err: errors.New("invalid rule pack size")}
 	}
 	dec := json.NewDecoder(f)
 	dec.DisallowUnknownFields()
 	if err = dec.Decode(&p); err != nil {
-		return p, err
+		return LoadReport{Pack: p, State: LoadUnreadable, Err: err}
 	}
 	var extra any
 	if err = dec.Decode(&extra); err != io.EOF {
-		return p, errors.New("trailing rule pack data")
+		return LoadReport{Pack: p, State: LoadInvalid, Err: errors.New("trailing rule pack data")}
 	}
 	if p.Version != "advisory-rulepack/1" || len(p.Definitions) > 32 || p.ProposalDigest == "" || p.EvaluationDigest == "" || p.Effectiveness != "unvalidated" {
-		return p, errors.New("invalid advisory pack")
+		return LoadReport{Pack: p, State: LoadInvalid, Err: errors.New("invalid advisory pack")}
+	}
+	switch p.EvidenceTier {
+	case "", EvidenceHumanLabeled, EvidenceDerivedExecution:
+	default:
+		return LoadReport{Pack: p, State: LoadInvalid, Err: errors.New("invalid evidence tier")}
 	}
 	seen := map[string]bool{}
 	for _, d := range p.Definitions {
 		if err = d.Validate(); err != nil {
-			return p, err
+			return LoadReport{Pack: p, State: LoadInvalid, Err: err}
 		}
 		if seen[d.ID] {
-			return p, errors.New("duplicate candidate")
+			return LoadReport{Pack: p, State: LoadInvalid, Err: errors.New("duplicate candidate")}
 		}
 		seen[d.ID] = true
 	}
-	return p, nil
+	return LoadReport{Pack: p, State: LoadLoaded}
+}
+
+func Load(path string) (Pack, error) {
+	r := LoadWithState(path)
+	if r.State == LoadLoaded {
+		return r.Pack, nil
+	}
+	if r.State == LoadAbsent {
+		return r.Pack, os.ErrNotExist
+	}
+	return r.Pack, r.Err
 }
 
 type Match struct {

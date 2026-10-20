@@ -67,6 +67,17 @@ func InstallOpenclaw(bin string, out func(string)) error {
 		undo()
 		return errors.New("openclaw config set 실패: " + strings.TrimSpace(string(b)) + " (" + err.Error() + ")")
 	}
+	// The bundle is recorded so that a later change to the installed files
+	// is visible instead of silent.
+	var bundleFiles []string
+	for p := range files {
+		bundleFiles = append(bundleFiles, p)
+	}
+	if m, err := BuildManifest("openclaw", dir, bundleFiles, true); err != nil {
+		out("무결성 기록을 남기지 못했다: " + err.Error())
+	} else if err := RecordManifest(m); err != nil {
+		out("무결성 기록을 남기지 못했다: " + err.Error())
+	}
 	out("OpenClaw 플러그인 " + OpenclawPlugin + "를 설치했다 (새 실행부터 적용, 게이트웨이는 재시작 후 적용)")
 	return nil
 }
@@ -94,6 +105,9 @@ func UninstallOpenclaw(out func(string)) error {
 		if err := removeStandalone("openclaw", p); err != nil {
 			return err
 		}
+	}
+	if err := ForgetManifest("openclaw"); err != nil {
+		out("무결성 기록을 지우지 못했다: " + err.Error())
 	}
 	_ = os.Remove(dir)
 	out("OpenClaw 플러그인 " + OpenclawPlugin + "를 제거했다")

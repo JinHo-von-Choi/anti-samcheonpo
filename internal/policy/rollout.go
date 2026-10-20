@@ -38,7 +38,7 @@ func AdviceOnly(rule string) bool {
 // ExplicitGuardrail reports rules that enforce a limit the user set: a
 // protected path, a budget, a session ceiling. They are not experiments.
 func ExplicitGuardrail(rule string) bool {
-	return rule == "s3.protected_path" || rule == "s8.budget" || rule == "s8.session_ceiling"
+	return rule == "s3.protected_path" || rule == "s8.budget" || rule == "s8.session_ceiling" || rule == "s10.grader_access"
 }
 
 // Escalate turns advice into a block when the same rule was already advised
@@ -78,6 +78,10 @@ func Escalable(rule, kind string, contractAccepted bool) bool {
 		return kind == "unchanged_rerun"
 	case "s5.stop_unmet", "s5.false_done", "s3.out_of_scope", "s3.config_bypass", "s1.verify_ratio", "s2.whack_a_mole", "s1.evidence_rerun":
 		return contractAccepted
+	case "s9.instruction_smuggling", "s9.unverified_claim_request":
+		// a deception instruction in the assembled context is an
+		// observable fact, so it may block without a contract
+		return true
 	default:
 		return false
 	}

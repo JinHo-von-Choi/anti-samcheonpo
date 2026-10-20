@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"errors"
+	"fmt"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/config"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/policy"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup"
@@ -47,26 +48,48 @@ func monitorConfig(a Arm) (config.Config, error) {
 	return c, nil
 }
 
+// MonitorFingerprint returns the digest of what a trial monitor was.
+//
+// It covers the binary, the configuration and the learned rule pack
+// together. A comparison that changes the rule pack changes the
+// fingerprint, and a comparison that changes nothing else does not.
+func MonitorFingerprint(binaryHash, configHash, packHash string) string {
+	h := sha256.Sum256([]byte(binaryHash + "/" + configHash + "/" + packHash))
+	return hex.EncodeToString(h[:])
+}
+
 // startTrialMonitor boots the selected build in a fresh experiment home. Old
 // installed hook clients may connect through the same protocol; no user binary,
 // model, authentication or permission setting is changed.
-func startTrialMonitor(a Arm, repo, home string, env []string) (func(), string, string, error) {
+//
+// It returns the binary digest, the configuration digest and the monitor
+// fingerprint. The fingerprint covers the binary, the configuration and the
+// learned rule pack together, so two arms can be compared by what the
+// monitor actually was rather than by what someone wrote down about it.
+//
+// The protected paths are the ones the trial must not reach, the grader
+// above all. A monitor that knows them stops the call before it runs,
+// which is the difference between a warning and a block.
+func startTrialMonitor(a Arm, repo, home string, env []string, protected []string) (func(), string, string, string, error) {
 	cfg, err := monitorConfig(a)
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", "", err
+	}
+	if len(protected) > 0 {
+		cfg.ProtectedPaths = append([]string(nil), protected...)
 	}
 	f, err := os.Open(a.MonitorExecutable)
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
 	if err = procgroup.MkdirAllPrivate(home); err != nil {
 		f.Close()
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
 	info, err := f.Stat()
 	if err != nil || !info.Mode().IsRegular() || info.Size() > 256<<20 {
 		f.Close()
-		return nil, "", "", errors.New("monitor executable must be a bounded regular file")
+		return nil, "", "", "", errors.New("monitor executable must be a bounded regular file")
 	}
 	name := "samcheonpo-monitor"
 	if runtime.GOOS == "windows" {
@@ -76,7 +99,7 @@ func startTrialMonitor(a Arm, repo, home string, env []string) (func(), string, 
 	binary, err := os.OpenFile(snapshot, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0700)
 	if err != nil {
 		f.Close()
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
 	h := sha256.New()
 	n, err := io.Copy(io.MultiWriter(binary, h), io.LimitReader(f, (256<<20)+1))
@@ -84,18 +107,37 @@ func startTrialMonitor(a Arm, repo, home string, env []string) (func(), string, 
 	f.Close()
 	closeErr := binary.Close()
 	if err != nil || statErr != nil || closeErr != nil || n != info.Size() || !after.ModTime().Equal(info.ModTime()) {
-		return nil, "", "", errors.New("monitor executable changed or snapshot failed")
+		return nil, "", "", "", errors.New("monitor executable changed or snapshot failed")
 	}
 	binaryHash := hex.EncodeToString(h.Sum(nil))
 	raw, err := yaml.Marshal(cfg)
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
 	configDigest := sha256.Sum256(raw)
 	configHash := hex.EncodeToString(configDigest[:])
+	// The learned rule pack is part of what the monitor is. A pack that
+	// is not part of the fingerprint is a pack that can differ between
+	// two arms without the comparison noticing.
+	packHash := ""
+	if a.RulePack != "" {
+		pack, err := os.ReadFile(a.RulePack)
+		if err != nil {
+			return nil, "", "", "", fmt.Errorf("후보 규칙 팩을 읽지 못했다: %w", err)
+		}
+		if len(pack) > 1<<20 {
+			return nil, "", "", "", errors.New("후보 규칙 팩이 너무 크다")
+		}
+		packDigest := sha256.Sum256(pack)
+		packHash = hex.EncodeToString(packDigest[:])
+		if err := os.WriteFile(filepath.Join(home, "learned-rules.json"), pack, 0o600); err != nil {
+			return nil, "", "", "", err
+		}
+	}
+	fingerprint := MonitorFingerprint(binaryHash, configHash, packHash)
 	configFile, err := os.OpenFile(filepath.Join(home, "config.yml"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
 	_, err = configFile.Write(raw)
 	closeErr = configFile.Close()
@@ -103,11 +145,11 @@ func startTrialMonitor(a Arm, repo, home string, env []string) (func(), string, 
 		err = closeErr
 	}
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
 	log, err := os.OpenFile(filepath.Join(home, "monitor.log"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
 	cmd := exec.Command(snapshot, "daemon")
 	cmd.Dir = repo
@@ -116,7 +158,7 @@ func startTrialMonitor(a Arm, repo, home string, env []string) (func(), string, 
 	procgroup.Set(cmd)
 	if err = procgroup.Start(cmd); err != nil {
 		log.Close()
-		return nil, "", "", err
+		return nil, "", "", "", err
 	}
 	done := make(chan error, 1)
 	go func() { done <- cmd.Wait(); close(done) }()
@@ -147,7 +189,7 @@ func startTrialMonitor(a Arm, repo, home string, env []string) (func(), string, 
 		select {
 		case <-done:
 			finish()
-			return nil, "", "", errors.New("selected trial monitor exited before readiness")
+			return nil, "", "", "", errors.New("selected trial monitor exited before readiness")
 		default:
 		}
 		conn, e := net.DialTimeout("unix", socket, 50*time.Millisecond)
@@ -165,9 +207,9 @@ func startTrialMonitor(a Arm, repo, home string, env []string) (func(), string, 
 		}
 		conn.Close()
 		if e == nil && reply.Text == "pong" && reply.Error == "" {
-			return finish, binaryHash, configHash, nil
+			return finish, binaryHash, configHash, fingerprint, nil
 		}
 	}
 	finish()
-	return nil, "", "", errors.New("selected trial monitor readiness timed out")
+	return nil, "", "", "", errors.New("selected trial monitor readiness timed out")
 }

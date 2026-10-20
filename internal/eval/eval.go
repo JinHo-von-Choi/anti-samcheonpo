@@ -6,6 +6,7 @@ package eval
 import (
 	"bufio"
 	"encoding/json"
+	"errors"
 	"fmt"
 	"math"
 	"os"
@@ -16,6 +17,33 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 )
+
+// Label sources. A label a person made and a label a machine derived
+// answer the same question, but they do not carry the same trust.
+const (
+	// LabelSourceHuman is a label a person made. It is the default when
+	// the source is not stated.
+	LabelSourceHuman = "human"
+	// LabelSourceDerived is a label derived from an independent grader.
+	// Its evidence is a run and its verdict, not a person's judgement.
+	LabelSourceDerived = "derived"
+)
+
+// Derivation records how a machine-derived label was produced.
+//
+// A derived label is only as good as the judge that produced it, so the
+// method, the judge and the digest of what the judge saw travel with the
+// label. A derived label without them is an anonymous claim.
+type Derivation struct {
+	// Method is the controlled name of the derivation, such as
+	// "execution_oracle".
+	Method string `json:"method"`
+	// Oracle names the independent judge that graded the run. It must
+	// live outside the task's own repository, or it is not independent.
+	Oracle string `json:"oracle,omitempty"`
+	// Digest is the content address of what the judge saw.
+	Digest string `json:"digest,omitempty"`
+}
 
 // Label is one labeled interval (or session meta when Meta is set).
 type Label struct {
@@ -34,6 +62,42 @@ type Label struct {
 	Meta               *Meta  `json:"meta,omitempty"`
 	ReviewSourceDigest string `json:"review_source_digest,omitempty"`
 	ReviewQueueDigest  string `json:"review_queue_digest,omitempty"`
+	// Source says who judged the span: "human" (the default) or
+	// "derived". It decides the trust tier the label counts in.
+	Source string `json:"source,omitempty"`
+	// Derivation says how a derived label was produced. It is empty for a
+	// human label and required for a derived one.
+	Derivation *Derivation `json:"derivation,omitempty"`
+}
+
+// Tier returns the trust tier the label counts in.
+func (l Label) Tier() string {
+	if l.Source == "" {
+		return LabelSourceHuman
+	}
+	return l.Source
+}
+
+// ValidateSource checks that the label says where it came from.
+//
+// A derived label must name the method that produced it: a machine label
+// without a derivation is an anonymous claim, and an anonymous claim is not
+// evidence. A human label must not carry one, because a derivation would
+// claim a machine judged it.
+func (l Label) ValidateSource() error {
+	switch l.Tier() {
+	case LabelSourceHuman:
+		if l.Derivation != nil {
+			return errors.New("사람 라벨에 파생 기록이 붙어 있다")
+		}
+	case LabelSourceDerived:
+		if l.Derivation == nil || l.Derivation.Method == "" {
+			return errors.New("파생 라벨에는 파생 방법이 필요하다")
+		}
+	default:
+		return fmt.Errorf("알 수 없는 라벨 출처 %q", l.Source)
+	}
+	return nil
 }
 
 // Meta is session-level labeling information.
@@ -144,6 +208,10 @@ func LoadLabels(dir string) ([]Label, error) {
 					return nil, fmt.Errorf("%s:%d: %w", f, n, err)
 				}
 				lb.Labeler = l.Name()
+				if err := lb.ValidateSource(); err != nil {
+					fh.Close()
+					return nil, fmt.Errorf("%s:%d: %w", f, n, err)
+				}
 				out = append(out, lb)
 			}
 			if err := sc.Err(); err != nil {

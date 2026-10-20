@@ -24,6 +24,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hostlimit"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intervene"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
@@ -116,6 +117,15 @@ func Run(dbPath string, idle time.Duration) error {
 		return err
 	}
 	defer db.Close()
+	// A daemon that died leaves its sessions open. Only one daemon runs at a
+	// time, so an observation that is still open here belongs to a daemon
+	// that is gone. Closing it makes the stored analysis reachable again
+	// instead of leaving the session out of reach forever.
+	if n, err := db.CloseLostObservations(ledger.ObservationDaemonLost, time.Now()); err != nil {
+		fmt.Fprintf(os.Stderr, "samcheonpo: 잃어버린 관측 종료 실패: %v\n", err)
+	} else if n > 0 {
+		fmt.Fprintf(os.Stderr, "samcheonpo: 이전 데몬이 남긴 관측 %d건을 종료했다\n", n)
+	}
 	prices, err := cost.Load(filepath.Join(config.Home(), "prices.yml"))
 	if err != nil {
 		ln.Close()
@@ -182,14 +192,88 @@ func Run(dbPath string, idle time.Duration) error {
 // maxQuietWithSessions bounds how long open sessions keep an idle daemon.
 const maxQuietWithSessions = 6 * time.Hour
 
+// watchBudget is how many file watchers the daemon may hold at once.
+//
+// Each live session holds one watch instance, and on Linux that is one
+// inotify instance charged to the user's budget. The kernel limits how many
+// one user may hold, and a daemon that outgrows the limit cannot open a
+// watcher for a new session: the monitor then observes nothing while it
+// still reports itself available, and it takes the user's other tools down
+// with it. The daemon therefore keeps well under the host limit and reclaims
+// the least recently used watchers when it reaches its own.
+// watchBudget is a variable so a test can supply a budget without touching
+// the host.
+var watchBudget = hostWatchBudget
+
+func hostWatchBudget() int {
+	// Only the limit is read here. Counting the instances in use walks
+	// every process descriptor, and this runs on the session-creation path,
+	// where a hook is waiting.
+	limit, ok := hostlimit.InotifyLimit()
+	if !ok {
+		return defaultWatchBudget
+	}
+	budget := limit / 4
+	if budget < 4 {
+		budget = 4
+	}
+	if budget > defaultWatchBudget {
+		budget = defaultWatchBudget
+	}
+	return budget
+}
+
+// defaultWatchBudget bounds the watchers when the host exposes no limit.
+const defaultWatchBudget = 32
+
+// reclaimWatchers gives watch instances back to the host when the daemon
+// holds more than its budget. It releases the least recently used watchers
+// first and never ends a session: an agent that is still running must not
+// lose its session because the host ran out of watch instances.
+//
+// The caller must hold d.mu. The daemon takes d.mu before s.mu everywhere
+// else, and this follows the same order.
+func (d *Daemon) reclaimWatchers() {
+	budget := watchBudget()
+	type candidate struct {
+		ws     *Workspace
+		active time.Time
+	}
+	var live []candidate
+	for _, s := range d.sessions {
+		if s == nil {
+			continue
+		}
+		s.mu.Lock()
+		ws := s.ws
+		s.mu.Unlock()
+		if ws == nil || !ws.Watching() {
+			continue
+		}
+		live = append(live, candidate{ws: ws, active: s.activeAt()})
+	}
+	if len(live) <= budget {
+		return
+	}
+	sort.Slice(live, func(i, j int) bool { return live[i].active.Before(live[j].active) })
+	for i := 0; i < len(live)-budget; i++ {
+		live[i].ws.StopWatching()
+	}
+}
+
 func (d *Daemon) idleWatch() {
 	t := time.NewTicker(10 * time.Second)
 	defer t.Stop()
+	lastSweep := time.Now()
 	for {
 		select {
 		case <-d.done:
 			return
 		case <-t.C:
+		}
+		if time.Since(lastSweep) >= sweepInterval {
+			lastSweep = time.Now()
+			d.reapIdleSessions()
 		}
 		d.mu.Lock()
 		quiet := time.Since(d.last)
@@ -209,6 +293,60 @@ func (d *Daemon) idleWatch() {
 			d.ln.Close()
 			return
 		}
+	}
+}
+
+// sessionIdleLimit is how long a session may stay silent before the daemon
+// releases it.
+//
+// An agent that never reports the end of its session would otherwise hold
+// its watcher and its place in the ledger for as long as the daemon runs.
+// The limit is long enough that a session paused by a person is not cut
+// off, and the release says only that the observation stopped. It never
+// says the agent ended.
+const sessionIdleLimit = 6 * time.Hour
+
+// sweepInterval is how often the daemon looks for sessions that went silent.
+const sweepInterval = 5 * time.Minute
+
+// reapIdleSessions releases the sessions that went silent.
+//
+// A session that never reports the end of its session keeps everything it
+// holds: the file watcher, the workspace fingerprint and its place in the
+// ledger. A gateway-style agent that opens many sessions and closes none
+// fills the host that way. Releasing the session gives the watcher back and
+// records what was observed, so the evidence stays and the host recovers.
+//
+// The session is not marked ended. An agent that comes back later starts a
+// new observation under the same session ID, the same way a session that
+// was closed and resumed does.
+func (d *Daemon) reapIdleSessions() {
+	d.mu.Lock()
+	var idle []*Session
+	for _, s := range d.sessions {
+		if s == nil {
+			continue
+		}
+		s.mu.Lock()
+		closed := s.closed
+		last := s.lastActive
+		s.mu.Unlock()
+		if closed || last.IsZero() || time.Since(last) < sessionIdleLimit {
+			continue
+		}
+		idle = append(idle, s)
+	}
+	d.mu.Unlock()
+	for _, s := range idle {
+		if _, err := s.ReapObservation(); err != nil {
+			fmt.Fprintf(os.Stderr, "samcheonpo: 무활동 세션 %s 정리 실패: %v\n", s.ID, err)
+			continue
+		}
+		d.mu.Lock()
+		if d.sessions[s.ID] == s {
+			delete(d.sessions, s.ID)
+		}
+		d.mu.Unlock()
 	}
 }
 
@@ -426,6 +564,8 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 	if ready, tracked := d.versionReady[agent]; ready || (!tracked && d.versions[agent] != "") {
 		caps = d.capsFor(agent)
 	}
+	// Give the host its watch budget back before taking another one.
+	d.reclaimWatchers()
 	s, err := newSession(id, agent, root, transcript, d.db, d.prices, caps)
 	if reason := d.shapeBad[agent]; reason != "" {
 		s.shapeNote = reason

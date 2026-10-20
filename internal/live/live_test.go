@@ -1100,10 +1100,14 @@ func TestJudgeDrift(t *testing.T) {
 	// seed spend so the judge has budget
 	h.send("Usage", map[string]any{"session_id": "j-1", "message_id": "m0", "model": "claude-opus-5-5",
 		"usage": map[string]any{"input_tokens": 100000, "output_tokens": 10000}})
+	// The semantic judge's budget goes to behavior that can do damage, and
+	// reading a file cannot. The trigger here is a command.
 	for i := 0; i < 8; i++ {
 		id := fmt.Sprintf("r%d", i)
-		h.send("PreToolUse", map[string]any{"session_id": "j-1", "tool_name": "Read", "tool_use_id": id, "tool_input": map[string]any{"file_path": "README.md"}})
-		h.send("PostToolUse", map[string]any{"session_id": "j-1", "tool_name": "Read", "tool_use_id": id, "tool_input": map[string]any{"file_path": "README.md"}, "tool_response": map[string]any{"stdout": "x"}})
+		in := map[string]any{"session_id": "j-1", "tool_name": "Bash", "tool_use_id": id, "tool_input": map[string]any{"command": fmt.Sprintf("echo %d", i)}}
+		h.send("PreToolUse", in)
+		h.send("PostToolUse", map[string]any{"session_id": "j-1", "tool_name": "Bash", "tool_use_id": id,
+			"tool_input": map[string]any{"command": fmt.Sprintf("echo %d", i)}, "tool_response": map[string]any{"stdout": "x"}})
 		time.Sleep(100 * time.Millisecond)
 	}
 	time.Sleep(300 * time.Millisecond)
@@ -1116,6 +1120,44 @@ func TestJudgeDrift(t *testing.T) {
 	defer mu.Unlock()
 	if calls < 2 || watch != calls || drift != 1 {
 		t.Fatalf("judge calls=%d watch events=%d drift verdicts=%d", calls, watch, drift)
+	}
+}
+
+// TestJudgeBudgetSkipsLowRiskBehavior checks that a session which only
+// reads does not spend the semantic judge's budget.
+//
+// The judge is the most expensive thing the monitor does. Reading a file
+// cannot leak a secret or move a commit, so the deterministic detectors
+// handle it and the judge is not called.
+func TestJudgeBudgetSkipsLowRiskBehavior(t *testing.T) {
+	var calls int
+	var mu sync.Mutex
+	srv := httptestServer(func(w http.ResponseWriter, r *http.Request) {
+		mu.Lock()
+		calls++
+		mu.Unlock()
+		_, _ = w.Write([]byte(`{"choices":[{"message":{"content":"drift"}}],"usage":{"prompt_tokens":50,"completion_tokens":1}}`))
+	})
+	defer srv.Close()
+	h := startDaemon(t)
+	cfg := fmt.Sprintf("notify: {desktop: false}\nexperiment: {enabled: false}\ndetectors:\n  s3_drift:\n    judge_every_events: 2\n    max_watch_cost_ratio: 0.5\n    judge: {provider: openai, model: claude-haiku-4-5, base_url: %q}\n", srv.URL+"/v1")
+	_ = os.WriteFile(filepath.Join(h.home, "config.yml"), []byte(cfg), 0o644)
+	h.send("UserPromptSubmit", map[string]any{"prompt": "src/a.py 고쳐 줘", "session_id": "j-2"})
+	h.send("Usage", map[string]any{"session_id": "j-2", "message_id": "m0", "model": "claude-opus-5-5",
+		"usage": map[string]any{"input_tokens": 100000, "output_tokens": 10000}})
+	for i := 0; i < 8; i++ {
+		id := fmt.Sprintf("r%d", i)
+		in := map[string]any{"session_id": "j-2", "tool_name": "Read", "tool_use_id": id, "tool_input": map[string]any{"file_path": "README.md"}}
+		h.send("PreToolUse", in)
+		h.send("PostToolUse", map[string]any{"session_id": "j-2", "tool_name": "Read", "tool_use_id": id,
+			"tool_input": map[string]any{"file_path": "README.md"}, "tool_response": map[string]any{"stdout": "x"}})
+		time.Sleep(50 * time.Millisecond)
+	}
+	time.Sleep(300 * time.Millisecond)
+	mu.Lock()
+	defer mu.Unlock()
+	if calls != 0 {
+		t.Fatalf("a read-only session spent judge budget %d times", calls)
 	}
 }
 

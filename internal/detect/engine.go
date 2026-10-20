@@ -59,8 +59,10 @@ type Engine struct {
 	Research      *research.Tracker
 	learned       *rulepack.Matcher
 	learnedDigest string
-	behavior      *behaviorState
-	reliability   *reliabilityState
+	// learnedTier is the grade of evidence behind the learned rules.
+	learnedTier string
+	behavior    *behaviorState
+	reliability *reliabilityState
 	// Restoring rebuilds candidate state without issuing new reliability verdicts.
 	Restoring bool
 	Cfg       config.Config
@@ -134,8 +136,11 @@ type State struct {
 	// guessOut counts writes outside the guessed scope per directory group;
 	// prevGuess is the guessed scope of the previous intent revision, used to
 	// spot a return to an old goal after context compaction.
-	guessOut             map[string]int
-	prevGuess            []string
+	guessOut  map[string]int
+	prevGuess []string
+	// smuggling holds the deception instructions the assembled context
+	// carried.
+	smuggling            []SmugglingHit
 	compacted            bool
 	allowGuess           []string
 	scopeKnown           bool
@@ -322,6 +327,7 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 	e.observeRequirementChanges(ev, &sigs)
 	e.observeResearchProgress(ev)
 	e.observeLearned(ev, &sigs)
+	e.smuggling(ev, &sigs)
 	e.cost(ev, &sigs)
 	e.sessionLength(ev, &sigs)
 	e.reliabilityObservation(ev, &sigs)
@@ -1460,6 +1466,24 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 				return true, &s
 			}
 		}
+	}
+	// S9: writing an instruction that would deceive the monitor into the
+	// repository. The text is the agent's own new text, seen before it
+	// lands, so this is the one case where the monitor can stop the
+	// instruction itself instead of the action that follows it.
+	if ev.Category == event.CatProduce && (ev.Tool == event.ToolWrite || ev.Tool == event.ToolEdit) {
+		if s := e.smugglingPatch(ev); s != nil {
+			return true, s
+		}
+	}
+	// S10: touching a path the operator declared protected. The benchmark
+	// puts the grader, the answer and the rubric on that list, so a trial
+	// cannot read what it is being graded against. The call is stopped
+	// before it runs: this is a block, not a warning.
+	if p := e.protectedHit(ev); p != "" {
+		s := Signal{Detector: "S10", Rule: RuleGraderAccess, Confidence: 1.0, Level: L3, Evidence: []int64{ev.Seq},
+			Facts: map[string]any{"path": p, "blocked": true}}
+		return true, &s
 	}
 	// S5: a test write about to delete assertions, replace them with
 	// literals, or silence the file with a skip marker is stopped before it

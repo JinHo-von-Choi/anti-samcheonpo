@@ -31,6 +31,13 @@ func InstallOpencode(bin, path string, out func(string)) error {
 	if err := installStandalone("opencode", path, []byte(src)); err != nil {
 		return err
 	}
+	// The bundle is recorded so that a later change to the installed file
+	// is visible instead of silent.
+	if m, err := BuildManifest("opencode", filepath.Dir(path), []string{path}, false); err != nil {
+		out("무결성 기록을 남기지 못했다: " + err.Error())
+	} else if err := RecordManifest(m); err != nil {
+		out("무결성 기록을 남기지 못했다: " + err.Error())
+	}
 	out("opencode 플러그인을 " + path + "에 설치했다 (새 세션부터 적용)")
 	return nil
 }
@@ -40,6 +47,9 @@ func UninstallOpencode(out func(string)) error {
 	p := OpencodePluginPath()
 	if err := removeStandalone("opencode", p); err != nil {
 		return err
+	}
+	if err := ForgetManifest("opencode"); err != nil {
+		out("무결성 기록을 지우지 못했다: " + err.Error())
 	}
 	if out != nil {
 		out(p + "를 지웠다")

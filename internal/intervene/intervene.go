@@ -60,6 +60,12 @@ var kindNames = map[string]string{
 	"permission": "권한 없음", "transient": "일시적인 네트워크 장애", "port_in_use": "포트를 다른 프로그램이 쓰고 있음",
 	"auth_rejected": "인증 거부", "command_missing": "설치되지 않은 명령", "not_executable": "실행 권한이 없는 파일", "disk_full": "디스크 공간 부족",
 	"mock_substituted": "시험의 실제 외부 서비스를 가짜로 대체", "stale_goal": "이전 목표의 경로로 되돌아감", "guessed": "요청에서 추정한 범위 밖",
+	"bypass_monitor": "감시 우회 지시", "hide_report": "보고 은폐 지시", "fake_result": "미수행 검사 보고 지시",
+}
+
+// sourceNames names where a context instruction came from.
+var sourceNames = map[string]string{
+	"prompt": "사용자 프롬프트", "message": "에이전트 메시지", "tool_output": "도구 출력", "written": "에이전트가 쓴 파일",
 }
 
 func data(v detect.Signal, c Context) map[string]any {
@@ -101,6 +107,11 @@ func data(v detect.Signal, c Context) map[string]any {
 		}
 		if d["kindname"] == "" {
 			d["kindname"] = k
+		}
+	}
+	if k, ok := v.Facts["source"].(string); ok {
+		if name := sourceNames[k]; name != "" {
+			d["sourcename"] = name
 		}
 	}
 	if ft, ok := v.Facts["failed_tests"].([]string); ok {

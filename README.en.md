@@ -85,8 +85,12 @@ The status line starts with the current state:
 | Release spamming | Re-releasing without reproducing a CI failure locally, rerunning a failed CI unchanged, too many releases per hour | Nudge → block on repeat, even with a new tag |
 | Waiting after completion · stalled progress | Keeps waiting after completion checks pass, or changes input without reducing failures in the same check | Records only by default; light advice when enabled |
 | Runaway cost | Spending without progress, over budget, very long sessions in time or tokens | Notice → confirm → stop at the ceiling |
+| Being told to deceive | Instructions in a prompt, file, tool output or memory file that tell the agent to hide from the monitor or to report a check it never ran | Records the shape and origin of the instruction; a write that plants it is blocked before it lands |
+| Reaching the grader | A tool call that touches the grader, answer or rubric path | Blocked before it runs |
 
 Waiting and stalled-progress advice requires enough evidence to check the reason for waiting and the test results. These two rules never block work. See [waiting and stalled-progress advice](docs/spec/agenttime-reliability.md) (Korean) to enable them. These rules are included in v0.6.0; effects on cost and completion rate remain unverified.
+
+The S9 and S10 rules read the assembled context: the user prompt, file contents, tool output and memory files together, not the user turn alone. Both are detection-stage, not effect-proven. They say an instruction was there; they do not say who wrote it.
 
 ### Problems outside the code
 
@@ -123,7 +127,7 @@ Download `samcheonpo_<version>_<os>_<arch>.tar.gz` and `SHA256SUMS` from [Releas
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
-tar -xzf samcheonpo_0.8.0_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.9.0_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -135,11 +139,11 @@ Keep `samcheonpo` and the hook helper `samcheonpo-hook` in the same folder. On W
 Requires Go 1.27 or later.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.8.0
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.8.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.9.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.9.0
 ```
 
-When the source transcript is unavailable, `receipt` displays the last completed analysis and `verify` checks its stored seal. Legacy records show their verification limits. v0.8.0 uses ledger schema 11; back up the ledger before upgrading. v0.7.1 and older cannot open schema 11. Existing seal formats and analysis history are preserved.
+When the source transcript is unavailable, `receipt` displays the last completed analysis and `verify` checks its stored seal. Legacy records show their verification limits. v0.9.0 uses ledger schema 12; back up the ledger before upgrading. v0.8.0 and older cannot open schema 12. Existing seal formats and analysis history are preserved.
 
 ## Quick start
 
@@ -291,14 +295,20 @@ Linux, macOS and Windows 10 1803 or later are supported. On Windows, checks run 
 - **Rollback covers only files with confirmed ownership.** Files changed by shell commands, files mixed with human edits, and files written by another session's agent are excluded.
 - **Isolation of user-only commands is not complete.** They are refused from the agent's shell, but a process running as the same OS user can still talk to the daemon directly.
 - **Short, clear tasks give it little to do.** Busywork mostly happens in long, complex sessions.
+- **Smuggling detection says an instruction was there.** It does not say who sent it or whether the agent followed it. Any text in the assembled context with that shape triggers it, so a document or a test fixture written in that shape needs a human to look.
+- **The plugin integrity record is not a signature.** It says the installed bundle is still the bundle that was installed. It does not say who published it.
+- **Publicly exposed tasks support a weaker claim.** The 22 benchmark tasks live in a public repository, so a model may have seen them; summaries count public and private trials apart.
 
 ## Learn more
 
 - [Getting started](docs/getting-started.md) (Korean): from install to day-to-day rules
 - [Support](docs/support-matrix.md) (Korean): what is verified per platform and agent
 - [Agent guide](plugins/claude-code/skills/samcheonpo/SKILL.md) (Korean): how an agent sets up Samcheonpo and responds to warnings. Installed with the Claude Code plugin
-- Specs: [progress contract](docs/spec/progress-contract-v1.md) · [evidence ledger](docs/spec/evidence-ledger-v1.md) · [receipt display](docs/spec/receipt-billing.md) · [recovery](docs/spec/recovery-v1.md) · [handoff](docs/spec/handoff-v1-draft.md) · [waiting/stall advice and record evaluation](docs/spec/agenttime-reliability.md)
-- Evaluation: `samcheonpo bench`, `samcheonpo bench ab`, `samcheonpo gaps`, `samcheonpo interventions`, `samcheonpo eval corpus` (current working tree)
+- Specs: [progress contract](docs/spec/progress-contract-v1.md) · [evidence ledger](docs/spec/evidence-ledger-v1.md) · [receipt display](docs/spec/receipt-billing.md) · [recovery](docs/spec/recovery-v1.md) · [handoff](docs/spec/handoff-v1-draft.md) · [waiting/stall advice and record evaluation](docs/spec/agenttime-reliability.md) · [judge budget and risk grade](docs/spec/judge-budget.md) · [harness surface](docs/spec/harness-surface.md)
+- Evaluation: `samcheonpo bench`, `samcheonpo bench ab`, `samcheonpo bench probe`, `samcheonpo bench tasks`, `samcheonpo evasion`, `samcheonpo gaps`, `samcheonpo interventions`, `samcheonpo eval corpus` (current working tree)
+- Detection timing: `samcheonpo detection-timing` shows where in the trajectory the first judgment arrived; `samcheonpo lineage <taskID>` shows the chain across sessions
+- Distribution integrity: `samcheonpo plugins` checks that the installed plugin bundles are still what was installed
+- Harness surface: `samcheonpo surface` maps the sensor, guide and editable components onto Samcheonpo's own paths
 - [Conformance cases](conformance/): tests for scoring other implementations against the same spec
 
 ## License
@@ -313,6 +323,8 @@ Linux, macOS and Windows 10 1803 or later are supported. On Windows, checks run 
 </p>
 
 `samcheonpo report --since 30d --mode live` compares agent observations, separating live sessions from audits. Missing prices use token ratios and show price coverage; unknown usage is not zero cost. Activity classifications and checkpoint observations do not certify completion. `samcheonpo interventions --by-agent` also lists reasons why an outcome could not be observed. A window without relevant actions does not establish absence of recurrence.
+
+`samcheonpo compact` reports the ledger's size and reclaims the free space it holds. With `--prune-days N` it removes the event-level detail of sessions closed more than N days ago and keeps the seal, the receipt snapshot and the verdicts, so their receipts still verify. `samcheonpo doctor` shows the same retention threshold. The ledger states its journal mode and its vacuum mode: it does not vacuum itself, because automatic vacuum puts page relocation on the commit path that a hook waits for.
 
 The v0.7.0 ledger schema 9 separates daemon observation closure from actual session termination. Legacy records retain their timestamps and seals, with unknown closure evidence. Back up the ledger before upgrading: v0.6.0 cannot open schema 9.
 

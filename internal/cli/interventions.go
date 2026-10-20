@@ -33,9 +33,28 @@ func interventionsCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			type row struct{ proposed, emitted, delivered, acked, effect, recur, censored int }
+			blocks, err := db.BlocksSince(t)
+			if err != nil {
+				return err
+			}
+			type row struct{ proposed, emitted, delivered, acked, effect, recur, censored, blocked int }
 			by := map[string]*row{}
 			reasons := map[string]int{}
+			for _, b := range blocks {
+				if agent != "all" && b.Agent != agent {
+					continue
+				}
+				key := b.Rule
+				if byAgent {
+					key = b.Agent + "/" + b.Rule
+				}
+				r := by[key]
+				if r == nil {
+					r = &row{}
+					by[key] = r
+				}
+				r.blocked += b.Count
+			}
 			for _, a := range as {
 				if agent != "all" && a.Agent != agent {
 					continue
@@ -80,13 +99,13 @@ func interventionsCmd() *cobra.Command {
 			sort.Strings(rules)
 			w := cmd.OutOrStdout()
 			if len(rules) == 0 {
-				fmt.Fprintln(w, "기록된 처방이 없다.")
+				fmt.Fprintln(w, "기록된 처방도 차단도 없다.")
 				return nil
 			}
-			fmt.Fprintf(w, "%-24s %5s %5s %5s %5s %8s %8s %6s\n", "규칙", "제안", "발신", "전달", "인지", "재발없음", "재발", "미관측")
+			fmt.Fprintf(w, "%-24s %5s %5s %5s %5s %6s %8s %8s %6s\n", "규칙", "제안", "발신", "전달", "인지", "차단", "재발없음", "재발", "미관측")
 			for _, rule := range rules {
 				r := by[rule]
-				fmt.Fprintf(w, "%-24s %5d %5d %5d %5d %8d %8d %6d\n", rule, r.proposed, r.emitted, r.delivered, r.acked, r.effect, r.recur, r.censored)
+				fmt.Fprintf(w, "%-24s %5d %5d %5d %5d %6d %8d %8d %6d\n", rule, r.proposed, r.emitted, r.delivered, r.acked, r.blocked, r.effect, r.recur, r.censored)
 			}
 			var reasonKeys []string
 			for k := range reasons {
@@ -97,6 +116,7 @@ func interventionsCmd() *cobra.Command {
 				fmt.Fprintf(w, "미관측 사유 %s: %d\n", k, reasons[k])
 			}
 			fmt.Fprintln(w, "재발 없음은 관찰 창에서 같은 판정이 다시 나오지 않았다는 뜻이며 처방의 인과 효과가 아니다.")
+			fmt.Fprintln(w, "차단은 처방이 아니라 실행 전에 막은 횟수다. 막은 도구 호출은 종료 코드 -1로 기록되며, 막았다고 비용이 줄었다는 뜻은 아니다.")
 			return nil
 		},
 	}

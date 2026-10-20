@@ -142,6 +142,13 @@ func Install(o Options) (retErr error) {
 		return err
 	}
 	committed = true
+	// The bundle is recorded only after the install committed, so the
+	// registry never claims a bundle that was rolled back.
+	if m, err := BuildDirManifest("claude-code", root); err != nil {
+		o.Out("플러그인 무결성 기록을 남기지 못했다: " + err.Error())
+	} else if err := RecordManifest(m); err != nil {
+		o.Out("플러그인 무결성 기록을 남기지 못했다: " + err.Error())
+	}
 	o.Out("상태줄을 " + o.SettingsPath + "에 등록했다")
 	if o.UsePluginCLI {
 		if _, err := exec.LookPath("claude"); err == nil {
@@ -221,6 +228,9 @@ func Uninstall(out func(string)) error {
 	}
 	if err := removeGenerated(filepath.Join(config.Home(), "plugin"), st.Generated, out); err != nil {
 		return err
+	}
+	if err := ForgetManifest("claude-code"); err != nil {
+		out("무결성 기록을 지우지 못했다: " + err.Error())
 	}
 	return os.Remove(statePath())
 }

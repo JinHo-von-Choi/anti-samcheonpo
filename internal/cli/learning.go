@@ -10,6 +10,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/learning"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
 	"github.com/spf13/cobra"
 	"io"
 	"os"
@@ -40,7 +41,7 @@ func learningInputs(labelsFile, splitFile string, holdout bool) (eval.Split, []e
 		if err = db.QueryRow(`SELECT s.mode,COALESCE(o.close_reason,'') FROM session s LEFT JOIN session_observation o ON o.session_id=s.id WHERE s.id=?`, id).Scan(&mode, &closed); err != nil {
 			return split, nil, nil, err
 		}
-		if mode != "audit" && (closed == "" || closed == "open") {
+		if mode != "audit" && (closed == "" || closed == ledger.ObservationOpen) {
 			return split, nil, nil, errors.New("learning requires closed or audited sessions")
 		}
 		evs, err := db.EventsOf(id)
@@ -86,6 +87,21 @@ func writeLearning(cmd *cobra.Command, out string, v any) error {
 	_, err = cmd.OutOrStdout().Write(b)
 	return err
 }
+
+// evidenceTierLabel names the grade of evidence behind a rule pack.
+//
+// A pack built on machine-derived evidence is a weaker claim than one a
+// person confirmed, and the person who installs it has to be able to tell
+// the two apart.
+func evidenceTierLabel(tier string) string {
+	switch tier {
+	case rulepack.EvidenceDerivedExecution:
+		return "실행 기반 파생"
+	default:
+		return "사람 라벨"
+	}
+}
+
 func learningCmds() []*cobra.Command {
 	var labels, split, out string
 	var precision, fpr float64
@@ -159,7 +175,7 @@ func learningCmds() []*cobra.Command {
 				return err
 			}
 			for _, d := range pack.Definitions {
-				fmt.Fprintf(cmd.OutOrStdout(), "기록 전용 설치: %s · 안내 선택은 사용자 recommend_rules에 명시\n", d.RuleID())
+				fmt.Fprintf(cmd.OutOrStdout(), "기록 전용 설치: %s · %s 근거 · 안내 선택은 사용자 recommend_rules에 명시\n", d.RuleID(), evidenceTierLabel(pack.EvidenceTier))
 			}
 		}
 		if promoteOut != "" || !install {

@@ -38,7 +38,7 @@ import (
 )
 
 // Version is set at build time.
-var Version = "0.8.0"
+var Version = "0.9.0"
 
 var (
 	flagDB        string
@@ -59,7 +59,7 @@ func Root() *cobra.Command {
 	root.PersistentFlags().StringVar(&flagClaudeDir, "claude-dir", "", "Claude Code projects 경로")
 	root.PersistentFlags().StringVar(&flagCodexDir, "codex-dir", "", "Codex sessions 경로")
 	root.AddCommand(auditCmd(), gapsCmd(), interventionsCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(),
-		labelCmd(), evalCmd(), benchCmd(), debugCmd(), contractCmd(), specCmd(), importOtelCmd(), rulesCmd(), handoffCmd(), reportCmd(), taskCoverageCmd(), diagnosticCmd("why"), diagnosticCmd("coverage"))
+		labelCmd(), evalCmd(), benchCmd(), evasionCmd(), lineageCmd(), detectionTimingCmd(), surfaceCmd(), debugCmd(), contractCmd(), specCmd(), importOtelCmd(), rulesCmd(), handoffCmd(), reportCmd(), taskCoverageCmd(), diagnosticCmd("why"), diagnosticCmd("coverage"), compactCmd())
 	root.AddCommand(liveCommands()...)
 	root.AddCommand(dashboardCmd())
 	return root
@@ -505,11 +505,22 @@ func receiptCmd() *cobra.Command {
 				criteria = [2]int{r.Criteria.Met, r.Criteria.Total}
 			}
 			rc := receipt.Build(receipt.Input{Title: receipt.SessionTitle(s.StartedAt, s.ID, s.Agent), Agent: s.Agent, Audit: s.Mode == "audit",
-				Totals: r.Totals, Grade: r.Grade, Verdicts: r.Verdicts, Seal: &sl, Billing: observation, Recoveries: recoveries, Criteria: criteria})
+				Totals: r.Totals, Grade: r.Grade, Verdicts: r.Verdicts, Seal: &sl, Billing: observation, Recoveries: recoveries, Criteria: criteria, Observation: r.Observation, Blocked: r.Blocked})
 			if stored {
 				rc.Notices = append(rc.Notices, "원본 기록 없이 저장된 분석 결과를 표시합니다")
 				if sl.Spec == "" {
 					rc.Notices = append(rc.Notices, "구버전 저장 기록: 계측 상태와 근거 사슬을 완전히 복원할 수 없어 봉인 검증은 지원하지 않습니다")
+				}
+				// The stored analysis says what was observed. It does not say
+				// the agent ended, and the close reason is what tells the
+				// two apart.
+				if o, err := db.Observation(s.ID); err == nil {
+					switch o.CloseReason {
+					case ledger.ObservationDaemonLost:
+						rc.Notices = append(rc.Notices, "데몬이 사라져 관측이 끊겼다. 저장된 시점까지의 기록이며 에이전트 종료는 확인되지 않았다")
+					case ledger.ObservationIdleTimeout:
+						rc.Notices = append(rc.Notices, "무활동으로 관측이 중단됐다. 에이전트 종료는 확인되지 않았다")
+					}
 				}
 			}
 			if !r.FormatOK {

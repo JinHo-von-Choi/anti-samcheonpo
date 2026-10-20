@@ -82,8 +82,12 @@ AI에게 이렇게 말해 보세요: "같은 시험을 다시 돌리지 말고, 
 | 배포 연타 | CI 실패를 로컬에서 재현하지 않고 재배포, 실패한 CI를 그대로 다시 돌리기, 시간당 배포 횟수 초과 | 귀띔 → 태그가 바뀌어도 반복 시 차단 |
 | 완료 뒤 대기·진행 정체 | 완료 검사를 통과한 뒤 계속 기다림, 수정해도 같은 검사에서 실패가 줄지 않음 | 기본은 기록만, 사용자가 켜면 가벼운 안내 |
 | 비용 폭주 | 진척 없는 지출, 예산 초과, 세션 시간·토큰 과다 | 알림 → 확인 → 상한에서 정지 |
+| 남에게 속는 지시 | 프롬프트·파일·도구 출력에 들어온 "감시자를 속여라", "검증 안 했는데 통과한 것처럼 말하라" | 지시의 모양과 출처를 남김, 저장소에 심는 쓰기는 실행 전에 차단 |
+| 채점기 접촉 | 채점기·정답·루브릭 경로에 닿는 도구 호출 | 실행 전에 차단 |
 
 대기·정체 안내는 기다리는 이유와 검사 결과를 확인할 수 있을 때만 제공합니다. 두 규칙은 작업을 차단하지 않습니다. 안내를 켜는 방법은 [대기 반복·진행 정체 안내](docs/spec/agenttime-reliability.md)에 있습니다. v0.6.0에 추가했으며 실제 비용·완료율 효과는 아직 검증하지 않았습니다.
+
+S9·S10은 조립된 전체 컨텍스트를 봅니다. 사용자 프롬프트만 보는 게 아니라 파일 내용과 도구 출력까지 함께 봅니다. 둘 다 아직 효과 입증 단계가 아니라 탐지 단계입니다. 지시의 존재만 말하고, 지시자가 누구인지는 말하지 않습니다.
 
 ### 코드 밖 문제
 
@@ -120,7 +124,7 @@ flowchart LR
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
-tar -xzf samcheonpo_0.8.0_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.9.0_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -132,11 +136,11 @@ samcheonpo doctor
 Go 1.27 이상이 필요합니다.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.8.0
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.8.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.9.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.9.0
 ```
 
-원본 기록이 없으면 `receipt`는 마지막 완료 분석의 저장본을 표시하고, `verify`는 저장 분석의 봉인을 확인한다. 구버전 기록은 검증 한계를 표시한다. v0.8.0은 원장 스키마 11을 사용하므로 업그레이드 전에 원장을 백업해야 한다. 스키마 11은 v0.7.1 이하에서 열 수 없다. 기존 봉인 형식과 분석 이력은 유지한다.
+원본 기록이 없으면 `receipt`는 마지막 완료 분석의 저장본을 표시하고, `verify`는 저장 분석의 봉인을 확인한다. 구버전 기록은 검증 한계를 표시한다. v0.9.0은 원장 스키마 12를 사용하므로 업그레이드 전에 원장을 백업해야 한다. 스키마 12는 v0.8.0 이하에서 열 수 없다. 기존 봉인 형식과 분석 이력은 유지한다.
 
 ## 빠른 시작
 
@@ -333,15 +337,22 @@ detectors:
 - **되돌리기는 소유권이 확인된 파일만 다룹니다.** 셸 명령으로 바뀐 파일, 사람 편집이 섞인 파일, 다른 세션의 AI가 쓴 파일은 대상이 아닙니다.
 - **사용자 전용 명령의 격리는 완전하지 않습니다.** 에이전트 셸에서는 막지만, 같은 OS 사용자로 도는 프로세스가 데몬에 직접 접속하는 것까지 막지는 않습니다.
 - **짧고 명확한 작업에서는 할 일이 거의 없습니다.** 헛짓은 대개 길고 복잡한 세션에서 생깁니다.
+- **지시 밀수 탐지는 지시의 존재만 봅니다.** 지시가 누구에게서 왔는지, 그 지시를 따랐는지는 이 판정이 답하지 않습니다. 조립된 컨텍스트 어디에든 같은 문장이 있으면 반응하므로, 문서·시험 픽스처에 그 형태의 문장이 있으면 사람이 확인해야 합니다.
+- **플러그인 무결성 기록은 서명이 아닙니다.** 설치할 때의 묶음이 지금 그대로인지만 확인합니다. 그것을 배포한 사람이 누구인지는 확인하지 않습니다.
+- **공개 노출 과제 결과는 더 약한 주장입니다.** 공개 저장소에 있는 22개 벤치 과제는 모델이 이미 봤을 수 있어, 공개 여부를 summary에서 따로 표시한다.
 
 ## 더 알아보기
 
 - [처음 사용하기](docs/getting-started.md): 설치부터 운영 규칙까지
 - [지원 범위](docs/support-matrix.md): 플랫폼과 에이전트별로 확인한 것
 - [에이전트용 지침](plugins/claude-code/skills/samcheonpo/SKILL.md): AI가 삼천포를 세팅하고 경고에 맞게 행동하는 규칙. Claude Code 플러그인에 함께 설치됩니다
-- 규격: [진척 계약](docs/spec/progress-contract-v1.md) · [근거 원장](docs/spec/evidence-ledger-v1.md) · [영수증 표시](docs/spec/receipt-billing.md) · [복구와 코드 밖 원인](docs/spec/recovery-v1.md) · [인수인계](docs/spec/handoff-v1-draft.md) · [대기·정체 안내와 기록 평가](docs/spec/agenttime-reliability.md)
-- 평가 도구: `samcheonpo bench`, `samcheonpo bench ab`, `samcheonpo gaps`, `samcheonpo interventions`, `samcheonpo eval corpus`(현재 작업 트리)
+- 규격: [진척 계약](docs/spec/progress-contract-v1.md) · [근거 원장](docs/spec/evidence-ledger-v1.md) · [영수증 표시](docs/spec/receipt-billing.md) · [복구와 코드 밖 원인](docs/spec/recovery-v1.md) · [인수인계](docs/spec/handoff-v1-draft.md) · [대기·정체 안내와 기록 평가](docs/spec/agenttime-reliability.md) · [판정 예산과 위험 등급](docs/spec/judge-budget.md) · [하네스 성분 위치](docs/spec/harness-surface.md)
+- 평가 도구: `samcheonpo bench`, `samcheonpo bench ab`, `samcheonpo bench probe`, `samcheonpo bench tasks`, `samcheonpo evasion`, `samcheonpo gaps`, `samcheonpo interventions`, `samcheonpo eval corpus`(현재 작업 트리)
 - 기록 비교: `samcheonpo report --since 30d --mode live`. 단가 미확인은 무료로 표시하지 않으며, 수집 범위와 완료 근거를 함께 보여 준다.
+- 탐지 시점: `samcheonpo detection-timing`이 최초 판정이 궤적의 몇 % 지점에서 나왔는지와 마지막 1/3 도출 비율을 보여 준다. `samcheonpo lineage <taskID>`가 목표 단위의 세션 간 계보를 보여 준다.
+- 배포 무결성: `samcheonpo plugins`가 설치한 플러그인 묶음이 지금 그대로인지 확인한다.
+- 하네스 위치: `samcheonpo surface`가 센서·가이드·편집 대상 성분을 삼천포의 실제 경로에 대응시킨다.
+- 원장 관리: `samcheonpo compact`가 용량을 보고하고 빈 공간을 회수한다. `--prune-days N`을 주면 오래 전에 종료된 세션의 상세만 정리하며 봉인·영수증·판정은 남긴다. `samcheonpo doctor`가 같은 기준을 함께 보여 준다.
 - 안내 이력: `samcheonpo interventions --by-agent`. 관련 행동이 없는 관측 창은 재발 없음으로 단정하지 않는다.
 - [적합성 사례](conformance/): 다른 구현을 같은 규격으로 채점하는 시험 모음
 

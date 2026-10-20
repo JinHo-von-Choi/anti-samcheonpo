@@ -44,6 +44,11 @@ type LiveTask struct {
 	// event share it and count as one independent task. Empty means the task
 	// is its own group.
 	Group string `yaml:"group"`
+	// Public marks a task whose content is published. A model may have
+	// seen it, so its result says less about the agent than the result of
+	// a task that was never published. The flag travels with every trial
+	// row and the summaries count the two apart.
+	Public bool `yaml:"public"`
 }
 
 // Arm is one way of running the agent. "{prompt}" in Cmd is replaced by the
@@ -60,6 +65,9 @@ type Arm struct {
 	MonitorExecutable string            `yaml:"monitor_executable"`
 	MonitorRollout    string            `yaml:"monitor_rollout"`
 	RecommendRules    []string          `yaml:"recommend_rules"`
+	// RulePack is a learned rule pack to install in the trial monitor's
+	// own home. It is the candidate rule under test.
+	RulePack string `yaml:"rule_pack"`
 }
 
 // ABConfig is the live comparison configuration.
@@ -72,46 +80,67 @@ type ABConfig struct {
 
 // TrialResult is one result row. Other tools submit rows in the same format.
 type TrialResult struct {
-	PriceVersion        string       `json:"price_version,omitempty"`
-	EvaluatorVersion    string       `json:"evaluator_version,omitempty"`
-	GraderDurationMS    int64        `json:"grader_duration_ms"`
-	ProtocolVersion     string       `json:"protocol_version,omitempty"`
-	RunID               string       `json:"run_id,omitempty"`
-	Seed                int64        `json:"seed"`
-	Order               int          `json:"order"`
-	Agent               string       `json:"agent,omitempty"`
-	AgentVersion        string       `json:"agent_version,omitempty"`
-	Model               string       `json:"model,omitempty"`
-	ObservedModel       string       `json:"observed_model,omitempty"`
-	MonitorBinarySHA256 string       `json:"monitor_binary_sha256,omitempty"`
-	MonitorConfigSHA256 string       `json:"monitor_config_sha256,omitempty"`
-	MonitorSetupMS      int64        `json:"monitor_setup_ms"`
-	TotalDurationMS     int64        `json:"total_duration_ms"`
-	Usage               event.Usage  `json:"usage"`
-	UsageKnown          bool         `json:"usage_known"`
-	PolicyVersion       string       `json:"policy_version,omitempty"`
-	TaskDigest          string       `json:"task_digest,omitempty"`
-	GraderDigest        string       `json:"grader_digest,omitempty"`
-	IndependentGrader   bool         `json:"independent_grader"`
-	SessionID           string       `json:"session_id,omitempty"`
-	CostSource          string       `json:"cost_source,omitempty"`
-	CostError           string       `json:"cost_error,omitempty"`
-	Arm                 string       `json:"arm"`
-	Task                string       `json:"task"`
-	Group               string       `json:"group,omitempty"`
-	Trial               int          `json:"trial"`
-	Verified            bool         `json:"verified"`
-	TotalKRW            int64        `json:"total_krw"`
-	WasteKRW            int64        `json:"waste_krw"`
-	CostKnown           bool         `json:"cost_known"`
-	MonitorKRW          *int64       `json:"monitor_krw,omitempty"` // nil: monitoring cost was not measured
-	MonitorCostError    string       `json:"monitor_cost_error,omitempty"`
-	MonitorUsage        *event.Usage `json:"monitor_usage,omitempty"`
-	MonitorUsageError   string       `json:"monitor_usage_error,omitempty"`
-	DurationMS          int64        `json:"duration_ms"`
-	Exit                int          `json:"agent_exit"`
-	TimedOut            bool         `json:"timed_out,omitempty"`
-	Error               string       `json:"error,omitempty"`
+	PriceVersion        string `json:"price_version,omitempty"`
+	EvaluatorVersion    string `json:"evaluator_version,omitempty"`
+	GraderDurationMS    int64  `json:"grader_duration_ms"`
+	ProtocolVersion     string `json:"protocol_version,omitempty"`
+	RunID               string `json:"run_id,omitempty"`
+	Seed                int64  `json:"seed"`
+	Order               int    `json:"order"`
+	Agent               string `json:"agent,omitempty"`
+	AgentVersion        string `json:"agent_version,omitempty"`
+	Model               string `json:"model,omitempty"`
+	ObservedModel       string `json:"observed_model,omitempty"`
+	MonitorBinarySHA256 string `json:"monitor_binary_sha256,omitempty"`
+	MonitorConfigSHA256 string `json:"monitor_config_sha256,omitempty"`
+	// MonitorFingerprint covers the binary, the configuration and the
+	// learned rule pack together. Two arms may differ in it, and nothing
+	// else, and the comparison is then about the rule.
+	MonitorFingerprint string      `json:"monitor_fingerprint,omitempty"`
+	MonitorSetupMS     int64       `json:"monitor_setup_ms"`
+	TotalDurationMS    int64       `json:"total_duration_ms"`
+	Usage              event.Usage `json:"usage"`
+	UsageKnown         bool        `json:"usage_known"`
+	PolicyVersion      string      `json:"policy_version,omitempty"`
+	TaskDigest         string      `json:"task_digest,omitempty"`
+	GraderDigest       string      `json:"grader_digest,omitempty"`
+	IndependentGrader  bool        `json:"independent_grader"`
+	SessionID          string      `json:"session_id,omitempty"`
+	CostSource         string      `json:"cost_source,omitempty"`
+	CostError          string      `json:"cost_error,omitempty"`
+	Arm                string      `json:"arm"`
+	Task               string      `json:"task"`
+	Group              string      `json:"group,omitempty"`
+	// TaskPublic marks a task whose content is published. A reader of the
+	// result file has to be able to tell a published task from a private
+	// one, because the two do not support the same claim.
+	TaskPublic bool `json:"task_public,omitempty"`
+	Trial      int  `json:"trial"`
+	Verified   bool `json:"verified"`
+	// ProducedArtifact records whether the agent left anything behind in
+	// the repository. A trial that changed nothing is a trial that
+	// produced nothing, whatever the grader said about it.
+	ProducedArtifact  bool         `json:"produced_artifact"`
+	TotalKRW          int64        `json:"total_krw"`
+	WasteKRW          int64        `json:"waste_krw"`
+	CostKnown         bool         `json:"cost_known"`
+	MonitorKRW        *int64       `json:"monitor_krw,omitempty"` // nil: monitoring cost was not measured
+	MonitorCostError  string       `json:"monitor_cost_error,omitempty"`
+	MonitorUsage      *event.Usage `json:"monitor_usage,omitempty"`
+	MonitorUsageError string       `json:"monitor_usage_error,omitempty"`
+	// MonitorDetection is where the trial monitor's first judgment fell
+	// in the trial trajectory. It is empty when the arm ran without a
+	// monitor, and when the monitor never judged anything.
+	MonitorDetection *ledger.DetectionTiming `json:"monitor_detection,omitempty"`
+	// MonitorDetectionError says why the detection timing is missing.
+	MonitorDetectionError string `json:"monitor_detection_error,omitempty"`
+	// Contamination says whether the agent reached the grader or the
+	// answer. A trial that did is not a measurement of the agent.
+	Contamination *Contamination `json:"contamination,omitempty"`
+	DurationMS    int64          `json:"duration_ms"`
+	Exit          int            `json:"agent_exit"`
+	TimedOut      bool           `json:"timed_out,omitempty"`
+	Error         string         `json:"error,omitempty"`
 }
 
 // LoadLiveTasks reads <dir>/*/task.yml; each task has a repo/ directory.
@@ -201,7 +230,7 @@ func LoadABConfig(p string) (ABConfig, error) {
 func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *cost.Table, claudeDir, work string) (result TrialResult) {
 	startedTrial := time.Now()
 	defer func() { result.TotalDurationMS = time.Since(startedTrial).Milliseconds() }()
-	r := TrialResult{ProtocolVersion: "2", Seed: c.Seed, Arm: armName, Task: t.Name, Group: t.Group, Trial: trial, Agent: a.Agent, AgentVersion: a.AgentVersion, Model: a.Model, PolicyVersion: a.PolicyVersion}
+	r := TrialResult{ProtocolVersion: "2", Seed: c.Seed, Arm: armName, Task: t.Name, Group: t.Group, TaskPublic: t.Public, Trial: trial, Agent: a.Agent, AgentVersion: a.AgentVersion, Model: a.Model, PolicyVersion: a.PolicyVersion}
 	if len(a.Cmd) == 0 || prices == nil {
 		r.Error = "agent command and price table required"
 		return r
@@ -222,9 +251,20 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 		r.Error = err.Error()
 		return r
 	}
-	grader := filepath.Join(dir, "grader")
+	// The grader lives in its own directory, outside the trial's tree.
+	// The agent's working directory is the repository copy, so the answer
+	// is not a sibling of what the agent works on, and the monitor is
+	// told to stop any call that reaches it.
+	grader := ""
+	graderRoot := ""
 	graderSource := filepath.Join(t.Dir, "grader")
 	if st, e := os.Stat(graderSource); e == nil && st.IsDir() {
+		graderRoot, err = os.MkdirTemp("", "samcheonpo-grader-")
+		if err != nil {
+			r.Error = err.Error()
+			return r
+		}
+		grader = filepath.Join(graderRoot, "grader")
 		if err = copyTree(graderSource, grader); err != nil {
 			r.Error = err.Error()
 			return r
@@ -258,13 +298,13 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 	env = append(env, "SAMCHEONPO_HOME="+filepath.Join(dir, "home"))
 	if a.MonitorExecutable != "" {
 		setupStart := time.Now()
-		finish, binaryHash, configHash, err := startTrialMonitor(a, repo, filepath.Join(dir, "home"), env)
+		finish, binaryHash, configHash, fingerprint, err := startTrialMonitor(a, repo, filepath.Join(dir, "home"), env, protectedPaths(graderRoot))
 		r.MonitorSetupMS = time.Since(setupStart).Milliseconds()
 		if err != nil {
 			r.Error = err.Error()
 			return r
 		}
-		r.MonitorBinarySHA256, r.MonitorConfigSHA256 = binaryHash, configHash
+		r.MonitorBinarySHA256, r.MonitorConfigSHA256, r.MonitorFingerprint = binaryHash, configHash, fingerprint
 		defer finish()
 	}
 	codexDir := sources.CodexDir()
@@ -314,6 +354,12 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 		r.MonitorCostError = "monitor cost source not declared or unsupported"
 	}
 	_ = os.WriteFile(filepath.Join(dir, "agent.out"), out, 0o600)
+	// An agent that changed nothing produced nothing. The rule veto needs
+	// this on its own: a grader can stay ambiguous about a task the agent
+	// never even attempted.
+	if changes, cErr := run(context.Background(), repo, nil, "git", "status", "--porcelain"); cErr == nil {
+		r.ProducedArtifact = strings.TrimSpace(string(changes)) != ""
+	}
 	if ctx.Err() == context.DeadlineExceeded {
 		r.TimedOut = true
 	}
@@ -340,7 +386,13 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 	gradeStart := time.Now()
 	var cerr error
 	if r.Error == "" {
-		_, cerr = run(cctx, checkDir, []string{"BENCH_REPO=" + repo, "BENCH_GRADER=" + grader, "PYTHONDONTWRITEBYTECODE=1"}, "sh", "-c", t.Check)
+		// The grader is told whether the task is published. A grader that knows
+		// the task is public can hold the answer to a stricter line.
+		graderEnv := []string{"BENCH_REPO=" + repo, "BENCH_GRADER=" + grader, "PYTHONDONTWRITEBYTECODE=1"}
+		if t.Public {
+			graderEnv = append(graderEnv, "BENCH_PUBLIC=1")
+		}
+		_, cerr = run(cctx, checkDir, graderEnv, "sh", "-c", t.Check)
 	}
 	ccancel()
 	r.GraderDurationMS = time.Since(gradeStart).Milliseconds()
@@ -352,6 +404,9 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 	}
 	r.Verified = cerr == nil && !r.TimedOut && r.Error == ""
 	r.SessionID = sessionID(out)
+	if a.Monitor == "samcheonpo" && r.SessionID != "" {
+		r.MonitorDetection, r.MonitorDetectionError = monitorDetection(monitorPath, r.SessionID)
+	}
 	s, resolveErr := ResolveTranscript(r.Agent, r.SessionID, repo, claudeDir, codexDir, start)
 	if resolveErr != nil {
 		r.CostError = resolveErr.Error()
@@ -362,6 +417,15 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 		for _, ev := range s.Events {
 			r.Usage.Add(ev.Usage)
 		}
+		// What the agent reached and what it left behind. A trial that
+		// read the grader is not a measurement, so the record of it
+		// travels with the result.
+		var toolPaths []string
+		for _, ev := range s.Events {
+			toolPaths = append(toolPaths, ev.Paths...)
+		}
+		contamination := DetectContamination(graderRoot, repo, toolPaths)
+		r.Contamination = &contamination
 		r.UsageKnown = s.UsageLines > 0 && s.UsageParsed == s.UsageLines && r.Usage.Total() > 0
 		cfg := config.Default()
 		if res, err := analyze.Run(s, analyze.Options{Config: cfg, ConfigHash: config.Hash(cfg), Prices: prices}); err == nil {
@@ -378,6 +442,28 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 		}
 	}
 	return r
+}
+
+// monitorDetection reads where the trial monitor's first judgment fell in
+// the trial trajectory.
+//
+// A monitor that judged nothing has no position to report. That is a fact
+// about the trial, not a failure to read, so the error stays empty and the
+// timing stays absent.
+func monitorDetection(monitorPath, sessionID string) (*ledger.DetectionTiming, string) {
+	db, err := ledger.OpenReadOnly(monitorPath)
+	if err != nil {
+		return nil, err.Error()
+	}
+	defer db.Close()
+	t, err := db.DetectionTiming(sessionID)
+	if err != nil {
+		return nil, err.Error()
+	}
+	if t.Verdicts == 0 {
+		return nil, ""
+	}
+	return &t, ""
 }
 
 // stopDaemon ends the trial's samcheonpo daemon, if the arm started one, so
@@ -481,12 +567,18 @@ func copyTree(src, dst string) error {
 
 // ArmSummary aggregates one arm.
 type ArmSummary struct {
-	SuccessMargin          float64       `json:"success_margin"`
-	CostGoalThreshold      float64       `json:"cost_goal_threshold"`
-	Arm                    string        `json:"arm"`
-	Trials                 int           `json:"trials"`
-	Verified               int           `json:"verified"`
-	Rate                   float64       `json:"success_rate"`
+	SuccessMargin     float64 `json:"success_margin"`
+	CostGoalThreshold float64 `json:"cost_goal_threshold"`
+	Arm               string  `json:"arm"`
+	Trials            int     `json:"trials"`
+	Verified          int     `json:"verified"`
+	Rate              float64 `json:"success_rate"`
+	// PublicTrials and PrivateTrials split the trials by whether the task
+	// was published. A published task may have been seen by the model, so
+	// its result supports a weaker claim.
+	PublicTrials           int           `json:"public_trials"`
+	PrivateTrials          int           `json:"private_trials"`
+	PublicVerified         int           `json:"public_verified"`
 	CI                     eval.Interval `json:"success_ci95"`
 	CostPerVerified        float64       `json:"krw_per_verified"` // NaN-free: 0 when nothing verified
 	WasteShare             float64       `json:"waste_share"`
@@ -546,6 +638,14 @@ func SummarizeWithGates(rows []TrialResult, baseline string, margin, goal float6
 			}
 			if r.Verified {
 				s.Verified++
+			}
+			if r.TaskPublic {
+				s.PublicTrials++
+				if r.Verified {
+					s.PublicVerified++
+				}
+			} else {
+				s.PrivateTrials++
 			}
 			if r.CostKnown {
 				s.CostKnown++
@@ -664,6 +764,12 @@ func Markdown(ss []ArmSummary) string {
 			if ci := s.Comparison.CostReduction; ci != nil {
 				fmt.Fprintf(&b, "감시 비용 포함 비용 감소 구간 (%.1f%%): %.1f%%–%.1f%%. 탐색적 재표집이며 공개 과제 결과는 출시 입증이 아님.\n", 100*s.Comparison.Confidence, 100*ci.Lo, 100*ci.Hi)
 			}
+		}
+	}
+	for _, s := range ss {
+		if s.PublicTrials > 0 {
+			fmt.Fprintf(&b, "\n%s: 공개 노출 과제 %d건(검증 %d건), 비공개 과제 %d건. 공개 과제 결과는 별도로 읽어야 한다.\n",
+				s.Arm, s.PublicTrials, s.PublicVerified, s.PrivateTrials)
 		}
 	}
 	for _, s := range ss {

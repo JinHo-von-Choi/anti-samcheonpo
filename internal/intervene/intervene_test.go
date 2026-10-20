@@ -11,7 +11,8 @@ var rules = []string{"s1.explicit_waiting", "s8.progress_stall", "s1.identical_r
 	"s3.out_of_scope", "s3.config_bypass", "s3.protected_path", "s4.read_only_streak", "s5.test_weakening", "s5.error_hiding",
 	"s5.false_done", "s5.answer_copy", "s7.memory_rot", "s8.velocity", "s8.budget", "s8.idle_spend", "s8.forced_no_progress", "s5.stop_unmet", "s6.capability_limit", "s3.drift",
 	"s2.semantic_oscillation", "s1.full_suite_local_change", "s1.unprobed_long_run", "s4.serial_triage", "s2.verifier_deadlock", "s5.release_without_preflight",
-	"s5.release_rate", "s2.flaky_ui_race", "s8.session_long", "s8.session_ceiling"}
+	"s5.release_rate", "s2.flaky_ui_race", "s8.session_long", "s8.session_ceiling",
+	"s9.instruction_smuggling", "s9.unverified_claim_request", "s10.grader_access"}
 
 // TestVocabulary checks every agent template against the directive word list.
 func TestVocabulary(t *testing.T) {

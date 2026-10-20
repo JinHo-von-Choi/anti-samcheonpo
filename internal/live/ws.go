@@ -23,6 +23,18 @@ import (
 var skipDirs = map[string]bool{".git": true, "node_modules": true, "vendor": true, "target": true, "dist": true, "build": true,
 	".venv": true, "venv": true, "__pycache__": true, ".gradle": true, ".idea": true, ".next": true, ".samcheonpo": true, ".cache": true}
 
+// Watch states describe how much filesystem observation a workspace keeps.
+const (
+	// WatchStateOK means every watched directory is being observed.
+	WatchStateOK = "ok"
+	// WatchStateDegraded means some directories are not observed. The
+	// fingerprint still updates, but only for the watched part.
+	WatchStateDegraded = "degraded"
+	// WatchStateUnavailable means no watcher is running. The fingerprint
+	// never updates, so anything derived from it is unknown, not clean.
+	WatchStateUnavailable = "unavailable"
+)
+
 // Workspace computes live workspace fingerprints.
 type Workspace struct {
 	Root        string
@@ -36,6 +48,8 @@ type Workspace struct {
 	dirty       bool
 	generation  uint64
 	watchFailed bool
+	watchState  string
+	watchReason string
 	watcher     *fsnotify.Watcher
 	Warn        string
 	// life is canceled by Close; running computations stop and Close waits.
@@ -273,7 +287,9 @@ func (w *Workspace) scopeFiles() []string {
 func (w *Workspace) Watch(maxDirs int) error {
 	wt, err := fsnotify.NewWatcher()
 	if err != nil {
-		w.markWatchFailure()
+		// No watcher at all: the fingerprint can no longer describe the
+		// tree, so this is a total loss of observation, not a partial one.
+		w.markWatchUnavailable(WatchReasonUnavailable)
 		return err
 	}
 	w.watcher = wt
@@ -283,7 +299,7 @@ func (w *Workspace) Watch(maxDirs int) error {
 			return err
 		}
 		if err != nil {
-			w.markWatchFailure()
+			w.markWatchFailure(WatchReasonUnreadable)
 			return nil
 		}
 		if !d.IsDir() {
@@ -293,13 +309,13 @@ func (w *Workspace) Watch(maxDirs int) error {
 			return filepath.SkipDir
 		}
 		if n >= maxDirs {
-			w.markWatchFailure()
+			w.markWatchFailure(WatchReasonLimit)
 			return filepath.SkipAll
 		}
 		if addErr := wt.Add(p); addErr == nil {
 			n++
 		} else {
-			w.markWatchFailure()
+			w.markWatchFailure(WatchReasonAddFailed)
 			if p == w.Root {
 				return addErr
 			}
@@ -307,7 +323,8 @@ func (w *Workspace) Watch(maxDirs int) error {
 		return nil
 	})
 	if walkErr != nil {
-		w.markWatchFailure()
+		// The watcher is closed again, so nothing is observed from here on.
+		w.markWatchUnavailable(WatchReasonUnreadable)
 		_ = wt.Close()
 		w.watcher = nil
 		return walkErr
@@ -326,7 +343,7 @@ func (w *Workspace) Watch(maxDirs int) error {
 				if ev.Op&fsnotify.Create != 0 {
 					if st, err := os.Stat(ev.Name); err == nil && st.IsDir() && !skipDirs[filepath.Base(ev.Name)] {
 						if err := wt.Add(ev.Name); err != nil {
-							w.markWatchFailure()
+							w.markWatchFailure(WatchReasonAddFailed)
 						}
 					}
 				}
@@ -334,7 +351,7 @@ func (w *Workspace) Watch(maxDirs int) error {
 				if !ok {
 					return
 				}
-				w.markWatchFailure()
+				w.markWatchFailure(WatchReasonAddFailed)
 			}
 		}
 	}()
@@ -346,8 +363,12 @@ func (w *Workspace) Close() {
 	w.stop()
 	w.computeMu.Lock()
 	defer w.computeMu.Unlock()
-	if w.watcher != nil {
-		w.watcher.Close()
+	w.mu.Lock()
+	wt := w.watcher
+	w.watcher = nil
+	w.mu.Unlock()
+	if wt != nil {
+		_ = wt.Close()
 	}
 }
 
@@ -397,8 +418,92 @@ func (w *Workspace) WatchUnavailable() bool {
 	defer w.mu.Unlock()
 	return w.watchFailed
 }
-func (w *Workspace) markWatchFailure() {
+
+// WatchState reports how much filesystem observation this workspace keeps.
+// A state other than ok means the fingerprint cannot be trusted to describe
+// the whole tree, so callers must treat what it misses as unknown.
+func (w *Workspace) WatchState() string {
 	w.mu.Lock()
+	defer w.mu.Unlock()
+	if w.watchState == "" {
+		return WatchStateOK
+	}
+	return w.watchState
+}
+
+// WatchReason returns the controlled reason code for the first watch
+// failure. It is empty while the watch is healthy.
+func (w *Workspace) WatchReason() string {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.watchReason
+}
+
+// Watching reports whether a file watcher is currently open.
+func (w *Workspace) Watching() bool {
+	w.mu.Lock()
+	defer w.mu.Unlock()
+	return w.watcher != nil
+}
+
+// StopWatching releases the file watcher but keeps the workspace usable.
+// The fingerprint stops updating, so the observation becomes degraded and
+// the session reports it. This is the safe way to give a watch instance
+// back: ending the session instead would break an agent that is still
+// running.
+func (w *Workspace) StopWatching() {
+	w.mu.Lock()
+	wt := w.watcher
+	w.watcher = nil
+	if w.watchState != WatchStateUnavailable {
+		w.watchState = WatchStateDegraded
+	}
+	if w.watchReason == "" {
+		w.watchReason = WatchReasonReclaimed
+	}
+	w.watchFailed = true
+	w.dirty = true
+	w.generation++
+	w.mu.Unlock()
+	if wt != nil {
+		_ = wt.Close()
+	}
+}
+
+// Watch failure reason codes. They are controlled so that a stored result
+// stays comparable across sessions; free text never reaches the ledger.
+const (
+	WatchReasonUnavailable = "watcher_unavailable"
+	WatchReasonUnreadable  = "workspace_unreadable"
+	WatchReasonLimit       = "watch_limit_reached"
+	WatchReasonAddFailed   = "watch_add_failed"
+	// WatchReasonReclaimed marks a watch released to give the host budget
+	// back. The session keeps running; its observation is degraded.
+	WatchReasonReclaimed = "watch_reclaimed"
+)
+
+// markWatchFailure records a partial loss of observation: some directories
+// are not watched, but a watcher is still running.
+func (w *Workspace) markWatchFailure(reason string) {
+	w.mu.Lock()
+	if w.watchState != WatchStateUnavailable {
+		w.watchState = WatchStateDegraded
+	}
+	if w.watchReason == "" {
+		w.watchReason = reason
+	}
+	w.watchFailed = true
+	w.dirty = true
+	w.generation++
+	w.mu.Unlock()
+}
+
+// markWatchUnavailable records a total loss of observation: no watcher is
+// running, so the fingerprint stops describing the tree at all.
+func (w *Workspace) markWatchUnavailable(reason string) {
+	w.mu.Lock()
+	w.watchState = WatchStateUnavailable
+	w.watchReason = reason
 	w.watchFailed = true
 	w.dirty = true
 	w.generation++
