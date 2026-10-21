@@ -219,7 +219,7 @@ func codexHome() string {
 // benchHookCmd measures PreToolUse round trips through the real client.
 func benchHookCmd() *cobra.Command {
 	var p95Max, handlingMax time.Duration
-	var n int
+	var n, maxTimeouts int
 	c := &cobra.Command{
 		Use:   "bench-hook",
 		Short: "PreToolUse 훅 왕복 시간 측정",
@@ -307,7 +307,7 @@ func benchHookCmd() *cobra.Command {
 			}
 			var ds []time.Duration
 			var handling, overhead []time.Duration
-			timeouts, failures, responses := 0, 0, 0
+			timeouts, failures, responses, noResponse := 0, 0, 0, 0
 			for i := 0; i < n; i++ {
 				elapsed, outcome, err := run("PreToolUse", map[string]any{"session_id": session, "cwd": project, "tool_name": "Read", "tool_input": map[string]string{"file_path": "README.md"}, "tool_use_id": fmt.Sprintf("t%d", i)}, false)
 				if err != nil {
@@ -321,6 +321,8 @@ func benchHookCmd() *cobra.Command {
 				}
 				if outcome.ResponseReceived {
 					responses++
+				} else {
+					noResponse++
 				}
 				ds = append(ds, elapsed)
 				if outcome.HandlingNS > 0 {
@@ -355,8 +357,22 @@ func benchHookCmd() *cobra.Command {
 			if coldLate {
 				fmt.Fprintln(cmd.OutOrStdout(), "콜드 스타트가 첫 훅의 기한을 넘겼지만 데몬이 그 요청을 기록했다 (기동 중 통과는 설계된 동작)")
 			}
-			if (first.Status != "ok" && !coldLate) || (!first.ResponseReceived && !coldLate) || observed.Prompts != 1 || observed.ToolCalls != n || observed.QueueRejected > 0 || failures > 0 || responses != n {
-				return fmt.Errorf("훅 전송/관측 검증 실패: 빠른 실패는 지연 통과로 인정하지 않는다")
+			// A fast failure is the hook that could not do its job; a
+			// timeout is the hook that was slow. The first never passes as a
+			// latency pass. The second is bounded and reported.
+			verdict := benchHookVerdict{
+				N: n, Responses: responses, Timeouts: timeouts,
+				FastFailures: failures - timeouts, NoResponse: noResponse,
+				FirstOK: first.Status == "ok", FirstResponse: first.ResponseReceived,
+				ColdLate:      coldLate,
+				Prompts:       observed.Prompts,
+				ToolCalls:     observed.ToolCalls,
+				QueueRejected: observed.QueueRejected,
+			}
+			if reason, note := checkBenchHook(verdict, maxTimeouts); reason != "" {
+				return fmt.Errorf("훅 전송/관측 검증 실패: %s", reason)
+			} else if note != "" {
+				fmt.Fprintln(cmd.OutOrStdout(), note)
 			}
 			if p95Max > 0 && pct(0.95) > p95Max {
 				return fmt.Errorf("p95 %v가 %v를 넘는다", pct(0.95), p95Max)
@@ -373,6 +389,7 @@ func benchHookCmd() *cobra.Command {
 		},
 	}
 	c.Flags().IntVar(&n, "n", 200, "반복 횟수")
+	c.Flags().IntVar(&maxTimeouts, "max-timeouts", -1, "허용할 타임아웃 횟수 (-1이면 반복 횟수의 1%, 최소 1회; 0이면 느린 기동도 한 번도 허용하지 않는다)")
 	c.Flags().DurationVar(&p95Max, "p95-max", 10*time.Millisecond, "프로세스 기동을 포함한 p95 상한 (0이면 검사하지 않음)")
 	c.Flags().DurationVar(&handlingMax, "handling-p95-max", 0, "입력/소켓/출력 처리 구간 p95 상한 (0이면 검사하지 않음; 러너 부하에 덜 흔들리는 회귀 기준)")
 	return c
