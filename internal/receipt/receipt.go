@@ -325,6 +325,8 @@ func Describe(v detect.Signal) string {
 		return fmt.Sprintf("문서만 바뀐 뒤 같은 결과로 재검증 (%s)", short(str("cmd"), 40))
 	case "s1.review_repeat":
 		return fmt.Sprintf("코드가 그대로인데 같은 검토 %d회 (%s)", num("count"), short(str("purpose"), 40))
+	case "s1.verify_streak":
+		return fmt.Sprintf("진전 없는 통과 검사 %d회 연속 · 추정", num("count"))
 	case "s1.verify_ratio":
 		return fmt.Sprintf("최근 %d번 중 검증 %d번, 만들기 %d번", num("window"), num("verify"), num("produce"))
 	case "s1.test_bloat":

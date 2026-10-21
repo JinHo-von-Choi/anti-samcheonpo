@@ -32,7 +32,7 @@ func RolloutRoute(mode, rule string, evidence map[string]string) string {
 
 // AdviceOnly rules cannot block, even with an operator evaluation digest.
 func AdviceOnly(rule string) bool {
-	return rulepack.IsLearned(rule) || rule == "s3.drift" || rule == "s1.explicit_waiting" || rule == "s8.progress_stall" || rule == "s2.behavior_loop" || rule == "s4.research_repeat" || rule == "s1.delegation_loop" || rule == "s1.linked_loop" || rule == "s5.partial_done" || rule == "s3.requirement_substitution" || rule == "s3.repeated_permission"
+	return rulepack.IsLearned(rule) || rule == "s3.drift" || rule == "s1.explicit_waiting" || rule == "s8.progress_stall" || rule == "s2.behavior_loop" || rule == "s4.research_repeat" || rule == "s1.delegation_loop" || rule == "s1.linked_loop" || rule == "s5.partial_done" || rule == "s3.requirement_substitution" || rule == "s3.repeated_permission" || rule == "s1.verify_streak"
 }
 
 // ExplicitGuardrail reports rules that enforce a limit the user set: a

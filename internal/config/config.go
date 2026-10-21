@@ -204,7 +204,7 @@ func Default() Config {
 	c := Config{Language: "ko", Currency: "KRW"}
 	c.Rollout.Mode = "recommend"
 	c.Rollout.EscalateMaxBlocks = 3
-	c.Rollout.ShadowRules = []string{"s1.verify_after_docs", "s1.review_repeat", "s1.explicit_waiting", "s8.progress_stall", "s2.behavior_loop", "s4.research_repeat", "s1.delegation_loop", "s1.linked_loop", "s5.partial_done", "s3.requirement_substitution", "s3.repeated_permission"}
+	c.Rollout.ShadowRules = []string{"s1.verify_after_docs", "s1.review_repeat", "s1.verify_streak", "s1.explicit_waiting", "s8.progress_stall", "s2.behavior_loop", "s4.research_repeat", "s1.delegation_loop", "s1.linked_loop", "s5.partial_done", "s3.requirement_substitution", "s3.repeated_permission"}
 	c.Detectors.S1.ExplicitWaitingRepeats = 3
 	c.Detectors.S8.StallFailures = 3
 	c.Detectors.S8.StallToolEvents = 5

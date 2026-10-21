@@ -145,8 +145,10 @@ type State struct {
 	allowGuess           []string
 	scopeKnown           bool
 	lastVerify           *event.Event
+	verifyStreak         []int64 // consecutive distinct passing verifications with no progress in between
 	lastWriteSeq         int64
 	lastCodeWriteSeq     int64
+	lastProdWriteSeq     int64 // non-doc, non-temp in-scope write: counts as productive progress
 	writes               int
 	testAdded, codeAdded int
 	testLits             map[string]int64
@@ -436,7 +438,8 @@ func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 	st.lastVerify = ev
 	e.verifyAfterDocs(ev, sigs)
 	// progress: result improved versus the previous run of the same command
-	e.verifyProgress(ev, prev)
+	improved := e.verifyProgress(ev, prev)
+	e.verifyStreak(ev, prev, improved, sigs)
 
 	// S1 identical rerun
 	if runID(ev) != "" && !e.nondeterministic(ev.CmdNorm) {
@@ -765,7 +768,7 @@ func (e *Engine) frozenWrite(ev *event.Event) *Signal {
 	return nil
 }
 
-func (e *Engine) verifyProgress(ev, prev *event.Event) {
+func (e *Engine) verifyProgress(ev, prev *event.Event) bool {
 	st := e.St
 	improved := false
 	if prev != nil && runID(prev) == runID(ev) && prev.ResultFP != ev.ResultFP {
@@ -776,13 +779,43 @@ func (e *Engine) verifyProgress(ev, prev *event.Event) {
 		case pf && cf && (len(ev.FailedTests) < len(prev.FailedTests) || (len(ev.FailedTests) == len(prev.FailedTests) && len(ev.ErrFPs) < len(prev.ErrFPs))):
 			improved = true
 		}
-	} else if !failing(ev) && st.writes > 0 && (prev == nil || prev.Seq < st.lastWriteSeq) {
-		// first passing verification after new writes
+	} else if !failing(ev) && st.lastProdWriteSeq > 0 && (prev == nil || prev.Seq < st.lastProdWriteSeq) {
+		// first passing verification after a productive write (tmp/doc writes do not count)
 		improved = true
 	}
 	if improved {
 		e.progress(ev)
 	}
+	return improved
+}
+
+// verifyStreak flags a run of consecutive distinct passing verifications
+// with no progress between them: the harness keeps running different checks
+// over an unchanged workspace. Failing runs belong to s2.stuck_error and
+// repeats of the same command to s1.identical_rerun, so the streak holds
+// only what neither rule already counts.
+func (e *Engine) verifyStreak(ev, prev *event.Event, improved bool, sigs *[]Signal) {
+	st := e.St
+	if failing(ev) {
+		st.verifyStreak = nil
+		return
+	}
+	if prev != nil && runID(prev) == runID(ev) {
+		return // same command: s1.identical_rerun territory
+	}
+	if improved || e.nondeterministic(ev.CmdNorm) {
+		st.verifyStreak = nil
+		return
+	}
+	st.verifyStreak = append(st.verifyStreak, ev.Seq)
+	n := e.threshold("s1.verify_streak", 3)
+	if len(st.verifyStreak) < n || len(st.verifyStreak) > n && (len(st.verifyStreak)-n)%3 != 0 {
+		return
+	}
+	waste := e.markWaste([]int64{ev.Seq}, "S1")
+	e.add(sigs, Signal{Detector: "S1", Rule: "s1.verify_streak", Confidence: 0.7, Level: L1, WasteMicro: waste, Estimate: true,
+		Evidence: append([]int64(nil), st.verifyStreak...),
+		Facts:    map[string]any{"count": len(st.verifyStreak)}})
 }
 
 // progress records a progress event.
@@ -824,6 +857,9 @@ func (e *Engine) production(ev *event.Event, sigs *[]Signal) {
 	for _, p := range ev.Paths {
 		if !IsDocPath(p) {
 			st.lastCodeWriteSeq = ev.Seq
+			if !pathnorm.IsTempPath(p) {
+				st.lastProdWriteSeq = ev.Seq
+			}
 		}
 	}
 	if !ev.TS.IsZero() {
