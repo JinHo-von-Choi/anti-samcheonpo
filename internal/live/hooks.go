@@ -8,6 +8,7 @@ import (
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/codex"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
@@ -288,7 +289,7 @@ func (s *Session) onPrompt(in HookInput) json.RawMessage {
 	var ctx []string
 	// Observation-only by default: ask for a draft only when the user turned
 	// drafts on or already keeps a contract file.
-	if needDraft && change.Kind != intent.Ignored && (s.Cfg.Contract.Draft == "on" || s.c != nil) {
+	if s.Cfg.Rollout.Mode != "shadow" && needDraft && change.Kind != intent.Ignored && (s.Cfg.Contract.Draft == "on" || s.c != nil) {
 		// The card and its command menu are for the user; the agent only gets
 		// the draft request, so it never stops to wait for an acceptance.
 		draft := contract.DraftRequest(contract.Candidates(s.Root), in.Prompt) + "\n" + draftContinueNote
@@ -541,12 +542,32 @@ func intPtr(i int) *int { return &i }
 
 func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 	s.mu.Lock()
+	if ev := s.byTool[in.ToolUseID]; s.Agent == "codex" && ev != nil && ev.Tool == event.ToolShell && (s.codexPosted[in.ToolUseID] || s.flushed[in.ToolUseID]) {
+		// A final poll may follow an already observed running/unknown result.
+		// Update that event without a second engine observation.
+		codex.ApplyResponse(ev, in.ToolResponse)
+		ev.ResultObserved = true
+		s.codexExit(ev)
+		s.persistEvent(ev)
+		cx := s.cx
+		s.mu.Unlock()
+		if cx != nil {
+			s.pollCodex()
+		}
+		return nil
+	}
 	if s.flushed[in.ToolUseID] {
 		// already recorded once as a call without a result
 		s.mu.Unlock()
 		return nil
 	}
 	ev := s.byTool[in.ToolUseID]
+	if s.Agent == "codex" {
+		if s.codexPosted == nil {
+			s.codexPosted = map[string]bool{}
+		}
+		s.codexPosted[in.ToolUseID] = true
+	}
 	started := time.Time{}
 	if ev == nil {
 		ev = s.buildTool(in)
@@ -562,6 +583,9 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 		errText = "Error"
 	}
 	s.parser.HookToolResult(ev.CallID, resp, failure, errText)
+	if s.Agent == "codex" {
+		codex.ApplyResponse(ev, resp)
+	}
 	if ev.ExitCode != nil && *ev.ExitCode == -1 && !failure {
 		ev.ExitCode = nil
 	}

@@ -5,6 +5,18 @@ fx:
   - usd_krw: 1385
     valid_from: 2026-01-01
 models:
+  # Observed on this date; do not retroactively price historical sessions.
+  # Standard API equivalent only. Fast/Batch and >272K request surcharges
+  # require request-level billing data, which rollout cumulative usage lacks.
+  - model: gpt-6-astra
+    input: 10.00
+    output: 50.00
+    cache_write: 12.50
+    cache_read: 1.00
+    valid_from: 2026-10-21
+    checked_at: "2026-10-21"
+    basis: standard-api-equivalent; excludes tier and long-context surcharges
+    source: https://developers.openai.com/api/docs/models/gpt-6-astra
   - model: claude-fable-5-1
     input: 10.00
     output: 50.00

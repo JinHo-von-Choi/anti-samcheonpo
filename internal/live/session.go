@@ -98,6 +98,7 @@ type Session struct {
 	receiptPath     string
 	queue           chan *job
 	byTool          map[string]*event.Event
+	codexPosted     map[string]bool
 	msgEvents       map[string]*event.Event // message id -> event holding tool-less usage
 	caps            adapter.Caps
 	judge           judge.Judge
@@ -199,6 +200,7 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 		switch agent {
 		case "codex":
 			s.cx = codex.NewTracker(transcript)
+			s.parser.Session.Model = s.cx.Model
 		default:
 			s.usage = claude.NewUsageTracker(transcript)
 			// resumed sessions: start at the current end; earlier usage belongs to earlier runs
@@ -780,6 +782,13 @@ func (s *Session) takePendingFor(hook string, ack *ackSlot) (string, string) {
 	defer s.mu.Unlock()
 	canInject := hook == "PreToolUse" && s.caps.InjectPre || hook == "PostToolUse" && s.caps.InjectPost || hook == "UserPromptSubmit" && s.caps.PromptInject || hook == "StopBlock" && s.caps.BlockStop
 	var a, u string
+	if s.Cfg.Rollout.Mode == "shadow" {
+		s.pending = nil
+		s.pendingDraft = ""
+		clear(s.pendingRule)
+		s.anchorDue = false
+		return "", ""
+	}
 	if canInject {
 		if anchor := s.takeAnchor(true); anchor != "" {
 			s.pending = append([]string{anchor}, s.pending...)
@@ -1320,6 +1329,20 @@ func (s *Session) pollCodexMode(final bool) {
 		return
 	}
 	sess := s.parser.Session
+	if s.cx.Model != "" {
+		sess.Model = s.cx.Model
+	}
+	// Results can arrive after PostToolUse. Correct the original stored event
+	// without observing a second command or retroactively delivering a verdict.
+	for _, ev := range s.byTool {
+		if ev.Tool != event.ToolShell || ev.CallID == "" {
+			continue
+		}
+		if code, ok := s.cx.Exits[ev.CallID]; ok && (ev.ExitCode == nil || *ev.ExitCode != code) {
+			s.codexExit(ev)
+			s.persistEvent(ev)
+		}
+	}
 	sess.QuotaKnown = s.cx.Quota != nil
 	sess.QuotaUsedPct, sess.QuotaWindowMin = 0, 0
 	if q := s.cx.Quota; q != nil {
@@ -1357,27 +1380,23 @@ func (s *Session) pollCodexMode(final bool) {
 	}
 }
 
-// codexExit applies the exit code recorded in the rollout (Codex hooks do not
-// carry it). Without a record the output decides: error or failed-test lines
-// count as a failure.
+// codexExit applies explicit rollout metadata. Missing results remain unknown.
 func (s *Session) codexExit(ev *event.Event) {
 	if ev.Tool != event.ToolShell {
 		return
 	}
-	code := -2
 	if s.cx != nil {
 		if c, ok := s.cx.Exits[ev.CallID]; ok {
-			code = c
+			ev.ExitCode = &c
+			ev.IsError = c != 0
+			ev.Background = false
+			ev.ResultObserved = true
+			ev.Execution = &event.Execution{State: "exited", ExitSource: "rollout", CallID: ev.CallID}
+			if evidence, ok := s.cx.ExitEvidence[ev.CallID]; ok {
+				ev.Execution = &evidence
+			}
 		}
 	}
-	if code == -2 {
-		code = 0
-		if len(ev.ErrFPs) > 0 || len(ev.FailedTests) > 0 {
-			code = 1
-		}
-	}
-	ev.ExitCode = &code
-	ev.IsError = code != 0
 	ev.ResultFP = fp.ResultFP(ev.ExitCode, ev.ErrFPs, ev.FailedTests)
 }
 

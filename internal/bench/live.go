@@ -55,6 +55,7 @@ type LiveTask struct {
 // task prompt, "{task}" by the task directory and "{root}" by the directory
 // the comparison was started from (commands run inside a trial copy).
 type Arm struct {
+	Conditions        *RunConditions    `yaml:"conditions"`
 	Cmd               []string          `yaml:"cmd"`
 	Env               map[string]string `yaml:"env"`
 	Agent             string            `yaml:"agent"`
@@ -80,21 +81,22 @@ type ABConfig struct {
 
 // TrialResult is one result row. Other tools submit rows in the same format.
 type TrialResult struct {
-	PriceVersion        string `json:"price_version,omitempty"`
-	EvaluatorVersion    string `json:"evaluator_version,omitempty"`
-	GraderDurationMS    int64  `json:"grader_duration_ms"`
-	ProtocolVersion     string `json:"protocol_version,omitempty"`
-	RunID               string `json:"run_id,omitempty"`
-	Seed                int64  `json:"seed"`
-	Order               int    `json:"order"`
-	Agent               string `json:"agent,omitempty"`
-	AgentVersion        string `json:"agent_version,omitempty"`
-	Model               string `json:"model,omitempty"`
-	ObservedModel       string `json:"observed_model,omitempty"`
-	MonitorBinarySHA256 string `json:"monitor_binary_sha256,omitempty"`
-	MonitorConfigSHA256 string `json:"monitor_config_sha256,omitempty"`
-	// MonitorFingerprint covers the binary, the configuration and the
-	// learned rule pack together. Two arms may differ in it, and nothing
+	Conditions          *RunConditions `json:"conditions,omitempty"`
+	PriceVersion        string         `json:"price_version,omitempty"`
+	EvaluatorVersion    string         `json:"evaluator_version,omitempty"`
+	GraderDurationMS    int64          `json:"grader_duration_ms"`
+	ProtocolVersion     string         `json:"protocol_version,omitempty"`
+	RunID               string         `json:"run_id,omitempty"`
+	Seed                int64          `json:"seed"`
+	Order               int            `json:"order"`
+	Agent               string         `json:"agent,omitempty"`
+	AgentVersion        string         `json:"agent_version,omitempty"`
+	Model               string         `json:"model,omitempty"`
+	ObservedModel       string         `json:"observed_model,omitempty"`
+	MonitorBinarySHA256 string         `json:"monitor_binary_sha256,omitempty"`
+	MonitorConfigSHA256 string         `json:"monitor_config_sha256,omitempty"`
+	// MonitorFingerprint covers the binary, the policy (with trial grader
+	// paths represented by roles), and the learned rule pack. Two arms may differ in it, and nothing
 	// else, and the comparison is then about the rule.
 	MonitorFingerprint string      `json:"monitor_fingerprint,omitempty"`
 	MonitorSetupMS     int64       `json:"monitor_setup_ms"`
@@ -133,7 +135,10 @@ type TrialResult struct {
 	// monitor, and when the monitor never judged anything.
 	MonitorDetection *ledger.DetectionTiming `json:"monitor_detection,omitempty"`
 	// MonitorDetectionError says why the detection timing is missing.
-	MonitorDetectionError string `json:"monitor_detection_error,omitempty"`
+	MonitorDetectionError   string `json:"monitor_detection_error,omitempty"`
+	MonitorObservedEvents   int    `json:"monitor_observed_events"`
+	MonitorDelivered        int    `json:"monitor_delivered"`
+	MonitorObservationError string `json:"monitor_observation_error,omitempty"`
 	// Contamination says whether the agent reached the grader or the
 	// answer. A trial that did is not a measurement of the agent.
 	Contamination *Contamination `json:"contamination,omitempty"`
@@ -231,6 +236,14 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 	startedTrial := time.Now()
 	defer func() { result.TotalDurationMS = time.Since(startedTrial).Milliseconds() }()
 	r := TrialResult{ProtocolVersion: "2", Seed: c.Seed, Arm: armName, Task: t.Name, Group: t.Group, TaskPublic: t.Public, Trial: trial, Agent: a.Agent, AgentVersion: a.AgentVersion, Model: a.Model, PolicyVersion: a.PolicyVersion}
+	if a.Conditions != nil {
+		conditions := *a.Conditions
+		conditions.TimeoutSec = c.TimeoutSec
+		if t.TimeoutSec > 0 {
+			conditions.TimeoutSec = t.TimeoutSec
+		}
+		r.Conditions = &conditions
+	}
 	if len(a.Cmd) == 0 || prices == nil {
 		r.Error = "agent command and price table required"
 		return r
@@ -406,6 +419,14 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 	r.SessionID = sessionID(out)
 	if a.Monitor == "samcheonpo" && r.SessionID != "" {
 		r.MonitorDetection, r.MonitorDetectionError = monitorDetection(monitorPath, r.SessionID)
+		r.MonitorObservedEvents, r.MonitorDelivered, r.MonitorObservationError = monitorObservation(monitorPath, r.SessionID)
+		if r.MonitorObservationError != "" {
+			r.MonitorKRW = nil
+			r.MonitorCostError = r.MonitorObservationError
+		}
+	} else if a.Monitor == "samcheonpo" {
+		r.MonitorObservationError = "agent session identity missing; monitor attachment unverified"
+		r.MonitorKRW = nil
 	}
 	s, resolveErr := ResolveTranscript(r.Agent, r.SessionID, repo, claudeDir, codexDir, start)
 	if resolveErr != nil {
@@ -440,6 +461,12 @@ func RunTrial(t LiveTask, armName string, a Arm, trial int, c ABConfig, prices *
 		} else {
 			r.CostError = err.Error()
 		}
+	}
+	if r.TimedOut {
+		// A terminated provider stream may omit its final usage record. Keep
+		// the observed amount, but do not present it as complete trial cost.
+		r.CostKnown = false
+		r.CostError = "terminated trial; final provider usage may be missing"
 	}
 	return r
 }
@@ -626,7 +653,7 @@ func SummarizeWithGates(rows []TrialResult, baseline string, margin, goal float6
 		usageKnown, timeKnown := true, true
 		var tokens, elapsed float64
 		for _, r := range rs {
-			if !r.UsageKnown || r.MonitorUsage == nil {
+			if !r.UsageKnown || r.TimedOut || r.MonitorUsage == nil {
 				usageKnown = false
 			} else {
 				tokens += float64(r.Usage.Total() + r.MonitorUsage.Total())
@@ -647,7 +674,7 @@ func SummarizeWithGates(rows []TrialResult, baseline string, margin, goal float6
 			} else {
 				s.PrivateTrials++
 			}
-			if r.CostKnown {
+			if r.CostKnown && !r.TimedOut {
 				s.CostKnown++
 				total += float64(r.TotalKRW)
 				waste += float64(r.WasteKRW)

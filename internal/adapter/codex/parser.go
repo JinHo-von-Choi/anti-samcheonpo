@@ -52,6 +52,7 @@ type Parser struct {
 	pending   []*event.Event // tool events since last token accounting
 	lastTotal tokenUsage
 	byCall    map[string]*event.Event
+	processes map[string]*event.Event
 	contents  map[string]string
 	nextSeq   int64
 	compacts  int
@@ -295,7 +296,7 @@ func (p *Parser) account(d tokenUsage, final bool) {
 	if final {
 		return
 	}
-	u := event.Usage{In: max(0, d.In-d.Cached), CacheRead: d.Cached, CacheWrite: d.CacheW, Out: d.Out, Model: p.model}
+	u := event.Usage{In: max(0, d.In-d.Cached), CacheRead: max(0, d.Cached), CacheWrite: max(0, d.CacheW), Out: max(0, d.Out), Model: p.model}
 	targets := p.pending
 	p.pending = nil
 	if len(targets) == 0 {
@@ -371,6 +372,7 @@ func (p *Parser) item(pl map[string]any, ts time.Time, ref string) {
 	case "CommandExecution":
 		cmd := commandString(it["command"])
 		ev := p.shellEvent(cmd, ts, ref, "exec_command")
+		ev.CallID, _ = it["id"].(string)
 		if cwd, ok := it["cwd"].(string); ok {
 			if d := p.rel(cwd); d != "." {
 				ev.Dir = d
@@ -386,7 +388,14 @@ func (p *Parser) item(pl map[string]any, ts time.Time, ref string) {
 		if ec, ok := it["exit_code"].(float64); ok {
 			p.setResult(ev, int(ec), out)
 		} else {
-			p.setResult(ev, -1, out)
+			ev.ResultObserved = true
+			ev.Text = out
+		}
+		raw, _ := json.Marshal(it)
+		ApplyResponse(ev, raw)
+		ev.Execution.ObservedAt = ts
+		if ev.ExitCode != nil {
+			ev.Execution.ExitSource = "rollout"
 		}
 		if d, ok := it["duration"].(map[string]any); ok {
 			secs, _ := d["secs"].(float64)
@@ -536,6 +545,19 @@ func (p *Parser) responseItem(pl map[string]any, ptype string, ts time.Time, ref
 		callID, _ := pl["call_id"].(string)
 		var ev *event.Event
 		switch name {
+		case "write_stdin", "functions.write_stdin":
+			var args map[string]json.RawMessage
+			if s, ok := pl["arguments"].(string); !ok || json.Unmarshal([]byte(s), &args) != nil {
+				return
+			}
+			var id json.Number
+			if json.Unmarshal(args["session_id"], &id) != nil {
+				return
+			}
+			if original := p.processes[id.String()]; original != nil {
+				p.byCall[callID] = original
+			}
+			return // a transport poll is not a new command or verification
 		case "shell", "exec_command", "local_shell", "container.exec":
 			var args map[string]any
 			if s, ok := pl["arguments"].(string); ok {
@@ -575,6 +597,9 @@ func (p *Parser) responseItem(pl map[string]any, ptype string, ts time.Time, ref
 			p.pending = append(p.pending, ev)
 		}
 		ev.CallID = callID
+		if ev.Tool == event.ToolShell {
+			ev.Execution = &event.Execution{State: "started", CallID: callID}
+		}
 		if args, ok := pl["arguments"].(string); ok {
 			var original any
 			if json.Unmarshal([]byte(args), &original) == nil {
@@ -592,7 +617,9 @@ func (p *Parser) responseItem(pl map[string]any, ptype string, ts time.Time, ref
 			return
 		}
 		delete(p.byCall, callID)
-		p.sess.ToolUsesPaired++
+		if !ev.ResultObserved {
+			p.sess.ToolUsesPaired++
+		}
 		ev.ResultObserved = true
 		out := outputText(pl["output"])
 		if ev.Tool == event.ToolEdit || ev.Tool == event.ToolWrite {
@@ -608,17 +635,34 @@ func (p *Parser) responseItem(pl map[string]any, ptype string, ts time.Time, ref
 			}
 		}
 		if ev.Tool == event.ToolShell {
-			code := 0
-			if m := exitCodeRe.FindStringSubmatch(out); m != nil {
-				fmt.Sscan(m[1], &code)
-			}
 			if m := wallTimeRe.FindStringSubmatch(out); m != nil {
 				var sec float64
 				if _, err := fmt.Sscan(m[1], &sec); err == nil && sec > 0 {
 					ev.DurationMS = int64(sec * 1000)
 				}
 			}
-			p.setResult(ev, code, out)
+			raw, _ := json.Marshal(pl["output"])
+			code, _, _ := ResponseResult(raw)
+			if code != nil {
+				p.setResult(ev, *code, out)
+			} else {
+				ev.Text = out
+			}
+			previous := ""
+			if ev.Execution != nil {
+				previous = ev.Execution.ProcessID
+			}
+			ApplyResponse(ev, raw)
+			ev.Execution.ObservedAt = ts
+			if ev.Execution.ProcessID != "" {
+				if p.processes == nil {
+					p.processes = map[string]*event.Event{}
+				}
+				p.processes[ev.Execution.ProcessID] = ev
+			} else if previous != "" && ev.Execution.State == "exited" {
+				delete(p.processes, previous)
+				ev.Execution.ProcessID = previous
+			}
 		}
 	case "message":
 		role, _ := pl["role"].(string)

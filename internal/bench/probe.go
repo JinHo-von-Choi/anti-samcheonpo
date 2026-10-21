@@ -21,7 +21,16 @@ import (
 // A verdict is never written without the evidence it rests on. Too few
 // paired trials is a refusal, not a result.
 func Probe(rows []TrialResult, base, arm, candidateID string) eval.ProbeVerdict {
-	v := eval.ProbeVerdict{Version: "rule-probe/1", CandidateID: candidateID, Verdict: eval.VerdictNoEntry}
+	v := eval.ProbeVerdict{Version: "rule-probe/2", CandidateID: candidateID, Verdict: eval.VerdictNoEntry, Efficiency: "incomplete", Evidence: probeEvidence(rows, base, arm)}
+	if base == arm {
+		v.Reason = "서로 다른 비교군이 필요하다"
+		return v
+	}
+	if err := ValidateRows(rows); err != nil {
+		v.Verdict = eval.VerdictConfounded
+		v.Reason = err.Error()
+		return v
+	}
 	by := map[string]map[string]TrialResult{}
 	conditions := map[string]string{}
 	fingerprints := map[string]string{}
@@ -34,7 +43,12 @@ func Probe(rows []TrialResult, base, arm, candidateID string) eval.ProbeVerdict 
 			v.Reason = "실험 식별자·독립 채점 근거 누락"
 			return v
 		}
-		condition := r.Agent + "/" + r.AgentVersion + "/" + r.Model + "/" + r.ObservedModel + "/" + r.PriceVersion + "/" + r.EvaluatorVersion
+		condition := r.Agent + "/" + r.AgentVersion + "/" + r.Model + "/" + r.ObservedModel + "/" + r.PriceVersion + "/" + r.EvaluatorVersion + "/" + r.Conditions.commonFingerprint()
+		if r.Contamination != nil && r.Contamination.Verdict != ContaminationClean {
+			v.Verdict = eval.VerdictConfounded
+			v.Reason = "채점 근거 오염이 있는 시행"
+			return v
+		}
 		if old, ok := conditions[r.Arm]; ok && old != condition {
 			v.Verdict = eval.VerdictConfounded
 			v.Reason = "실행 방식 안에서 에이전트·모델·가격 조건이 바뀜"
@@ -81,7 +95,12 @@ func Probe(rows []TrialResult, base, arm, candidateID string) eval.ProbeVerdict 
 			v.Reason = "짝 시행의 seed 불일치"
 			return v
 		}
-		if a.TaskDigest != b.TaskDigest || a.GraderDigest != b.GraderDigest {
+		if a.Conditions.fingerprint() != b.Conditions.fingerprint() {
+			v.Verdict = eval.VerdictConfounded
+			v.Reason = "짝 시행의 실행 조건·시간 제한 불일치"
+			return v
+		}
+		if a.TaskDigest != b.TaskDigest || a.GraderDigest != b.GraderDigest || clusterOf(a) != clusterOf(b) {
 			v.Verdict = eval.VerdictConfounded
 			v.Reason = "짝 시행의 과제·채점기가 다르다"
 			return v
@@ -99,9 +118,9 @@ func Probe(rows []TrialResult, base, arm, candidateID string) eval.ProbeVerdict 
 		return pairs[i].base.Trial < pairs[j].base.Trial
 	})
 	v.Tasks = len(clusters)
-	if len(pairs) < MinTrials {
+	if len(pairs) < MinTrials || len(clusters) < 12 {
 		v.Verdict = eval.VerdictNoEntry
-		v.Reason = fmt.Sprintf("짝 시행 %d개로 판정 근거가 부족하다", len(pairs))
+		v.Reason = fmt.Sprintf("짝 시행 %d개·독립 과제군 %d개로 판정 근거가 부족하다", len(pairs), len(clusters))
 		return v
 	}
 	for _, p := range pairs {
@@ -128,7 +147,7 @@ func Probe(rows []TrialResult, base, arm, candidateID string) eval.ProbeVerdict 
 	// The veto. A candidate rule that leaves the agent with nothing is
 	// not a rule to adopt, and the grader alone may not see it: a task
 	// the agent never attempted stays ambiguous.
-	if v.BaseArtifacts > 0 && v.CandidateArtifacts == 0 {
+	if v.BaseArtifacts > 0 && v.CandidateArtifacts == 0 && v.CandidateVerified == 0 {
 		v.Veto = true
 	}
 	switch {
@@ -146,7 +165,33 @@ func Probe(rows []TrialResult, base, arm, candidateID string) eval.ProbeVerdict 
 		v.Reason = "두 팔의 채점기 통과가 같았다"
 	}
 	v.BaseFingerprint, v.CandidateFingerprint = fingerprints[base], fingerprints[arm]
-	v.Evidence = probeEvidence(rows, base, arm)
+	v.Outcome = v.Verdict // descriptive outcome counts, independent of cost
+	c := compareClusters(rows, base, arm, 1)
+	v.SuccessDifference, v.CostReduction = c.SuccessDifference, c.CostReduction
+	v.WithheldReason = c.Reason
+	v.EvidenceSufficient = c.SuccessDifference != nil && c.CostReduction != nil
+	for _, p := range pairs {
+		for _, r := range []TrialResult{p.base, p.other} {
+			if !r.Conditions.complete() || r.ObservedModel == "" || r.Contamination == nil {
+				v.EvidenceSufficient = false
+				v.WithheldReason = "실행 조건·관측 모델·오염 검사 근거 누락"
+			}
+		}
+	}
+	if v.EvidenceSufficient {
+		v.Efficiency = "no observed improvement"
+		if c.SuccessDifference.Lo >= -0.02 && c.CostReduction.Lo >= 0.15 {
+			v.Efficiency = "improved"
+			if !v.Veto {
+				v.Verdict = eval.VerdictHelped
+				v.Reason = "완료율 비열등과 완료당 총비용 절감 기준 충족"
+			}
+		}
+	}
+	if v.Verdict == eval.VerdictHelped && v.Efficiency != "improved" {
+		v.Verdict = eval.VerdictNoEntry
+		v.Reason = "통과 건수 증가는 관측했으나 완료율·비용 효과 기준 미충족"
+	}
 	return v
 }
 
@@ -215,13 +260,10 @@ func probeEvidence(rows []TrialResult, base, arm string) string {
 		}
 		return picked[i].Trial < picked[j].Trial
 	})
-	rows2 := make([][]any, 0, len(picked))
-	for _, r := range picked {
-		rows2 = append(rows2, []any{r.RunID, r.Task, r.Arm, r.Trial, r.Seed, r.TaskDigest, r.GraderDigest,
-			r.Verified, r.ProducedArtifact, r.MonitorFingerprint, r.Agent, r.AgentVersion, r.Model, r.PolicyVersion,
-			r.PriceVersion, r.EvaluatorVersion, r.MonitorBinarySHA256, r.MonitorConfigSHA256})
+	b, err := json.Marshal(picked)
+	if err != nil {
+		return ""
 	}
-	b, _ := json.Marshal(rows2)
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
 }
@@ -257,6 +299,12 @@ func ProbeSummary(v eval.ProbeVerdict) string {
 	}
 	if v.Veto {
 		sb.WriteString("\n  승격 거부: 후보 팔이 산출물을 내지 못했다")
+	}
+	if v.Version == "rule-probe/2" {
+		fmt.Fprintf(&sb, "\n  결과 %s · 효율 %s · 증거 충분 %t", v.Outcome, v.Efficiency, v.EvidenceSufficient)
+		if v.WithheldReason != "" {
+			fmt.Fprintf(&sb, " · %s", v.WithheldReason)
+		}
 	}
 	return sb.String()
 }

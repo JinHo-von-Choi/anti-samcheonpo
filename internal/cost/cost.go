@@ -30,6 +30,8 @@ type Price struct {
 	CacheWrite1h float64 `yaml:"cache_write_1h" json:"cache_write_1h"`
 	ValidFrom    Date    `yaml:"valid_from" json:"valid_from"`
 	Source       string  `yaml:"source" json:"source"`
+	CheckedAt    string  `yaml:"checked_at,omitempty" json:"checked_at,omitempty"`
+	Basis        string  `yaml:"basis,omitempty" json:"basis,omitempty"`
 }
 
 // FX is a USD/KRW rate valid from a date.

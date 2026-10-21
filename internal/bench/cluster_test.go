@@ -45,7 +45,7 @@ func TestClusterComparisonPairingReproducibilityAndCosts(t *testing.T) {
 }
 
 func TestClusterWithholdsUnknownDegenerateAndCorrelatedSamples(t *testing.T) {
-	for _, kind := range []string{"monitor", "agent-cost", "versions", "observed-model", "price-version", "evaluator-version", "monitor-build", "one-task", "constant"} {
+	for _, kind := range []string{"monitor", "agent-cost", "timeout", "versions", "observed-model", "price-version", "evaluator-version", "monitor-build", "one-task", "constant"} {
 		t.Run(kind, func(t *testing.T) {
 			rows := clusterRows()
 			switch kind {
@@ -53,6 +53,8 @@ func TestClusterWithholdsUnknownDegenerateAndCorrelatedSamples(t *testing.T) {
 				rows[0].MonitorKRW = nil
 			case "agent-cost":
 				rows[0].CostKnown = false
+			case "timeout":
+				rows[0].TimedOut = true
 			case "versions":
 				rows[0].Model = "other"
 			case "observed-model":
@@ -96,6 +98,27 @@ func TestPlanningTaskPairs(t *testing.T) {
 		if _, err := RequiredTaskPairs(sd, .05, .05, .8, 1); err == nil {
 			t.Fatal("invalid pilot accepted")
 		}
+	}
+}
+
+func TestClusterUsesPolicyIdentityAndRetainsLegacyConfigCheck(t *testing.T) {
+	rows := clusterRows()
+	for i := range rows {
+		rows[i].MonitorFingerprint = "stable-policy-" + rows[i].Arm
+		rows[i].MonitorConfigSHA256 = fmt.Sprintf("unique-config-%d", i)
+	}
+	if c := compareClusters(rows, "off", "on", 1); c.CostReduction == nil {
+		t.Fatal("trial-specific config paths blocked comparison", c.Reason)
+	}
+	rows[0].MonitorFingerprint = "changed-policy"
+	if c := compareClusters(rows, "off", "on", 1); c.CostReduction != nil || c.Reason == "" {
+		t.Fatal("policy change accepted")
+	}
+	for i := range rows {
+		rows[i].MonitorFingerprint = ""
+	}
+	if c := compareClusters(rows, "off", "on", 1); c.CostReduction != nil || c.Reason == "" {
+		t.Fatal("legacy config mismatch accepted")
 	}
 }
 

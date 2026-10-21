@@ -29,6 +29,14 @@ func (s *Session) restoreHistory() error {
 	s.eng.Restoring = true
 	defer func() { s.eng.Restoring = false }()
 	for _, ev := range evs {
+		if s.Agent == "codex" && ev.Execution != nil && ev.Execution.CallID != "" {
+			ev.CallID = ev.Execution.CallID
+			s.byTool[ev.CallID] = ev
+			if s.codexPosted == nil {
+				s.codexPosted = map[string]bool{}
+			}
+			s.codexPosted[ev.CallID] = true
+		}
 		if ev.Tool == event.ToolShell && ev.CmdNorm == "" {
 			ev.CmdNorm = strings.TrimPrefix(ev.Summary, "shell: ")
 		}

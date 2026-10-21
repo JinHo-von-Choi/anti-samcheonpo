@@ -34,10 +34,16 @@ const (
 // The evidence travels with the verdict: a reader must be able to check the
 // counts, the trial set and the configuration digests that produced it.
 type ProbeVerdict struct {
-	Version     string `json:"version"`
-	CandidateID string `json:"candidate_id"`
-	Verdict     string `json:"verdict"`
-	Reason      string `json:"reason"`
+	Outcome            string    `json:"outcome,omitempty"`
+	Efficiency         string    `json:"efficiency,omitempty"`
+	EvidenceSufficient bool      `json:"evidence_sufficient"`
+	WithheldReason     string    `json:"withheld_reason,omitempty"`
+	SuccessDifference  *Interval `json:"success_difference_ci,omitempty"`
+	CostReduction      *Interval `json:"cost_reduction_ci,omitempty"`
+	Version            string    `json:"version"`
+	CandidateID        string    `json:"candidate_id"`
+	Verdict            string    `json:"verdict"`
+	Reason             string    `json:"reason"`
 	// Veto is true when the candidate arm produced nothing where the base
 	// arm produced something. A rule that stops the agent from delivering
 	// anything is not a rule to adopt.
@@ -87,7 +93,8 @@ func (v ProbeVerdict) Digest() string {
 	rows := []any{v.Version, v.CandidateID, v.Verdict, v.Veto, v.BaseTrials, v.CandidateTrials,
 		v.BaseVerified, v.CandidateVerified, v.Tasks, v.BaseDetectionTrials, v.CandidateDetectionTrials,
 		v.BaseDetectionPosition, v.CandidateDetectionPosition, v.BaseLastThird, v.CandidateLastThird,
-		v.BaseFingerprint, v.CandidateFingerprint, v.Evidence}
+		v.BaseFingerprint, v.CandidateFingerprint, v.Evidence, v.BaseArtifacts, v.CandidateArtifacts,
+		v.Outcome, v.Efficiency, v.EvidenceSufficient, v.SuccessDifference, v.CostReduction}
 	b, _ := json.Marshal(rows)
 	h := sha256.Sum256(b)
 	return hex.EncodeToString(h[:])
@@ -95,6 +102,12 @@ func (v ProbeVerdict) Digest() string {
 
 // Validate checks that the verdict says what it counted.
 func (v ProbeVerdict) Validate() error {
+	if v.Version == "rule-probe/2" && v.Evidence == "" {
+		return errors.New("판정에는 유효한 시행 증거 digest가 필요하다")
+	}
+	if v.Version == "rule-probe/2" && v.Verdict == VerdictHelped && (!v.EvidenceSufficient || v.SuccessDifference == nil || v.CostReduction == nil || v.SuccessDifference.Lo < -0.02 || v.CostReduction.Lo < 0.15) {
+		return errors.New("효과 판정에는 완전한 증거와 완료율·비용 구간이 필요하다")
+	}
 	switch v.Verdict {
 	case VerdictHelped, VerdictHurt, VerdictNoObservedEffect, VerdictConfounded, VerdictNoEntry:
 	default:

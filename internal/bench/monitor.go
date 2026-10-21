@@ -31,8 +31,14 @@ func monitorConfig(a Arm) (config.Config, error) {
 	if mode == "" {
 		mode = "shadow"
 	}
-	if mode != "shadow" && mode != "recommend" {
-		return c, errors.New("benchmark monitor supports shadow or advisory recommend only")
+	if mode != "shadow" && mode != "recommend" && mode != "default" {
+		return c, errors.New("benchmark monitor supports shadow, advisory recommend, or explicit product default")
+	}
+	if mode == "default" {
+		if len(a.RecommendRules) != 0 || a.RulePack != "" {
+			return c, errors.New("default profile cannot add experimental rules or packs")
+		}
+		return c, nil // exact product defaults, including bounded escalation
 	}
 	if len(a.RecommendRules) > 32 || mode == "shadow" && len(a.RecommendRules) > 0 {
 		return c, errors.New("explicit advisory rules require recommend mode; at most 32")
@@ -58,6 +64,26 @@ func MonitorFingerprint(binaryHash, configHash, packHash string) string {
 	return hex.EncodeToString(h[:])
 }
 
+// trialPolicyHash identifies the policy independently of the newly allocated
+// grader directory. When the runner supplies grader protection, it replaces
+// ProtectedPaths exactly as the emitted configuration does, using stable roles.
+// Without that override the policy's own paths are hashed unchanged. The exact
+// emitted configuration is separately retained as MonitorConfigSHA256.
+func trialPolicyHash(c config.Config, graderPaths []string) (string, error) {
+	if len(graderPaths) > 0 {
+		c.ProtectedPaths = make([]string, len(graderPaths))
+		for i := range graderPaths {
+			c.ProtectedPaths[i] = fmt.Sprintf("<trial-grader-%d>", i)
+		}
+	}
+	raw, err := yaml.Marshal(c)
+	if err != nil {
+		return "", err
+	}
+	h := sha256.Sum256(append([]byte("trial-policy/1\n"), raw...))
+	return hex.EncodeToString(h[:]), nil
+}
+
 // startTrialMonitor boots the selected build in a fresh experiment home. Old
 // installed hook clients may connect through the same protocol; no user binary,
 // model, authentication or permission setting is changed.
@@ -72,6 +98,10 @@ func MonitorFingerprint(binaryHash, configHash, packHash string) string {
 // which is the difference between a warning and a block.
 func startTrialMonitor(a Arm, repo, home string, env []string, protected []string) (func(), string, string, string, error) {
 	cfg, err := monitorConfig(a)
+	if err != nil {
+		return nil, "", "", "", err
+	}
+	policyHash, err := trialPolicyHash(cfg, protected)
 	if err != nil {
 		return nil, "", "", "", err
 	}
@@ -134,7 +164,7 @@ func startTrialMonitor(a Arm, repo, home string, env []string, protected []strin
 			return nil, "", "", "", err
 		}
 	}
-	fingerprint := MonitorFingerprint(binaryHash, configHash, packHash)
+	fingerprint := MonitorFingerprint(binaryHash, policyHash, packHash)
 	configFile, err := os.OpenFile(filepath.Join(home, "config.yml"), os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
 		return nil, "", "", "", err

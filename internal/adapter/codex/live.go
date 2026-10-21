@@ -6,10 +6,12 @@ import (
 	"encoding/json"
 	"io"
 	"os"
+	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/claude"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 )
 
 // Tracker follows a growing rollout file during a live session: token usage
@@ -17,13 +19,14 @@ import (
 // item_completed CommandExecution, keyed by the same id the hooks see as
 // tool_use_id).
 type Tracker struct {
-	Path   string
-	Offset int64
-	Model  string
-	Quota  *cost.Quota
-	last   tokenUsage
-	Exits  map[string]int
-	buf    []byte
+	Path         string
+	Offset       int64
+	Model        string
+	Quota        *cost.Quota
+	last         tokenUsage
+	Exits        map[string]int
+	ExitEvidence map[string]event.Execution
+	buf          []byte
 }
 
 // NewTracker creates a tracker that skips usage already in the file (earlier
@@ -90,18 +93,26 @@ func (t *Tracker) feed(line []byte) (event.Usage, bool) {
 		}
 		d := tokenUsage{In: tot.In - t.last.In, Cached: tot.Cached - t.last.Cached, CacheW: tot.CacheW - t.last.CacheW, Out: tot.Out - t.last.Out}
 		t.last = tot
-		return event.Usage{In: max(0, d.In-d.Cached), CacheRead: d.Cached, CacheWrite: d.CacheW, Out: d.Out, Model: t.Model}, true
+		return event.Usage{In: max(0, d.In-d.Cached), CacheRead: max(0, d.Cached), CacheWrite: max(0, d.CacheW), Out: max(0, d.Out), Model: t.Model}, true
 	case bytes.Contains(line, bItemCompleted) && bytes.Contains(line, bCmdExec):
 		var r struct {
-			Payload struct {
+			Timestamp time.Time `json:"timestamp"`
+			Payload   struct {
 				Item struct {
-					ID       string   `json:"id"`
-					ExitCode *float64 `json:"exit_code"`
+					ID       string `json:"id"`
+					ExitCode *int   `json:"exit_code"`
 				} `json:"item"`
 			} `json:"payload"`
 		}
 		if json.Unmarshal(line, &r) == nil && r.Payload.Item.ID != "" && r.Payload.Item.ExitCode != nil {
-			t.Exits[r.Payload.Item.ID] = int(*r.Payload.Item.ExitCode)
+			if t.Exits == nil {
+				t.Exits = map[string]int{}
+			}
+			if t.ExitEvidence == nil {
+				t.ExitEvidence = map[string]event.Execution{}
+			}
+			t.Exits[r.Payload.Item.ID] = *r.Payload.Item.ExitCode
+			t.ExitEvidence[r.Payload.Item.ID] = event.Execution{State: "exited", ExitSource: "rollout", CallID: r.Payload.Item.ID, ObservedAt: r.Timestamp, SourceDigest: fp.Hash(string(line))}
 		}
 	case bytes.Contains(line, bTurnCtx):
 		var r struct {

@@ -36,6 +36,23 @@ func TestShadowRecordsButDoesNotDeliver(t *testing.T) {
 	}
 }
 
+func TestShadowSuppressesDraftAndCompactionGuidance(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	s.Cfg.Rollout.Mode = "shadow"
+	s.Cfg.Contract.Draft = "on"
+	if out := s.onPrompt(HookInput{Prompt: "Fix the calculator"}); strings.Contains(string(out), "additionalContext") {
+		t.Fatalf("shadow injected a draft request: %s", out)
+	}
+	s.mu.Lock()
+	s.markCompaction()
+	s.pending = []string{"old advice"}
+	s.pendingDraft = "old draft"
+	s.mu.Unlock()
+	if advice, _ := s.takePendingFor("UserPromptSubmit", nil); advice != "" {
+		t.Fatalf("shadow injected guidance: %q", advice)
+	}
+}
+
 func TestExplicitProtectionSurvivesShadowMode(t *testing.T) {
 	s, d := reliabilitySession(t)
 	acceptCheck(t, s, d, "true")

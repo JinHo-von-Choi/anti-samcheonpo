@@ -57,20 +57,23 @@ type Usage struct {
 // Total returns all tokens.
 func (u Usage) Total() int64 { return u.In + u.Out + u.CacheRead + u.CacheWrite }
 
-// Add accumulates another usage into u (model is kept if already set).
+// Add accumulates usage. Mixed priced models must never use the first rate.
 func (u *Usage) Add(o Usage) {
+	if u.Total() > 0 && o.Total() > 0 && u.Model != o.Model {
+		u.Model = "<mixed>"
+	} else if u.Total() == 0 {
+		u.Model = o.Model
+	}
 	u.In += o.In
 	u.Out += o.Out
 	u.CacheRead += o.CacheRead
 	u.CacheWrite += o.CacheWrite
 	u.CacheWrite1h += o.CacheWrite1h
-	if u.Model == "" {
-		u.Model = o.Model
-	}
 }
 
 // Event is one normalized occurrence in an agent session.
 type Event struct {
+	Execution          *Execution            `json:"execution,omitempty"`
 	ResearchSources    []ResearchSource      `json:"research_sources,omitempty"`
 	ActionFP           string                `json:"action_fp,omitempty"`
 	ResearchLinks      []ResearchLink        `json:"research_links,omitempty"`
@@ -148,6 +151,16 @@ type Event struct {
 	Text string `json:"-"`
 	// Patch is transient (added lines of a write/edit), used by S5 rules.
 	Patch []PatchFile `json:"-"`
+}
+
+// Execution records process completion independently of tool transport output.
+type Execution struct {
+	State        string    `json:"state"`
+	ExitSource   string    `json:"exit_source,omitempty"`
+	ProcessID    string    `json:"process_id,omitempty"`
+	CallID       string    `json:"call_id,omitempty"`
+	ObservedAt   time.Time `json:"observed_at,omitempty"`
+	SourceDigest string    `json:"source_digest,omitempty"`
 }
 
 type RequirementChange struct {

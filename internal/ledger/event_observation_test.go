@@ -25,6 +25,7 @@ func TestObservationsSurviveReopenAndExcludeTransientText(t *testing.T) {
 	ev.Purpose = "secret-purpose"
 	ev.BehaviorTarget = "targethash"
 	ev.Reliability = &event.Reliability{TaskID: "task", Revision: 1, Complete: true}
+	ev.Execution = &event.Execution{State: "running", CallID: "command", ProcessID: "12", SourceDigest: "digest"}
 	ev.Decisions = []event.Decision{{Rule: "s2.behavior_loop", Code: "environment_unknown", Evidence: []int64{ev.Seq}}, {Rule: "bad", Code: "secret-output"}}
 	ev.WorkProgress.Knowledge = true
 	ev.ResearchSources = []event.ResearchSource{{ReferenceHash: "source", HostHash: "host"}}
@@ -52,6 +53,9 @@ func TestObservationsSurviveReopenAndExcludeTransientText(t *testing.T) {
 		t.Fatal(err)
 	}
 	got := evs[0]
+	if !reflect.DeepEqual(got.Execution, ev.Execution) {
+		t.Fatal("execution lifecycle lost on reopen")
+	}
 	if !reflect.DeepEqual(got.ResearchLinks, ev.ResearchLinks) || !reflect.DeepEqual(got.ResearchSources, ev.ResearchSources) {
 		t.Fatal("research provenance lost on reopen")
 	}

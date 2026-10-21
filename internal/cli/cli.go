@@ -38,7 +38,7 @@ import (
 )
 
 // Version is set at build time.
-var Version = "0.9.2"
+var Version = "0.9.3"
 
 var (
 	flagDB        string
@@ -50,7 +50,7 @@ var (
 func Root() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "samcheonpo",
-		Short:         "AI 코딩 에이전트의 헛짓을 잡아 원화 영수증으로 보여 주는 하네스",
+		Short:         "AI 코딩 에이전트의 반복 작업과 실패를 기록·안내하는 로컬 도구",
 		Version:       Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,

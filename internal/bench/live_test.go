@@ -94,6 +94,17 @@ func TestSummaryGates(t *testing.T) {
 	}
 }
 
+func TestSummaryWithholdsImportedTimeoutCost(t *testing.T) {
+	// Older runners can mark partial provider usage as complete. A failed
+	// timed-out attempt must remain in the denominator without a cost claim.
+	rows := clusterRows()
+	rows[0].TimedOut = true
+	s := Summarize(rows, "off")[0]
+	if s.CostKnown != s.Trials-1 || s.CostPerVerifiedKnown || s.TotalCostPerVerified != nil || s.TotalTokensPerVerified != nil {
+		t.Fatalf("partial timeout usage presented as complete: %+v", s)
+	}
+}
+
 func TestExampleABConfigResolvesRepositoryPaths(t *testing.T) {
 	cfg, err := LoadABConfig(filepath.Join("..", "..", "bench", "ab.example.yml"))
 	if err != nil {

@@ -46,6 +46,7 @@ func encodeSnapshot(r *analyze.Result) ([]byte, error) {
 			SessionID: ev.SessionID, Seq: ev.Seq, TS: ev.TS, Kind: ev.Kind,
 			RequirementChanges: ev.RequirementChanges,
 			ResultObserved:     ev.ResultObserved,
+			Execution:          ev.Execution,
 			Tool:               ev.Tool, RawTool: ev.RawTool, CmdFP: ev.CmdFP, Paths: ev.Paths,
 			WriteHashes: ev.WriteHashes, WSBefore: ev.WSBefore, WSAfter: ev.WSAfter,
 			ExitCode: ev.ExitCode, ErrFPs: ev.ErrFPs, FailedTests: ev.FailedTests,

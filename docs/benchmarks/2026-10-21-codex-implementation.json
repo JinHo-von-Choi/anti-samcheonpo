@@ -1,0 +1,122 @@
+{
+  "date": "2026-10-21",
+  "baseline_commit": "4b490d641429a98ec85d1d5e5a932a52368de927",
+  "implemented": [
+    "Codex explicit exit/lifecycle and late-result persistence",
+    "legacy poll correlation and code-mode capture regression",
+    "live model propagation, mixed-model pricing refusal, dated Astra price provenance",
+    "Probe v2 cost/outcome/evidence separation, full evidence digest, controlled conditions",
+    "shadow draft/compaction guidance suppression",
+    "minimal static guidance candidate"
+  ],
+  "tests": {
+    "full_command": "go test -count=1 -json ./...",
+    "packages_passed": 49,
+    "test_entries_passed_including_subtests": 942,
+    "failures": 0,
+    "initially_skipped_native_smoke": "subsequently built both native binaries and passed TestCleanEnvironmentBinarySmoke",
+    "final_bench_after_task_timeout_change": "passed",
+    "targeted_race": "passed",
+    "original_reproductions_after": {
+      "passed": 3,
+      "failed": 0
+    }
+  },
+  "smoke": {
+    "codex_version": "0.163.0",
+    "model": "gpt-6-astra",
+    "kind": "instrumentation-smoke",
+    "comparative": false,
+    "settings_overridden": false,
+    "cli_exit_code": 0,
+    "independent_task_check": 0,
+    "source_sha256": "c8a6fd88f291c0d82a39bb70b6c46e28904917e8b8b8a3c47d5681f236ea239c",
+    "fixture_sha256": "451901eb77af05e35b4d01c9c7d033e7ea9d714a4345cab0aa4edb0d1cf133ab",
+    "shells": 5,
+    "expected_exit_codes": [
+      0,
+      0,
+      0,
+      7,
+      0
+    ],
+    "usage": {
+      "input_tokens": 168944,
+      "cached_input_tokens": 131456,
+      "cache_write_input_tokens": 0,
+      "output_tokens": 730,
+      "reasoning_output_tokens": 18,
+      "total_tokens": 169674
+    },
+    "redaction": "command bodies/output, paths and identifiers removed; native event shape, status, exits and token totals preserved"
+  },
+  "logs": {
+    "full_tests": {
+      "path": "docs/plans/2026-10-21-codex-effectiveness-evidence/full_tests.jsonl",
+      "sha256": "9304d8eeff9afbd9129e5713d000471f02aca0955a603ffc496d3087c2726d1c"
+    },
+    "bench_after_timeout_fix": {
+      "path": "docs/plans/2026-10-21-codex-effectiveness-evidence/bench_after_timeout_fix.log",
+      "sha256": "9b85aae6e31ace44f9818ec786692a630125f5e3a92aaac49e47c67de60fd411"
+    },
+    "race": {
+      "path": "docs/plans/2026-10-21-codex-effectiveness-evidence/race.log",
+      "sha256": "bb52850d75fd7cd7b11794b2b3c783948af869bd61d6fd564ad0935f7704d206"
+    },
+    "original_reproductions_after": {
+      "path": "docs/plans/2026-10-21-codex-effectiveness-evidence/original_reproductions_after.log",
+      "sha256": "482f9155e74c8e9955561c2fd3b5daf7590ead5d85f0f7f77e5e3c3252474ef1"
+    },
+    "native_binary_smoke": {
+      "path": "docs/plans/2026-10-21-codex-effectiveness-evidence/native_binary_smoke.log",
+      "sha256": "187994a25035a704650be4bb53dfe87202f84ec2b7631b2aefbf55377791dac8"
+    },
+    "intermediate_failures": {
+      "path": "docs/plans/2026-10-21-codex-effectiveness-evidence/intermediate_failures.log",
+      "sha256": "5f849782a391499a62e9bc6450c61f59224526dd7f664a2941e8d0259e12bc46"
+    }
+  },
+  "not_completed": [
+    "four-arm Codex pilot and held-out effectiveness experiment",
+    "human independent labels and nondeveloper study",
+    "request-level long-context/service-tier billing reconstruction",
+    "new default intervention promotion"
+  ],
+  "deployment": "working-tree changes and isolated build only; installed daemon not replaced",
+  "monitor_observation": {
+    "kind": "automated suspicious-instruction warning during documentation patch",
+    "reviewed_sources": [
+      "docs/benchmarks/2026-10-21-codex-implementation.md",
+      "bench/guidance/codex-minimal.txt"
+    ],
+    "action": "inspected documentation and continued ordinary verification; no instruction from the warning content applied and no installed monitor settings changed",
+    "human_false_positive_label": false
+  },
+  "implementation_sha256": {
+    "bench/guidance/codex-minimal.txt": "5a133e77c8365d9b030afe11be2a2b1ffa4718536f0fa28659b5065bc4692402",
+    "internal/adapter/codex/lifecycle_test.go": "5d577444d77e6395d5becb828185972d5f4adfb89602198a5543a777e6234045",
+    "internal/adapter/codex/live.go": "7dc9fda0b5654e42745e0b6daf7fa33d66a707c374102be419c9d3867db6644c",
+    "internal/adapter/codex/parser.go": "7eeb4701e023b67c6e97d0f1f822d7bac1dd88c4127b4c09786822348a95874a",
+    "internal/adapter/codex/result.go": "c96911007c9ce9a906eaff96889423ea87097ff955d308a3b7c0e28dc6d5fb38",
+    "internal/adapter/codex/usage_lifecycle_test.go": "dc0424ea417fbd3fa8f13ae51ff6b3a9411ed5651cef02765b2750449ac32e34",
+    "internal/bench/cluster.go": "925d1c4201bb7c90585663e09a80996c4022a4c295607dfdcbb2734c7035938f",
+    "internal/bench/conditions.go": "57d1ccb88e451dede0e9c510a2ae232dc8ee9c0da676eb6a8d48c00b6e770a43",
+    "internal/bench/live.go": "3c33ea678b069d3d6c4fbe935050de0bac924dbb4a57dcf2bad614a38f9f2a17",
+    "internal/bench/probe.go": "de6e75d87ce1c51a739d4ca7faa7a97cb6940b9e6801e36c30a8093404930fa2",
+    "internal/bench/probe_evidence_test.go": "beb15c9f708492e6c37e4509e32d804e46e4dc48563209d846222cf134ffb900",
+    "internal/cost/codex_price_test.go": "9bae57d8ad82b9da6f08d52873a22a2138227fc9f9252b9eca7239297b0ebec6",
+    "internal/cost/cost.go": "6395afba9f0356a3c67fa7a00d352cda5002a6908a45048d57fa55857760f5e5",
+    "internal/cost/prices.yml": "dae2de63d128729216b1962ca4363c1b64dcdba27d484f3aa3241893975386cd",
+    "internal/eval/verdict.go": "66ea59c4112e6aece9363f9430c414672bc59b7556d50555b71b5480c8a936af",
+    "internal/event/event.go": "4d94da8dffb58a046eb6105d0d07095a3feccdb36c7953f5787d5cc16e3a4bfc",
+    "internal/ledger/event_observation.go": "88156228a6986083872baa8551c6f6b440618ee6fb89a12c49e3d077ac0e36e8",
+    "internal/ledger/event_observation_test.go": "9663192f140c6c540f23072485682645bdc1b6b2301e13818f5b095f80bf6075",
+    "internal/ledger/stored.go": "336271c61dc97997a8b7408b1eb9bafe48ae11df5b82483ee38474d3b9028736",
+    "internal/live/codex_result_test.go": "28fed4e6f869183a2cf4bfff853dd7876eda1257296dea35a3fd1eae82e51ae5",
+    "internal/live/hooks.go": "add9833fe8221cfc7253b72415aba0681d8d59b1fd6c20b37f79303126fbcf9e",
+    "internal/live/restore.go": "ae759ff7e0b7643fa22c97ce7faed6442e24656bff9321c8fd87f7077c4d6c34",
+    "internal/live/rollout_test.go": "65efe49f14d8d04d98be14182d5f3a72e4344266418bb82e033d5823caeba554",
+    "internal/live/session.go": "f456c696cf060049cd2615989f333c0cc24881840e4396c8057252ee2f4a0eb5",
+    "testdata/codex/captured-0.163.0.jsonl": "451901eb77af05e35b4d01c9c7d033e7ea9d714a4345cab0aa4edb0d1cf133ab"
+  }
+}

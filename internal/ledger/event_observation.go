@@ -8,6 +8,7 @@ import (
 )
 
 type observationPayload struct {
+	Execution          *event.Execution            `json:"execution,omitempty"`
 	ActionFP           string                      `json:"action_fp,omitempty"`
 	ResearchLinks      []event.ResearchLink        `json:"research_links,omitempty"`
 	ResearchSources    []event.ResearchSource      `json:"research_sources,omitempty"`
@@ -42,6 +43,7 @@ func observationJSON(ev *event.Event) ([]byte, error) {
 	p := observationPayload{PromptOrigin: ev.PromptOrigin, ObservationFP: ev.ObservationFP, Selection: ev.BehaviorSelection, Requirements: ev.Requirements, IsError: ev.IsError, Unknown: ev.Unknown, Mutating: ev.Mutating, Estimated: ev.Estimated, DurationMS: ev.DurationMS, TimeoutMS: ev.TimeoutMS, Progress: ev.WorkProgress, Context: ev.BehaviorContext, Target: ev.BehaviorTarget, Result: ev.BehaviorResult, ExecFP: ev.ExecFP, ExecCertain: ev.ExecCertain, Background: ev.Background, ErrFPs: ev.ErrFPs, FailedTests: ev.FailedTests, Reliability: ev.Reliability}
 	p.RequirementChanges = ev.RequirementChanges
 	p.ResultObserved = ev.ResultObserved
+	p.Execution = ev.Execution
 	p.ResearchSources = ev.ResearchSources
 	p.ActionFP = ev.ActionFP
 	p.ResearchLinks = ev.ResearchLinks
@@ -111,6 +113,7 @@ func OpenReadOnly(path string) (*DB, error) {
 func applyObservation(ev *event.Event, p observationPayload) {
 	ev.RequirementChanges = p.RequirementChanges
 	ev.ResultObserved = p.ResultObserved
+	ev.Execution = p.Execution
 	ev.ResearchSources = p.ResearchSources
 	ev.ActionFP = p.ActionFP
 	ev.ResearchLinks = p.ResearchLinks

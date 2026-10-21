@@ -45,8 +45,16 @@ func compareClusters(rows []TrialResult, base, arm string, comparisons int) Clus
 			c.Reason = "실험 식별자·버전·독립 채점 근거 누락"
 			return c
 		}
-		condition := r.Agent + "/" + r.AgentVersion + "/" + r.Model + "/" + r.ObservedModel + "/" + r.PriceVersion + "/" + r.EvaluatorVersion
-		meta := condition + "/" + r.PolicyVersion + "/" + r.MonitorBinarySHA256 + "/" + r.MonitorConfigSHA256
+		condition := r.Agent + "/" + r.AgentVersion + "/" + r.Model + "/" + r.ObservedModel + "/" + r.PriceVersion + "/" + r.EvaluatorVersion + "/" + r.Conditions.commonFingerprint()
+		if r.Contamination != nil && r.Contamination.Verdict != ContaminationClean {
+			c.Reason = "채점 근거 오염이 있는 시행"
+			return c
+		}
+		policyIdentity := r.MonitorFingerprint
+		if policyIdentity == "" {
+			policyIdentity = r.MonitorConfigSHA256 // legacy rows remain conservative
+		}
+		meta := condition + "/" + r.PolicyVersion + "/" + r.MonitorBinarySHA256 + "/" + policyIdentity
 		conditions[r.Arm] = condition
 		if old, ok := metadata[r.Arm]; ok && old != meta {
 			c.Reason = "실행 방식 안에서 모델/정책/에이전트 조건이 바뀜"
@@ -86,6 +94,10 @@ func compareClusters(rows []TrialResult, base, arm string, comparisons int) Clus
 			c.Reason = "짝 시행의 seed 불일치"
 			return c
 		}
+		if a.Conditions.fingerprint() != b.Conditions.fingerprint() {
+			c.Reason = "짝 시행의 실행 조건·시간 제한 불일치"
+			return c
+		}
 		// variants of one source event resample together as one cluster
 		tasks[clusterOf(a)] = append(tasks[clusterOf(a)], pairedTrial{a, b})
 		c.Blocks++
@@ -113,7 +125,7 @@ func compareClusters(rows []TrialResult, base, arm string, comparisons int) Clus
 	costKnown := true
 	for _, block := range by {
 		for _, r := range block {
-			if !r.CostKnown || r.MonitorKRW == nil || *r.MonitorKRW < 0 {
+			if !r.CostKnown || r.TimedOut || r.MonitorKRW == nil || *r.MonitorKRW < 0 {
 				costKnown = false
 			}
 		}
