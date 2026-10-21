@@ -1,0 +1,18 @@
+{
+  "event": "PostToolUse",
+  "input": {
+    "hook_event_name": "PostToolUse",
+    "session_id": "copilot-session-1",
+    "timestamp": "2026-10-21T15:32:06.849Z",
+    "cwd": "/w/proj",
+    "tool_name": "Edit",
+    "tool_input": "*** Begin Patch\n*** Update File: /w/proj/a.py\n@@\n-print(1)\n+print(2)\n*** End Patch\n",
+    "tool_result": {
+      "result_type": "success",
+      "text_result_for_llm": "Modified 1 file(s): /w/proj/a.py"
+    }
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 22205
+}

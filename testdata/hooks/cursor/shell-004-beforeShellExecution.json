@@ -1,0 +1,16 @@
+{
+  "conversation_id": "shell-id-1",
+  "generation_id": "shell-id-1",
+  "model": "default",
+  "command": "python3 hello.py",
+  "cwd": "",
+  "sandbox": false,
+  "tool_use_id": "shell-id-2",
+  "session_id": "shell-id-1",
+  "hook_event_name": "beforeShellExecution",
+  "cursor_version": "2026.10.19-6bbf2c4",
+  "workspace_roots": [
+    "/workspace/shell"
+  ],
+  "transcript_path": null
+}

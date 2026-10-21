@@ -139,8 +139,12 @@ func installCmd() *cobra.Command {
 			case "opencode":
 				return installOpencode(cmd, exe)
 			case "copilot":
-				wd, _ := os.Getwd()
-				return install.CopilotFile(exe, wd, func(s string) { fmt.Fprintln(cmd.OutOrStdout(), s) })
+				if hooksFile == "" {
+					wd, _ := os.Getwd()
+					hooksFile = install.CopilotRepoHookPath(wd)
+				}
+				w := cmd.OutOrStdout()
+				return install.CopilotHookFile(exe, hooksFile, func(s string) { fmt.Fprintln(w, s) })
 			case "cursor":
 				if hooksFile == "" {
 					h, _ := os.UserHomeDir()
@@ -167,9 +171,9 @@ func installCmd() *cobra.Command {
 			return install.Install(install.Options{Binary: exe, SettingsPath: settings, UsePluginCLI: !noCLI, Out: func(s string) { fmt.Fprintln(w, s) }})
 		},
 	}
-	c.Flags().StringVar(&agent, "agent", "claude", "대상 에이전트 (claude, codex, opencode, agy, hermes, openclaw)")
+	c.Flags().StringVar(&agent, "agent", "claude", "대상 에이전트 (claude, codex, opencode, agy, hermes, openclaw, copilot, cursor)")
 	c.Flags().StringVar(&settings, "settings", "", "Claude Code settings.json 경로")
-	c.Flags().StringVar(&hooksFile, "hooks-file", "", "Codex hooks.json 경로 (기본 ~/.codex/hooks.json, 프로젝트는 .codex/hooks.json)")
+	c.Flags().StringVar(&hooksFile, "hooks-file", "", "Codex/Cursor hooks.json 경로 (기본 ~/.codex/hooks.json 또는 ~/.cursor/hooks.json)")
 	c.Flags().BoolVar(&noCLI, "no-plugin-cli", false, "claude plugin 명령으로 등록하지 않는다")
 	return c
 }
@@ -190,8 +194,7 @@ func uninstallCmd() *cobra.Command {
 			case "opencode":
 				return install.UninstallOpencode(say)
 			case "copilot":
-				wd, _ := os.Getwd()
-				return install.RemoveCopilotFile(wd, say)
+				return install.RemoveCopilotHooks(say)
 			case "cursor":
 				return install.UninstallCursor(say)
 			case "agy":

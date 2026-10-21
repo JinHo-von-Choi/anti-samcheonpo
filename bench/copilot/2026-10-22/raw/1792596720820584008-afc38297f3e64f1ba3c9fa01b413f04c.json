@@ -1,0 +1,20 @@
+{
+  "event": "postToolUse",
+  "input": {
+    "sessionId": "copilot-session-1",
+    "timestamp": 1792596720745,
+    "cwd": "/w/proj",
+    "toolName": "bash",
+    "toolArgs": {
+      "command": "python3 -c 'raise SystemExit(7)'",
+      "description": "Run requested exit-status command"
+    },
+    "toolResult": {
+      "resultType": "success",
+      "textResultForLlm": "\n<shellId: 1 completed with exit code 7>"
+    }
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 24869
+}

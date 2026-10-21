@@ -1,0 +1,12 @@
+{
+  "cwd": "/w/proj",
+  "hookName": "permissionRequest",
+  "permissionSuggestions": [],
+  "sessionId": "copilot-session-1",
+  "timestamp": 1792596726675,
+  "toolInput": {
+    "diff": "\ndiff --git a/w/proj/a.py b/w/proj/a.py\nindex 0000000..0000000 100644\n--- a/w/proj/a.py\n+++ b/w/proj/a.py\n@@ -1,2 +1,2 @@\n-print(1)\n+print(2)\n \n",
+    "file_path": "/w/proj/a.py"
+  },
+  "toolName": "edit"
+}

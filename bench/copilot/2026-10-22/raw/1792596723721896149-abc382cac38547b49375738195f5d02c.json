@@ -1,0 +1,19 @@
+{
+  "event": "postToolUse",
+  "input": {
+    "sessionId": "copilot-session-1",
+    "timestamp": 1792596723644,
+    "cwd": "/w/proj",
+    "toolName": "view",
+    "toolArgs": {
+      "path": "/w/proj/a.py"
+    },
+    "toolResult": {
+      "resultType": "success",
+      "textResultForLlm": "print(1)\n"
+    }
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 29473
+}

@@ -1,0 +1,33 @@
+● Run requested Python expression (shell)
+  │ python3 -c 'print(123)'
+  └ 7 lines…
+
+✗ Run requested Python exit test (shell)
+  │ python3 -c 'raise SystemExit(7)'
+  └
+    <shellId: 1 completed with exit code 7>
+
+    Tool "bash" succeeded. Additional guidance from postToolUse hooks:
+    Include PROBE_CONTEXT in your final reply.
+
+    Include PROBE_CONTEXT in your final reply.
+    Failed with exit code 7
+
+● Read a.py
+  └ 1 line read
+
+● Edit
+  └ Edit a.py
+
+● Run the updated Python file (shell)
+  │ python3 a.py
+  └ 7 lines…
+
+✗ Attempt requested marker-file creation (shell)
+  │ touch deny-marker
+  └ Denied by preToolUse hook: PROBE_DENIED
+
+The first Python command printed `123`; the second exited with status `7`. I changed `a.py` to `print(2)`, and running it printed `2`. The final `touch deny-marker` attempt was denied; I did not retry.
+
+PROBE_CONTEXT
+

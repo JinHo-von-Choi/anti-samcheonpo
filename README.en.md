@@ -58,6 +58,10 @@ samcheonpo doctor --agent codex
 
 Start a **new agent session**. If the agent asks you to trust hooks or a plugin, review and approve the installed Samcheonpo entry. The first hook starts the monitor automatically.
 
+Cursor CLI is observation-only. The current source supports generic tool hooks and connection checks; actual blocking and advice delivery remain unverified. See the [Cursor connection guide](docs/getting-started.md#cursor-cli에서-관찰하기).
+
+GitHub Copilot CLI connects with `samcheonpo install --agent copilot`. Pre-tool blocking and post-tool advice were verified against the real CLI; stop continuation and prompt injection stay off. See the [Copilot connection guide](docs/getting-started.md#github-copilot-cli에-연결하기).
+
 **3. Work normally and respond to warnings.** Run these in your own terminal, in the project directory:
 
 | Need | Command |

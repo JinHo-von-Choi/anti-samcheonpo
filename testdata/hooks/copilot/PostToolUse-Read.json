@@ -1,0 +1,14 @@
+{
+  "cwd": "/w/proj",
+  "hook_event_name": "PostToolUse",
+  "session_id": "copilot-session-1",
+  "timestamp": "2026-10-21T15:32:03.644Z",
+  "tool_input": {
+    "path": "/w/proj/a.py"
+  },
+  "tool_name": "Read",
+  "tool_result": {
+    "result_type": "success",
+    "text_result_for_llm": "print(1)\n"
+  }
+}

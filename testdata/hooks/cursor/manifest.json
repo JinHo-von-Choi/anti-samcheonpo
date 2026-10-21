@@ -1,0 +1,65 @@
+{
+  "agent_version": "2026.10.19-6bbf2c4",
+  "source_commit": "29975ea",
+  "original_capture_counts": {
+    "shell": 10,
+    "read": 16
+  },
+  "redactions": [
+    "user_email removed",
+    "session, generation and call IDs replaced consistently",
+    "workspace and transcript paths replaced consistently"
+  ],
+  "captures": [
+    {
+      "file": "shell-000-sessionStart.json",
+      "hook_event_name": "sessionStart",
+      "sha256": "5182a160fc209872109338754c1e1a8a650bd98d14745657e3ed9597d973362d"
+    },
+    {
+      "file": "shell-003-preToolUse.json",
+      "hook_event_name": "preToolUse",
+      "sha256": "ef2717f96a8eb5237b6eb513297fbbc94bfd419fa8738ec05ab689bc2b520ac9"
+    },
+    {
+      "file": "shell-004-beforeShellExecution.json",
+      "hook_event_name": "beforeShellExecution",
+      "sha256": "9d22ded3008c1e3c1cb0ffba801d071319dc0557ac1d32150cff78d819efffdb"
+    },
+    {
+      "file": "shell-005-afterShellExecution.json",
+      "hook_event_name": "afterShellExecution",
+      "sha256": "8838fa9616a87c1dbb00eafc5804c66a5a81fba78b68695114347f65f439f437"
+    },
+    {
+      "file": "shell-006-postToolUse.json",
+      "hook_event_name": "postToolUse",
+      "sha256": "cfdf3827cb34b519c8f1e175b653196237b1eeda5a5441f3b351ba062bc69732"
+    },
+    {
+      "file": "shell-010-sessionEnd.json",
+      "hook_event_name": "sessionEnd",
+      "sha256": "dd8c17c91f89628532a4b357c5a462623f0904d7a0f892ab98ebca8f84e4ed43"
+    },
+    {
+      "file": "read-009-preToolUse.json",
+      "hook_event_name": "preToolUse",
+      "sha256": "097fae72b5b881d4756250844977b8aeff4736f4e14eccd742e5de54485c2f68"
+    },
+    {
+      "file": "read-010-beforeReadFile.json",
+      "hook_event_name": "beforeReadFile",
+      "sha256": "f26b6217a2a99ad7f14ff36ef64cda56f20b3a5e756e02d3aa8c3d81c86298cb"
+    },
+    {
+      "file": "read-011-postToolUse.json",
+      "hook_event_name": "postToolUse",
+      "sha256": "f397c0ac76b778c8a5f6dff40e9a88e51d84d577301adf3114f790fbab280228"
+    },
+    {
+      "file": "read-016-sessionEnd.json",
+      "hook_event_name": "sessionEnd",
+      "sha256": "6cb1071dfa9aa358b7d75e96ce01dfc7064068a9e15387d2621cdfc69a53d4a1"
+    }
+  ]
+}

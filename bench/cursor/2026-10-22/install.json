@@ -1,0 +1,11 @@
+{
+  "install_and_reinstall_exit": 0,
+  "managed_hooks": 8,
+  "doctor": {
+    "cursor_install": "ok",
+    "cursor_events": "warning",
+    "cursor_delivery": "warning"
+  },
+  "uninstall_exit": 0,
+  "original_settings_preserved": true
+}

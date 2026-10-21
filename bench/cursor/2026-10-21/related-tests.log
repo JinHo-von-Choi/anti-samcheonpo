@@ -1,0 +1,26 @@
+=== RUN   TestCopilotTranslation
+--- PASS: TestCopilotTranslation (0.00s)
+=== RUN   TestClientExplicitAllowWhenDaemonDown
+--- PASS: TestClientExplicitAllowWhenDaemonDown (0.00s)
+PASS
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/live	0.032s
+=== RUN   TestCursorAndCopilotFiles
+--- PASS: TestCursorAndCopilotFiles (0.01s)
+=== RUN   TestHookUninstallPreservesUserAddedEntryAndRootKey
+=== RUN   TestHookUninstallPreservesUserAddedEntryAndRootKey/codex
+=== RUN   TestHookUninstallPreservesUserAddedEntryAndRootKey/cursor
+--- PASS: TestHookUninstallPreservesUserAddedEntryAndRootKey (0.01s)
+    --- PASS: TestHookUninstallPreservesUserAddedEntryAndRootKey/codex (0.00s)
+    --- PASS: TestHookUninstallPreservesUserAddedEntryAndRootKey/cursor (0.00s)
+=== RUN   TestHookInstallRejectsMalformedHooks
+--- PASS: TestHookInstallRejectsMalformedHooks (0.00s)
+PASS
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/install	0.025s
+=== RUN   TestSessionEndWaitMatchesHostBudget
+--- PASS: TestSessionEndWaitMatchesHostBudget (0.00s)
+PASS
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient	0.008s
+=== RUN   TestVersionProbeBoundsTimeAndOutput
+--- PASS: TestVersionProbeBoundsTimeAndOutput (0.32s)
+PASS
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter	0.324s

@@ -1,0 +1,14 @@
+{
+  "cwd": "/w/proj",
+  "sessionId": "copilot-session-1",
+  "timestamp": 1792596718115,
+  "toolArgs": {
+    "command": "python3 -c 'print(123)'",
+    "description": "Run requested Python command"
+  },
+  "toolName": "bash",
+  "toolResult": {
+    "resultType": "success",
+    "textResultForLlm": "123\n<shellId: 0 completed with exit code 0>"
+  }
+}

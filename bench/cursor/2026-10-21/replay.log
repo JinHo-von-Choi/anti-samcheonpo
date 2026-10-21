@@ -1,0 +1,30 @@
+=== RUN   TestCursorSupportProbe
+=== RUN   TestCursorSupportProbe/captured_events
+    cursor_support_probe_test.go:55: read-009-preToolUse.json -> []; native_id_preserved=false
+    cursor_support_probe_test.go:55: read-010-beforeReadFile.json -> [PreToolUse]; native_id_preserved=false
+    cursor_support_probe_test.go:55: read-011-postToolUse.json -> []; native_id_preserved=false
+    cursor_support_probe_test.go:55: read-016-sessionEnd.json -> [SessionEnd]; native_id_preserved=false
+    cursor_support_probe_test.go:55: shell-000-sessionStart.json -> [SessionStart]; native_id_preserved=false
+    cursor_support_probe_test.go:55: shell-003-preToolUse.json -> []; native_id_preserved=false
+    cursor_support_probe_test.go:55: shell-004-beforeShellExecution.json -> [PreToolUse]; native_id_preserved=false
+    cursor_support_probe_test.go:55: shell-005-afterShellExecution.json -> [PostToolUse]; native_id_preserved=false
+    cursor_support_probe_test.go:55: shell-006-postToolUse.json -> []; native_id_preserved=false
+    cursor_support_probe_test.go:55: shell-010-sessionEnd.json -> [SessionEnd]; native_id_preserved=false
+=== RUN   TestCursorSupportProbe/distinct_calls_collide
+    cursor_support_probe_test.go:74: synthetic second call: different native IDs produce the same internal ID
+=== RUN   TestCursorSupportProbe/unknown_exit_in_ledger
+    cursor_support_probe_test.go:121: captured afterShellExecution has no exit_code; stored shell_count=1 exit_code=0
+=== RUN   TestCursorSupportProbe/output_and_fallback
+    cursor_support_probe_test.go:131: daemon unavailable beforeShellExecution output="{\"permission\":\"allow\"}\n"
+    cursor_support_probe_test.go:131: daemon unavailable preToolUse output=""
+    cursor_support_probe_test.go:143: postToolUse additionalContext is dropped
+=== RUN   TestCursorSupportProbe/capabilities
+    cursor_support_probe_test.go:150: tested=false block_pre=false inject_post=false block_stop=false
+--- PASS: TestCursorSupportProbe (0.05s)
+    --- PASS: TestCursorSupportProbe/captured_events (0.00s)
+    --- PASS: TestCursorSupportProbe/distinct_calls_collide (0.00s)
+    --- PASS: TestCursorSupportProbe/unknown_exit_in_ledger (0.05s)
+    --- PASS: TestCursorSupportProbe/output_and_fallback (0.00s)
+    --- PASS: TestCursorSupportProbe/capabilities (0.00s)
+PASS
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/live	0.065s

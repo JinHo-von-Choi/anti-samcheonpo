@@ -1,0 +1,17 @@
+{
+  "event": "PreToolUse",
+  "input": {
+    "hook_event_name": "PreToolUse",
+    "session_id": "copilot-session-1",
+    "timestamp": "2026-10-21T15:32:00.278Z",
+    "cwd": "/w/proj",
+    "tool_name": "Bash",
+    "tool_input": {
+      "command": "python3 -c 'raise SystemExit(7)'",
+      "description": "Run requested exit-status command"
+    }
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 22561
+}

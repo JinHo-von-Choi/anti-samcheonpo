@@ -1,0 +1,16 @@
+{
+  "conversation_id": "read-id-1",
+  "generation_id": "read-id-1",
+  "model": "default",
+  "content": "x=1\n",
+  "file_path": "/workspace/read/a.py",
+  "attachments": [],
+  "tool_use_id": "read-id-2",
+  "session_id": "read-id-1",
+  "hook_event_name": "beforeReadFile",
+  "cursor_version": "2026.10.19-6bbf2c4",
+  "workspace_roots": [
+    "/workspace/read"
+  ],
+  "transcript_path": "/workspace/read/transcript.jsonl"
+}

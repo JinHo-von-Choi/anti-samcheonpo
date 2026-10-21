@@ -1,0 +1,13 @@
+{
+  "cwd": "/w/proj",
+  "sessionId": "copilot-session-1",
+  "timestamp": 1792596723644,
+  "toolArgs": {
+    "path": "/w/proj/a.py"
+  },
+  "toolName": "view",
+  "toolResult": {
+    "resultType": "success",
+    "textResultForLlm": "print(1)\n"
+  }
+}

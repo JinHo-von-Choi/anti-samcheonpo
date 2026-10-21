@@ -1,0 +1,9 @@
+{
+  "cwd": "/w/proj",
+  "sessionId": "copilot-session-1",
+  "timestamp": 1792596723441,
+  "toolArgs": {
+    "path": "/w/proj/a.py"
+  },
+  "toolName": "view"
+}

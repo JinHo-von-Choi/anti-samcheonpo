@@ -267,62 +267,63 @@ func UninstallAgy(out func(string)) error {
 	return os.Remove(hookStatePath("agy"))
 }
 
-// CopilotFile writes the Copilot CLI repository hook file (PascalCase mode).
-func CopilotFile(bin, project string, out func(string)) error {
-	bin = hookclient.Executable(bin)
-	p := filepath.Join(project, ".github", "hooks", "samcheonpo.json")
-	if _, err := os.Stat(p); err == nil {
-		return fmt.Errorf("%s가 이미 있다", p)
-	}
-	hooks := map[string]any{}
-	for ev, t := range map[string]int{"SessionStart": 5, "PreToolUse": 5, "PostToolUse": 5, "Stop": 160} {
-		hooks[ev] = []map[string]any{{"type": "command", "command": strconv.Quote(bin) + " hook " + ev + " copilot", "timeoutSec": t}}
-	}
-	b, _ := json.MarshalIndent(map[string]any{"version": 1, "hooks": hooks}, "", "  ")
-	if err := installStandalone("copilot", p, append(b, '\n')); err != nil {
-		return err
-	}
-	if out != nil {
-		out("Copilot CLI 훅을 " + p + "에 썼다")
-	}
-	return nil
-}
-
-// RemoveCopilotFile removes the Copilot hook file written by CopilotFile.
-func RemoveCopilotFile(project string, out func(string)) error {
-	p := filepath.Join(project, ".github", "hooks", "samcheonpo.json")
-	if err := removeStandalone("copilot", p); err != nil {
-		return err
-	}
-	if out != nil {
-		out(p + "를 지웠다")
-	}
-	return nil
-}
-
 // CursorEvents are the Cursor hook events samcheonpo registers.
-var CursorEvents = []string{"sessionStart", "sessionEnd", "beforeSubmitPrompt", "beforeShellExecution", "afterShellExecution", "beforeReadFile", "afterFileEdit", "stop", "preCompact"}
+var CursorEvents = []string{"sessionStart", "sessionEnd", "beforeSubmitPrompt", "preToolUse", "postToolUse", "postToolUseFailure", "stop", "preCompact"}
 
 // InstallCursor merges samcheonpo commands into a Cursor hooks.json.
 func InstallCursor(bin, path string, out func(string)) error {
 	bin = hookclient.Executable(bin)
-	if _, err := os.Lstat(hookStatePath("cursor")); err == nil {
-		return errors.New("cursor 연결이 이미 설치되어 있다")
+	var previous *hookState
+	if data, err := os.ReadFile(hookStatePath("cursor")); err == nil {
+		var st hookState
+		if json.Unmarshal(data, &st) != nil || st.Agent != "cursor" || st.Path == "" {
+			return errors.New("Cursor 설치 기록이 올바르지 않습니다")
+		}
+		a, _ := filepath.Abs(path)
+		b, _ := filepath.Abs(st.Path)
+		if a != b {
+			return errors.New("기존 Cursor 연결을 제거한 뒤 다른 경로에 설치하세요")
+		}
+		previous = &st
 	} else if !os.IsNotExist(err) {
 		return err
 	}
+
 	root, raw, err := readSettings(path)
 	if err != nil {
 		return err
 	}
 	existed := raw != nil
+	if previous != nil {
+		existed = previous.Existed
+	}
 	if _, ok := root["version"]; !ok {
 		root["version"] = json.RawMessage(`1`)
+	}
+	var version int
+	if json.Unmarshal(root["version"], &version) != nil || version != 1 {
+		return errors.New("Cursor 훅 version은 1이어야 합니다")
 	}
 	hooks := map[string][]json.RawMessage{}
 	if h, ok := root["hooks"]; ok {
 		if err := json.Unmarshal(h, &hooks); err != nil || hooks == nil {
 			return errors.New("hooks는 이벤트 배열을 담은 JSON 객체여야 합니다")
+		}
+	}
+	if previous != nil {
+		for ev, entries := range hooks {
+			keep := make([]json.RawMessage, 0, len(entries))
+			for _, entry := range entries {
+				if previous.Entries != nil && jsonEqual(entry, previous.Entries[ev]) || previous.Entries == nil && legacyHookEntry(entry, previous.Marker, ev, "cursor") {
+					continue
+				}
+				keep = append(keep, entry)
+			}
+			if len(keep) == 0 {
+				delete(hooks, ev)
+			} else {
+				hooks[ev] = keep
+			}
 		}
 	}
 	if err := backup(path, raw); err != nil {
@@ -331,7 +332,7 @@ func InstallCursor(bin, path string, out func(string)) error {
 	mk := marker(bin, "cursor")
 	installed := map[string]json.RawMessage{}
 	for _, ev := range CursorEvents {
-		entry, _ := json.Marshal(map[string]any{"command": mk + ev + " cursor"})
+		entry, _ := json.Marshal(map[string]any{"command": mk + ev + " cursor", "timeout": 5})
 		hooks[ev] = append(hooks[ev], entry)
 		installed[ev] = entry
 	}
@@ -342,7 +343,7 @@ func InstallCursor(bin, path string, out func(string)) error {
 		return err
 	}
 	if out != nil {
-		out("Cursor 훅을 " + path + "에 추가했다 (관찰 전용: 실제 Cursor 기록으로 확인 전까지 개입하지 않는다)")
+		out("Cursor 훅을 " + path + "에 추가했다 (관찰 전용: 실제 차단·안내 전달은 미검증)")
 	}
 	return nil
 }

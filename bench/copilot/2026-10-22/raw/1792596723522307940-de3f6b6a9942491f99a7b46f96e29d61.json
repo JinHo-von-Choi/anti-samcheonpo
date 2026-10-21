@@ -1,0 +1,15 @@
+{
+  "event": "preToolUse",
+  "input": {
+    "sessionId": "copilot-session-1",
+    "timestamp": 1792596723441,
+    "cwd": "/w/proj",
+    "toolName": "view",
+    "toolArgs": {
+      "path": "/w/proj/a.py"
+    }
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 23759
+}

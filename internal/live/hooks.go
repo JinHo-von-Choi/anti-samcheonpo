@@ -20,20 +20,22 @@ import (
 
 // HookInput is the common Claude Code hook payload.
 type HookInput struct {
-	SessionID      string          `json:"session_id"`
-	TranscriptPath string          `json:"transcript_path"`
-	Cwd            string          `json:"cwd"`
-	HookEventName  string          `json:"hook_event_name"`
-	ToolName       string          `json:"tool_name"`
-	ToolInput      json.RawMessage `json:"tool_input"`
-	ToolResponse   json.RawMessage `json:"tool_response"`
-	ToolUseID      string          `json:"tool_use_id"`
-	Error          string          `json:"error"`
-	Prompt         string          `json:"prompt"`
-	StopHookActive bool            `json:"stop_hook_active"`
-	LastMessage    string          `json:"last_assistant_message"`
-	Source         string          `json:"source"`
-	Trigger        string          `json:"trigger"`
+	Cursor         *cursorEvidence  `json:"-"`
+	Copilot        *copilotEvidence `json:"-"`
+	SessionID      string           `json:"session_id"`
+	TranscriptPath string           `json:"transcript_path"`
+	Cwd            string           `json:"cwd"`
+	HookEventName  string           `json:"hook_event_name"`
+	ToolName       string           `json:"tool_name"`
+	ToolInput      json.RawMessage  `json:"tool_input"`
+	ToolResponse   json.RawMessage  `json:"tool_response"`
+	ToolUseID      string           `json:"tool_use_id"`
+	Error          string           `json:"error"`
+	Prompt         string           `json:"prompt"`
+	StopHookActive bool             `json:"stop_hook_active"`
+	LastMessage    string           `json:"last_assistant_message"`
+	Source         string           `json:"source"`
+	Trigger        string           `json:"trigger"`
 	// ParentSessionID is lineage a plugin states when it spawned this session
 	// for another one; it is evidence only when the plugin sends it.
 	ParentSessionID string `json:"parent_session_id"`
@@ -156,9 +158,22 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 	if err != nil {
 		return nil, nil, err
 	}
+	if agent == "cursor" && name == "PostToolUseFailure" && (len(in.ToolInput) == 0 || string(in.ToolInput) == "null") {
+		s.mu.Lock()
+		in.ToolInput = s.cursorInputs[in.ToolUseID]
+		s.mu.Unlock()
+	}
+	if agent == "copilot" {
+		// Copilot states no tool call id, so the session joins a start event
+		// to its result by tool name and arrival order.
+		in = s.copilotCorrelate(name, in)
+	}
 	if reason := hookShape(name, in); reason != "" {
 		// the payload is no longer what the handlers read: observe only
 		d.markShapeBad(agent, reason)
+		if agent == "cursor" {
+			return nil, s, nil
+		}
 	}
 	if name != "SessionEnd" {
 		s.opMu.RLock()
@@ -207,6 +222,9 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 	case "PostToolUse", "PostToolUseFailure":
 		return s.onPostTool(in, name == "PostToolUseFailure"), s, nil
 	case "Stop":
+		if in.Cursor != nil && (in.Cursor.EndStatus != "completed" || in.Cursor.LoopCount > 0) {
+			return nil, s, nil
+		}
 		return s.onStop(in), s, nil
 	case "PreCompact":
 		ev := &event.Event{Kind: event.KindCompact, TS: time.Now(), Summary: "compact", Basis: "live"}
@@ -216,8 +234,44 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 		s.mu.Unlock()
 		s.enqueue(ev, 0)
 		return nil, s, nil
+	case "ErrorOccurred":
+		// The agent stated an error. The ledger keeps it so a lost session end
+		// is not read as a clean finish. The ledger stores a summary, so the
+		// message is shortened into it.
+		ctx := "unknown"
+		if in.Copilot != nil && in.Copilot.ErrorCtx != "" {
+			ctx = in.Copilot.ErrorCtx
+		}
+		summary := "copilot error: " + ctx
+		if in.Error != "" {
+			msg := strings.TrimSpace(in.Error)
+			if len(msg) > 200 {
+				msg = msg[:200]
+			}
+			summary += ": " + msg
+		}
+		ev := &event.Event{Kind: event.KindError, TS: time.Now(), Summary: summary, Text: in.Error, Basis: "live"}
+		s.mu.Lock()
+		s.parser.AddEvent(ev)
+		s.mu.Unlock()
+		s.enqueue(ev, 0)
+		return nil, s, nil
 	case "SessionEnd":
 		s.flushTurn()
+		if in.Cursor != nil {
+			s.mu.Lock()
+			ev := &event.Event{Kind: event.KindSessionEnd, TS: time.Now(), Summary: "cursor session end: " + cursorEndStatus(in.Cursor.EndStatus), Basis: "live"}
+			s.parser.AddEvent(ev)
+			s.mu.Unlock()
+			s.enqueue(ev, 0)
+		}
+		if in.Copilot != nil {
+			s.mu.Lock()
+			ev := &event.Event{Kind: event.KindSessionEnd, TS: time.Now(), Summary: "copilot session end: " + copilotEndStatus(in.Copilot.EndStatus), Basis: "live"}
+			s.parser.AddEvent(ev)
+			s.mu.Unlock()
+			s.enqueue(ev, 0)
+		}
 		s.mu.Lock()
 		endBudget := s.caps.SessionEndBudget
 		s.mu.Unlock()
@@ -323,6 +377,12 @@ const draftContinueNote = "초안을 쓴 뒤 사용자의 수락이나 선택을
 
 func (s *Session) buildTool(in HookInput) *event.Event {
 	id := in.ToolUseID
+	if s.Agent == "cursor" && id != "" {
+		if s.cursorInputs == nil {
+			s.cursorInputs = map[string]json.RawMessage{}
+		}
+		s.cursorInputs[id] = in.ToolInput
+	}
 	if id == "" {
 		id = fmt.Sprintf("hook-%d", time.Now().UnixNano())
 	}
@@ -330,9 +390,27 @@ func (s *Session) buildTool(in HookInput) *event.Event {
 		s.parser.Cwd = in.Cwd
 	}
 	ev := s.parser.HookToolUse(in.ToolName, id, in.ToolInput, time.Now())
+	if s.Agent == "cursor" && in.ToolName == "Delete" {
+		var input struct {
+			Path string `json:"file_path"`
+		}
+		if json.Unmarshal(in.ToolInput, &input) == nil && input.Path != "" {
+			path := input.Path
+			if filepath.IsAbs(path) {
+				if rel, err := filepath.Rel(s.Root, path); err == nil {
+					path = rel
+				}
+			}
+			ev.Tool = event.ToolEdit
+			ev.Paths = []string{path}
+			ev.Deleted = []string{path}
+			ev.Mutating = true
+			ev.Summary = "delete " + path
+		}
+	}
 	ev.Reliability = s.reliabilityBoundary()
 	ev.Reliability.Phase = "input"
-	ev.Reliability.SourceMissing = in.ToolUseID == ""
+	ev.Reliability.SourceMissing = in.ToolUseID == "" || in.Copilot != nil && in.Copilot.NoCallID
 	s.classifyEvent(ev)
 	return ev
 }
@@ -364,6 +442,10 @@ func (s *Session) flushAwaiting(except string) []*event.Event {
 		delete(s.shell, id)
 		x := -1
 		ev.ExitCode = &x
+		if s.Agent == "cursor" {
+			ev.ExitCode = nil
+			ev.Execution = &event.Execution{State: "unknown", CallID: id, ExitSource: "cursor_hook"}
+		}
 		ev.Category = event.CatPlan
 		ev.Summary += " (결과 없음)"
 		out = append(out, ev)
@@ -386,11 +468,34 @@ func preDeadline(d time.Time) time.Time {
 }
 
 func (s *Session) onPreTool(in HookInput) json.RawMessage {
+	if s.Agent != "cursor" {
+		return s.onPreToolOnce(in)
+	}
+	s.cursorMu.Lock()
+	defer s.cursorMu.Unlock()
+	s.mu.Lock()
+	if s.byTool[in.ToolUseID] != nil {
+		out := s.cursorPre[in.ToolUseID]
+		s.mu.Unlock()
+		return out
+	}
+	s.mu.Unlock()
+	out := s.onPreToolOnce(in)
+	s.mu.Lock()
+	if s.cursorPre == nil {
+		s.cursorPre = map[string]json.RawMessage{}
+	}
+	s.cursorPre[in.ToolUseID] = out
+	s.mu.Unlock()
+	return out
+}
+
+func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	deadline := preDeadline(in.Deadline)
 	s.mu.Lock()
 	s.loadContract()
 	ev := s.buildTool(in)
-	if ev.Tool == event.ToolShell && userOnlyCommand(ev.Cmd) {
+	if ev.Tool == event.ToolShell && userOnlyCommand(ev.Cmd) && (s.Agent != "cursor" || s.caps.BlockPre) {
 		// refused whatever the rollout stage: this protects the user's own
 		// decisions, not a waste estimate
 		s.byTool[ev.CallID] = ev
@@ -541,7 +646,45 @@ func (s *Session) onPreTool(in HookInput) json.RawMessage {
 func intPtr(i int) *int { return &i }
 
 func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
+	if s.Agent == "cursor" {
+		s.cursorMu.Lock()
+		defer s.cursorMu.Unlock()
+	}
 	s.mu.Lock()
+	if s.Agent == "cursor" && in.Cursor != nil {
+		if s.cursorPosted == nil {
+			s.cursorPosted = map[string]int{}
+		}
+		if ev := s.byTool[in.ToolUseID]; ev != nil && (s.cursorPosted[in.ToolUseID] > 0 || s.flushed[in.ToolUseID]) {
+			if in.Cursor.Rank > s.cursorPosted[in.ToolUseID] || in.Cursor.Rank == s.cursorPosted[in.ToolUseID] && failure && !ev.IsError {
+				if !ev.ResultObserved {
+					s.parser.HookToolResult(ev.CallID, in.ToolResponse, failure, in.Error)
+				}
+				applyCursorResult(ev, in, failure)
+				if s.flushed[in.ToolUseID] {
+					s.classifyEvent(ev)
+					ev.Summary = strings.TrimSuffix(ev.Summary, " (결과 없음)")
+					delete(s.flushed, in.ToolUseID)
+				}
+				s.cursorPosted[in.ToolUseID] = in.Cursor.Rank
+				s.persistEvent(ev)
+			}
+			s.mu.Unlock()
+			return nil
+		}
+		s.cursorPosted[in.ToolUseID] = in.Cursor.Rank
+	}
+	if s.Agent == "copilot" && in.Copilot != nil {
+		if s.copilotPosted == nil {
+			s.copilotPosted = map[string]int{}
+		}
+		if ev := s.byTool[in.ToolUseID]; ev != nil && s.copilotPosted[in.ToolUseID] > 0 {
+			// The result of one call is recorded once, however often it arrives.
+			s.mu.Unlock()
+			return nil
+		}
+		s.copilotPosted[in.ToolUseID] = in.Copilot.Rank
+	}
 	if ev := s.byTool[in.ToolUseID]; s.Agent == "codex" && ev != nil && ev.Tool == event.ToolShell && (s.codexPosted[in.ToolUseID] || s.flushed[in.ToolUseID]) {
 		// A final poll may follow an already observed running/unknown result.
 		// Update that event without a second engine observation.
@@ -586,7 +729,13 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 	if s.Agent == "codex" {
 		codex.ApplyResponse(ev, resp)
 	}
-	if ev.ExitCode != nil && *ev.ExitCode == -1 && !failure {
+	if s.Agent == "cursor" {
+		applyCursorResult(ev, in, failure)
+	}
+	if s.Agent == "copilot" {
+		applyCopilotResult(ev, in, failure)
+	}
+	if s.Agent != "cursor" && s.Agent != "copilot" && ev.ExitCode != nil && *ev.ExitCode == -1 && !failure {
 		ev.ExitCode = nil
 	}
 	cx := s.cx

@@ -1,0 +1,8 @@
+{
+  "cwd": "/w/proj",
+  "sessionId": "copilot-session-1",
+  "stopReason": "end_turn",
+  "stop_hook_active": false,
+  "timestamp": 1792596732284,
+  "transcriptPath": "/w/proj/state/session-state/copilot-session-1/events.jsonl"
+}

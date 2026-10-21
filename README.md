@@ -51,6 +51,10 @@ samcheonpo doctor --agent codex
 
 에이전트에서 **새 세션을 시작**하세요. 훅·플러그인 신뢰 확인이 나오면 설치한 삼천포 항목을 확인해 승인합니다. 첫 훅이 호출되면 감시 프로세스가 자동으로 시작됩니다.
 
+Cursor CLI는 관찰 전용입니다. 현재 소스의 연결·갱신 방법과 확인 범위는 [Cursor 사용 안내](docs/getting-started.md#cursor-cli에서-관찰하기)를 참고하세요.
+
+GitHub Copilot CLI는 `samcheonpo install --agent copilot`로 연결합니다. 실행 전 차단과 도구 뒤 안내는 실제 CLI로 확인했지만 종료 후속 실행과 프롬프트 주입은 꺼 둡니다. 연결 방법과 확인 범위는 [Copilot 사용 안내](docs/getting-started.md#github-copilot-cli에-연결하기)를 참고하세요.
+
 **3. 평소처럼 작업하고, 경고가 나오면 판단합니다.** 아래 명령은 작업 중인 프로젝트의 사용자 터미널에서 실행합니다.
 
 | 상황 | 명령 |

@@ -1,0 +1,14 @@
+{
+  "event": "agentStop",
+  "input": {
+    "sessionId": "copilot-session-1",
+    "timestamp": 1792596732284,
+    "cwd": "/w/proj",
+    "transcriptPath": "/w/proj/state/session-state/copilot-session-1/events.jsonl",
+    "stopReason": "end_turn",
+    "stop_hook_active": false
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 23284
+}

@@ -1,0 +1,20 @@
+{
+  "event": "postToolUse",
+  "input": {
+    "sessionId": "copilot-session-1",
+    "timestamp": 1792596718115,
+    "cwd": "/w/proj",
+    "toolName": "bash",
+    "toolArgs": {
+      "command": "python3 -c 'print(123)'",
+      "description": "Run requested Python command"
+    },
+    "toolResult": {
+      "resultType": "success",
+      "textResultForLlm": "123\n<shellId: 0 completed with exit code 0>"
+    }
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 22853
+}

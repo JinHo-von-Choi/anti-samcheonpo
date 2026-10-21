@@ -1,0 +1,8 @@
+{
+  "cwd": "/w/proj",
+  "hook_event_name": "PreToolUse",
+  "session_id": "copilot-session-1",
+  "timestamp": "2026-10-21T15:32:06.497Z",
+  "tool_input": "*** Begin Patch\n*** Update File: /w/proj/a.py\n@@\n-print(1)\n+print(2)\n*** End Patch\n",
+  "tool_name": "Edit"
+}

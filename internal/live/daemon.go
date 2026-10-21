@@ -518,6 +518,10 @@ func (d *Daemon) handleWith(req Request, slot *ackSlot) (json.RawMessage, string
 	}
 	events, inputs, err := translateIn(agent, req.Event, req.Payload)
 	if err != nil {
+		if agent == "cursor" {
+			d.markShapeBad(agent, "Cursor: 훅 JSON 형식 오류")
+			return nil, "", errors.New("Cursor 훅 JSON 형식 오류")
+		}
 		return nil, "", err
 	}
 	var out json.RawMessage
@@ -527,6 +531,14 @@ func (d *Daemon) handleWith(req Request, slot *ackSlot) (json.RawMessage, string
 		deadline = time.UnixMilli(req.DeadlineUnixMs)
 	}
 	for i, ev := range events {
+		if inputs[i].Cursor != nil && inputs[i].Cursor.Shape != "" {
+			d.markShapeBad(agent, inputs[i].Cursor.Shape)
+			continue
+		}
+		if inputs[i].Copilot != nil && inputs[i].Copilot.Shape != "" {
+			d.markShapeBad(agent, inputs[i].Copilot.Shape)
+			continue
+		}
 		inputs[i].Deadline = deadline
 		inputs[i].Ack = slot
 		out, err = d.handleHook(agent, ev, inputs[i])

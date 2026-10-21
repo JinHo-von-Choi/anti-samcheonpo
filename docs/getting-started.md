@@ -73,7 +73,43 @@ samcheonpo install --agent codex
 samcheonpo doctor --agent codex
 ```
 
-이름은 `claude`, `codex`, `opencode`, `agy`, `hermes`, `openclaw`를 지원합니다. `copilot`·`cursor`는 관찰 전용입니다. Hermes·OpenClaw의 플러그인 활성화와 게이트웨이 재시작은 설치 명령이 출력하는 안내를 따르세요.
+이름은 `claude`, `codex`, `opencode`, `agy`, `hermes`, `openclaw`, `copilot`를 지원합니다. `cursor`는 관찰 전용입니다. Hermes·OpenClaw의 플러그인 활성화와 게이트웨이 재시작은 설치 명령이 출력하는 안내를 따르세요.
+
+### GitHub Copilot CLI에 연결하기
+
+현재 소스로 빌드한 실행 파일에서는 다음 명령으로 연결합니다.
+
+```sh
+samcheonpo install --agent copilot
+samcheonpo doctor --agent copilot
+```
+
+설치는 기본적으로 실행 중인 폴더의 `.github/hooks/samcheonpo.json`에 들어갑니다. Copilot은 신뢰된 작업 폴더에서만 저장소 훅을 불러오므로, 다른 폴더까지 쓰려면 사용자 수준 파일을 지정합니다.
+
+```sh
+samcheonpo install --agent copilot --hooks-file "$HOME/.copilot/hooks/samcheonpo.json"
+```
+
+같은 경로로 다시 실행하면 삼천포가 쓴 파일만 교체합니다. 이미 있는 파일은 덮어쓰지 않습니다. `samcheonpo install --agent copilot`을 경로 지정 없이 다시 실행하면 삼천포가 기록한 Copilot 연결 파일을 모두 지웁니다.
+
+새 Copilot 세션에서 작업한 뒤 `doctor --agent copilot`의 마지막 수신 기록을 확인하세요. 필수 훅이 맞아도 수신 기록이 없다면 실제 연결은 아직 확인되지 않은 상태입니다.
+
+Copilot은 도구 호출 ID를 보내지 않습니다. 시작과 결과는 도구 이름과 도착 순서로 이어지며, 셸 종료 코드는 결과 본문에만 있습니다. 사용량·비용은 Copilot 훅이 알려 주지 않아 비어 있습니다. 실행 전 차단과 도구 뒤 안내는 실제 CLI로 확인했지만 종료 후속 실행과 프롬프트 주입은 꺼 둡니다. [확인한 범위](support-matrix.md#github-copilot-cli)
+
+### Cursor CLI에서 관찰하기
+
+현재 소스로 빌드한 실행 파일에서는 다음 명령으로 연결합니다. 아직 배포된 v0.9.3의 Cursor 연결은 이 범용 훅 처리를 포함하지 않습니다.
+
+```sh
+samcheonpo install --agent cursor
+samcheonpo doctor --agent cursor
+```
+
+설정은 기본적으로 `~/.cursor/hooks.json`에 들어갑니다. 다른 파일을 쓰려면 `--hooks-file /절대경로/hooks.json`을 지정합니다. 기존 연결을 갱신할 때도 같은 명령·같은 경로를 사용하세요. 삼천포가 기록한 기존 항목만 교체하며 다른 훅과 사용자 수정은 보존합니다.
+
+새 Cursor 세션에서 작업한 뒤 `doctor --agent cursor`의 마지막 수신 기록을 확인하세요. 필수 훅이 맞아도 수신 기록이 없다면 실제 연결은 아직 확인되지 않은 상태입니다. 사용량이 수집되지 않은 비용은 미확인으로 읽습니다. 현재는 실행을 차단하거나 안내를 전달하지 않습니다. [확인한 범위](support-matrix.md#cursor-cli)
+
+연결을 제거하려면 `samcheonpo uninstall --agent cursor`를 실행합니다.
 
 에이전트에서 새 세션을 시작한 뒤 프로젝트의 사용자 터미널에서 확인합니다.
 

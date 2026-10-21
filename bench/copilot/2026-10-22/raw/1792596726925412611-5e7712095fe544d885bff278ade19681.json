@@ -1,0 +1,17 @@
+{
+  "event": "postToolUse",
+  "input": {
+    "sessionId": "copilot-session-1",
+    "timestamp": 1792596726849,
+    "cwd": "/w/proj",
+    "toolName": "apply_patch",
+    "toolArgs": "*** Begin Patch\n*** Update File: /w/proj/a.py\n@@\n-print(1)\n+print(2)\n*** End Patch\n",
+    "toolResult": {
+      "resultType": "success",
+      "textResultForLlm": "Modified 1 file(s): /w/proj/a.py"
+    }
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 23558
+}

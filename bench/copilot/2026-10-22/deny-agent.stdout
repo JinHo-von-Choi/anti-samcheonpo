@@ -1,0 +1,9 @@
+✗ Run the requested command (shell)
+  │ samcheonpo cmd accept
+  └ Denied by preToolUse hook: [삼천포] 이 명령(계약 수락·수정·건너뛰기, 판정 해제, 되돌리기 적용)은
+    사용자가 슬래시 명령으로 실행하는 명령이라 에이전트 셸에서는 실행하지 않았다. 필요하면
+    사용자에게 해당 슬래시 명령(예: /samcheonpo:accept, /samcheonpo:keep normal,
+    /samcheonpo:rollback apply)을 요청할 수 있다.
+
+The shell hook blocked `samcheonpo cmd accept`, so the command was not run. It says this action must be invoked as the `/samcheonpo:accept` slash command.
+

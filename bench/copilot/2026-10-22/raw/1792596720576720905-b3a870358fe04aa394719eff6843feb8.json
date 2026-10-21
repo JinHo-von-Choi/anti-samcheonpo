@@ -1,0 +1,17 @@
+{
+  "event": "permissionRequest",
+  "input": {
+    "hookName": "permissionRequest",
+    "sessionId": "copilot-session-1",
+    "timestamp": 1792596720505,
+    "cwd": "/w/proj",
+    "toolName": "bash",
+    "toolInput": {
+      "command": "python3 -c 'raise SystemExit(7)'"
+    },
+    "permissionSuggestions": []
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 22865
+}

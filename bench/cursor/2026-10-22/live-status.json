@@ -1,0 +1,28 @@
+{
+  "agent_version": "2026.10.19-6bbf2c4",
+  "status": "model_unavailable",
+  "agent_exit": 1,
+  "mode": "bridge",
+  "hooks": 2,
+  "edited": false,
+  "deny_attempted": false,
+  "deny_marker_exists": false,
+  "context_echoed": false,
+  "followup_marker_exists": false,
+  "product_intervention_verified": false,
+  "lifecycle": [
+    {
+      "event": "sessionStart",
+      "transport_exit": 0,
+      "final_status": null
+    },
+    {
+      "event": "sessionEnd",
+      "transport_exit": 0,
+      "final_status": "error"
+    }
+  ],
+  "cleanup": {
+    "daemon_shutdown": "requested"
+  }
+}

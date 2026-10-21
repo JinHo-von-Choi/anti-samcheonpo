@@ -11,14 +11,18 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient"
 )
 
-// Payload shapes follow the published hook references (Copilot CLI PascalCase
-// mode, Cursor hooks); they are not captured from running agents.
+// Payload shapes follow the published hook references and the captured
+// fixtures under testdata/hooks (Copilot CLI, Cursor hooks); they are not
+// captured from running agents.
 
 func TestCopilotTranslation(t *testing.T) {
-	raw := json.RawMessage(`{"session_id":"cp1","cwd":"/w","tool_name":"Bash","tool_input":{"command":"npm test"},"tool_result":{"text_result_for_llm":"1 failed"}}`)
+	raw := json.RawMessage(`{"session_id":"cp1","cwd":"/w","tool_name":"Bash","tool_input":{"command":"npm test"},"tool_result":{"result_type":"success","text_result_for_llm":"1 failed"}}`)
 	evs, ins, err := translateIn("copilot", "PostToolUse", raw)
-	if err != nil || len(evs) != 1 || ins[0].ToolName != "Bash" || !strings.Contains(string(ins[0].ToolResponse), "1 failed") || ins[0].ToolUseID == "" {
+	if err != nil || len(evs) != 1 || ins[0].ToolName != "Bash" || !strings.Contains(string(ins[0].ToolResponse), "1 failed") {
 		t.Fatalf("%v %+v %v", evs, ins, err)
+	}
+	if ins[0].ToolUseID != "" {
+		t.Fatalf("copilot states no call id; the session joins the pair: %q", ins[0].ToolUseID)
 	}
 	out := translateOut("copilot", "PreToolUse", "PreToolUse",
 		json.RawMessage(`{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"r"}}`), false)
@@ -30,20 +34,20 @@ func TestCopilotTranslation(t *testing.T) {
 }
 
 func TestCursorTranslation(t *testing.T) {
-	before := json.RawMessage(`{"conversation_id":"cv1","generation_id":"g1","command":"pytest","cwd":"/w","workspace_roots":["/w"]}`)
+	before := json.RawMessage(`{"conversation_id":"cv1","generation_id":"g1","tool_use_id":"call-1","command":"pytest","cwd":"/w","workspace_roots":["/w"]}`)
 	evs, ins, _ := translateIn("cursor", "beforeShellExecution", before)
 	if evs[0] != "PreToolUse" || ins[0].ToolName != "Bash" || ins[0].SessionID != "cv1" {
 		t.Fatalf("%v %+v", evs, ins)
 	}
-	after := json.RawMessage(`{"conversation_id":"cv1","generation_id":"g1","command":"pytest","cwd":"/w","output":"1 failed","exit_code":1}`)
+	after := json.RawMessage(`{"conversation_id":"cv1","generation_id":"g1","tool_use_id":"call-1","command":"pytest","cwd":"/w","output":"1 failed","exit_code":1}`)
 	evs2, ins2, _ := translateIn("cursor", "afterShellExecution", after)
 	if evs2[0] != "PostToolUseFailure" || ins2[0].ToolUseID != ins[0].ToolUseID || !strings.HasPrefix(ins2[0].Error, "Exit code 1") {
 		t.Fatalf("before and after pair by id: %v %+v", evs2, ins2)
 	}
-	edit := json.RawMessage(`{"conversation_id":"cv1","generation_id":"g2","file_path":"/w/a.py","edits":[{"old_string":"a","new_string":"b"}]}`)
+	edit := json.RawMessage(`{"conversation_id":"cv1","generation_id":"g2","tool_use_id":"call-2","file_path":"/w/a.py","edits":[{"old_string":"a","new_string":"b"}]}`)
 	evs3, _, _ := translateIn("cursor", "afterFileEdit", edit)
-	if len(evs3) != 2 || evs3[0] != "PreToolUse" || evs3[1] != "PostToolUse" {
-		t.Fatalf("file edits become a pre and a post event: %v", evs3)
+	if len(evs3) != 1 || evs3[0] != "PostToolUse" {
+		t.Fatalf("after-only edits must not synthesize a pre event: %v", evs3)
 	}
 	deny := json.RawMessage(`{"hookSpecificOutput":{"permissionDecision":"deny","permissionDecisionReason":"same test again"}}`)
 	var m map[string]any

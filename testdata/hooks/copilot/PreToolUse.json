@@ -1,0 +1,11 @@
+{
+  "cwd": "/w/proj",
+  "hook_event_name": "PreToolUse",
+  "session_id": "copilot-session-1",
+  "timestamp": "2026-10-21T15:31:57.687Z",
+  "tool_input": {
+    "command": "python3 -c 'print(123)'",
+    "description": "Run requested Python command"
+  },
+  "tool_name": "Bash"
+}

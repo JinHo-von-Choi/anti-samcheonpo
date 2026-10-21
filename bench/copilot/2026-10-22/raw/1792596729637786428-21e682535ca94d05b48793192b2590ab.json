@@ -1,0 +1,17 @@
+{
+  "event": "permissionRequest",
+  "input": {
+    "hookName": "permissionRequest",
+    "sessionId": "copilot-session-1",
+    "timestamp": 1792596729556,
+    "cwd": "/w/proj",
+    "toolName": "bash",
+    "toolInput": {
+      "command": "python3 a.py"
+    },
+    "permissionSuggestions": []
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 29682
+}

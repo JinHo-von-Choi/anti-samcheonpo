@@ -166,7 +166,7 @@ func TestCursorAndCopilotFiles(t *testing.T) {
 		t.Fatal(err)
 	}
 	b, _ := os.ReadFile(cp)
-	if !strings.Contains(string(b), "mine.sh") || !strings.Contains(string(b), "beforeShellExecution cursor") {
+	if !strings.Contains(string(b), "mine.sh") || !strings.Contains(string(b), "preToolUse cursor") {
 		t.Fatalf("cursor merge: %s", b)
 	}
 	if err := UninstallCursor(nil); err != nil {
@@ -182,10 +182,25 @@ func TestCursorAndCopilotFiles(t *testing.T) {
 	}
 	cb, _ := os.ReadFile(filepath.Join(proj, ".github", "hooks", "samcheonpo.json"))
 	var m map[string]any
-	if json.Unmarshal(cb, &m) != nil || m["version"].(float64) != 1 || !strings.Contains(string(cb), "PreToolUse copilot") {
+	if json.Unmarshal(cb, &m) != nil || m["version"].(float64) != 1 {
 		t.Fatalf("copilot file: %s", cb)
 	}
-	if err := RemoveCopilotFile(proj, nil); err != nil {
+	hooks, _ := m["hooks"].(map[string]any)
+	for _, ev := range CopilotEvents {
+		entries, _ := hooks[ev].([]any)
+		if len(entries) != 1 {
+			t.Fatalf("copilot %s: %s", ev, cb)
+		}
+		entry, _ := entries[0].(map[string]any)
+		if entry["exec"] != "/opt/s" {
+			t.Fatalf("copilot %s exec: %s", ev, cb)
+		}
+		args, _ := entry["args"].([]any)
+		if len(args) != 3 || args[0] != "hook" || args[2] != "copilot" {
+			t.Fatalf("copilot %s args: %s", ev, cb)
+		}
+	}
+	if err := RemoveCopilotHooks(nil); err != nil {
 		t.Fatal(err)
 	}
 }

@@ -62,11 +62,16 @@ var Profiles = map[string]Profile{
 	"opencode": {Agent: "opencode", Tested: Tested{Min: "1.18.0", Max: "1.18.999"}, Caps: Caps{
 		BlockPre: true, InjectPre: false, InjectPost: true, BlockStop: true, EndTurnPost: false, PromptInject: true,
 		StatusLine: false, UserMessage: false, PostFailure: true, ExitInHook: true, SessionEndBudget: 3 * time.Second}},
-	// Docs-based, not yet captured from a running agent: observation only
-	// until fixtures are recorded (Tested is empty). Copilot uses the
-	// PascalCase hook mode; Cursor fails closed on missing decisions.
-	"copilot": {Agent: "copilot", Caps: Caps{SessionEndBudget: 5 * time.Second}},
-	"cursor":  {Agent: "cursor", Caps: Caps{FailClosed: true, SessionEndBudget: 5 * time.Second}},
+	// Copilot CLI 1.0.101: payloads captured in testdata/hooks/copilot. The
+	// agent states no tool call id, so a start event and its result are joined
+	// by tool name and arrival order, and the shell exit code is prose in the
+	// result text. The CLI honours a pre-tool deny and a post-tool
+	// additionalContext, both verified with the real CLI, so pre-tool blocking
+	// and post-tool advice are delivered. Stop continuation and prompt
+	// injection stay off: their output contract is not verified yet.
+	"copilot": {Agent: "copilot", Tested: Tested{Min: "1.0.101", Max: "1.0.101"}, Caps: Caps{
+		BlockPre: true, InjectPost: true, PostFailure: true, ExitInHook: true, SessionEndBudget: 5 * time.Second}},
+	"cursor": {Agent: "cursor", Tested: Tested{Min: "2026.10.19-6bbf2c4", Max: "2026.10.19-6bbf2c4"}, Caps: Caps{FailClosed: true, SessionEndBudget: 5 * time.Second}},
 	// agy 1.3.0: payloads captured in testdata/hooks/agy. Pre-tool deny and
 	// stop continuation verified with the real CLI; advice reaches the model
 	// through PreInvocation injectSteps; results come from the transcript.
@@ -141,6 +146,9 @@ func Resolve(agent, version string) (Caps, bool) {
 func Observe(agent string) Caps {
 	observe := ObserveOnly
 	observe.FailClosed = Profiles[agent].Caps.FailClosed
+	if budget := Profiles[agent].Caps.SessionEndBudget; budget > 0 {
+		observe.SessionEndBudget = budget
+	}
 	return observe
 }
 
@@ -150,6 +158,9 @@ func InTestedRange(agent, version string) bool {
 	p, ok := Profiles[agent]
 	if !ok || p.Tested.Min == "" {
 		return false
+	}
+	if agent == "cursor" {
+		return version == p.Tested.Min && version == p.Tested.Max
 	}
 	v, ok := ParseVersion(version)
 	if !ok {

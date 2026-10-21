@@ -1,0 +1,10 @@
+{
+  "cwd": "/w/proj",
+  "hook_event_name": "PreToolUse",
+  "session_id": "copilot-session-1",
+  "timestamp": "2026-10-21T15:32:03.441Z",
+  "tool_input": {
+    "path": "/w/proj/a.py"
+  },
+  "tool_name": "Read"
+}

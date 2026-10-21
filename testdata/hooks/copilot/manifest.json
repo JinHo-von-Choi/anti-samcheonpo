@@ -1,0 +1,138 @@
+{
+  "agent_version": "1.0.101",
+  "capture_command": "scripts/probe_copilot_hooks.py --mode capture",
+  "capture_environment": {
+    "os": "Linux 6.8.0-138-generic x86_64",
+    "copilot_home": "private temporary directory",
+    "workspace": "private temporary project",
+    "trust": "COPILOT_ALLOW_ALL=true",
+    "tool_permission": "--allow-all-tools"
+  },
+  "original_capture_counts": {
+    "PermissionRequest": 4,
+    "PostToolUse": 5,
+    "PreToolUse": 5,
+    "SessionEnd": 1,
+    "SessionStart": 1,
+    "Stop": 1,
+    "agentStop": 1,
+    "permissionRequest": 4,
+    "postToolUse": 5,
+    "preToolUse": 5,
+    "sessionEnd": 1,
+    "sessionStart": 1,
+    "userPromptSubmitted": 1
+  },
+  "redactions": [
+    "session id replaced consistently",
+    "workspace path replaced with /w/proj",
+    "home path replaced with /home/u/.copilot"
+  ],
+  "captures": [
+    {
+      "file": "sessionStart.json",
+      "hook_event_name": "sessionStart",
+      "sha256": "69a49ec5d7383951a9dd9a4a85e26435474aca70b4a1bb8d6396f560667dfe4c"
+    },
+    {
+      "file": "SessionStart.json",
+      "hook_event_name": "SessionStart",
+      "sha256": "58f83dc19a96a3b05efd58107f4f3233a5fc7f0a36cc3322fd743c37e99e75a3"
+    },
+    {
+      "file": "userPromptSubmitted.json",
+      "hook_event_name": "userPromptSubmitted",
+      "sha256": "e024639493c8f8c4c705c6fd80a824c97d93d3ab1672e9383aef941f77029cc5"
+    },
+    {
+      "file": "preToolUse.json",
+      "hook_event_name": "preToolUse",
+      "sha256": "7b67c4e09add162bd35bce342b636122423b5d9c165cde52434ea754f3217fe2"
+    },
+    {
+      "file": "preToolUse-view.json",
+      "hook_event_name": "preToolUse",
+      "sha256": "f5f43f233973a8b964f6eff8464a3f678654970bbbdeba949d3d3e017a294d72"
+    },
+    {
+      "file": "preToolUse-apply_patch.json",
+      "hook_event_name": "preToolUse",
+      "sha256": "1001511d6950b2498491abad9dac8217d30b9c427548414a635466be167f0669"
+    },
+    {
+      "file": "PreToolUse.json",
+      "hook_event_name": "PreToolUse",
+      "sha256": "8fcf7364afe7467310507ceaf7221380a610577d8fee4d186b113a69659a4380"
+    },
+    {
+      "file": "PreToolUse-Read.json",
+      "hook_event_name": "PreToolUse",
+      "sha256": "f082c364f3d48c47ccfe1e4ca20856b9706460508bcaa9bb4320f3d18ac54ba7"
+    },
+    {
+      "file": "PreToolUse-Edit.json",
+      "hook_event_name": "PreToolUse",
+      "sha256": "a03812499c04ab9afd16d3108aed4420f187d834a34e4ba708c5b9546c623a4a"
+    },
+    {
+      "file": "postToolUse.json",
+      "hook_event_name": "postToolUse",
+      "sha256": "711be87f24e7a5b69648843f2ead02df5a74d639657b938deff4486c4eb7eb0d"
+    },
+    {
+      "file": "postToolUse-view.json",
+      "hook_event_name": "postToolUse",
+      "sha256": "5b1970fb59b8361a91ac223aa288c4296c7235532c7593e4837701a5a17bea1a"
+    },
+    {
+      "file": "postToolUse-apply_patch.json",
+      "hook_event_name": "postToolUse",
+      "sha256": "073ee90a0421ce8cbfffbff0b6e46483c4d3c6c54c9a3ac957cf97fe1f2a9f46"
+    },
+    {
+      "file": "PostToolUse.json",
+      "hook_event_name": "PostToolUse",
+      "sha256": "c9fdceded67de4935bb0b3069bcee1f3c233f248f4f066fa66f7233da4963e9f"
+    },
+    {
+      "file": "PostToolUse-Read.json",
+      "hook_event_name": "PostToolUse",
+      "sha256": "4f7aeaebe9d6c95d48ec893048baa77f2ea0d88f06a5a95c01c71f56b85b9194"
+    },
+    {
+      "file": "PostToolUse-Edit.json",
+      "hook_event_name": "PostToolUse",
+      "sha256": "013ee0e720ec7f8429fea1d34aed5e39390b198850f6269f23b8751a80cf1198"
+    },
+    {
+      "file": "agentStop.json",
+      "hook_event_name": "agentStop",
+      "sha256": "e34c75c4850bc48e744c9e45e6f62ced3d13f75e716533bcdc7dc1d85d54adad"
+    },
+    {
+      "file": "Stop.json",
+      "hook_event_name": "Stop",
+      "sha256": "f793dfc56eba9abc24dce5a32ae3ae639fc44e0f9585a76b95edc3ee7b9e856b"
+    },
+    {
+      "file": "sessionEnd.json",
+      "hook_event_name": "sessionEnd",
+      "sha256": "12c139804de3364fc98bcf56c31c44922bfbed88d105311f94265c071de23c18"
+    },
+    {
+      "file": "SessionEnd.json",
+      "hook_event_name": "SessionEnd",
+      "sha256": "39f214a011d958a5c851d3af565ef4b202e08e8d544e228f17ca3ca319e4524a"
+    },
+    {
+      "file": "permissionRequest.json",
+      "hook_event_name": "permissionRequest",
+      "sha256": "e5c7ebf89f08ab1cb4fc7ee1384f686932f2a67c4254a9e13ea623b6379b381e"
+    },
+    {
+      "file": "permissionRequest-edit.json",
+      "hook_event_name": "permissionRequest",
+      "sha256": "f3280becf961a29b27e8584b1c9ec679deeb7d464d8f340679b46063aa94b364"
+    }
+  ]
+}

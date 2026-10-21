@@ -1,0 +1,17 @@
+{
+  "conversation_id": "read-id-1",
+  "generation_id": "read-id-1",
+  "model": "default",
+  "tool_name": "Read",
+  "tool_input": {
+    "file_path": "/workspace/read/a.py"
+  },
+  "tool_use_id": "read-id-2",
+  "session_id": "read-id-1",
+  "hook_event_name": "preToolUse",
+  "cursor_version": "2026.10.19-6bbf2c4",
+  "workspace_roots": [
+    "/workspace/read"
+  ],
+  "transcript_path": "/workspace/read/transcript.jsonl"
+}

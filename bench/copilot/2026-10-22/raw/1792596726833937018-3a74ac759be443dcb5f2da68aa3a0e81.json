@@ -1,0 +1,18 @@
+{
+  "event": "PermissionRequest",
+  "input": {
+    "hookName": "permissionRequest",
+    "sessionId": "copilot-session-1",
+    "timestamp": 1792596726675,
+    "cwd": "/w/proj",
+    "toolName": "edit",
+    "toolInput": {
+      "file_path": "/w/proj/a.py",
+      "diff": "\ndiff --git a/w/proj/a.py b/w/proj/a.py\nindex 0000000..0000000 100644\n--- a/w/proj/a.py\n+++ b/w/proj/a.py\n@@ -1,2 +1,2 @@\n-print(1)\n+print(2)\n \n"
+    },
+    "permissionSuggestions": []
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 22221
+}

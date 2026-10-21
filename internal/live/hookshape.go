@@ -16,6 +16,12 @@ import (
 // why a payload does not match, "" when it does. Unknown tool names are not
 // a mismatch: agents add tools, and an unknown tool is only observed.
 func hookShape(name string, in HookInput) string {
+	if in.Cursor != nil && in.Cursor.Shape != "" {
+		return in.Cursor.Shape
+	}
+	if in.Copilot != nil && in.Copilot.Shape != "" {
+		return in.Copilot.Shape
+	}
 	switch name {
 	case "PreToolUse", "PostToolUse", "PostToolUseFailure":
 	default:
@@ -52,7 +58,7 @@ func hookShape(name string, in HookInput) string {
 		if !str("command", "cmd") {
 			return fmt.Sprintf("%s(%s): 셸 명령 없음", name, in.ToolName)
 		}
-	case in.ToolName == "Write" || in.ToolName == "Edit" || in.ToolName == "MultiEdit":
+	case in.ToolName == "Write" || in.ToolName == "Edit" || in.ToolName == "MultiEdit" || in.Cursor != nil && in.ToolName == "Delete":
 		if !str("file_path", "path") {
 			return fmt.Sprintf("%s(%s): 파일 경로 없음", name, in.ToolName)
 		}

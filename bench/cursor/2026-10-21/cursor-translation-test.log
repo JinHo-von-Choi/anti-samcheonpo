@@ -1,0 +1,4 @@
+=== RUN   TestCursorTranslation
+--- PASS: TestCursorTranslation (0.00s)
+PASS
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/live	0.014s

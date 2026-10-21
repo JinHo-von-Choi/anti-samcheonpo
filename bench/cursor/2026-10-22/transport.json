@@ -1,0 +1,37 @@
+{
+  "source": "synthetic Cursor protocol; no model execution",
+  "warm_pre": {
+    "n": 100,
+    "p50_ms": 2.821679,
+    "p95_ms": 4.734217,
+    "timeouts": 0,
+    "missing_responses": 0,
+    "statuses": {
+      "ok": 100
+    }
+  },
+  "warm_post": {
+    "n": 100,
+    "p50_ms": 2.783655,
+    "p95_ms": 5.710129,
+    "timeouts": 0,
+    "missing_responses": 0,
+    "statuses": {
+      "ok": 100
+    }
+  },
+  "cold_start": {
+    "n": 10,
+    "p50_ms": 49.219194,
+    "p95_ms": 59.218091,
+    "timeouts": 0,
+    "missing_responses": 0,
+    "statuses": {
+      "ok": 10
+    }
+  },
+  "ledger_calls": 100,
+  "ledger_exit7": 100,
+  "counts_match": true,
+  "product_intervention_verified": false
+}

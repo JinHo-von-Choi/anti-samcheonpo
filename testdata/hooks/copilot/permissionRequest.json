@@ -1,0 +1,11 @@
+{
+  "cwd": "/w/proj",
+  "hookName": "permissionRequest",
+  "permissionSuggestions": [],
+  "sessionId": "copilot-session-1",
+  "timestamp": 1792596717902,
+  "toolInput": {
+    "command": "python3 -c 'print(123)'"
+  },
+  "toolName": "bash"
+}

@@ -1,0 +1,54 @@
+?   	github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo	[no test files]
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-conformance	0.006s
+?   	github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook	[no test files]
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter	0.318s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/claude	0.025s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/codex	0.072s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/otel	0.023s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/alignment	0.011s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/analyze	0.035s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/assessment	0.016s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/bench	22.665s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/bench/taskgen	4.836s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/classify	0.020s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/cli	2.404s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/clock	0.037s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/config	0.062s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract	0.056s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost	0.018s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/dashboard	0.199s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect	0.237s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/eval	0.117s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/evasion	0.034s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/event	0.007s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp	0.007s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/handoff	0.031s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient	1.703s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/hostlimit	0.158s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/install	0.285s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent	0.009s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/intervene	0.034s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/judge	0.024s
+?   	github.com/JinHo-von-Choi/anti-samcheonpo/internal/lazyre	[no test files]
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/learning	0.406s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger	1.057s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/live	32.743s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/notify	0.015s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/patch	0.048s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm	0.006s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/policy	0.011s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/procgroup	1.444s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt	0.016s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/recovery	0.008s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/research	0.007s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack	0.007s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/rules	0.009s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/seal	0.016s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/sockpath	0.007s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/sources	0.012s [no tests to run]
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/surface	0.006s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/testout	0.007s
+?   	github.com/JinHo-von-Choi/anti-samcheonpo/internal/testutil/fakeexe	[no test files]
+?   	github.com/JinHo-von-Choi/anti-samcheonpo/internal/testutil/fsx	[no test files]
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/internal/verification	0.007s
+ok  	github.com/JinHo-von-Choi/anti-samcheonpo/plugins	0.433s

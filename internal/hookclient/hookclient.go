@@ -24,6 +24,29 @@ import (
 // gives SessionEnd hooks 35 seconds (plugin setting) and the daemon budgets
 // 30; Codex and the opencode forwarder stop a hook after about 3 seconds.
 func timeoutFor(event, agent string) time.Duration {
+	if agent == "copilot" {
+		// Copilot names its events in camel case. A pre tool hook answers in
+		// milliseconds and a stop hook runs the turn end work, so it waits a
+		// little longer than a per tool hook.
+		switch event {
+		case "preToolUse", "PreToolUse":
+			return 15 * time.Millisecond
+		case "agentStop", "Stop":
+			return 2500 * time.Millisecond
+		case "sessionEnd", "SessionEnd":
+			return 2500 * time.Millisecond
+		}
+	}
+	if agent == "cursor" {
+		switch event {
+		case "preToolUse", "beforeShellExecution", "beforeReadFile", "beforeMCPExecution":
+			return 15 * time.Millisecond
+		case "sessionEnd":
+			return 2500 * time.Millisecond
+		case "stop":
+			return 2500 * time.Millisecond
+		}
+	}
 	switch event {
 	case "PreToolUse":
 		return 15 * time.Millisecond
@@ -76,7 +99,7 @@ func Main(event string, stdin io.Reader, stdout io.Writer) int {
 // permission flow on empty output; an explicit "allow" there would skip it.
 func failClosedAllow(agent, event string) string {
 	switch {
-	case agent == "cursor" && strings.HasPrefix(event, "before") && event != "beforeSubmitPrompt":
+	case agent == "cursor" && (event == "preToolUse" || event == "subagentStart" || strings.HasPrefix(event, "before") && event != "beforeSubmitPrompt"):
 		return `{"permission":"allow"}`
 	case agent == "cursor" && event == "beforeSubmitPrompt":
 		return `{"continue":true}`
@@ -174,6 +197,45 @@ func runAgent(event, agent string, stdin io.Reader, stdout, diagnostics io.Write
 	result.Status = "ok"
 	if len(resp.Output) == 0 || string(resp.Output) == "null" {
 		return pass()
+	}
+	if agent == "cursor" && allow != "" {
+		var decision map[string]json.RawMessage
+		valid := json.Unmarshal(resp.Output, &decision) == nil && decision != nil
+		if event == "beforeSubmitPrompt" {
+			var proceed bool
+			valid = valid && len(decision["continue"]) > 0 && json.Unmarshal(decision["continue"], &proceed) == nil
+		} else {
+			var permission string
+			valid = valid && json.Unmarshal(decision["permission"], &permission) == nil && (permission == "allow" || permission == "deny" || permission == "ask" && event != "preToolUse" && event != "subagentStart")
+		}
+		if !valid {
+			result.Status = "invalid_response"
+			return pass()
+		}
+	}
+	if agent == "copilot" {
+		// Copilot reads a permission decision and a stop decision. A decision
+		// it cannot read is dropped, so an unexpected shape is not printed.
+		var decision map[string]json.RawMessage
+		valid := json.Unmarshal(resp.Output, &decision) == nil && decision != nil
+		if valid {
+			switch event {
+			case "preToolUse", "PreToolUse":
+				var permission string
+				if raw, ok := decision["permissionDecision"]; ok {
+					valid = json.Unmarshal(raw, &permission) == nil && (permission == "allow" || permission == "deny")
+				}
+			case "agentStop", "Stop":
+				var verdict string
+				if raw, ok := decision["decision"]; ok {
+					valid = json.Unmarshal(raw, &verdict) == nil && (verdict == "block" || verdict == "allow")
+				}
+			}
+		}
+		if !valid {
+			result.Status = "invalid_response"
+			return pass()
+		}
 	}
 	output := append(resp.Output, '\n')
 	n, err := stdout.Write(output)

@@ -273,7 +273,7 @@ func Initial(ev *event.Event, opt Options) {
 	case event.KindMessage, event.KindPrompt:
 		ev.Category = event.CatPlan
 		return
-	case event.KindCompact, event.KindStop, event.KindSessionStart, event.KindSessionEnd:
+	case event.KindCompact, event.KindStop, event.KindSessionStart, event.KindSessionEnd, event.KindError:
 		ev.Category = event.CatPlan
 		return
 	}

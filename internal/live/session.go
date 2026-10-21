@@ -98,6 +98,14 @@ type Session struct {
 	receiptPath     string
 	queue           chan *job
 	byTool          map[string]*event.Event
+	cursorMu        sync.Mutex
+	cursorPre       map[string]json.RawMessage
+	cursorPosted    map[string]int
+	cursorInputs    map[string]json.RawMessage
+	copilotMu       sync.Mutex
+	copilotPre      []copilotPending
+	copilotPosted   map[string]int
+	copilotSeq      int
 	codexPosted     map[string]bool
 	msgEvents       map[string]*event.Event // message id -> event holding tool-less usage
 	caps            adapter.Caps
@@ -198,6 +206,8 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 	s.parser.SetRoot(root)
 	if transcript != "" {
 		switch agent {
+		case "cursor":
+			// Cursor transcripts do not carry the Claude usage schema.
 		case "codex":
 			s.cx = codex.NewTracker(transcript)
 			s.parser.Session.Model = s.cx.Model

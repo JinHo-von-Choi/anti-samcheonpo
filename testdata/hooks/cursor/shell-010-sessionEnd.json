@@ -1,0 +1,16 @@
+{
+  "conversation_id": "shell-id-1",
+  "generation_id": "shell-id-1",
+  "model": "default",
+  "reason": "completed",
+  "duration_ms": 66059,
+  "is_background_agent": false,
+  "final_status": "completed",
+  "session_id": "shell-id-1",
+  "hook_event_name": "sessionEnd",
+  "cursor_version": "2026.10.19-6bbf2c4",
+  "workspace_roots": [
+    "/workspace/shell"
+  ],
+  "transcript_path": "/workspace/shell/transcript.jsonl"
+}

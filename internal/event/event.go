@@ -15,6 +15,7 @@ const (
 	KindStop         Kind = "stop"
 	KindSessionStart Kind = "session_start"
 	KindSessionEnd   Kind = "session_end"
+	KindError        Kind = "error"
 )
 
 // Normalized tool names.
@@ -155,6 +156,8 @@ type Event struct {
 
 // Execution records process completion independently of tool transport output.
 type Execution struct {
+	FailureType  string    `json:"failure_type,omitempty"`
+	Interrupted  bool      `json:"interrupted,omitempty"`
 	State        string    `json:"state"`
 	ExitSource   string    `json:"exit_source,omitempty"`
 	ProcessID    string    `json:"process_id,omitempty"`

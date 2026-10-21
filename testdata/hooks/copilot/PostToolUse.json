@@ -1,0 +1,15 @@
+{
+  "cwd": "/w/proj",
+  "hook_event_name": "PostToolUse",
+  "session_id": "copilot-session-1",
+  "timestamp": "2026-10-21T15:31:58.115Z",
+  "tool_input": {
+    "command": "python3 -c 'print(123)'",
+    "description": "Run requested Python command"
+  },
+  "tool_name": "Bash",
+  "tool_result": {
+    "result_type": "success",
+    "text_result_for_llm": "123\n<shellId: 0 completed with exit code 0>"
+  }
+}

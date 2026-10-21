@@ -1,0 +1,14 @@
+{
+  "event": "SessionStart",
+  "input": {
+    "hook_event_name": "SessionStart",
+    "session_id": "copilot-session-1",
+    "timestamp": "2026-10-21T15:31:51.999Z",
+    "cwd": "/w/proj",
+    "source": "new",
+    "initial_prompt": "Run exactly these shell calls in order: python3 -c 'print(123)', python3 -c 'raise SystemExit(7)'. Then read a.py, edit it to print(2), and run python3 a.py. Use only the shell, read and file-edit tools; do not load skills or MCP."
+  },
+  "output": {},
+  "transport_exit": 0,
+  "duration_ns": 23319
+}

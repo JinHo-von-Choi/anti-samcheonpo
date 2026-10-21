@@ -82,6 +82,12 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 		}
 		add("rollout", "ok", fmt.Sprintf("개입 단계 %s, 세션당 차단 상한 %d회", cfg.Rollout.Mode, cfg.Rollout.EscalateMaxBlocks))
 	}
+	if agent == "cursor" {
+		r.Checks = append(r.Checks, cursorChecks(db)...)
+	}
+	if agent == "copilot" {
+		r.Checks = append(r.Checks, copilotChecks(db)...)
+	}
 	version := probe(agent)
 	k, raw, contractErr := contract.Load(project)
 	switch {
@@ -99,7 +105,7 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 	case tested:
 		add("agent_version", "ok", fmt.Sprintf("%s 버전이 캡처 fixture 시험 범위에 있음; 실제 세션 권한·제품 효과 인증은 아님", agent))
 	case caps == adapter.Observe(agent):
-		add("agent_version", "warning", fmt.Sprintf("%s는 훅 개입을 지원하지 않는 에이전트라 관찰만 함", agent))
+		add("agent_version", "warning", fmt.Sprintf("현재 삼천포 %s 어댑터는 관찰 전용", agent))
 	case version == "":
 		add("agent_version", "warning", fmt.Sprintf("%s 버전을 읽지 못했음(미설치이거나 응답 지연). 설치돼 있다면 데몬이 다시 확인하고, 실제 훅 형식이 맞는 동안 개입함", agent))
 	default:

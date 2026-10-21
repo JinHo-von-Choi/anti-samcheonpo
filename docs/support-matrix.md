@@ -35,7 +35,8 @@
 | Antigravity(agy) 1.3.x | `~/.gemini/config/hooks.json`의 `samcheonpo` 묶음 | 다음 모델 호출에 귀띔, 실행 전 차단 | 훅이 도구 결과를 주지 않아 대화 기록에서 읽는다. 셸 결과는 다음 이벤트에 반영된다. 세션 종료 이벤트가 없어 종료 영수증을 만들지 않는다 |
 | Hermes 0.21.x | 플러그인 + `hermes plugins enable` | 도구 결과에 귀띔, 실행 전 차단 | 종료 보류는 코드를 고친 차례에서만 불린다. 실행 중인 게이트웨이는 재시작해야 적용된다 |
 | OpenClaw 2026.7.x | 플러그인 + `openclaw plugins install` | 다음 요청에 귀띔, 실행 전 차단 | 실행 중에 도구 결과를 모델에 보여 줄 훅이 없어 같은 실행 안의 반복은 막지 않는다. 실행 중인 게이트웨이는 재시작해야 적용된다 |
-| GitHub Copilot, Cursor | 훅 | 관찰만 | |
+| Cursor CLI 2026.10.19-6bbf2c4 | `~/.cursor/hooks.json`의 범용 도구 훅 | 관찰만 | Linux 입력 캡처·원장 재생 확인. 실제 차단·안내 전달은 미검증 |
+| GitHub Copilot CLI 1.0.101 | `.github/hooks/samcheonpo.json`의 명령 훅 | 귀띔, 실행 전 차단 | 호출 ID가 없어 시작·결과를 순서로 잇는다. 종료 코드는 결과 본문에만 있다. 토큰·비용은 오지 않는다 |
 
 Codex 0.163.0의 실행·계측 확인 범위는 [아래 별도 기록](#codex-01630-확인-범위)을 참고한다.
 
@@ -83,7 +84,25 @@ flowchart LR
 - 지시 밀수 탐지의 실제 운영 오탐률은 아직 없다.
 - 채점기 접촉 차단은 벤치 실행 경로에서만 동작하며, 파일 시스템 수준의 격리는 아니다.
 - `daemon_lost`·`idle_timeout` 사유가 붙은 영수증은 세션 종료 확인이 아니라 관측 중단을 뜻한다.
-- Cursor·GitHub Copilot은 관찰만 지원한다.
+- Cursor는 관찰만 지원한다. GitHub Copilot은 실행 전 차단과 도구 뒤 안내만 실제 CLI로 확인했다.
+
+### Cursor CLI
+
+현재 소스의 Cursor 연결은 범용 `preToolUse`, `postToolUse`, `postToolUseFailure`로 도구 호출을 기록한다. 실제 호출 ID를 유지하고, 셸 종료 코드가 없으면 미상으로 남긴다. 같은 호출의 전용 훅·범용 훅·재전송은 한 사건으로 결합한다. 사후 파일 편집 알림으로 수정 전 내용을 추정하지 않는다.
+
+`samcheonpo install --agent cursor`를 다시 실행하면 설치 기록과 일치하는 이전 항목을 교체한다. 다른 사용자 훅과 사용자가 수정한 항목은 보존한다. 사용자 지정 훅 파일은 처음 설치한 `--hooks-file` 경로를 다시 지정한다. `doctor --agent cursor`는 설치 기록·필수 이벤트·실행 파일·마지막 수신 기록을 확인한다.
+
+실제 안내·거부·종료 후속 실행은 모델 사용 제한 때문에 확인하지 못했다. 해당 기능은 비활성 상태이며 토큰·비용도 미확인이다. IDE·Cloud Agent·다른 OS의 지원을 의미하지 않는다. [구현 및 검증 범위](benchmarks/2026-10-22-cursor-implementation.md)
+
+### GitHub Copilot CLI
+
+현재 소스의 Copilot 연결은 `.github/hooks/samcheonpo.json`에 명령 훅 9종을 등록한다. Copilot CLI `1.0.101`에서 실제로 수집한 입력으로 변환을 시험에 넣었다.
+
+Copilot은 도구 호출 ID를 보내지 않는다. 삼천포는 같은 도구 이름의 대기 중인 시작 중 가장 오래된 것에 결과를 붙이고, 짝이 없으면 결과만 남긴다. 입력이 같은 두 호출을 하나로 합치지 않는다. 셸 종료 코드는 payload 필드가 아니라 결과 본문의 `<shellId: N completed with exit code N>` 문장에서만 오므로, 문장이 없으면 성공으로 추정하지 않고 미상으로 남긴다.
+
+`samcheonpo install --agent copilot`는 실행 중인 폴더에 저장소 수준 훅 파일을 쓴다. Copilot은 신뢰된 작업 폴더에서만 저장소 훅을 불러오므로, 다른 폴더까지 쓰려면 `--hooks-file`로 사용자 수준 파일(`~/.copilot/hooks/samcheonpo.json`)을 지정한다. `doctor --agent copilot`는 설치 기록·필수 이벤트·실행 파일·마지막 수신 기록과 "호출 ID 부재" 제한을 함께 표시한다.
+
+실행 전 차단과 도구 뒤 안내는 실제 CLI로 확인했다. 차단 사유가 에이전트에 닿고, 안내 문장이 모델 문맥에 들어가는 것을 봤다. 종료 후속 실행과 프롬프트 주입은 확인하지 못해 비활성 상태다. 실행 전 조언은 Copilot에 전달할 자리가 없어 조용히 사라지며 전달된 것으로 기록되지 않는다. 토큰·비용은 Copilot 훅이 알려 주지 않는다. IDE 연동·Cloud Agent·다른 OS의 지원을 의미하지 않는다. [실측 기록](benchmarks/2026-10-22-copilot-support.md)
 
 ## Codex 0.163.0 확인 범위
 
