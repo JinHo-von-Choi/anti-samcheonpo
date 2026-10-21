@@ -1,6 +1,7 @@
 package install
 
 import (
+	"encoding/binary"
 	"os"
 	"path/filepath"
 	"testing"
@@ -20,6 +21,24 @@ func writeBundle(t *testing.T, root string, files map[string]string) {
 		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
 			t.Fatal(err)
 		}
+	}
+}
+
+// writePyc writes a timestamp-based Python bytecode cache file. The header
+// carries the timestamp and size of the source it was compiled from.
+func writePyc(t *testing.T, path string, mtime, size uint32) {
+	t.Helper()
+	body := make([]byte, 16)
+	binary.LittleEndian.PutUint32(body[0:4], 0x0d0e0d2b)
+	binary.LittleEndian.PutUint32(body[4:8], 0)
+	binary.LittleEndian.PutUint32(body[8:12], mtime)
+	binary.LittleEndian.PutUint32(body[12:16], size)
+	body = append(body, []byte("compiled")...)
+	if err := os.MkdirAll(filepath.Dir(path), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	if err := os.WriteFile(path, body, 0o644); err != nil {
+		t.Fatal(err)
 	}
 }
 
@@ -155,5 +174,63 @@ func TestMissingRegistryIsEmpty(t *testing.T) {
 	}
 	if len(registry.Bundles) != 0 {
 		t.Fatalf("registry %+v", registry)
+	}
+}
+
+// A Python plugin leaves a bytecode cache behind when it is imported. That
+// cache is the runtime's own artifact, not an installed file, so it must not
+// be recorded and must not be reported as an added file.
+func TestManifestIgnoresRuntimeBytecodeCache(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "bundle")
+	writeBundle(t, root, map[string]string{"__init__.py": "print(1)\n"})
+	m, err := BuildDirManifest("hermes", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if len(m.Files) != 1 || m.Files[0].Path != "__init__.py" {
+		t.Fatalf("manifest %+v", m)
+	}
+	info, err := os.Stat(filepath.Join(root, "__init__.py"))
+	if err != nil {
+		t.Fatal(err)
+	}
+	writePyc(t, filepath.Join(root, "__pycache__", "__init__.cpython-314.pyc"),
+		uint32(info.ModTime().Unix()), uint32(info.Size()))
+	if problems := VerifyManifest(m); len(problems) != 0 {
+		t.Fatalf("problems %+v", problems)
+	}
+}
+
+// A cache that was built from another source is a real difference and is
+// reported as one, even though the cache itself is not an added file.
+func TestManifestReportsStaleBytecodeCache(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "bundle")
+	writeBundle(t, root, map[string]string{"__init__.py": "print(1)\n"})
+	m, err := BuildDirManifest("hermes", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writePyc(t, filepath.Join(root, "__pycache__", "__init__.cpython-314.pyc"), 1, 1)
+	problems := VerifyManifest(m)
+	if len(problems) != 1 || problems[0].Kind != ProblemChanged ||
+		problems[0].Path != "__pycache__/__init__.cpython-314.pyc" {
+		t.Fatalf("problems %+v", problems)
+	}
+}
+
+// A cache for code that was never installed is still an added file: it has
+// no recorded source to belong to.
+func TestManifestReportsCacheWithoutRecordedSource(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "bundle")
+	writeBundle(t, root, map[string]string{"plugin.yaml": "name: samcheonpo"})
+	m, err := BuildDirManifest("hermes", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	writePyc(t, filepath.Join(root, "__pycache__", "other.cpython-314.pyc"), 1, 1)
+	problems := VerifyManifest(m)
+	if len(problems) != 1 || problems[0].Kind != ProblemAdded ||
+		problems[0].Path != "__pycache__/other.cpython-314.pyc" {
+		t.Fatalf("problems %+v", problems)
 	}
 }

@@ -127,7 +127,7 @@ Download `samcheonpo_<version>_<os>_<arch>.tar.gz` and `SHA256SUMS` from [Releas
 
 ```bash
 sha256sum -c --ignore-missing SHA256SUMS   # macOS: shasum -a 256 -c --ignore-missing SHA256SUMS
-tar -xzf samcheonpo_0.9.0_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.9.1_linux_amd64.tar.gz
 mkdir -p ~/.local/bin && cp samcheonpo samcheonpo-hook ~/.local/bin/
 samcheonpo doctor
 ```
@@ -139,11 +139,11 @@ Keep `samcheonpo` and the hook helper `samcheonpo-hook` in the same folder. On W
 Requires Go 1.27 or later.
 
 ```bash
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.9.0
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.9.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.9.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.9.1
 ```
 
-When the source transcript is unavailable, `receipt` displays the last completed analysis and `verify` checks its stored seal. Legacy records show their verification limits. v0.9.0 uses ledger schema 12; back up the ledger before upgrading. v0.8.0 and older cannot open schema 12. Existing seal formats and analysis history are preserved.
+When the source transcript is unavailable, `receipt` displays the last completed analysis and `verify` checks its stored seal. Legacy records show their verification limits. v0.9.1 uses ledger schema 12; back up the ledger before upgrading. v0.8.0 and older cannot open schema 12. Existing seal formats and analysis history are preserved.
 
 ## Quick start
 

@@ -2,6 +2,7 @@ package install
 
 import (
 	"crypto/sha256"
+	"encoding/binary"
 	"encoding/hex"
 	"encoding/json"
 	"errors"
@@ -125,6 +126,14 @@ func BuildDirManifest(plugin, root string) (Manifest, error) {
 		if !d.Type().IsRegular() {
 			return fmt.Errorf("일반 파일이 아닌 플러그인 경로: %s", path)
 		}
+		// A runtime cache is not an installed file, so it is not recorded.
+		rel, err := filepath.Rel(root, path)
+		if err != nil {
+			return err
+		}
+		if runtimeArtifact(rel) {
+			return nil
+		}
 		files = append(files, path)
 		return nil
 	})
@@ -132,6 +141,103 @@ func BuildDirManifest(plugin, root string) (Manifest, error) {
 		return Manifest{}, err
 	}
 	return BuildManifest(plugin, root, files, true)
+}
+
+// runtimeArtifact reports whether a path under a bundle root is a file the
+// runtime writes on its own.
+//
+// A Python plugin that is imported leaves a bytecode cache behind. That cache
+// is derived from the recorded source, not installed by the monitor, so it
+// must not be recorded as an installed file and must not be reported as an
+// added one.
+func runtimeArtifact(rel string) bool {
+	for _, seg := range strings.Split(filepath.ToSlash(rel), "/") {
+		if seg == "__pycache__" {
+			return true
+		}
+	}
+	return false
+}
+
+// pycSourceName maps a bytecode cache file name to the source file name it
+// was compiled from.
+//
+// Python names the cache after the source module and the interpreter that
+// wrote it: "init.cpython-314.pyc", "init.cpython-314.opt-1.pyc".
+func pycSourceName(name string) (string, bool) {
+	parts := strings.Split(name, ".")
+	if len(parts) < 3 {
+		return "", false
+	}
+	idx := -1
+	for i, p := range parts {
+		if strings.HasPrefix(p, "cpython-") {
+			idx = i
+			break
+		}
+	}
+	if idx <= 0 {
+		return "", false
+	}
+	return strings.Join(parts[:idx], ".") + ".py", true
+}
+
+// checkBytecodeCache verifies a Python bytecode cache against the source it
+// was compiled from.
+//
+// The cache is not part of the installed bundle, so it is neither recorded
+// nor reported as an added file. It still has to belong to a recorded source
+// and still has to be current for that source: a cache that carries another
+// source's timestamp or size was built from something else, and that is a
+// real difference worth reporting.
+//
+// A hash-based cache carries the source hash instead of a timestamp, and that
+// hash cannot be recomputed here, so such a cache is accepted on the
+// strength of its source being intact. That limit is stated here rather than
+// hidden.
+func checkBytecodeCache(plugin, root, rel string, listed map[string]bool) (ManifestProblem, bool) {
+	slashed := filepath.ToSlash(rel)
+	dir, file := "", slashed
+	if i := strings.LastIndex(slashed, "/"); i >= 0 {
+		dir, file = slashed[:i+1], slashed[i+1:]
+	}
+	cacheDir := strings.TrimSuffix(dir, "/")
+	if !strings.HasSuffix(cacheDir, "__pycache__") {
+		return ManifestProblem{}, false
+	}
+	srcDir := ""
+	if cacheDir != "__pycache__" {
+		srcDir = strings.TrimSuffix(cacheDir, "/__pycache__") + "/"
+	}
+	name, ok := pycSourceName(file)
+	if !ok {
+		return ManifestProblem{}, false
+	}
+	srcRel := srcDir + name
+	if !listed[srcRel] {
+		// The cache belongs to code that was not installed.
+		return ManifestProblem{Plugin: plugin, Path: slashed, Kind: ProblemAdded,
+			Detail: "기록에 없는 원본의 캐시다"}, true
+	}
+	body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(slashed)))
+	if err != nil || len(body) < 16 {
+		return ManifestProblem{}, false
+	}
+	if flags := binary.LittleEndian.Uint32(body[4:8]); flags != 0 {
+		// A hash-based cache cannot be re-derived here.
+		return ManifestProblem{}, false
+	}
+	srcMtime := binary.LittleEndian.Uint32(body[8:12])
+	srcSize := binary.LittleEndian.Uint32(body[12:16])
+	info, err := os.Stat(filepath.Join(root, filepath.FromSlash(srcRel)))
+	if err != nil {
+		return ManifestProblem{}, false
+	}
+	if uint32(info.Size()) != srcSize || uint32(info.ModTime().Unix()) != srcMtime {
+		return ManifestProblem{Plugin: plugin, Path: slashed, Kind: ProblemChanged,
+			Detail: "기록된 원본과 캐시가 맞지 않는다"}, true
+	}
+	return ManifestProblem{}, false
 }
 
 // hashOf returns the sha256 of a body as hex.
@@ -191,9 +297,19 @@ func VerifyManifest(m Manifest) []ManifestProblem {
 		if err != nil {
 			return nil
 		}
-		if !listed[filepath.ToSlash(rel)] {
-			problems = append(problems, ManifestProblem{Plugin: m.Plugin, Path: filepath.ToSlash(rel), Kind: ProblemAdded})
+		slashed := filepath.ToSlash(rel)
+		if listed[slashed] {
+			return nil
 		}
+		if runtimeArtifact(slashed) {
+			// A runtime cache is derived from a recorded source file, so it
+			// is not an added file. It is still checked against that source.
+			if p, ok := checkBytecodeCache(m.Plugin, root, rel, listed); ok {
+				problems = append(problems, p)
+			}
+			return nil
+		}
+		problems = append(problems, ManifestProblem{Plugin: m.Plugin, Path: slashed, Kind: ProblemAdded})
 		return nil
 	})
 	return problems

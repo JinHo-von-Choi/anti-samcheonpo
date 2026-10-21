@@ -57,3 +57,33 @@ func TestHermesPluginInstall(t *testing.T) {
 		t.Fatal("files are removed after a failed enable")
 	}
 }
+
+// A bytecode cache left from an earlier version belongs to the old source.
+// The installer rewrites the source, so it removes the stale cache instead of
+// leaving a cache that no longer matches what is installed.
+func TestHermesInstallRemovesStaleBytecodeCache(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SAMCHEONPO_HOME", filepath.Join(home, ".samcheonpo"))
+	t.Setenv("HERMES_HOME", filepath.Join(home, ".hermes"))
+	hermesCLI = func(args ...string) ([]byte, error) {
+		if args[1] == "remove" {
+			_ = os.RemoveAll(HermesPluginDir())
+		}
+		return nil, nil
+	}
+	t.Cleanup(func() { hermesCLI = nil })
+	dir := HermesPluginDir()
+	if err := os.MkdirAll(filepath.Join(dir, "__pycache__"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	cache := filepath.Join(dir, "__pycache__", "__init__.cpython-314.pyc")
+	if err := os.WriteFile(cache, []byte("stale"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	if err := InstallHermes("/opt/samcheonpo", dir, nil); err != nil {
+		t.Fatal(err)
+	}
+	if _, err := os.Stat(cache); !os.IsNotExist(err) {
+		t.Fatal("the stale cache is removed")
+	}
+}

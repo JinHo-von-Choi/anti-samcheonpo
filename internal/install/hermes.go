@@ -46,6 +46,10 @@ func InstallHermes(bin, dir string, out func(string)) error {
 		_ = removeStandalone("hermes", manifest)
 		return err
 	}
+	// The source was just rewritten, so any bytecode cache left from an
+	// earlier version belongs to the old source. Python would discard it,
+	// but the integrity record must not keep a stale cache either.
+	_ = os.RemoveAll(filepath.Join(dir, "__pycache__"))
 	if b, err := hermesCLI("plugins", "enable", HermesPlugin); err != nil {
 		_ = removeStandalone("hermes", init)
 		_ = removeStandalone("hermes", manifest)
