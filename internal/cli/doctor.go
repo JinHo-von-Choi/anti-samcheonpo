@@ -88,6 +88,9 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 	if agent == "copilot" {
 		r.Checks = append(r.Checks, copilotChecks(db)...)
 	}
+	if agent == "opencode" {
+		r.Checks = append(r.Checks, opencodeChecks(db)...)
+	}
 	version := probe(agent)
 	k, raw, contractErr := contract.Load(project)
 	switch {

@@ -34,3 +34,26 @@ func TestStandaloneConnectionsPreserveModifications(t *testing.T) {
 		})
 	}
 }
+
+func TestInstallOpencodeReinstallKeepsOriginal(t *testing.T) {
+	t.Setenv("SAMCHEONPO_HOME", t.TempDir())
+	t.Setenv("OPENCODE_CONFIG_DIR", t.TempDir())
+	path := OpencodePluginPath()
+	if err := InstallOpencode("/usr/local/bin/samcheonpo", path, nil); err != nil {
+		t.Fatal(err)
+	}
+	orig, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if err := InstallOpencode("/elsewhere/bin/samcheonpo", path, nil); err == nil {
+		t.Fatal("reinstall over an existing connection was allowed")
+	}
+	body, err := os.ReadFile(path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if string(body) != string(orig) {
+		t.Fatal("reinstall modified the existing connection file")
+	}
+}

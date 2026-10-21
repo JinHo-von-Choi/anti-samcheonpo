@@ -70,7 +70,13 @@ export const Samcheonpo = async ({ client, directory }: any) => {
         const r = hook("Stop", { session_id: p.sessionID, cwd: directory, stop_hook_active: false })
         // opencode has no stop blocking: a block becomes one follow-up prompt
         if (r.decision === "block" && r.reason && client?.session?.prompt) {
-          await client.session.prompt({ path: { id: p.sessionID }, body: { parts: [{ type: "text", text: r.reason }] } }).catch(() => {})
+          const body = { path: { id: p.sessionID }, body: { parts: [{ type: "text", text: r.reason }] } }
+          try {
+            await client.session.prompt(body)
+          } catch {
+            await new Promise((res) => setTimeout(res, 500))
+            await client.session.prompt(body).catch(() => console.error("samcheonpo: stop 후속 프롬프트 전달 실패"))
+          }
         }
       }
     },

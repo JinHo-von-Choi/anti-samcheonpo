@@ -129,6 +129,15 @@ models:
     cache_read: 0
     valid_from: 2026-01-01
     source: https://models.dev
+  - model: glm-5.3-flash-free
+    input: 0
+    output: 0
+    cache_write: 0
+    cache_read: 0
+    valid_from: 2026-10-22
+    checked_at: "2026-10-22"
+    basis: 무료 제공 등급; 유료 등급 모델은 별도 확인 필요
+    source: https://models.dev
   - model: big-pickle
     input: 0
     output: 0

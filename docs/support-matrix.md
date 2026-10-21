@@ -10,7 +10,7 @@
 
 | 환경 | 배포 파일 | 확인 수준 | 비고 |
 | --- | --- | --- | --- |
-| Linux x86-64 | 있음 | 실제 실행 | Claude Code, Codex, agy, Hermes, OpenClaw |
+| Linux x86-64 | 있음 | 실제 실행 | Claude Code, Codex, opencode, agy, Hermes, OpenClaw |
 | Linux arm64 | 있음 | 배포 파일 설치 확인 | 실제 에이전트 실행 미확인 |
 | macOS (amd64, arm64) | 있음 | CI 시험 | 실제 에이전트 실행 미확인 |
 | Windows (x64, arm64) | 있음 | CI 시험, 실제 실행(arm64, Claude Code) | 다른 에이전트 미확인 |
@@ -31,7 +31,7 @@
 | --- | --- | --- | --- |
 | Claude Code 2.1.x | 플러그인 (훅, 상태줄, 슬래시 명령) | 귀띔, 실행 전 차단 | |
 | Codex 0.160–0.162 | `~/.codex/hooks.json` | 귀띔, 실행 전 차단 | 상태줄과 슬래시 명령이 없어 `samcheonpo cmd`를 쓴다 |
-| opencode 1.18.x | 전달용 플러그인 | 귀띔, 실행 전 차단 | |
+| opencode 1.18.x | 전달용 플러그인 | 도구 뒤 귀띔, 실행 전 차단 | 도구 뒤 귀띔은 실제 opencode 세션에서 전달 확인. 같은 실패 반복의 실행 전 차단은 같은 실측에서 발화하지 않았다. 시작 귀띔은 opencode에 넣을 자리가 없어 꺼 둠 |
 | Antigravity(agy) 1.3.x | `~/.gemini/config/hooks.json`의 `samcheonpo` 묶음 | 다음 모델 호출에 귀띔, 실행 전 차단 | 훅이 도구 결과를 주지 않아 대화 기록에서 읽는다. 셸 결과는 다음 이벤트에 반영된다. 세션 종료 이벤트가 없어 종료 영수증을 만들지 않는다 |
 | Hermes 0.21.x | 플러그인 + `hermes plugins enable` | 도구 결과에 귀띔, 실행 전 차단 | 종료 보류는 코드를 고친 차례에서만 불린다. 실행 중인 게이트웨이는 재시작해야 적용된다 |
 | OpenClaw 2026.7.x | 플러그인 + `openclaw plugins install` | 다음 요청에 귀띔, 실행 전 차단 | 실행 중에 도구 결과를 모델에 보여 줄 훅이 없어 같은 실행 안의 반복은 막지 않는다. 실행 중인 게이트웨이는 재시작해야 적용된다 |
@@ -55,7 +55,7 @@ flowchart LR
 
 | 기능 | 실제 에이전트로 확인 | 시험으로만 확인 |
 | --- | --- | --- |
-| 같은 실패 반복의 귀띔과 실행 전 차단 | Claude Code, Codex, agy, Hermes, OpenClaw | |
+| 같은 실패 반복의 귀띔과 실행 전 차단 | Claude Code, Codex, agy, Hermes, OpenClaw, opencode (귀띔만, 차단 미발화) | |
 | 코드 밖 원인 수정 보류 | Claude Code (보류 사유 전달) | 두 번째 쓰기 거부, `keep normal` 해제 |
 | 통과 시점 기록과 `rollback golden` | Claude Code (기록, 목록, 미리보기) | `apply` (사용자 전용) |
 | 전체 시험 재실행, 장시간 실행, 배포 연타, 반복 거부, 브라우저 타이밍, 세션 길이 | 지난 Codex 기록 감사에서 판정 | 실시간 귀띔·차단 전달 |
@@ -85,6 +85,7 @@ flowchart LR
 - 채점기 접촉 차단은 벤치 실행 경로에서만 동작하며, 파일 시스템 수준의 격리는 아니다.
 - `daemon_lost`·`idle_timeout` 사유가 붙은 영수증은 세션 종료 확인이 아니라 관측 중단을 뜻한다.
 - Cursor는 관찰만 지원한다. GitHub Copilot은 실행 전 차단과 도구 뒤 안내만 실제 CLI로 확인했다.
+- opencode는 도구 뒤 귀띔만 실제 세션으로 확인했다. 같은 실패 반복의 실행 전 차단은 같은 실측에서 발화하지 않았고 그 원인은 확인하지 않았다. [실측 기록](benchmarks/2026-10-22-opencode-support.md)
 
 ### Cursor CLI
 
@@ -110,13 +111,21 @@ Codex 0.163.0은 2026-10-21 Linux에서 격리 실행과 원본 rollout 파싱�
 
 같은 날 [4군 파일럿](benchmarks/2026-10-21-codex-pilot.md) 16회를 수행했고, 감시군 12회 모두 새 빌드가 실제 세션 사건을 수신했다. 전달 확인 개입은 0건이었다. 시간 초과 비용 누락·입력 환경 변동·표본 부족으로 Codex에 대한 완료율·비용 개선은 미확정이다.
 
+### opencode 1.18.x
+
+현재 소스의 opencode 연결은 전달용 플러그인(`plugins/opencode/samcheonpo.ts`)으로 opencode 사건을 Claude 훅 방언으로 바꿔 데몬에 넘긴다. 도구 실행 전 거부는 예외 던지기로 막고, 도구 결과는 뒤에 붙여 모델에 전달한다.
+
+2026-10-22 실제 opencode 세션에서 도구 뒤 귀띔 전달을 확인했다. 같은 날 최근 30일 집계에서 opencode 게시 처방 34건 가운데 전달 27건이 기록됐다. 같은 실패한 검사 명령을 세 번 반복하는 실측에서는 실행 전 차단이 한 번도 발화하지 않았다(관찰 메시지 1회만 도달). 이 소스에서 opencode의 실행 전 차단은 시험 수준으로 남고, 그 미발화 원인은 확인하지 않았다.
+
+opencode는 종료를 막는 자리가 없어 차단은 후속 프롬프트 한 번이 된다. 후속 프롬프트 전달이 실패하면 한 번 다시 시도하고 그래도 실패하면 기록으로 남긴다. 시작 귀띔(`chat.message` 주입)은 꺼 둔 상태다. [실측 기록](benchmarks/2026-10-22-opencode-support.md)
+
 - 훅 처리 지연 목표는 p95 10ms다.
 - 실행 전 판정은 15ms 안에 끝나야 차단으로 전달된다. 넘기면 실행을 막지 않고 상태줄에 `확인 불가`와 시간 초과 건수를 표시한다.
 
 ## 릴리스 후보 직접 만들기
 
 ```sh
-sh scripts/package-release.sh 0.9.3-dev ./release-out
+sh scripts/package-release.sh 0.9.4-dev ./release-out
 ```
 
 현재 플랫폼에서 두 실행 파일을 빌드하고, API 키 없는 격리 환경에서 설치·제거·감사·첫 훅을 확인한 뒤 `tar.gz`와 `SHA256SUMS`를 만든다. 출력 폴더가 이미 있으면 덮어쓰지 않고, 호스트와 대상 플랫폼이 다르면 거절한다. `BUILD.txt`에 버전, 커밋, 도구 체인, 작업 트리 변경 여부를 남긴다.
