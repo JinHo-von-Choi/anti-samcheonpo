@@ -234,3 +234,28 @@ func TestManifestReportsCacheWithoutRecordedSource(t *testing.T) {
 		t.Fatalf("problems %+v", problems)
 	}
 }
+
+// A file the runtime could not have written as a cache is not excused by
+// living under the cache directory.
+func TestManifestReportsUnrecognisedCacheFile(t *testing.T) {
+	root := filepath.Join(t.TempDir(), "bundle")
+	writeBundle(t, root, map[string]string{"__init__.py": "print(1)\n"})
+	m, err := BuildDirManifest("hermes", root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	// A name the runtime never produces, and a truncated cache.
+	writeBundle(t, root, map[string]string{"__pycache__/notes.txt": "x"})
+	writeBundle(t, root, map[string]string{"__pycache__/__init__.cpython-314.pyc": "short"})
+	problems := VerifyManifest(m)
+	kinds := map[string]string{}
+	for _, p := range problems {
+		kinds[p.Path] = p.Kind
+	}
+	if kinds["__pycache__/notes.txt"] != ProblemAdded {
+		t.Fatalf("problems %+v", problems)
+	}
+	if kinds["__pycache__/__init__.cpython-314.pyc"] != ProblemAdded {
+		t.Fatalf("problems %+v", problems)
+	}
+}

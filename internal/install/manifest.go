@@ -211,7 +211,10 @@ func checkBytecodeCache(plugin, root, rel string, listed map[string]bool) (Manif
 	}
 	name, ok := pycSourceName(file)
 	if !ok {
-		return ManifestProblem{}, false
+		// The runtime only writes caches it can name after a source. A file
+		// it cannot name was not written by the runtime.
+		return ManifestProblem{Plugin: plugin, Path: slashed, Kind: ProblemAdded,
+			Detail: "캐시 규약에 맞지 않는 파일이다"}, true
 	}
 	srcRel := srcDir + name
 	if !listed[srcRel] {
@@ -220,8 +223,12 @@ func checkBytecodeCache(plugin, root, rel string, listed map[string]bool) (Manif
 			Detail: "기록에 없는 원본의 캐시다"}, true
 	}
 	body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(slashed)))
-	if err != nil || len(body) < 16 {
-		return ManifestProblem{}, false
+	if err != nil {
+		return ManifestProblem{Plugin: plugin, Path: slashed, Kind: ProblemUnreadable, Detail: err.Error()}, true
+	}
+	if len(body) < 16 {
+		return ManifestProblem{Plugin: plugin, Path: slashed, Kind: ProblemAdded,
+			Detail: "캐시 형식이 아니다"}, true
 	}
 	if flags := binary.LittleEndian.Uint32(body[4:8]); flags != 0 {
 		// A hash-based cache cannot be re-derived here.
