@@ -31,7 +31,7 @@
 
 ## 동작 방식
 
-삼천포는 에이전트의 훅에 붙어 명령, 파일 수정, 시험 결과, 토큰 사용량을 봅니다. AI가 "통과했다"고 말해도 실제 실행 결과로만 판단합니다. 모든 판단은 내 컴퓨터 안에서 하고, 모델을 호출하지 않습니다.
+삼천포는 에이전트의 훅에 붙어 명령, 파일 수정, 시험 결과, 토큰 사용량을 봅니다. AI가 "통과했다"고 말해도 실제 실행 결과로만 판단합니다. 판단은 내 컴퓨터 안에서 하고, 모델을 호출하지 않습니다.
 
 ```mermaid
 flowchart LR
@@ -63,10 +63,10 @@ AI에게 이렇게 말해 보세요: "같은 시험을 다시 돌리지 말고, 
 
 | 상태 | 뜻 |
 | --- | --- |
-| 순조로움 | 검사 통과 같은 진척 근거가 있고, 그 뒤 경고가 없다 |
-| 지켜보는 중 | 아직 진척 근거가 없거나, 가벼운 안내가 있었다 |
-| 지금 끼어드세요 | 반복된 헛짓이나 차단이 있다 |
-| 확인 불가 | 관측이 빠져 판단할 수 없다 |
+| 순조로움 | 검사 통과 같은 진척 근거가 있고, 그 뒤 경고가 없습니다 |
+| 지켜보는 중 | 아직 진척 근거가 없거나, 가벼운 안내가 있었습니다 |
+| 지금 끼어드세요 | 반복된 헛짓이나 차단이 있습니다 |
+| 확인 불가 | 관측이 빠져 판단할 수 없습니다 |
 
 > 원화는 **계측한 토큰을 API 단가로 환산한 금액**입니다. 실제 청구액이나 절감액이 아닙니다. 사용량을 모르면 0원이 아니라 "미확인"으로 표시합니다.
 
@@ -74,24 +74,22 @@ AI에게 이렇게 말해 보세요: "같은 시험을 다시 돌리지 말고, 
 
 | 헛짓 | 예 | 개입 |
 | --- | --- | --- |
-| 과잉 검증 | 코드 변경 없이 같은 시험 반복, 몇 줄 고치고 5분 넘게 걸리는 전체 시험을 바로 재실행, 짧은 확인 없이 긴 부하 시험 시작 | 귀띔 → 반복 시 차단 |
+| 과잉 검증 | 코드 변경 없이 같은 시험 반복, 몇 줄 고치고 5분 넘게 걸리는 전체 시험 재실행, 짧은 확인 없이 긴 부하 시험 시작 | 귀띔 → 반복 시 차단 |
 | 맥락 이탈 | 요청 범위 밖 파일 수정, 보호 경로 수정, 맥락 압축 뒤 목표 잊기 | 귀띔, 보호 경로는 즉시 차단, 압축 직후 목표 재안내 |
 | 같은 실패 반복 | 고쳐도 같은 오류, 이미 실패한 수정 재시도, 고쳤다 되돌리기, 브라우저 시험 타이밍 땜질, 같은 이유로 계속 거부당하는 제출 | 귀띔 → 반복 시 차단 → 인수인계 |
 | 코드 밖 문제 | 설치되지 않은 의존성, 꺼진 서비스, 권한, 포트 점유 | 소스 수정 보류, 사람이 할 일 안내 |
 | 허위 완료 | 시험 삭제·skip·단언 약화, 오류 숨기기, 완료 조건이 실패한 채 "완료" | 귀띔 → 반복 시 차단 |
 | 배포 연타 | CI 실패를 로컬에서 재현하지 않고 재배포, 실패한 CI를 그대로 다시 돌리기, 시간당 배포 횟수 초과 | 귀띔 → 태그가 바뀌어도 반복 시 차단 |
-| 완료 뒤 대기·진행 정체 | 완료 검사를 통과한 뒤 계속 기다림, 수정해도 같은 검사에서 실패가 줄지 않음 | 기본은 기록만, 사용자가 켜면 가벼운 안내 |
+| 완료 뒤 대기·진행 정체 | 완료 검사를 통과한 뒤 계속 기다림, 수정해도 같은 검사에서 실패가 줄지 않음 | 기본은 기록만, 켜면 가벼운 안내 |
 | 비용 폭주 | 진척 없는 지출, 예산 초과, 세션 시간·토큰 과다 | 알림 → 확인 → 상한에서 정지 |
-| 남에게 속는 지시 | 프롬프트·파일·도구 출력에 들어온 "감시자를 속여라", "검증 안 했는데 통과한 것처럼 말하라" | 지시의 모양과 출처를 남김, 저장소에 심는 쓰기는 실행 전에 차단 |
-| 채점기 접촉 | 채점기·정답·루브릭 경로에 닿는 도구 호출 | 실행 전에 차단 |
+| 지시 밀수 | 프롬프트·파일·도구 출력에 섞여 들어온 "감시를 피하라", "검증하지 않은 것을 통과했다고 하라" 같은 지시 | 지시의 형태와 출처를 기록, 저장소에 심는 쓰기는 실행 전 차단 |
+| 채점기 접촉 | 채점기·정답·루브릭 경로에 닿는 도구 호출 | 실행 전 차단 |
 
-대기·정체 안내는 기다리는 이유와 검사 결과를 확인할 수 있을 때만 제공합니다. 두 규칙은 작업을 차단하지 않습니다. 안내를 켜는 방법은 [대기 반복·진행 정체 안내](docs/spec/agenttime-reliability.md)에 있습니다. v0.6.0에 추가했으며 실제 비용·완료율 효과는 아직 검증하지 않았습니다.
-
-S9·S10은 조립된 전체 컨텍스트를 봅니다. 사용자 프롬프트만 보는 게 아니라 파일 내용과 도구 출력까지 함께 봅니다. 둘 다 아직 효과 입증 단계가 아니라 탐지 단계입니다. 지시의 존재만 말하고, 지시자가 누구인지는 말하지 않습니다.
+지시 밀수 규칙은 사용자 프롬프트, 파일 내용, 도구 출력, 기억 파일을 합친 전체 컨텍스트를 봅니다. 원문은 저장하지 않고, 지시가 있었다는 사실과 들어온 경로만 남깁니다. 대기·정체 안내를 켜는 방법은 [시작 가이드](docs/getting-started.md#대기-반복진행-정체-안내-켜기)에 있습니다.
 
 ### 코드 밖 문제
 
-코드를 아무리 고쳐도 풀리지 않는 실패가 있습니다. 같은 명령이 환경 변화 없이 같은 외부 원인으로 두 번 실패하면, 삼천포는 그 원인이 풀릴 때까지 소스 수정을 막고 사람이 실행할 명령을 알려 줍니다.
+코드를 아무리 고쳐도 풀리지 않는 실패가 있습니다. 같은 명령이 작업 폴더 변화 없이 같은 외부 원인으로 두 번 실패하면, 삼천포는 그 원인이 풀릴 때까지 소스 수정을 막고 사람이 실행할 명령을 알려 줍니다.
 
 ```mermaid
 flowchart LR
@@ -140,7 +138,9 @@ go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.9.2
 go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.9.2
 ```
 
-원본 기록이 없으면 `receipt`는 마지막 완료 분석의 저장본을 표시하고, `verify`는 저장 분석의 봉인을 확인한다. 구버전 기록은 검증 한계를 표시한다. v0.9.2은 원장 스키마 12를 사용하므로 업그레이드 전에 원장을 백업해야 한다. 스키마 12는 v0.8.0 이하에서 열 수 없다. 기존 봉인 형식과 분석 이력은 유지한다.
+### 업그레이드
+
+업그레이드 전에 원장(`~/.samcheonpo/ledger.db`)을 백업합니다. 현재 원장 스키마는 12이고, 한 번 올라간 원장은 v0.8.0 이하에서 열 수 없습니다. 기존 봉인과 분석 이력은 그대로 유지됩니다. 실행 파일을 바꾼 뒤에는 `uninstall`과 `install`을 다시 실행해 플러그인 파일을 갱신합니다.
 
 ## 빠른 시작
 
@@ -181,14 +181,15 @@ samcheonpo install --agent openclaw   # OpenClaw
 | --- | --- |
 | `/samcheonpo:summary` | 요청한 일, 지금 하는 일, 끝난 것, 막힌 것, 쓴 돈을 요약 |
 | `/samcheonpo:keep normal` | 방금 판정이 틀렸다고 기록. 같은 목표 안에서 같은 대상은 다시 막지 않음 |
+| `/samcheonpo:keep wrong` | 판정 근거가 틀렸다고 기록. 해제 범위는 `normal`과 같음 |
 | `/samcheonpo:keep now` | 이번만 허용. 다시 생기면 막기 전에 먼저 안내 |
 | `/samcheonpo:steer` | 삼천포의 처방을 에이전트에게 전달 |
 | `/samcheonpo:check` | 완료 조건을 지금 검사 |
 | `/samcheonpo:rollback` | AI가 바꾼 파일을 마지막으로 검사가 통과한 시점으로 되돌림 |
 | `/samcheonpo:extend 2h` | 세션 상한을 늘림. 시간은 `2h`·`30m`, 토큰은 `20M`·`500K` |
-| `/samcheonpo:accept`, `/samcheonpo:edit` | 작업 계약 수락·수정 |
+| `/samcheonpo:accept`, `/samcheonpo:edit`, `/samcheonpo:skip` | 작업 계약 수락·수정, 계약 없이 진행 |
 
-다른 에이전트는 터미널에서 `samcheonpo cmd <명령>`으로 같은 일을 합니다. `keep`, `accept`, `extend`, `rollback apply`는 사용자 전용이라 에이전트가 셸로 실행하면 거부됩니다.
+다른 에이전트는 터미널에서 `samcheonpo cmd <명령>`으로 같은 일을 합니다. `accept`, `edit`, `skip`, `keep`, `extend`, `rollback apply`는 사용자 전용이라 에이전트가 셸로 실행하면 거부됩니다.
 
 **4. 연결을 해제합니다.**
 
@@ -197,51 +198,6 @@ samcheonpo uninstall --agent claude
 ```
 
 설치 전 상태로 되돌립니다. 사용자가 고친 파일과 기록은 지우지 않습니다.
-
-## 0%와 탐지 근거 확인
-
-`0%`는 계측된 비용·토큰 중 낭비로 분류한 비율입니다. 정상 작업이나 완료를 보장하지 않습니다. 작은 양수는 `<0.1%`로 표시하고, 탐지 후보·비용 귀속·종료 결과 누락·완료 근거를 분리해서 보여 줍니다.
-
-```sh
-samcheonpo why SESSION
-samcheonpo coverage SESSION --format json
-samcheonpo task-coverage SESSION
-samcheonpo gaps --source ledger --agent all --since 7d
-samcheonpo label SESSION --labeler human --start 10 --end 15 --symptom S2 --outcome unknown
-samcheonpo rules candidates --labels labels --split split.json --out candidates.json
-samcheonpo export SESSION --otel --redact -o session.otlp.jsonl
-samcheonpo bench report results.jsonl --baseline off --success-margin .02 --cost-goal .15 --check
-```
-
-`why`·`coverage`·`task-coverage`는 원장을 생성하거나 마이그레이션하지 않는 읽기 전용 조회입니다. `task-coverage`는 명시적으로 연결한 작업만 조회합니다. 개선 후보는 학습 분할 라벨만 사용하며 정책을 자동 적용하지 않습니다. 비식별 OTLP는 원문·명령·경로·원래 대화 ID를 빼고 로컬 파일로만 저장합니다.
-
-새 반복·의미 탐지는 기본 기록 전용입니다. 실제 안내를 받을 규칙은 사용자 설정의 `rollout.recommend_rules`로 선택합니다. 상세 동작과 검증 범위는 [탐지 개선 구현](docs/spec/detection-assessment.md)에 있습니다.
-
-같은 작업에 연결된 세션의 반복은 실행 중에도 근거와 함께 집계하며, `s1.linked_loop`를 선택하면 안내합니다. 요구사항·에이전트 주장·실제 검사 결과는 별도 그래프로 연결합니다. 완료 주장을 실제 완료로 확정하지 않습니다.
-
-사람 라벨에서 실행 가능한 반복 규칙을 만들고, 고정된 독립 평가를 통과한 팩만 생성할 수 있습니다.
-
-```sh
-samcheonpo rules propose --labels labels --split split.json --out proposal.json
-samcheonpo rules evaluate proposal.json --labels labels --split split.json --out evaluation.json --check
-samcheonpo rules promote proposal.json --labels labels --split split.json --out rulepack.json
-```
-
-`promote`는 원래 라벨과 원장으로 평가를 다시 계산합니다. 선택형 `--install`도 기본 기록 전용이며 안내는 출력된 정확한 규칙 ID를 사용자 `recommend_rules`에 추가해야 합니다. 판정 정확도와 실제 비용 절감 효과는 구분합니다. 조건과 한계는 [2차 구현 규격](docs/spec/detection-phase2.md)에 있습니다.
-
-## 작업 화면과 실제 검토 자료
-
-```sh
-samcheonpo eval prepare-review --since 30d --out review
-samcheonpo dashboard --review-queue review/review-queue.json
-samcheonpo eval compare --queue review/review-queue.json --labels labels --format json
-```
-
-화면은 기본적으로 `127.0.0.1:18773`에서 열립니다. 시작할 때 출력한 파일의 접근 코드로 로그인합니다. 실제 원장은 루프백에서만 제공하며 원격 장비에서는 SSH 포워딩을 사용합니다. 화면의 계속·정상 작업·방향 조정은 선택한 실행 세션의 기존 명령에 연결됩니다. 요청·남은 조건·검사 재사용 근거와 조사 출처 연결을 구분해서 표시합니다. 인용을 관측했다고 주장 자체를 검증한 것은 아닙니다.
-
-검토 큐는 후보 200구간·미검토 대조 400구간을 목표로 실제 원장에서 표집합니다. 정상 여부는 사람이 판단해야 합니다. 원장과 접근 가능한 원본의 해시를 고정하고 같은 원본은 중복 표집하지 않습니다. 독립 검토 화면은 탐지 판정·표집 유형·다른 사람의 답을 숨깁니다. 신고는 구간만 검토한 기록이며 전체 세션 검토나 실행 승인으로 계산하지 않습니다. 같은 검토자의 중복 제출과 고정 자료의 변경을 거절합니다. 고정 큐의 신고에는 원장·큐 지문을 함께 저장합니다. CLI에서는 `label`의 `--queue`와 `--start --end --symptom`을 함께 지정해야 고정 큐 평가용 답변으로 연결됩니다. 원본·큐 결속이 없는 과거 라벨은 보존하되 이 비교의 정답으로 사용하지 않습니다.
-
-`eval compare`는 같은 구간에 명시된 반복 호출·파일별 편집 횟수 휴리스틱을 비교합니다. 외부 SDK를 실행한 결과나 효과 검증이 아닙니다. 원본 해시와 이벤트 순서가 일치할 때만 원본 호출을 사용하고, 부족한 근거는 미확인으로 남깁니다. 최신 규칙의 재생 후보도 함께 기록하며 실행 중 전달·회복으로 계산하지 않습니다. 비교 지표는 두 검토자 ID의 합의와 모든 비교기의 판정 근거가 갖춰진 공통 구간에서만 계산하며, precision·recall의 분모가 없으면 `null`입니다. 불일치와 관측 누락은 별도로 집계합니다. 검토 큐는 층화 표본이므로 이 수치를 모집단 정확도로 일반화하지 않습니다. CLI·웹 저장은 프로세스 간 잠금과 원자적 파일 교체를 공유하며, CLI 검토 중 다른 답변이 저장되면 오래된 저장으로 덮지 않고 재검토를 요청합니다. 두 사람의 실제 독립 검토와 on/off 실행 효과 인수는 별도입니다. 전체 진행·남은 조건은 [전체 플랜 추적](docs/spec/full-plan-progress.md)에 기록합니다.
 
 ## 되돌리기
 
@@ -279,17 +235,17 @@ scope:
 budget: {krw: 5000, minutes: 40}               # 넘으면 정지
 ```
 
-`/samcheonpo:accept`로 수락하면 완료 조건으로 진척을 재고, 보호 경로를 지키고, 예산을 넘으면 멈춥니다. 수락 기록은 사용자 홈의 키로 서명하므로 에이전트가 쓴 기록은 인정하지 않습니다. 계약 내용을 바꾸면 다시 수락해야 합니다. 작업마다 에이전트가 계약 초안을 쓰게 하려면 `.samcheonpo.yml`에 `contract: {draft: on}`을 둡니다.
+`/samcheonpo:accept`로 수락하면 완료 조건으로 진척을 재고, 보호 경로를 지키고, 예산을 넘으면 멈춥니다. 수락 기록은 사용자 홈의 키로 서명하므로 에이전트가 쓴 기록은 인정하지 않습니다. 계약 내용을 바꾸면 다시 수락해야 합니다. 세션 밖에서는 `samcheonpo contract show`와 `samcheonpo contract accept`를 씁니다. 작업마다 에이전트가 계약 초안을 쓰게 하려면 `.samcheonpo.yml`에 `contract: {draft: on}`을 둡니다.
 
 ## 설정
 
-사용자 설정은 `~/.samcheonpo/config.yml`, 프로젝트 설정은 `.samcheonpo.yml`입니다.
+사용자 설정은 `~/.samcheonpo/config.yml`, 프로젝트 설정은 `.samcheonpo.yml`입니다. `samcheonpo init`이 프로젝트 설정 파일을 만듭니다.
 
 ```yaml
 rollout:
   mode: recommend            # shadow: 기록만 | recommend: 귀띔, 승격 가능한 규칙만 반복 시 차단
-  escalate_max_blocks: 3     # 반복 귀띔의 차단 상한. 명시적 보호·예산은 별도
-  recommend_rules: []        # 사용자 설정에서만 대기·정체 안내를 명시적으로 선택
+  escalate_max_blocks: 3     # 반복 귀띔의 차단 상한. 0이면 끔. 보호 경로·예산은 별도
+  recommend_rules: []        # 기본 기록 전용 규칙 가운데 안내를 받을 규칙 ID (사용자 설정에서만)
 contract:
   draft: off                 # on이면 작업마다 계약 초안 요청
 notify:
@@ -308,10 +264,52 @@ detectors:
     releases_per_hour: 2
 ```
 
-- 대기 반복(`s1.explicit_waiting`)과 진행 정체(`s8.progress_stall`)는 기본으로 기록만 합니다. 안내를 받으려면 사용자 설정의 `rollout.recommend_rules`에 원하는 규칙을 넣습니다. 기록 전용 목록인 `shadow_rules`에 남아 있으면 계속 기록만 합니다. 두 규칙의 최고 수준은 가벼운 안내(L1)입니다.
+- 기본 기록 전용 규칙은 `s1.verify_after_docs`, `s1.review_repeat`, `s1.explicit_waiting`, `s8.progress_stall`과 반복·조사·인계 탐지 후보입니다. 안내를 받으려면 규칙 ID를 `recommend_rules`에 넣고, `shadow_rules`에 같은 ID가 있으면 뺍니다.
 - 활동 시간은 이벤트 사이 공백이 30분을 넘는 구간을 빼고 셉니다. 계약의 `budget.minutes`도 같은 상한으로 집행합니다.
-- 프로젝트 설정은 사용자 설정을 **약하게만** 바꿀 수 있습니다. 차단 상한·예산·세션 상한은 낮추기만 하고, 외부 전송·알림 목적지·외부 프로그램은 끄기만 할 수 있습니다.
+- 프로젝트 설정은 사용자 설정을 **약하게만** 바꿀 수 있습니다. 차단 상한·예산·세션 상한은 낮추기만 하고, 외부 전송·알림 목적지·외부 프로그램은 끄기만 할 수 있습니다. 항목별 권한은 [시작 가이드](docs/getting-started.md#9-설정-권한)에 있습니다.
 - 부모·자식 세션 묶음은 `samcheonpo handoff link`로 이었거나 에이전트가 부모 세션 ID를 보낸 경우에만 생깁니다.
+
+## 기록 조회와 진단
+
+모든 조회 명령은 원장을 읽기만 하고 모델을 호출하지 않습니다.
+
+| 명령 | 보여 주는 것 |
+| --- | --- |
+| `samcheonpo doctor [--agent 이름]` | 설정, 원장, 훅 연결, 에이전트 버전, 파일 감시 자원 상태 |
+| `samcheonpo sessions` | 분석된 세션 목록과 헛짓률 |
+| `samcheonpo receipt <세션>` | 세션 하나의 영수증. `--share`는 공유용 비식별 출력 |
+| `samcheonpo verify <세션>` | 다시 계산해 봉인 값과 대조 |
+| `samcheonpo report --since 30d --mode live` | 에이전트별 관측 범위·환산액·헛짓 분류 비교 |
+| `samcheonpo why <세션>`, `coverage <세션>` | 판정 근거, 비용 귀속, 판단하지 못한 이유 |
+| `samcheonpo interventions --by-agent` | 처방이 제안·전달·인지·효과 관측 중 어디까지 갔는지, 실행 전 차단 횟수 |
+| `samcheonpo lineage <작업ID>` | 같은 목표에 이어진 세션들의 계보와 판정 |
+| `samcheonpo handoff <세션>` | 다른 에이전트나 새 세션에 넘길 첫 지시문 |
+| `samcheonpo export <세션> --redact` | 경로와 명령을 가린 재현 묶음. `--otel`은 OTLP/JSON |
+| `samcheonpo dashboard` | `127.0.0.1:18773`에서 여는 로컬 화면. 시작할 때 출력하는 접근 코드로 로그인 |
+| `samcheonpo plugins` | 설치한 플러그인 묶음이 설치 때와 같은지 확인 |
+| `samcheonpo compact [--prune-days N]` | 원장 용량 보고와 빈 공간 회수. N일 전에 끝난 세션의 상세만 정리하고 봉인·영수증·판정은 남김 |
+
+`0%`는 계측된 비용 가운데 낭비로 분류한 몫이 없다는 뜻입니다. 정상 작업이나 완료를 보장하지 않습니다. 작은 양수는 `<0.1%`로 표시합니다.
+
+### 탐지 규칙 평가
+
+탐지 규칙의 정확도는 사람이 표시한 구간으로 잽니다. 이 도구들은 정책을 자동으로 적용하지 않습니다.
+
+```sh
+samcheonpo eval prepare-review --since 30d --out review     # 실제 원장에서 검토 구간을 뽑아 고정
+samcheonpo dashboard --review-queue review/review-queue.json # 판정을 가린 화면에서 사람이 검토
+samcheonpo eval compare --queue review/review-queue.json --labels labels --format json
+samcheonpo rules propose  --labels labels --split split.json --out proposal.json
+samcheonpo rules evaluate proposal.json --labels labels --split split.json --out evaluation.json --check
+samcheonpo rules promote  proposal.json --labels labels --split split.json --out rulepack.json
+```
+
+- 검토 화면은 탐지 판정과 다른 검토자의 답을 숨기고, 답을 원장·검토 큐의 지문에 묶어 저장합니다.
+- 비교 지표는 두 검토자가 합의한 구간에서만 계산합니다. 분모가 없으면 `null`입니다. 검토 큐는 층화 표본이라 이 수치를 전체 정확도로 일반화하지 않습니다.
+- `promote`는 독립 평가를 다시 계산한 뒤에만 규칙 팩을 만듭니다. `--install`로 설치해도 기록 전용이며, 안내를 받으려면 출력된 규칙 ID를 `recommend_rules`에 넣어야 합니다.
+- 실제 에이전트로 효과를 비교하는 `samcheonpo bench ab`, `bench probe`, `bench tasks`와 회피 측정 `samcheonpo evasion`도 있습니다. 실행 방식 설정 예시는 [bench/ab.example.yml](bench/ab.example.yml)에 있습니다.
+
+세부 조건은 [탐지 평가](docs/spec/detection-assessment.md)와 [규칙 학습](docs/spec/detection-phase2.md)에 있습니다.
 
 ## 지원 범위
 
@@ -331,30 +329,24 @@ detectors:
 
 ## 한계
 
-- **효과는 아직 입증 중입니다.** 표본이 작아 일반적인 절감률을 주장하지 않습니다. 실험 방법은 [실험 프로토콜](docs/benchmarks/protocol-v1.md)에 있습니다.
+- **효과는 아직 입증되지 않았습니다.** 사람이 표시한 정답과 켠 경우·끈 경우의 완료율·비용 비교가 충분하지 않아 절감률을 주장하지 않습니다. 실험 방법은 [실험 프로토콜](docs/benchmarks/protocol-v1.md)에 있습니다.
 - **오탐이 있을 수 있습니다.** 그래서 처음에는 귀띔만 하고, 경고를 무시했을 때만 세션당 상한 안에서 막습니다. 틀린 판정은 `/samcheonpo:keep normal`로 알려 주세요.
 - **실행 전 차단은 15ms 안에 판정이 끝나야 걸립니다.** 넘기면 실행을 막지 않고 상태줄에 `확인 불가`를 표시합니다.
 - **되돌리기는 소유권이 확인된 파일만 다룹니다.** 셸 명령으로 바뀐 파일, 사람 편집이 섞인 파일, 다른 세션의 AI가 쓴 파일은 대상이 아닙니다.
 - **사용자 전용 명령의 격리는 완전하지 않습니다.** 에이전트 셸에서는 막지만, 같은 OS 사용자로 도는 프로세스가 데몬에 직접 접속하는 것까지 막지는 않습니다.
 - **짧고 명확한 작업에서는 할 일이 거의 없습니다.** 헛짓은 대개 길고 복잡한 세션에서 생깁니다.
-- **지시 밀수 탐지는 지시의 존재만 봅니다.** 지시가 누구에게서 왔는지, 그 지시를 따랐는지는 이 판정이 답하지 않습니다. 조립된 컨텍스트 어디에든 같은 문장이 있으면 반응하므로, 문서·시험 픽스처에 그 형태의 문장이 있으면 사람이 확인해야 합니다.
-- **플러그인 무결성 기록은 서명이 아닙니다.** 설치할 때의 묶음이 지금 그대로인지만 확인합니다. 그것을 배포한 사람이 누구인지는 확인하지 않습니다.
-- **공개 노출 과제 결과는 더 약한 주장입니다.** 공개 저장소에 있는 22개 벤치 과제는 모델이 이미 봤을 수 있어, 공개 여부를 summary에서 따로 표시한다.
+- **지시 밀수 탐지는 지시의 존재만 봅니다.** 누가 보냈는지, 에이전트가 따랐는지는 답하지 않습니다. 문서나 시험 픽스처에 같은 형태의 문장이 있어도 반응하므로 사람이 확인해야 합니다.
+- **플러그인 무결성 기록은 서명이 아닙니다.** 설치할 때의 묶음이 지금 그대로인지만 확인하고, 배포자는 확인하지 않습니다.
+- **공개 벤치 과제의 결과는 약한 근거입니다.** 저장소에 공개된 22개 과제는 모델이 이미 봤을 수 있어, 요약에서 공개 과제와 비공개 과제를 따로 셉니다.
 
 ## 더 알아보기
 
-- [처음 사용하기](docs/getting-started.md): 설치부터 운영 규칙까지
+- [시작 가이드](docs/getting-started.md): 설치부터 운영 규칙까지
 - [지원 범위](docs/support-matrix.md): 플랫폼과 에이전트별로 확인한 것
 - [에이전트용 지침](plugins/claude-code/skills/samcheonpo/SKILL.md): AI가 삼천포를 세팅하고 경고에 맞게 행동하는 규칙. Claude Code 플러그인에 함께 설치됩니다
-- 규격: [진척 계약](docs/spec/progress-contract-v1.md) · [근거 원장](docs/spec/evidence-ledger-v1.md) · [영수증 표시](docs/spec/receipt-billing.md) · [복구와 코드 밖 원인](docs/spec/recovery-v1.md) · [인수인계](docs/spec/handoff-v1-draft.md) · [대기·정체 안내와 기록 평가](docs/spec/agenttime-reliability.md) · [판정 예산과 위험 등급](docs/spec/judge-budget.md) · [하네스 성분 위치](docs/spec/harness-surface.md)
-- 평가 도구: `samcheonpo bench`, `samcheonpo bench ab`, `samcheonpo bench probe`, `samcheonpo bench tasks`, `samcheonpo evasion`, `samcheonpo gaps`, `samcheonpo interventions`, `samcheonpo eval corpus`(현재 작업 트리)
-- 기록 비교: `samcheonpo report --since 30d --mode live`. 단가 미확인은 무료로 표시하지 않으며, 수집 범위와 완료 근거를 함께 보여 준다.
-- 탐지 시점: `samcheonpo detection-timing`이 최초 판정이 궤적의 몇 % 지점에서 나왔는지와 마지막 1/3 도출 비율을 보여 준다. `samcheonpo lineage <taskID>`가 목표 단위의 세션 간 계보를 보여 준다.
-- 배포 무결성: `samcheonpo plugins`가 설치한 플러그인 묶음이 지금 그대로인지 확인한다.
-- 하네스 위치: `samcheonpo surface`가 센서·가이드·편집 대상 성분을 삼천포의 실제 경로에 대응시킨다.
-- 원장 관리: `samcheonpo compact`가 용량을 보고하고 빈 공간을 회수한다. `--prune-days N`을 주면 오래 전에 종료된 세션의 상세만 정리하며 봉인·영수증·판정은 남긴다. `samcheonpo doctor`가 같은 기준을 함께 보여 준다.
-- 안내 이력: `samcheonpo interventions --by-agent`. 관련 행동이 없는 관측 창은 재발 없음으로 단정하지 않는다.
+- 규격: [진척 계약](docs/spec/progress-contract-v1.md) · [근거 원장](docs/spec/evidence-ledger-v1.md) · [영수증 표시](docs/spec/receipt-billing.md) · [복구와 코드 밖 원인](docs/spec/recovery-v1.md) · [인수인계](docs/spec/handoff-v1-draft.md) · [대기·정체 안내](docs/spec/agenttime-reliability.md) · [판정 예산과 위험 등급](docs/spec/judge-budget.md) · [하네스 성분 위치](docs/spec/harness-surface.md) · [훅 기동](docs/spec/hook-startup.md)
 - [적합성 사례](conformance/): 다른 구현을 같은 규격으로 채점하는 시험 모음
+- [변경 이력](CHANGELOG.md)
 
 ## 라이선스
 
@@ -366,5 +358,3 @@ detectors:
   Made by <a href="mailto:jinho.von.choi@nerdvana.kr">Jinho Choi</a> &nbsp;|&nbsp;
   <a href="https://buymeacoffee.com/jinho.von.choi">Buy me a coffee</a>
 </p>
-
-실제 A/B에서 설치된 구버전 감시 데몬을 섞지 않으려면 실행 방식 설정에 `monitor: samcheonpo`, `monitor_executable: /절대/경로/samcheonpo`, `monitor_rollout: shadow` 또는 `recommend`를 지정합니다. 신규 권고 규칙은 `recommend_rules` 목록에 정확한 advisory 규칙 ID를 지정합니다. 지정 빌드와 설정 사본은 시행별로 고정하며 사용자 환경의 에이전트 권한·모델·인증을 변경하지 않습니다. 전체 시간과 감시 포함 토큰을 기록하되 측정 누락은 0으로 계산하지 않습니다.

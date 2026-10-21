@@ -137,7 +137,7 @@ rollout:
 
 ### 완료 근거가 미확인일 때
 
-프로젝트에서 `samcheonpo contract show`로 조건을 확인하고, 필요하면 `.samcheonpo/contract.yml`의 완료 조건을 작성한다. 검토·조사 작업은 파일 변경 대신 결과물을 조건으로 삼을 수 있다. 사용자가 조건을 수락한 뒤 `samcheonpo contract accept`, `samcheonpo cmd checkpoint` 순서로 실제 검사를 확인한다. 수락만으로 통과가 되지는 않으며 사람이 확인할 조건은 별도로 남는다. 진단 명령은 수락이나 검사를 대신 실행하지 않는다.
+프로젝트에서 `samcheonpo contract show`로 조건을 확인하고, 필요하면 `.samcheonpo/contract.yml`의 완료 조건을 작성한다. 검토·조사 작업은 파일 변경 대신 결과물을 조건으로 삼을 수 있다. 사용자가 조건을 수락한 뒤 `samcheonpo contract accept`, `samcheonpo cmd check` 순서로 실제 검사를 확인한다. 수락만으로 통과가 되지는 않으며 사람이 확인할 조건은 별도로 남는다. 진단 명령은 수락이나 검사를 대신 실행하지 않는다.
 
 `samcheonpo interventions --since 30d --by-agent`는 에이전트·규칙별 전달 단계와 미관측 사유를 보여 준다. 안내와 같은 실행의 후속 완료 결과 또는 관련 생산 행동을 확인해야 ‘재발 없음’으로 기록한다. 관련 행동이 없거나 외부 검사가 아직 확인되지 않으면 미관측이다. 재발이 없다는 기록은 해결이나 비용 절감의 증거가 아니다.
 

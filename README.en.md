@@ -5,7 +5,7 @@
   <img src="docs/assets/logo.png" alt="Samcheonpo (anti-samcheonpo)" width="300">
 </picture>
 
-**A harness that notices when an AI coding agent is burning your time and money on busywork, tells you, and stops it**
+**A harness that notices when an AI coding agent burns time and money on busywork, tells you, and stops it**
 
 [![CI](https://github.com/JinHo-von-Choi/anti-samcheonpo/actions/workflows/ci.yml/badge.svg)](https://github.com/JinHo-von-Choi/anti-samcheonpo/actions/workflows/ci.yml)
 [![License: MIT](https://img.shields.io/badge/License-MIT-blue.svg)](LICENSE)
@@ -31,7 +31,7 @@ Samcheonpo is a local tool that catches this busywork from actual execution resu
 
 ## How it works
 
-Samcheonpo attaches to the agent's hooks and watches commands, file edits, test results and token usage. When the agent says "tests pass", only the actual result counts. Every decision is made on your machine, and no model is called.
+Samcheonpo attaches to the agent's hooks and watches commands, file edits, test results and token usage. When the agent says "tests pass", only the actual result counts. Decisions are made on your machine, and no model is called.
 
 ```mermaid
 flowchart LR
@@ -85,25 +85,23 @@ The status line starts with the current state:
 | Release spamming | Re-releasing without reproducing a CI failure locally, rerunning a failed CI unchanged, too many releases per hour | Nudge → block on repeat, even with a new tag |
 | Waiting after completion · stalled progress | Keeps waiting after completion checks pass, or changes input without reducing failures in the same check | Records only by default; light advice when enabled |
 | Runaway cost | Spending without progress, over budget, very long sessions in time or tokens | Notice → confirm → stop at the ceiling |
-| Being told to deceive | Instructions in a prompt, file, tool output or memory file that tell the agent to hide from the monitor or to report a check it never ran | Records the shape and origin of the instruction; a write that plants it is blocked before it lands |
+| Smuggled instructions | Instructions mixed into a prompt, file or tool output, such as "hide this from the monitor" or "say the check passed without running it" | Records the shape and origin of the instruction; a write that plants it in the repository is blocked before it runs |
 | Reaching the grader | A tool call that touches the grader, answer or rubric path | Blocked before it runs |
 
-Waiting and stalled-progress advice requires enough evidence to check the reason for waiting and the test results. These two rules never block work. See [waiting and stalled-progress advice](docs/spec/agenttime-reliability.md) (Korean) to enable them. These rules are included in v0.6.0; effects on cost and completion rate remain unverified.
-
-The S9 and S10 rules read the assembled context: the user prompt, file contents, tool output and memory files together, not the user turn alone. Both are detection-stage, not effect-proven. They say an instruction was there; they do not say who wrote it.
+The smuggled-instruction rule reads the assembled context: the user prompt, file contents, tool output and memory files together. It stores no raw text, only that an instruction was there and where it came from. To enable waiting and stalled-progress advice, see [Getting started](docs/getting-started.md#대기-반복진행-정체-안내-켜기) (Korean).
 
 ### Problems outside the code
 
-Some failures cannot be fixed by editing code. When the same command fails twice for the same outside cause with nothing in the environment changed, Samcheonpo holds source edits until that cause is gone and tells you the command a person needs to run.
+Some failures cannot be fixed by editing code. When the same command fails twice for the same outside cause with nothing in the working tree changed, Samcheonpo holds source edits until that cause is gone and tells you the command a person needs to run.
 
 ```mermaid
 flowchart LR
     F[Command fails] --> C{Cause}
-    C -->|code| K[Nudge as usual]
-    C -->|transient| T[Allow retry]
+    C -->|code| K[Usual nudge]
+    C -->|transient| T[Retry allowed]
     C -->|dependency · service<br/>permission · port · disk| X{Second time?}
     X -->|no| K
-    X -->|yes| Z[Hold source edits<br/>For you: npm install yaml]
+    X -->|yes| Z[Hold source edits<br/>for you: npm install yaml]
     Z -->|command passes · install succeeds<br/>keep normal| K
 ```
 
@@ -143,7 +141,9 @@ go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.9.2
 go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.9.2
 ```
 
-When the source transcript is unavailable, `receipt` displays the last completed analysis and `verify` checks its stored seal. Legacy records show their verification limits. v0.9.2 uses ledger schema 12; back up the ledger before upgrading. v0.8.0 and older cannot open schema 12. Existing seal formats and analysis history are preserved.
+### Upgrade
+
+Back up the ledger (`~/.samcheonpo/ledger.db`) before upgrading. The current ledger schema is 12, and an upgraded ledger cannot be opened by v0.8.0 or older. Existing seals and analysis history are kept. After replacing the binaries, run `uninstall` and `install` again to refresh the plugin files.
 
 ## Quick start
 
@@ -184,14 +184,15 @@ Existing hooks and status line settings are kept. It applies from the next agent
 | --- | --- |
 | `/samcheonpo:summary` | What you asked, what it is doing, what is done, what is stuck, what it cost |
 | `/samcheonpo:keep normal` | Record that the last call was wrong; the same target is not blocked again within the same goal |
+| `/samcheonpo:keep wrong` | Record that the evidence behind the call was wrong; releases the same scope as `normal` |
 | `/samcheonpo:keep now` | Allow it this once; if it happens again, advise before blocking |
 | `/samcheonpo:steer` | Pass Samcheonpo's prescription to the agent |
 | `/samcheonpo:check` | Run the done-check now |
 | `/samcheonpo:rollback` | Return files the AI changed to the last passing check |
 | `/samcheonpo:extend 2h` | Raise the session ceiling. Time as `2h`, `30m`; tokens as `20M`, `500K` |
-| `/samcheonpo:accept`, `/samcheonpo:edit` | Accept or edit a work contract |
+| `/samcheonpo:accept`, `/samcheonpo:edit`, `/samcheonpo:skip` | Accept or edit a work contract, or continue without one |
 
-With other agents, run `samcheonpo cmd <command>` in a terminal. `keep`, `accept`, `extend` and `rollback apply` are for you only; the agent's shell is refused.
+With other agents, run `samcheonpo cmd <command>` in a terminal. `accept`, `edit`, `skip`, `keep`, `extend` and `rollback apply` are for you only; the agent's shell is refused.
 
 **4. Disconnect.**
 
@@ -237,17 +238,17 @@ scope:
 budget: {krw: 5000, minutes: 40}               # stops when exceeded
 ```
 
-After you accept it with `/samcheonpo:accept`, progress is measured by the done-checks, protected paths are enforced, and work stops over budget. The acceptance record is signed with a key in your home directory, so a record written by the agent is not accepted. Any change to the contract needs a new acceptance. To have the agent draft a contract for every task, set `contract: {draft: on}` in `.samcheonpo.yml`.
+After you accept it with `/samcheonpo:accept`, progress is measured by the done-checks, protected paths are enforced, and work stops over budget. The acceptance record is signed with a key in your home directory, so a record written by the agent is not accepted. Any change to the contract needs a new acceptance. Outside a session, use `samcheonpo contract show` and `samcheonpo contract accept`. To have the agent draft a contract for every task, set `contract: {draft: on}` in `.samcheonpo.yml`.
 
 ## Configuration
 
-User settings live in `~/.samcheonpo/config.yml`, project settings in `.samcheonpo.yml`.
+User settings live in `~/.samcheonpo/config.yml`, project settings in `.samcheonpo.yml`. `samcheonpo init` creates the project file.
 
 ```yaml
 rollout:
   mode: recommend            # shadow: record only | recommend: nudge, eligible rules may block on repeat
-  escalate_max_blocks: 3     # escalation cap; explicit protection and budgets are separate
-  recommend_rules: []        # opt into waiting/stall advice in the user config only
+  escalate_max_blocks: 3     # escalation cap; 0 = off. Protected paths and budgets are separate
+  recommend_rules: []        # record-only rule IDs to receive advice for (user config only)
 contract:
   draft: off                 # on: ask for a contract draft for every task
 notify:
@@ -266,10 +267,52 @@ detectors:
     releases_per_hour: 2
 ```
 
-- Waiting (`s1.explicit_waiting`) and stalled progress (`s8.progress_stall`) record observations without advice by default. To receive advice, add either rule to `rollout.recommend_rules` in your user settings. Rules still named in the record-only `shadow_rules` list stay silent. These two rules provide light advice (L1) at most.
+- Record-only rules by default are `s1.verify_after_docs`, `s1.review_repeat`, `s1.explicit_waiting`, `s8.progress_stall`, and the loop, research and handoff candidates. To receive advice, add the rule ID to `recommend_rules` and remove it from `shadow_rules` if listed there.
 - Active time excludes gaps longer than 30 minutes between events. A contract's `budget.minutes` is enforced as the same ceiling.
-- Project settings can only **loosen** user settings. Block caps, budgets and ceilings can only go down; remote sending, notification targets and external programs can only be turned off.
+- Project settings can only **loosen** user settings. Block caps, budgets and ceilings can only go down; remote sending, notification targets and external programs can only be turned off. See [Getting started](docs/getting-started.md#9-설정-권한) (Korean) for each setting.
 - Parent and child sessions are grouped only when linked with `samcheonpo handoff link` or when the agent sends a parent session ID.
+
+## Records and diagnostics
+
+Every query command only reads the ledger and calls no model.
+
+| Command | Shows |
+| --- | --- |
+| `samcheonpo doctor [--agent name]` | Settings, ledger, hook wiring, agent version, file-watch resources |
+| `samcheonpo sessions` | Analyzed sessions and their busywork share |
+| `samcheonpo receipt <session>` | Receipt for one session. `--share` gives a de-identified copy for sharing |
+| `samcheonpo verify <session>` | Recomputes and compares with the seal |
+| `samcheonpo report --since 30d --mode live` | Per-agent observation coverage, converted cost and busywork classes |
+| `samcheonpo why <session>`, `coverage <session>` | Evidence for each call, cost attribution, reasons it could not judge |
+| `samcheonpo interventions --by-agent` | How far each prescription got (proposed, delivered, acknowledged, effect observed) and blocks before run |
+| `samcheonpo lineage <task-id>` | The chain of sessions behind one goal, with their findings |
+| `samcheonpo handoff <session>` | A first instruction for another agent or a new session |
+| `samcheonpo export <session> --redact` | A reproduction bundle without paths, commands or raw text. `--otel` writes OTLP/JSON |
+| `samcheonpo dashboard` | A local view at `127.0.0.1:18773`; log in with the access code printed at start |
+| `samcheonpo plugins` | Whether installed plugin bundles are unchanged since install |
+| `samcheonpo compact [--prune-days N]` | Ledger size and free-space reclaim. Prunes detail of sessions closed more than N days ago; keeps seals, receipts and findings |
+
+`0%` means no measured cost was classified as waste. It does not certify normal work or completion. Small positive values show as `<0.1%`.
+
+### Evaluating detection rules
+
+Rule accuracy is measured against intervals labeled by people. None of these tools applies a policy on its own.
+
+```sh
+samcheonpo eval prepare-review --since 30d --out review     # sample and freeze review intervals from the real ledger
+samcheonpo dashboard --review-queue review/review-queue.json # people review with the findings hidden
+samcheonpo eval compare --queue review/review-queue.json --labels labels --format json
+samcheonpo rules propose  --labels labels --split split.json --out proposal.json
+samcheonpo rules evaluate proposal.json --labels labels --split split.json --out evaluation.json --check
+samcheonpo rules promote  proposal.json --labels labels --split split.json --out rulepack.json
+```
+
+- The review view hides the findings and other reviewers' answers, and binds each answer to the ledger and queue digests.
+- Comparison metrics are computed only on intervals where two reviewers agree. A missing denominator is `null`. The queue is a stratified sample, so these numbers do not generalize to overall accuracy.
+- `promote` builds a rule pack only after recomputing the independent evaluation. A pack installed with `--install` is still record-only; add the printed rule IDs to `recommend_rules` to receive advice.
+- For live comparisons with real agents there are `samcheonpo bench ab`, `bench probe` and `bench tasks`, and `samcheonpo evasion` measures evasion. See [bench/ab.example.yml](bench/ab.example.yml) for a run configuration.
+
+Details are in [detection assessment](docs/spec/detection-assessment.md) and [rule learning](docs/spec/detection-phase2.md) (Korean).
 
 ## Support
 
@@ -285,31 +328,28 @@ detectors:
 
 An agent update alone never switches intervention off. As long as hook payloads still carry the session, tool name, call ID, tool input and result, it keeps intervening. If a payload arrives in a different shape, that agent drops to observe-only, and the status line and `samcheonpo doctor` say why.
 
-Linux, macOS and Windows 10 1803 or later are supported. On Windows, checks run through Git for Windows' bash. See [Support](docs/support-matrix.md) for what is verified on each platform.
+Linux, macOS and Windows 10 1803 or later are supported. On Windows, checks run through Git for Windows' bash. See [Support](docs/support-matrix.md) (Korean) for what is verified on each platform.
 
 ## Limitations
 
-- **The effect is still being measured.** The samples are small, so no general savings rate is claimed. See the [experiment protocol](docs/benchmarks/protocol-v1.md).
+- **The effect is not yet proven.** There are not enough human-labeled answers or on/off comparisons of completion rate and cost, so no savings rate is claimed. See the [experiment protocol](docs/benchmarks/protocol-v1.md).
 - **False positives can happen.** That is why it nudges first and blocks only when a warning is ignored, within a per-session cap. Report wrong calls with `/samcheonpo:keep normal`.
 - **A block before run needs the decision within 15 ms.** If it takes longer, the call is not blocked and the status line shows `Unknown`.
 - **Rollback covers only files with confirmed ownership.** Files changed by shell commands, files mixed with human edits, and files written by another session's agent are excluded.
 - **Isolation of user-only commands is not complete.** They are refused from the agent's shell, but a process running as the same OS user can still talk to the daemon directly.
 - **Short, clear tasks give it little to do.** Busywork mostly happens in long, complex sessions.
-- **Smuggling detection says an instruction was there.** It does not say who sent it or whether the agent followed it. Any text in the assembled context with that shape triggers it, so a document or a test fixture written in that shape needs a human to look.
-- **The plugin integrity record is not a signature.** It says the installed bundle is still the bundle that was installed. It does not say who published it.
-- **Publicly exposed tasks support a weaker claim.** The 22 benchmark tasks live in a public repository, so a model may have seen them; summaries count public and private trials apart.
+- **Smuggled-instruction detection only says an instruction was there.** It does not say who sent it or whether the agent followed it. A document or test fixture with the same shape of sentence triggers it too, so a person needs to look.
+- **The plugin integrity record is not a signature.** It says the installed bundle is unchanged; it does not say who published it.
+- **Results on public benchmark tasks are weaker evidence.** The 22 tasks in this repository may have been seen by a model, so summaries count public and private tasks apart.
 
 ## Learn more
 
 - [Getting started](docs/getting-started.md) (Korean): from install to day-to-day rules
 - [Support](docs/support-matrix.md) (Korean): what is verified per platform and agent
 - [Agent guide](plugins/claude-code/skills/samcheonpo/SKILL.md) (Korean): how an agent sets up Samcheonpo and responds to warnings. Installed with the Claude Code plugin
-- Specs: [progress contract](docs/spec/progress-contract-v1.md) · [evidence ledger](docs/spec/evidence-ledger-v1.md) · [receipt display](docs/spec/receipt-billing.md) · [recovery](docs/spec/recovery-v1.md) · [handoff](docs/spec/handoff-v1-draft.md) · [waiting/stall advice and record evaluation](docs/spec/agenttime-reliability.md) · [judge budget and risk grade](docs/spec/judge-budget.md) · [harness surface](docs/spec/harness-surface.md)
-- Evaluation: `samcheonpo bench`, `samcheonpo bench ab`, `samcheonpo bench probe`, `samcheonpo bench tasks`, `samcheonpo evasion`, `samcheonpo gaps`, `samcheonpo interventions`, `samcheonpo eval corpus` (current working tree)
-- Detection timing: `samcheonpo detection-timing` shows where in the trajectory the first judgment arrived; `samcheonpo lineage <taskID>` shows the chain across sessions
-- Distribution integrity: `samcheonpo plugins` checks that the installed plugin bundles are still what was installed
-- Harness surface: `samcheonpo surface` maps the sensor, guide and editable components onto Samcheonpo's own paths
+- Specs: [progress contract](docs/spec/progress-contract-v1.md) · [evidence ledger](docs/spec/evidence-ledger-v1.md) · [receipt display](docs/spec/receipt-billing.md) · [recovery](docs/spec/recovery-v1.md) · [handoff](docs/spec/handoff-v1-draft.md) · [waiting/stall advice](docs/spec/agenttime-reliability.md) · [judge budget and risk grade](docs/spec/judge-budget.md) · [harness surface](docs/spec/harness-surface.md) · [hook startup](docs/spec/hook-startup.md)
 - [Conformance cases](conformance/): tests for scoring other implementations against the same spec
+- [Changelog](CHANGELOG.md) (Korean)
 
 ## License
 
@@ -321,18 +361,3 @@ Linux, macOS and Windows 10 1803 or later are supported. On Windows, checks run 
   Made by <a href="mailto:jinho.von.choi@nerdvana.kr">Jinho Choi</a> &nbsp;|&nbsp;
   <a href="https://buymeacoffee.com/jinho.von.choi">Buy me a coffee</a>
 </p>
-
-`samcheonpo report --since 30d --mode live` compares agent observations, separating live sessions from audits. Missing prices use token ratios and show price coverage; unknown usage is not zero cost. Activity classifications and checkpoint observations do not certify completion. `samcheonpo interventions --by-agent` also lists reasons why an outcome could not be observed. A window without relevant actions does not establish absence of recurrence.
-
-`samcheonpo compact` reports the ledger's size and reclaims the free space it holds. With `--prune-days N` it removes the event-level detail of sessions closed more than N days ago and keeps the seal, the receipt snapshot and the verdicts, so their receipts still verify. `samcheonpo doctor` shows the same retention threshold. The ledger states its journal mode and its vacuum mode: it does not vacuum itself, because automatic vacuum puts page relocation on the commit path that a hook waits for.
-
-The v0.7.0 ledger schema 9 separates daemon observation closure from actual session termination. Legacy records retain their timestamps and seals, with unknown closure evidence. Back up the ledger before upgrading: v0.6.0 cannot open schema 9.
-
-
-## Detection assessment and review dashboard (v0.8.0)
-
-`samcheonpo why` and `samcheonpo coverage` distinguish findings, cost attribution and missing observations. A displayed 0% does not establish normal behavior. New behavior-loop, repeated-research, linked-session and request-bound change candidates default to shadow recording and cannot block tools.
-
-`samcheonpo dashboard` provides a loopback-only authenticated view of goals, remaining requirements, evidence and review intervals. Remote users connect through SSH forwarding. `eval prepare-review` freezes a review queue; `label --queue` or the blind web view binds answers to its source and queue digests. CLI and web writes share process locks and reject stale overwrites and duplicate votes.
-
-`eval compare` reports descriptive confusion matrices, Wilson precision/recall intervals and unknown reasons on the same eligible review intervals. Missing denominators remain null. Reference heuristics are normalized projections, not competing SDK executions. Actual independent human reviews and live on/off outcome/cost effects remain unverified. Cursor/Copilot continue to be observation-only. See [implementation and validation](docs/benchmarks/2026-10-13-full-plan-validation.md).
