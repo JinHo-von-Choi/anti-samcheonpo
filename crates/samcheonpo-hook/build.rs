@@ -9,6 +9,6 @@ fn main() {
     let version = std::env::var("SAMCHEONPO_VERSION")
         .ok()
         .filter(|v| !v.trim().is_empty())
-        .unwrap_or_else(|| "0.9.6".to_string());
+        .unwrap_or_else(|| "0.9.7".to_string());
     println!("cargo:rustc-env=SAMCHEONPO_HOOK_VERSION={version}");
 }
