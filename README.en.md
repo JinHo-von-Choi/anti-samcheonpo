@@ -23,7 +23,7 @@ Linux x86-64 example:
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
-tar -xzf samcheonpo_0.9.5_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.9.6_linux_amd64.tar.gz
 mkdir -p ~/.local/bin
 cp samcheonpo samcheonpo-hook ~/.local/bin/
 export PATH="$HOME/.local/bin:$PATH"
@@ -35,8 +35,8 @@ Keep both executables in the **same directory** and add it to your shell's persi
 To install from source, use Go 1.27 or later and install both commands:
 
 ```sh
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.9.5
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.9.5
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.9.6
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.9.6
 ```
 
 ## Start using it

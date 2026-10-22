@@ -124,3 +124,64 @@ func TestPreCheckBlocksAssertionMutilation(t *testing.T) {
 		t.Fatal("simplify_tests in an accepted contract exempts the guard")
 	}
 }
+
+// A test function that loses its assertions while gaining a marker that
+// hides a failure is muted, even when the file wide counts do not move.
+func TestAssertionGuard_SuppressionAddedWithAssertionDrop(t *testing.T) {
+	g := NewAssertionGuard()
+	removed := []string{
+		"func TestAddsTwoNumbers(t *testing.T) {",
+		"\tassert.Equal(t, 3, add(1, 2))",
+		"\tassert.Equal(t, 4, add(2, 2))",
+		"}",
+		"func TestSubtractsTwoNumbers(t *testing.T) {",
+		"\tassert.Equal(t, 1, sub(2, 1))",
+		"}",
+	}
+	added := []string{
+		"func TestAddsTwoNumbers(t *testing.T) {",
+		"\tassert.Equal(t, 3, add(1, 2))",
+		"\t//nolint:errcheck",
+		"}",
+		"func TestSubtractsTwoNumbers(t *testing.T) {",
+		"\tassert.Equal(t, 1, sub(2, 1))",
+		"\tassert.Equal(t, 2, sub(3, 1))",
+		"}",
+	}
+	v := g.InspectPatch("math_test.go", added, removed)
+	if !v.Blocked {
+		t.Fatal("the muted test function is stopped")
+	}
+	if v.Reason != "suppression_added_with_assertion_drop" {
+		t.Fatalf("the reason names the change: %q", v.Reason)
+	}
+}
+
+// The file wide counts did not drop, so only the per function view sees it.
+func TestAssertionGuard_SuppressionRuleNeedsBothParts(t *testing.T) {
+	g := NewAssertionGuard()
+	removed := []string{
+		"func TestAddsTwoNumbers(t *testing.T) {",
+		"\tassert.Equal(t, 3, add(1, 2))",
+		"}",
+	}
+	added := []string{
+		"func TestAddsTwoNumbers(t *testing.T) {",
+		"\t//nolint:errcheck",
+		"}",
+	}
+	v := g.InspectPatch("math_test.go", added, removed)
+	if !v.Blocked {
+		t.Fatal("the assertion drop alone is already refused")
+	}
+	// a suppression without an assertion drop is not a finding
+	addedOnly := []string{
+		"func TestAddsTwoNumbers(t *testing.T) {",
+		"\tassert.Equal(t, 3, add(1, 2))",
+		"\t//nolint:errcheck",
+		"}",
+	}
+	if v := g.InspectPatch("math_test.go", addedOnly, removed); v.Blocked {
+		t.Fatalf("a suppression without an assertion drop is allowed: %+v", v)
+	}
+}

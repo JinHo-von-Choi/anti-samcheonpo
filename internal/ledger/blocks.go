@@ -46,3 +46,27 @@ func (d *DB) BlocksSince(since time.Time) ([]BlockCount, error) {
 	}
 	return out, rows.Err()
 }
+
+// BlockedRulesForSession counts the interventions that stopped a tool call
+// before it ran, per rule, for one session.
+func (d *DB) BlockedRulesForSession(id string) (map[string]int, error) {
+	rows, err := d.Query(`SELECT COALESCE(NULLIF(i.rule,''), COALESCE(v.rule,'')), COUNT(*)
+		FROM intervention i
+		LEFT JOIN verdict v ON v.id = i.verdict_id
+		WHERE i.session_id = ? AND i.blocked = 1
+		GROUP BY 1`, id)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string]int{}
+	for rows.Next() {
+		var rule string
+		var n int
+		if err := rows.Scan(&rule, &n); err != nil {
+			return nil, err
+		}
+		out[rule] += n
+	}
+	return out, rows.Err()
+}

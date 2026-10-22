@@ -1,0 +1,54 @@
+{
+  "note": "Socket path vectors. The Go transport and the Rust transport must resolve the same path for the same input. A path longer than 100 bytes moves to a short per-user path in the temp directory.",
+  "vectors": [
+    {
+      "home": "/home/u/.samcheonpo",
+      "tmp": "/tmp",
+      "user": "1000",
+      "expect": "/home/u/.samcheonpo/run/samcheonpo.sock"
+    },
+    {
+      "home": "/home/u/.samcheonpo/",
+      "tmp": "/tmp",
+      "user": "1000",
+      "expect": "/home/u/.samcheonpo/run/samcheonpo.sock"
+    },
+    {
+      "home": "/tmp/short",
+      "tmp": "/tmp",
+      "user": "1000",
+      "expect": "/tmp/short/run/samcheonpo.sock"
+    },
+    {
+      "home": "/home/uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu/.samcheonpo",
+      "tmp": "/tmp",
+      "user": "1000",
+      "expect": "/home/uuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuuu/.samcheonpo/run/samcheonpo.sock"
+    },
+    {
+      "home": "/home/vvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvvv/.samcheonpo",
+      "tmp": "/tmp",
+      "user": "1000",
+      "expect": "/tmp/samcheonpo-1000-72212d248cf2.sock"
+    },
+    {
+      "home": "/home/u",
+      "tmp": "/tmp/tttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttttt",
+      "user": "1000",
+      "expect": "/home/u/run/samcheonpo.sock"
+    },
+    {
+      "home": "/h/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "tmp": "/tmp",
+      "user": "1000",
+      "expect": "/h/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/run/samcheonpo.sock"
+    },
+    {
+      "home": "/h/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx",
+      "tmp": "/tmp",
+      "user": "1000",
+      "expect": "/h/xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx/run/samcheonpo.sock"
+    }
+  ],
+  "version": 1
+}

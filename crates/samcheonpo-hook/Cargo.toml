@@ -1,0 +1,17 @@
+[package]
+name = "samcheonpo-hook"
+version.workspace = true
+edition.workspace = true
+license.workspace = true
+rust-version = "1.77"
+publish = false
+description = "Lightweight hook transport for anti-samcheonpo: one request, one socket, exit 0."
+
+[[bin]]
+name = "samcheonpo-hook"
+path = "src/main.rs"
+
+[dependencies]
+serde = { version = "1.0", default-features = false, features = ["alloc", "derive"] }
+serde_json = { version = "1.0", default-features = false, features = ["alloc", "raw_value"] }
+sha2 = { version = "0.10", default-features = false }

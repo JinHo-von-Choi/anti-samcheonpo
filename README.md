@@ -23,7 +23,7 @@ Linux x86-64 예시:
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
-tar -xzf samcheonpo_0.9.5_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.9.6_linux_amd64.tar.gz
 mkdir -p ~/.local/bin
 cp samcheonpo samcheonpo-hook ~/.local/bin/
 export PATH="$HOME/.local/bin:$PATH"

@@ -314,3 +314,53 @@ func safeRelPath(name string) bool {
 	}
 	return !strings.HasPrefix(clean, ".."+string(filepath.Separator))
 }
+
+// Restore writes the snapshot's files back into the project.
+//
+// Only the files the snapshot recorded are touched, so an edit outside the
+// snapshot stays as it is. Each file is written under a temporary name in
+// the same folder and renamed over the target, so a half written file is
+// never visible. A path that leaves the project is refused.
+func (g *GoldenStateManager) Restore(id string) (restored []string, skipped []string, err error) {
+	g.mu.Lock()
+	defer g.mu.Unlock()
+	root, err := os.OpenRoot(g.workDir)
+	if err != nil {
+		return nil, nil, fmt.Errorf("프로젝트 폴더를 열 수 없음(%s): %w", g.workDir, err)
+	}
+	defer root.Close()
+	meta, err := readMeta(root, id)
+	if err != nil {
+		return nil, nil, err
+	}
+	for _, rel := range meta.Files {
+		name := filepath.FromSlash(rel)
+		if filepath.IsAbs(name) || !safeRelPath(name) {
+			skipped = append(skipped, rel)
+			continue
+		}
+		src := filepath.Join(snapshotsDir, id, filesDir, name)
+		data, err := root.ReadFile(src)
+		if err != nil {
+			skipped = append(skipped, rel)
+			continue
+		}
+		mode := os.FileMode(0o644)
+		if st, err := root.Stat(src); err == nil {
+			mode = st.Mode().Perm()
+		}
+		if err := root.MkdirAll(filepath.Dir(name), 0o755); err != nil {
+			return restored, skipped, err
+		}
+		tmp := filepath.Join(filepath.Dir(name), ".samcheonpo-restore-"+filepath.Base(name))
+		if err := root.WriteFile(tmp, data, mode); err != nil {
+			return restored, skipped, fmt.Errorf("%s를 복구하지 못함: %w", rel, err)
+		}
+		if err := root.Rename(tmp, name); err != nil {
+			_ = root.Remove(tmp)
+			return restored, skipped, fmt.Errorf("%s를 복구하지 못함: %w", rel, err)
+		}
+		restored = append(restored, rel)
+	}
+	return restored, skipped, nil
+}

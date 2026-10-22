@@ -21,6 +21,7 @@
 ### Windows
 
 - Windows 10 1803 이상이 필요하다(유닉스 도메인 소켓).
+- **훅 전송기는 Windows에서 Go 구현을 쓴다.** unix에서는 Rust 구현(`crates/samcheonpo-hook`)이 배포된다. Rust 표준 라이브러리는 Windows의 유닉스 소켓 타입을 아직 불안정 기능으로 두고 있어(2026-10-22, Rust 1.97.1) Rust로 빌드하지 않는다. 두 구현은 같은 계약 명세와 같은 소켓 경로 벡터로 묶여 있고, `scripts/check-hook-contract.sh`가 양쪽을 함께 확인한다. Rust 전송기의 Windows 동작은 확인하지 않았다.
 - 계약의 `check:` 같은 검사 명령은 Git for Windows의 `bash`로 실행한다. 없으면 `cmd.exe`로 실행되어 `&&`, `test -s`, 작은따옴표 같은 POSIX 문법이 같은 뜻으로 동작하지 않는다. `samcheonpo doctor`의 `shell` 항목에서 어느 쪽인지 확인한다.
 - `bash.exe`를 직접 지정하려면 `SAMCHEONPO_SHELL`에 경로를 넣는다. System32의 `bash.exe`는 WSL 실행 파일이라 쓰지 않는다.
 - 데몬 소켓 폴더(`%USERPROFILE%\.samcheonpo\run`)는 현재 사용자와 SYSTEM만 접근할 수 있고, 접속한 프로세스가 같은 사용자인지 확인한다.
@@ -125,7 +126,7 @@ opencode는 종료를 막는 자리가 없어 차단은 후속 프롬프트 한 
 ## 릴리스 후보 직접 만들기
 
 ```sh
-sh scripts/package-release.sh 0.9.5-dev ./release-out
+sh scripts/package-release.sh 0.9.6-dev ./release-out
 ```
 
 현재 플랫폼에서 두 실행 파일을 빌드하고, API 키 없는 격리 환경에서 설치·제거·감사·첫 훅을 확인한 뒤 `tar.gz`와 `SHA256SUMS`를 만든다. 출력 폴더가 이미 있으면 덮어쓰지 않고, 호스트와 대상 플랫폼이 다르면 거절한다. `BUILD.txt`에 버전, 커밋, 도구 체인, 작업 트리 변경 여부를 남긴다.

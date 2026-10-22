@@ -38,22 +38,48 @@ type Line struct {
 	Indent int     `json:"indent"`
 }
 
+// Estimate is a labelled estimate.
+//
+// It never claims a saving. It says what the blocked repetitions would have
+// cost if they had kept going, and it names the assumption it rests on. The
+// measured part of a receipt stays separate from this part, so a reader can
+// tell what was counted from what was assumed.
+type Estimate struct {
+	// Kind is always "estimate".
+	Kind string `json:"kind"`
+	// Label names the estimate in one line.
+	Label string `json:"label"`
+	// Basis says what was counted, in facts.
+	Basis string `json:"basis"`
+	// Assumption says what the estimate assumes, including the sample.
+	Assumption string `json:"assumption"`
+	// Count is the number of stopped repetitions.
+	Count int `json:"count"`
+	// Tokens and Micro are the estimated size of the stopped repetitions.
+	Tokens int64 `json:"tokens,omitempty"`
+	Micro  int64 `json:"micro_krw,omitempty"`
+}
+
 // Receipt is the renderable model.
 type Receipt struct {
-	Billing       cost.Measurement      `json:"billing"`
-	Action        ActionSummary         `json:"action"`
-	Title         string                `json:"title"`
-	Notices       []string              `json:"notices"`
-	Unit          string                `json:"unit"` // won | tokens | unknown
-	PriceCoverage float64               `json:"price_coverage"`
-	Minutes       int                   `json:"minutes"`
-	Total         Line                  `json:"total"`
-	Lines         []Line                `json:"lines"`
-	Estimated     *Line                 `json:"estimated,omitempty"`
-	Footer        []string              `json:"footer"`
-	Seal          string                `json:"seal,omitempty"`
-	Grade         string                `json:"grade"`
-	Evidence      map[string][]Evidence `json:"evidence,omitempty"`
+	Billing       cost.Measurement `json:"billing"`
+	Action        ActionSummary    `json:"action"`
+	Title         string           `json:"title"`
+	Notices       []string         `json:"notices"`
+	Unit          string           `json:"unit"` // won | tokens | unknown
+	PriceCoverage float64          `json:"price_coverage"`
+	Minutes       int              `json:"minutes"`
+	Total         Line             `json:"total"`
+	Lines         []Line           `json:"lines"`
+	Estimated     *Line            `json:"estimated,omitempty"`
+	// Estimate is the labelled estimate of the stopped repetitions. It is
+	// empty when the observation was cut short, because a cut short
+	// observation cannot carry an estimate.
+	Estimate *Estimate             `json:"estimate,omitempty"`
+	Footer   []string              `json:"footer"`
+	Seal     string                `json:"seal,omitempty"`
+	Grade    string                `json:"grade"`
+	Evidence map[string][]Evidence `json:"evidence,omitempty"`
 }
 
 // Evidence is one expanded verdict for --evidence.
@@ -83,6 +109,9 @@ type Input struct {
 	Observation analyze.Observation
 	// Blocked counts the tool calls the monitor stopped before they ran.
 	Blocked int
+	// Estimate is the labelled estimate of what the stopped repetitions
+	// would have cost. It stays empty when the observation was cut short.
+	Estimate *Estimate
 	// JudgeSkippedLowRisk counts the tool calls that were left out of the
 	// semantic judge's budget because they carried low risk. It is a
 	// report of budget saved, not a count of defects.
@@ -125,6 +154,12 @@ func Build(in Input) Receipt {
 		r.Notices = append(r.Notices, fmt.Sprintf("API 단가 환산 · 단가 인식률 %d%%", int(r.PriceCoverage*100+0.5)))
 	}
 	r.Notices = append(r.Notices, "환산액은 실제 청구액이나 절감액이 아닙니다")
+	if in.Estimate != nil {
+		e := *in.Estimate
+		e.Kind = "estimate"
+		r.Estimate = &e
+		r.Notices = append(r.Notices, "추정치는 관측값이 아니라 가정을 바탕으로 한 값입니다")
+	}
 	if billing.Kind == cost.BillingSubscription {
 		r.Notices = append(r.Notices, "구독형 과금: 토큰·한도와 API 환산액을 구분합니다. 실제 추가 청구액은 미확인입니다")
 	}
@@ -550,6 +585,15 @@ func (r Receipt) Text() string {
 	if r.Estimated != nil {
 		fmt.Fprintf(&b, "%s%s   %s\n", pad(r.Estimated.Label, lw), lpad(r.amount(*r.Estimated), aw), r.Estimated.Note)
 	}
+	if r.Estimate != nil {
+		b.WriteString("\n추정 · 관측값과 구분한다\n")
+		fmt.Fprintf(&b, "  %s\n", r.Estimate.Label)
+		fmt.Fprintf(&b, "  근거(관측): %s\n", r.Estimate.Basis)
+		fmt.Fprintf(&b, "  가정: %s\n", r.Estimate.Assumption)
+		if r.Estimate.Tokens > 0 {
+			fmt.Fprintf(&b, "  추정 크기: %s\n", HumanTokens(r.Estimate.Tokens))
+		}
+	}
 	for _, f := range r.Footer {
 		b.WriteString(f + "\n")
 	}
@@ -609,6 +653,16 @@ func (r Receipt) Markdown() string {
 	}
 	if r.Estimated != nil {
 		fmt.Fprintf(&b, "| %s | %s | %s | %s |\n", r.Estimated.Label, r.amount(*r.Estimated), cost.PercentageText(r.Estimated.Pct), r.Estimated.Note)
+	}
+	if r.Estimate != nil {
+		b.WriteString("\n### 추정 · 관측값과 구분\n\n")
+		fmt.Fprintf(&b, "- **%s**\n", mdEsc(r.Estimate.Label))
+		fmt.Fprintf(&b, "- 근거(관측): %s\n", mdEsc(r.Estimate.Basis))
+		fmt.Fprintf(&b, "- 가정: %s\n", mdEsc(r.Estimate.Assumption))
+		if r.Estimate.Tokens > 0 {
+			fmt.Fprintf(&b, "- 추정 크기: %s\n", HumanTokens(r.Estimate.Tokens))
+		}
+		b.WriteString("\n")
 	}
 	b.WriteString("\n")
 	for _, f := range r.Footer {

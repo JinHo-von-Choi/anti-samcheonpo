@@ -28,6 +28,13 @@ var identityRE = lazyre.New(`(?m)^\s*assert\s+(?:True|1)\s*(?:#.*)?$|` +
 	`\bexpect\(\s*(?:true|false|1|0|null|undefined|""|'')\s*\)\s*\.\s*to\w*\(\s*(?:true|false|1|0|null|undefined|""|'')\s*\)|` +
 	`\b(?:assert|require)\.(?:Equal|True)\(\s*(?:t\s*,\s*)?(?:true|false|1|0)\s*(?:,\s*(?:true|false|1|0)\s*)?\)`)
 
+// suppressionRE counts the markers that hide a failure: a type check
+// escape, a lint escape, or a swallowed exception.
+var suppressionRE = lazyre.New(`(?i)#\s*type:\s*ignore|#\s*noqa|//\s*nolint|@SuppressWarnings|eslint-disable|//\s*ts-ignore|//\s*ts-expect-error|except\s+[A-Za-z_][A-Za-z0-9_.]*\s*:\s*$|catch\s*\([^)]*\)\s*\{\s*\}`)
+
+// testFuncHeaderRE finds the start of a test function.
+var testFuncHeaderRE = lazyre.New(`^\s*(?:func\s+(?:\([^)]*\)\s*)?Test[A-Za-z0-9_]*\s*\(|def\s+test_[A-Za-z0-9_]*\s*\(|it\s*\(|test\s*\(|describe\s*\()`)
+
 // AssertionGuard scans a test-file diff before it is applied. It holds no
 // mutable state, so one guard serves the whole session.
 type AssertionGuard struct{}
@@ -56,5 +63,68 @@ func (g *AssertionGuard) InspectPatch(path string, added, removed []string) Asse
 	if a, r := Count(SkipRE, added), Count(SkipRE, removed); a > r {
 		return AssertionVerdict{Blocked: true, Reason: "skip_injected", Kind: KindAssertionMutilated}
 	}
+	if v := g.suppressionWithAssertionDrop(added, removed); v.Blocked {
+		return v
+	}
 	return AssertionVerdict{}
+}
+
+// suppressionWithAssertionDrop judges one test function at a time.
+//
+// The file wide counts can hide a change: a function that loses its
+// assertions while another gains them leaves the file count unchanged. When
+// the same function also gains a marker that hides a failure, the change
+// is a mute, not a refactor.
+func (g *AssertionGuard) suppressionWithAssertionDrop(added, removed []string) AssertionVerdict {
+	addedFns := splitByTestFunc(added)
+	removedFns := splitByTestFunc(removed)
+	for name, aLines := range addedFns {
+		rLines, ok := removedFns[name]
+		if !ok {
+			continue
+		}
+		if Count(assertionRE, aLines) >= Count(assertionRE, rLines) {
+			continue
+		}
+		if Count(suppressionRE, aLines) <= Count(suppressionRE, rLines) {
+			continue
+		}
+		return AssertionVerdict{Blocked: true, Reason: "suppression_added_with_assertion_drop", Kind: KindAssertionMutilated}
+	}
+	return AssertionVerdict{}
+}
+
+// splitByTestFunc groups lines by the test function they belong to. A line
+// before the first test function is not part of any function.
+func splitByTestFunc(lines []string) map[string][]string {
+	buckets := map[string][]string{}
+	current := ""
+	seen := map[string]int{}
+	for _, line := range lines {
+		if testFuncHeaderRE.MatchString(line) {
+			base := strings.TrimSpace(line)
+			seen[base]++
+			current = base + "#" + itoa(seen[base])
+			buckets[current] = nil
+			continue
+		}
+		if current != "" {
+			buckets[current] = append(buckets[current], line)
+		}
+	}
+	return buckets
+}
+
+func itoa(n int) string {
+	if n == 0 {
+		return "0"
+	}
+	var buf [20]byte
+	i := len(buf)
+	for n > 0 {
+		i--
+		buf[i] = byte('0' + n%10)
+		n /= 10
+	}
+	return string(buf[i:])
 }

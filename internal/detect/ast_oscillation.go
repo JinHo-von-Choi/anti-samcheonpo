@@ -72,6 +72,13 @@ func (d *SemanticOscillationDetector) CheckOscillation(path, code string) (bool,
 	return false, -1
 }
 
+// HasFailed reports whether the file still holds a recorded failed state.
+func (d *SemanticOscillationDetector) HasFailed(path string) bool {
+	d.mu.Lock()
+	defer d.mu.Unlock()
+	return len(d.buf[path]) > 0
+}
+
 // Clear drops all recorded states; a passing verification ends the sequence.
 func (d *SemanticOscillationDetector) Clear() {
 	d.mu.Lock()

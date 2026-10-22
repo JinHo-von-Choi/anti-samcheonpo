@@ -82,6 +82,7 @@ type Engine struct {
 	escalate      map[string]Level
 	nextID        int
 	guard         *AssertionGuard
+	shortCircuit  *ShortCircuit
 }
 
 // State is the per-session detector state.
@@ -174,6 +175,9 @@ type State struct {
 	// lastMutating is the last shell command that changes state outside the
 	// files (installs, chmod, archives); lastUnknown the last unclassified one.
 	lastMutating int64
+	// churn keeps the content each recent write proposed per file, so a
+	// write that re-proposes an already failed content can be stopped.
+	churn *ChurnDetector
 	// semOsc keeps the normalized fingerprints of recent failed states per
 	// file; PreCheck uses it to block a return to an already-failed state.
 	semOsc *SemanticOscillationDetector
@@ -229,14 +233,14 @@ func NewEngine(cfg config.Config, c *contract.Contract, accepted bool, mode, roo
 	e := &Engine{Cfg: cfg, Contract: c, Accepted: accepted, Mode: mode, Root: root, Session: session, FirstPrompt: firstPrompt,
 		reliability:   newReliabilityState(),
 		cooldownUntil: map[string]int64{}, cooldownLevel: map[string]Level{}, escalate: map[string]Level{},
-		guard: NewAssertionGuard()}
+		guard: NewAssertionGuard(), shortCircuit: NewShortCircuit()}
 	e.St = &State{
 		bySeq: map[int64]*event.Event{}, ProgressSeqs: map[int64]bool{}, GrowthSeqs: map[int64]bool{}, envStreak: map[string]*streak{}, stuckCmd: map[string]bool{}, lastRun: map[string]runMark{}, reviews: map[string]int{}, hiding: map[string]map[string]bool{}, lastFail: map[string]failMark{}, Wasted: map[int64]string{}, Estimated: map[int64]bool{},
 		verify: map[string]*vcEntry{}, errStreak: map[string]*streak{}, fileHist: map[string][]hist{},
 		editHist: map[string][]editHist{}, lineCount: map[string]int{}, highWater: map[string]int{}, created: map[string]bool{},
 		readCount: map[string]int{}, minute: map[int64]int64{}, outScope: map[string]bool{}, guessOut: map[string]int{}, testLits: map[string]int64{},
 		velocityFired: map[int64]bool{}, budgetFired: map[int]bool{}, LastProgress: -1, lastUnknown: -1, attemptFiles: map[string]bool{}, recoveryUsed: map[string]bool{},
-		semOsc: NewSemanticOscillationDetector(), mar: newMarathonState(),
+		semOsc: NewSemanticOscillationDetector(), churn: NewChurnDetector(), mar: newMarathonState(),
 	}
 	if c != nil && len(c.Scope.Allow) > 0 {
 		e.St.scopeKnown = true
@@ -324,6 +328,8 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 	case event.KindTool:
 		e.refine(ev)
 		e.tool(ev, &sigs)
+		e.recordChurnProposal(ev)
+		e.recordShortCircuit(ev, &sigs)
 	}
 	e.observeBehavior(ev, &sigs)
 	e.observeRequirementChanges(ev, &sigs)
@@ -554,6 +560,7 @@ func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 		st.strategies = nil
 		st.attemptFiles = map[string]bool{}
 		st.semOsc.Clear()
+		st.churn.Clear()
 	}
 }
 
@@ -1520,6 +1527,15 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 		s := Signal{Detector: "S10", Rule: RuleGraderAccess, Confidence: 1.0, Level: L3, Evidence: []int64{ev.Seq},
 			Facts: map[string]any{"path": p, "blocked": true}}
 		return true, &s
+	}
+	// S2: a write that proposes a content this session already wrote, while
+	// the file sits at a state that already failed, is the A-B-A loop: the
+	// agent keeps re-applying a hypothesis that was already refuted. It is
+	// stopped before it lands.
+	if ev.Category == event.CatProduce && (ev.Tool == event.ToolWrite || ev.Tool == event.ToolEdit) {
+		if s := e.churnRepeat(ev); s != nil {
+			return true, s
+		}
 	}
 	// S5: a test write about to delete assertions, replace them with
 	// literals, or silence the file with a skip marker is stopped before it

@@ -38,7 +38,7 @@ import (
 )
 
 // Version is set at build time.
-var Version = "0.9.5"
+var Version = "0.9.6"
 
 var (
 	flagDB        string
@@ -58,7 +58,7 @@ func Root() *cobra.Command {
 	root.PersistentFlags().StringVar(&flagDB, "db", "", "원장 경로 (기본 ~/.samcheonpo/ledger.db)")
 	root.PersistentFlags().StringVar(&flagClaudeDir, "claude-dir", "", "Claude Code projects 경로")
 	root.PersistentFlags().StringVar(&flagCodexDir, "codex-dir", "", "Codex sessions 경로")
-	root.AddCommand(auditCmd(), gapsCmd(), interventionsCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(),
+	root.AddCommand(auditCmd(), gapsCmd(), interventionsCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(), forkCmd(),
 		labelCmd(), evalCmd(), benchCmd(), evasionCmd(), lineageCmd(), detectionTimingCmd(), surfaceCmd(), debugCmd(), contractCmd(), specCmd(), importOtelCmd(), rulesCmd(), handoffCmd(), reportCmd(), taskCoverageCmd(), diagnosticCmd("why"), diagnosticCmd("coverage"), compactCmd())
 	root.AddCommand(liveCommands()...)
 	root.AddCommand(dashboardCmd())
@@ -504,8 +504,16 @@ func receiptCmd() *cobra.Command {
 			if stored && sl.Spec != "" {
 				criteria = [2]int{r.Criteria.Met, r.Criteria.Total}
 			}
+			// The estimate is kept apart from the measured part. It says
+			// what the stopped repetitions would have cost, and it names
+			// the assumption it rests on.
+			prices, priceErr := loadPrices()
+			if priceErr != nil {
+				prices = nil
+			}
 			rc := receipt.Build(receipt.Input{Title: receipt.SessionTitle(s.StartedAt, s.ID, s.Agent), Agent: s.Agent, Audit: s.Mode == "audit",
-				Totals: r.Totals, Grade: r.Grade, Verdicts: r.Verdicts, Seal: &sl, Billing: observation, Recoveries: recoveries, Criteria: criteria, Observation: r.Observation, Blocked: r.Blocked})
+				Totals: r.Totals, Grade: r.Grade, Verdicts: r.Verdicts, Seal: &sl, Billing: observation, Recoveries: recoveries, Criteria: criteria, Observation: r.Observation, Blocked: r.Blocked,
+				Estimate: estimateStoppedRepetitions(db, s, prices, time.Now())})
 			if stored {
 				rc.Notices = append(rc.Notices, "원본 기록 없이 저장된 분석 결과를 표시합니다")
 				if sl.Spec == "" {

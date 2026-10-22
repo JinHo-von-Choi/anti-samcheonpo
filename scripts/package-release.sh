@@ -28,7 +28,24 @@ release_stage="$release_output/package"
 mkdir "$release_stage"
 release_ldflags="-s -w -X github.com/JinHo-von-Choi/anti-samcheonpo/internal/cli.Version=$release_version -X github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient.Version=$release_version"
 CGO_ENABLED=0 go build -mod=readonly -trimpath -ldflags "$release_ldflags" -o "$release_stage/samcheonpo$release_exe" ./cmd/samcheonpo
-CGO_ENABLED=0 go build -mod=readonly -trimpath -ldflags "$release_ldflags" -o "$release_stage/samcheonpo-hook$release_exe" ./cmd/samcheonpo-hook
+# The hook transport: the Rust build on unix, the Go build on Windows and
+# wherever the Rust toolchain is missing. Both satisfy the same contract
+# (internal/hookclient/contract_cases.json), so the installed sibling works
+# either way. The Rust transport cannot be built for Windows yet: the
+# standard library still keeps the unix socket type there behind an
+# unstable feature.
+hook_impl=go
+if [ "$release_os" != "windows" ] && command -v cargo >/dev/null 2>&1; then
+  hook_impl=rust
+  SAMCHEONPO_VERSION="$release_version" cargo build --release --locked --manifest-path crates/samcheonpo-hook/Cargo.toml
+  # the workspace keeps the build output at the repository root
+  cp target/release/samcheonpo-hook "$release_stage/samcheonpo-hook$release_exe"
+else
+  if [ "$release_os" != "windows" ]; then
+    printf 'cargo를 찾을 수 없어 Go 훅으로 패키징한다\n' >&2
+  fi
+  CGO_ENABLED=0 go build -mod=readonly -trimpath -ldflags "$release_ldflags" -o "$release_stage/samcheonpo-hook$release_exe" ./cmd/samcheonpo-hook
+fi
 test "$("$release_stage/samcheonpo-hook$release_exe" --version)" = "$release_version"
 test "$("$release_stage/samcheonpo$release_exe" --version)" = "samcheonpo version $release_version"
 SAMCHEONPO_SMOKE_BIN="$release_stage/samcheonpo$release_exe" go test ./internal/install -run '^TestCleanEnvironmentBinarySmoke$' -count=1
@@ -44,6 +61,8 @@ done
   printf 'version=%s\nos=%s\narch=%s\n' "$release_version" "$release_os" "$release_arch"
   printf 'commit=%s\n' "$(git rev-parse --verify HEAD)"
   printf 'toolchain=%s\n' "$(go version)"
+  printf 'hook_transport=%s\n' "$hook_impl"
+  if [ "$hook_impl" = "rust" ]; then printf 'hook_toolchain=%s\n' "$(cargo --version)"; fi
   if git diff --quiet HEAD --; then printf 'tracked_worktree=clean\n'; else printf 'tracked_worktree=modified\n'; fi
   printf 'verification=native install/uninstall, offline audit, basic hook smoke\n'
   printf 'publication=not performed\n'

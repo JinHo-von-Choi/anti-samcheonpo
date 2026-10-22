@@ -20,5 +20,7 @@
 # build outputs
 /bin/
 /dist/
+/target/
+crates/*/target/
 *.test
 *.out

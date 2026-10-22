@@ -1,0 +1,19 @@
+[workspace]
+resolver = "2"
+members = ["crates/samcheonpo-hook"]
+
+[workspace.package]
+version = "0.1.0"
+edition = "2021"
+license = "MIT"
+
+# The release profile lives at the workspace root: a member's own profile is
+# ignored, and the size target depends on it.
+[profile.release]
+opt-level = "z"
+lto = true
+codegen-units = 1
+# unwind is required: an abort would end the process with a non-zero exit
+# code, and Copilot treats a failed preToolUse hook as a denial.
+panic = "unwind"
+strip = true

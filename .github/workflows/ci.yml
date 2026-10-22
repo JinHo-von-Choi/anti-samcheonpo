@@ -34,6 +34,34 @@ jobs:
         # daemon's own handling span is a regression gate here
         run: sh scripts/check-hook-budget.sh --p95-max 0 --handling-p95-max 6ms
 
+  # The hook transport is Rust on unix. This job holds the transport to the
+  # same contract as the Go one: one spec file, two implementations.
+  rust:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - uses: dtolnay/rust-toolchain@stable
+        with:
+          toolchain: '1.97.1'
+          components: 'clippy,rustfmt'
+      - name: rustfmt
+        run: cargo fmt --all -- --check
+      - name: clippy
+        run: cargo clippy --workspace --all-targets -- -D warnings
+      - name: test
+        run: cargo test --workspace --locked
+      - name: transport contract
+        run: sh scripts/check-hook-contract.sh
+      - name: hook latency with the Rust transport
+        # the Rust transport answers the same contract, so the same budget
+        # applies; the handling span stays the gate because the hosted
+        # runner's process start time varies with load
+        run: sh scripts/check-hook-budget.sh --p95-max 0 --handling-p95-max 6ms
+
   # The daemon, hooks, checkpoints and rollback are Unix code paths shared with
   # Linux; this job proves they also build and pass on macOS.
   macos:

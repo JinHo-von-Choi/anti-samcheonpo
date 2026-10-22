@@ -181,7 +181,7 @@ func TestUpgradeV2LedgerPreservesAnalysisAndRollsBackFailure(t *testing.T) {
 	if _, err = d.Observation(r.Session.ID); err != sql.ErrNoRows {
 		t.Fatalf("legacy metadata invented: %v", err)
 	}
-	if d.Version() != 12 {
+	if d.Version() != 13 {
 		t.Fatal(d.Version())
 	}
 }
