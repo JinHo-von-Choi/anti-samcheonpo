@@ -73,7 +73,7 @@ func hookBinary(t *testing.T) string {
 			hookBinaryErr = err
 			return
 		}
-		out := filepath.Join(dir, "samcheonpo-hook")
+		out := filepath.Join(dir, "samcheonpo-hook"+ExeSuffix)
 		cmd := exec.Command("go", "build", "-o", out, "../../cmd/samcheonpo-hook")
 		cmd.Env = append(os.Environ(), "CGO_ENABLED=0")
 		if combined, err := cmd.CombinedOutput(); err != nil {

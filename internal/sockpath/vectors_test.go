@@ -3,6 +3,7 @@ package sockpath
 import (
 	"encoding/json"
 	"os"
+	"runtime"
 	"strings"
 	"testing"
 )
@@ -39,6 +40,12 @@ func loadVectors(t *testing.T) vectorSpec {
 }
 
 func TestSocketPathVectors(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		// The vectors describe the unix path rules. Windows keeps the Go
+		// transport, and its own separator rules are covered by the rule
+		// checks below.
+		t.Skip("벡터는 unix 경로 규칙이다. Windows는 Go 전송기를 쓴다")
+	}
 	for _, v := range loadVectors(t).Vectors {
 		got := ForHome(v.Home, v.Tmp, v.User)
 		if got != v.Expect {
@@ -50,6 +57,9 @@ func TestSocketPathVectors(t *testing.T) {
 // The limit is a byte limit, not a character limit. A socket path of
 // exactly 100 bytes stays; 101 bytes moves to the short per-user path.
 func TestSocketPathLimitCountsBytes(t *testing.T) {
+	if runtime.GOOS == "windows" {
+		t.Skip("벡터는 unix 경로 규칙이다. Windows는 Go 전송기를 쓴다")
+	}
 	atLimit := "/h/" + strings.Repeat("x", 77)
 	if len(atLimit)+len("/run/samcheonpo.sock") != maxLen {
 		t.Fatalf("시험 경로 길이 %d가 경계가 아니다", len(atLimit)+len("/run/samcheonpo.sock"))
