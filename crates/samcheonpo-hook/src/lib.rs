@@ -24,3 +24,4 @@ pub mod ipc;
 pub mod protocol;
 pub mod sockpath;
 pub mod spawn;
+pub mod wire;

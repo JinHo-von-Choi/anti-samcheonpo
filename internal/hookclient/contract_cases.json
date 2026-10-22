@@ -1,6 +1,6 @@
 {
   "version": 1,
-  "note": "Hook transport contract. One spec, two implementations: the Go hook (internal/hookclient) and the Rust hook (crates/samcheonpo-hook) must both satisfy it. A case names the agent dialect, the event, the stdin, and what a fake daemon answers; expect states what the transport must print and report. The exit code is always 0: a failed PreToolUse hook is read as a denial by Copilot, and an unreadable permission object is read as a block by Cursor.",
+  "note": "Hook transport contract. One spec, two implementations: the Go hook (internal/hookclient) and the Rust hook (crates/samcheonpo-hook) must both satisfy it. A case names the agent dialect, the event, the stdin, and what a fake daemon answers; expect states what the transport must print and report. The exit code is always 0: a failed PreToolUse hook is read as a denial by Copilot, and an unreadable permission object is read as a block by Cursor. expect_request is the request frame the Go transport puts on the wire with the deadline masked to 0: the two transports must send the same bytes.",
   "cases": [
     {
       "name": "claude-pretooluse-empty-stdin",
@@ -34,7 +34,8 @@
       "daemon": "up",
       "response": "{\"output\":null}",
       "stdin": "{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"}",
-      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true }
+      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"claude\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"},\"v\":1}"
     },
     {
       "name": "claude-pretooluse-advice-output",
@@ -43,12 +44,8 @@
       "daemon": "up",
       "response": "{\"output\":{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"[advice]\"}}}",
       "stdin": "{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"}",
-      "expect": {
-        "exit_code": 0,
-        "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"[advice]\"}}\n",
-        "status": "ok",
-        "response_received": true
-      }
+      "expect": { "exit_code": 0, "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"[advice]\"}}\n", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"claude\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"},\"v\":1}"
     },
     {
       "name": "claude-pretooluse-denial-output",
@@ -57,12 +54,8 @@
       "daemon": "up",
       "response": "{\"output\":{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"repeat\"}}}",
       "stdin": "{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"}",
-      "expect": {
-        "exit_code": 0,
-        "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"repeat\"}}\n",
-        "status": "ok",
-        "response_received": true
-      }
+      "expect": { "exit_code": 0, "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"repeat\"}}\n", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"claude\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"},\"v\":1}"
     },
     {
       "name": "claude-pretooluse-daemon-error",
@@ -71,7 +64,8 @@
       "daemon": "up",
       "response": "{\"error\":\"internal failure\"}",
       "stdin": "{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"}",
-      "expect": { "exit_code": 0, "stdout": "", "status": "daemon_error", "response_received": true }
+      "expect": { "exit_code": 0, "stdout": "", "status": "daemon_error", "response_received": true },
+      "expect_request": "{\"agent\":\"claude\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"},\"v\":1}"
     },
     {
       "name": "claude-pretooluse-unreadable-response",
@@ -80,7 +74,8 @@
       "daemon": "up",
       "response": "not json at all",
       "stdin": "{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"}",
-      "expect": { "exit_code": 0, "stdout": "", "status": "invalid_response", "response_received": false }
+      "expect": { "exit_code": 0, "stdout": "", "status": "invalid_response", "response_received": false },
+      "expect_request": "{\"agent\":\"claude\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"},\"v\":1}"
     },
     {
       "name": "claude-pretooluse-delivery-ack",
@@ -90,12 +85,8 @@
       "response": "{\"output\":{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"[advice]\"}},\"delivery_token\":\"tok-1\"}",
       "stdin": "{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"}",
       "expect_ack": "{\"delivery_token\":\"tok-1\",\"printed\":true}",
-      "expect": {
-        "exit_code": 0,
-        "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"[advice]\"}}\n",
-        "status": "ok",
-        "response_received": true
-      }
+      "expect": { "exit_code": 0, "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"additionalContext\":\"[advice]\"}}\n", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"claude\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"Edit\"},\"v\":1}"
     },
     {
       "name": "cursor-beforeshell-null-output",
@@ -104,7 +95,8 @@
       "daemon": "up",
       "response": "{\"output\":null}",
       "stdin": "{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"ls\",\"cwd\":\"/tmp\"}",
-      "expect": { "exit_code": 0, "stdout": "{\"permission\":\"allow\"}\n", "status": "ok", "response_received": true }
+      "expect": { "exit_code": 0, "stdout": "{\"permission\":\"allow\"}\n", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"cursor\",\"deadline_unix_ms\":0,\"event\":\"beforeShellExecution\",\"payload\":{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"ls\",\"cwd\":\"/tmp\"},\"v\":1}"
     },
     {
       "name": "cursor-beforeshell-denial",
@@ -113,12 +105,8 @@
       "daemon": "up",
       "response": "{\"output\":{\"permission\":\"deny\",\"agent_message\":\"blocked\"}}",
       "stdin": "{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"rm -rf /\",\"cwd\":\"/tmp\"}",
-      "expect": {
-        "exit_code": 0,
-        "stdout": "{\"permission\":\"deny\",\"agent_message\":\"blocked\"}\n",
-        "status": "ok",
-        "response_received": true
-      }
+      "expect": { "exit_code": 0, "stdout": "{\"permission\":\"deny\",\"agent_message\":\"blocked\"}\n", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"cursor\",\"deadline_unix_ms\":0,\"event\":\"beforeShellExecution\",\"payload\":{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"rm -rf /\",\"cwd\":\"/tmp\"},\"v\":1}"
     },
     {
       "name": "cursor-beforeshell-unreadable-shape",
@@ -127,7 +115,8 @@
       "daemon": "up",
       "response": "{\"output\":{\"action\":\"allow\"}}",
       "stdin": "{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"ls\",\"cwd\":\"/tmp\"}",
-      "expect": { "exit_code": 0, "stdout": "{\"permission\":\"allow\"}\n", "status": "invalid_response", "response_received": true }
+      "expect": { "exit_code": 0, "stdout": "{\"permission\":\"allow\"}\n", "status": "invalid_response", "response_received": true },
+      "expect_request": "{\"agent\":\"cursor\",\"deadline_unix_ms\":0,\"event\":\"beforeShellExecution\",\"payload\":{\"hook_event_name\":\"beforeShellExecution\",\"command\":\"ls\",\"cwd\":\"/tmp\"},\"v\":1}"
     },
     {
       "name": "cursor-beforesubmitprompt-continue",
@@ -136,7 +125,8 @@
       "daemon": "up",
       "response": "{\"output\":{\"continue\":true}}",
       "stdin": "{\"hook_event_name\":\"beforeSubmitPrompt\",\"prompt\":\"hello\"}",
-      "expect": { "exit_code": 0, "stdout": "{\"continue\":true}\n", "status": "ok", "response_received": true }
+      "expect": { "exit_code": 0, "stdout": "{\"continue\":true}\n", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"cursor\",\"deadline_unix_ms\":0,\"event\":\"beforeSubmitPrompt\",\"payload\":{\"hook_event_name\":\"beforeSubmitPrompt\",\"prompt\":\"hello\"},\"v\":1}"
     },
     {
       "name": "copilot-pretooluse-denial",
@@ -145,12 +135,8 @@
       "daemon": "up",
       "response": "{\"output\":{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"policy\"}}",
       "stdin": "{\"sessionId\":\"contract\",\"toolName\":\"bash\",\"toolArgs\":{\"command\":\"ls\"}}",
-      "expect": {
-        "exit_code": 0,
-        "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"policy\"}\n",
-        "status": "ok",
-        "response_received": true
-      }
+      "expect": { "exit_code": 0, "stdout": "{\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"policy\"}\n", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"copilot\",\"deadline_unix_ms\":0,\"event\":\"preToolUse\",\"payload\":{\"sessionId\":\"contract\",\"toolName\":\"bash\",\"toolArgs\":{\"command\":\"ls\"}},\"v\":1}"
     },
     {
       "name": "copilot-pretooluse-ask-is-unreadable",
@@ -159,7 +145,8 @@
       "daemon": "up",
       "response": "{\"output\":{\"permissionDecision\":\"ask\"}}",
       "stdin": "{\"sessionId\":\"contract\",\"toolName\":\"bash\",\"toolArgs\":{\"command\":\"ls\"}}",
-      "expect": { "exit_code": 0, "stdout": "", "status": "invalid_response", "response_received": true }
+      "expect": { "exit_code": 0, "stdout": "", "status": "invalid_response", "response_received": true },
+      "expect_request": "{\"agent\":\"copilot\",\"deadline_unix_ms\":0,\"event\":\"preToolUse\",\"payload\":{\"sessionId\":\"contract\",\"toolName\":\"bash\",\"toolArgs\":{\"command\":\"ls\"}},\"v\":1}"
     },
     {
       "name": "agy-pretooluse-stays-silent",
@@ -168,7 +155,8 @@
       "daemon": "up",
       "response": "{\"output\":null}",
       "stdin": "{\"hook_event_name\":\"preToolUse\",\"tool_name\":\"Edit\"}",
-      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true }
+      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"agy\",\"deadline_unix_ms\":0,\"event\":\"preToolUse\",\"payload\":{\"hook_event_name\":\"preToolUse\",\"tool_name\":\"Edit\"},\"v\":1}"
     },
     {
       "name": "codex-pretooluse-null-output",
@@ -177,7 +165,8 @@
       "daemon": "up",
       "response": "{\"output\":null}",
       "stdin": "{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"shell\"}",
-      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true }
+      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"codex\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"shell\"},\"v\":1}"
     },
     {
       "name": "opencode-posttooluse-advice",
@@ -186,12 +175,8 @@
       "daemon": "up",
       "response": "{\"output\":{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"[advice]\"}}}",
       "stdin": "{\"session_id\":\"contract\",\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"shell\"}",
-      "expect": {
-        "exit_code": 0,
-        "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"[advice]\"}}\n",
-        "status": "ok",
-        "response_received": true
-      }
+      "expect": { "exit_code": 0, "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PostToolUse\",\"additionalContext\":\"[advice]\"}}\n", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"opencode\",\"deadline_unix_ms\":0,\"event\":\"PostToolUse\",\"payload\":{\"session_id\":\"contract\",\"hook_event_name\":\"PostToolUse\",\"tool_name\":\"shell\"},\"v\":1}"
     },
     {
       "name": "hermes-pretooluse-null-output",
@@ -200,7 +185,8 @@
       "daemon": "up",
       "response": "{\"output\":null}",
       "stdin": "{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"shell\"}",
-      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true }
+      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"hermes\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"shell\"},\"v\":1}"
     },
     {
       "name": "openclaw-pretooluse-null-output",
@@ -209,7 +195,28 @@
       "daemon": "up",
       "response": "{\"output\":null}",
       "stdin": "{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"shell\"}",
-      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true }
+      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"openclaw\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"hook_event_name\":\"PreToolUse\",\"tool_name\":\"shell\"},\"v\":1}"
+    },
+    {
+      "name": "claude-pretooluse-compacted-payload",
+      "agent": "claude",
+      "event": "PreToolUse",
+      "daemon": "up",
+      "response": "{\"output\":null}",
+      "stdin": "{ \"session_id\" : \"contract\" , \"tool_name\" : \"Edit\" }",
+      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"claude\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"tool_name\":\"Edit\"},\"v\":1}"
+    },
+    {
+      "name": "claude-pretooluse-escaped-payload",
+      "agent": "claude",
+      "event": "PreToolUse",
+      "daemon": "up",
+      "response": "{\"output\":null}",
+      "stdin": "{\"session_id\":\"contract\",\"note\":\"a<b>&c\",\"num\":1.50}",
+      "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true },
+      "expect_request": "{\"agent\":\"claude\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"note\":\"a\\u003cb\\u003e\\u0026c\",\"num\":1.50},\"v\":1}"
     }
   ]
 }

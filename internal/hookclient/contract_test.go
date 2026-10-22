@@ -9,6 +9,7 @@ import (
 	"os"
 	"os/exec"
 	"path/filepath"
+	"regexp"
 	"strings"
 	"sync"
 	"testing"
@@ -16,6 +17,9 @@ import (
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/sockpath"
 )
+
+// deadlineMaskRE masks the deadline, which changes on every run.
+var deadlineMaskRE = regexp.MustCompile(`"deadline_unix_ms":\d+`)
 
 // contractCase is one row of contract_cases.json. The same file drives the
 // Rust transport, so a change in one implementation that the other does not
@@ -28,7 +32,10 @@ type contractCase struct {
 	Response  string `json:"response"`
 	Stdin     string `json:"stdin"`
 	ExpectAck string `json:"expect_ack"`
-	Expect    struct {
+	// ExpectRequest is the request frame with the deadline masked. The two
+	// transports must put the same bytes on the wire.
+	ExpectRequest string `json:"expect_request"`
+	Expect        struct {
 		ExitCode         int    `json:"exit_code"`
 		Stdout           string `json:"stdout"`
 		Status           string `json:"status"`
@@ -93,6 +100,7 @@ func hookBinary(t *testing.T) string {
 type fakeDaemon struct {
 	listener net.Listener
 	ack      chan string
+	request  chan string
 }
 
 func startFakeDaemon(t *testing.T, sock string, response string, wantAck bool) *fakeDaemon {
@@ -101,7 +109,7 @@ func startFakeDaemon(t *testing.T, sock string, response string, wantAck bool) *
 	if err != nil {
 		t.Fatalf("가상 데몬 소켓 열기 실패: %v", err)
 	}
-	d := &fakeDaemon{listener: ln, ack: make(chan string, 1)}
+	d := &fakeDaemon{listener: ln, ack: make(chan string, 1), request: make(chan string, 1)}
 	go func() {
 		conn, err := ln.Accept()
 		if err != nil {
@@ -109,9 +117,11 @@ func startFakeDaemon(t *testing.T, sock string, response string, wantAck bool) *
 		}
 		defer conn.Close()
 		reader := bufio.NewReader(conn)
-		if _, err := reader.ReadBytes('\n'); err != nil {
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
 			return
 		}
+		d.request <- strings.TrimSpace(string(line))
 		if _, err := conn.Write([]byte(response + "\n")); err != nil {
 			return
 		}
@@ -119,11 +129,11 @@ func startFakeDaemon(t *testing.T, sock string, response string, wantAck bool) *
 			return
 		}
 		_ = conn.SetReadDeadline(time.Now().Add(200 * time.Millisecond))
-		line, err := reader.ReadBytes('\n')
-		if err != nil {
+		ackLine, ackErr := reader.ReadBytes('\n')
+		if ackErr != nil {
 			return
 		}
-		d.ack <- strings.TrimSpace(string(line))
+		d.ack <- strings.TrimSpace(string(ackLine))
 	}()
 	return d
 }
@@ -184,6 +194,17 @@ func TestHookTransportContract(t *testing.T) {
 			}
 			if outcome.ResponseReceived != c.Expect.ResponseReceived {
 				t.Errorf("응답 수신 %t, 기대 %t", outcome.ResponseReceived, c.Expect.ResponseReceived)
+			}
+			if c.ExpectRequest != "" {
+				select {
+				case got := <-daemon.request:
+					masked := deadlineMaskRE.ReplaceAllString(got, `"deadline_unix_ms":0`)
+					if masked != c.ExpectRequest {
+						t.Errorf("요청 프레임 %q, 기대 %q", masked, c.ExpectRequest)
+					}
+				case <-time.After(time.Second):
+					t.Errorf("요청 프레임을 받지 못했다")
+				}
 			}
 			if c.ExpectAck != "" {
 				select {

@@ -38,6 +38,10 @@ struct Case {
     stdin: String,
     #[serde(default)]
     expect_ack: String,
+    /// The request frame with the deadline masked. The two transports must
+    /// put the same bytes on the wire.
+    #[serde(default)]
+    expect_request: String,
     expect: Expect,
 }
 
@@ -56,9 +60,17 @@ struct Outcome {
 }
 
 /// A fake daemon that answers one request and records the delivery receipt.
-fn start_fake_daemon(sock: &str, response: &str, want_ack: bool) -> mpsc::Receiver<String> {
+struct FakeDaemon {
+    /// The delivery receipt the client returned.
+    ack: mpsc::Receiver<String>,
+    /// The request frame the client put on the wire.
+    request: mpsc::Receiver<String>,
+}
+
+fn start_fake_daemon(sock: &str, response: &str, want_ack: bool) -> FakeDaemon {
     let listener = UnixListener::bind(sock).expect("가상 데몬 소켓 열기 실패");
     let (tx, rx) = mpsc::channel();
+    let (req_tx, req_rx) = mpsc::channel();
     let response = response.to_string();
     std::thread::spawn(move || {
         let (mut conn, _) = match listener.accept() {
@@ -70,6 +82,7 @@ fn start_fake_daemon(sock: &str, response: &str, want_ack: bool) -> mpsc::Receiv
         if reader.read_line(&mut request).is_err() {
             return;
         }
+        let _ = req_tx.send(request.trim().to_string());
         if conn.write_all(response.as_bytes()).is_err() || conn.write_all(b"\n").is_err() {
             return;
         }
@@ -82,7 +95,27 @@ fn start_fake_daemon(sock: &str, response: &str, want_ack: bool) -> mpsc::Receiv
             let _ = tx.send(ack.trim().to_string());
         }
     });
-    rx
+    FakeDaemon {
+        ack: rx,
+        request: req_rx,
+    }
+}
+
+/// Masks the deadline, which changes on every run.
+fn mask_deadline(frame: &str) -> String {
+    let mut out = String::with_capacity(frame.len());
+    let mut rest = frame;
+    while let Some(at) = rest.find("\"deadline_unix_ms\":") {
+        out.push_str(&rest[..at]);
+        out.push_str("\"deadline_unix_ms\":0");
+        let after = &rest[at + "\"deadline_unix_ms\":".len()..];
+        let digits = after
+            .find(|c: char| !c.is_ascii_digit())
+            .unwrap_or(after.len());
+        rest = &after[digits..];
+    }
+    out.push_str(rest);
+    out
 }
 
 fn temp_home(counter: usize) -> std::path::PathBuf {
@@ -166,9 +199,19 @@ fn the_transport_satisfies_the_contract() {
             case.name
         );
 
+        if !case.expect_request.is_empty() {
+            let daemon = daemon.as_ref().expect("데몬이 떠 있어야 한다");
+            let got = daemon
+                .request
+                .recv_timeout(Duration::from_secs(2))
+                .unwrap_or_else(|e| panic!("{}: 요청 프레임을 받지 못했다: {e}", case.name));
+            let masked = mask_deadline(&got);
+            assert_eq!(masked, case.expect_request, "{}: 요청 프레임", case.name);
+        }
         if !case.expect_ack.is_empty() {
-            let rx = daemon.as_ref().expect("데몬이 없어야 한다");
-            let got = rx
+            let daemon = daemon.as_ref().expect("데몬이 떠 있어야 한다");
+            let got = daemon
+                .ack
                 .recv_timeout(Duration::from_secs(2))
                 .unwrap_or_else(|e| panic!("{}: 전달 확인 회신 없음: {e}", case.name));
             assert_eq!(got, case.expect_ack, "{}: 전달 확인", case.name);

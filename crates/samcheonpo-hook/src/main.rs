@@ -11,12 +11,12 @@ use std::io::{Read, Write};
 use std::time::{Instant, SystemTime, UNIX_EPOCH};
 
 use serde::Serialize;
-use serde_json::value::RawValue;
 
 use samcheonpo_hook::agent::{fail_closed_allow, output_is_readable, timeout_for};
 use samcheonpo_hook::ipc::{UnixStream, COLD_START_INTERVAL, COLD_START_TIMEOUT, CONNECT_TIMEOUT};
-use samcheonpo_hook::protocol::{Ack, Request, Response};
+use samcheonpo_hook::protocol::Response;
 use samcheonpo_hook::spawn::{daemon_executable, no_spawn, spawn_daemon};
+use samcheonpo_hook::wire;
 
 /// The version string the Go CLI and this transport share.
 const VERSION: &str = env!("SAMCHEONPO_HOOK_VERSION");
@@ -98,14 +98,13 @@ fn run() -> Outcome {
     let _ = std::io::stdin()
         .take(MAX_PAYLOAD as u64)
         .read_to_end(&mut payload_bytes);
-    if payload_bytes.is_empty()
-        || serde_json::from_slice::<serde_json::Value>(&payload_bytes).is_err()
-    {
-        return pass(&mut outcome, started, allow, &mut stdout);
-    }
-    let payload: Box<RawValue> = match serde_json::from_slice(&payload_bytes) {
-        Ok(raw) => raw,
-        Err(_) => return pass(&mut outcome, started, allow, &mut stdout),
+    // The Go transport checks the payload with `json.Valid` before it
+    // connects, and an unreadable payload is a permission the agent reads as
+    // a block. The compaction happens here so the frame carries the same
+    // bytes as the Go frame.
+    let payload = match wire::compact(&payload_bytes) {
+        Some(p) => p,
+        None => return pass(&mut outcome, started, allow, &mut stdout),
     };
 
     let sock = samcheonpo_hook::sockpath::path();
@@ -125,20 +124,7 @@ fn run() -> Outcome {
     let _ = conn.set_write_timeout(Some(timeout));
     let _ = &deadline;
 
-    let request = Request {
-        v: 1,
-        agent: &agent,
-        event: &event,
-        deadline_unix_ms,
-        payload: &payload,
-    };
-    let frame = match serde_json::to_vec(&request) {
-        Ok(f) => f,
-        Err(_) => {
-            outcome.status = "invalid_response";
-            return pass(&mut outcome, started, allow, &mut stdout);
-        }
-    };
+    let frame = wire::request_frame(&agent, &event, deadline_unix_ms, &payload);
     if let Err(e) = samcheonpo_hook::ipc::write_frame(&mut conn, &frame) {
         outcome.status = "write_failed";
         outcome.timed_out = is_timeout(&e);
@@ -188,15 +174,10 @@ fn run() -> Outcome {
         Ok(()) => {
             let _ = stdout.flush();
             if !response.delivery_token.is_empty() {
-                let ack = Ack {
-                    delivery_token: &response.delivery_token,
-                    printed: true,
-                };
-                if let Ok(mut ack_frame) = serde_json::to_vec(&ack) {
-                    ack_frame.push(b'\n');
-                    let _ = conn.write_all(&ack_frame);
-                    let _ = conn.flush();
-                }
+                let mut ack_frame = wire::ack_frame(&response.delivery_token, true);
+                ack_frame.push(b'\n');
+                let _ = conn.write_all(&ack_frame);
+                let _ = conn.flush();
             }
         }
         Err(_) => outcome.status = "output_failed",
