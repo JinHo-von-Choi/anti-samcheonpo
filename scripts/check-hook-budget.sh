@@ -2,8 +2,12 @@
 # Isolated real-process latency and receive checks; never uses a user daemon.
 #
 # SAMCHEONPO_HOOK_IMPL picks the transport that is measured: rust (default
-# where the Rust toolchain is available) or go. Both satisfy the same
-# contract, so the same budget applies.
+# where the Rust transport exists) or go. Both satisfy the same contract, so
+# the same budget applies.
+#
+# The Rust transport is unix only: the standard library still gates the
+# Windows unix socket type behind an unstable feature, and the crate refuses
+# to build there on purpose. Windows measures the Go transport.
 set -eu
 hook_build_dir=$(mktemp -d "${TMPDIR:-/tmp}/samcheonpo-hook-gate.XXXXXX")
 # a native Windows program cannot resolve the MSYS form (/tmp/...) of a path
@@ -14,8 +18,12 @@ trap 'rm -rf "$hook_build_dir"' EXIT HUP INT TERM
 exe=$(go env GOEXE)
 go build -o "$hook_build_dir/samcheonpo$exe" ./cmd/samcheonpo
 hook_impl=${SAMCHEONPO_HOOK_IMPL:-rust}
+if [ "$hook_impl" = "rust" ] && [ "$(go env GOOS)" = "windows" ]; then
+	hook_impl=go
+fi
 if [ "$hook_impl" = "rust" ] && command -v cargo >/dev/null 2>&1; then
 	cargo build --release --locked --manifest-path crates/samcheonpo-hook/Cargo.toml
+	# the workspace keeps the build output at the repository root
 	cp target/release/samcheonpo-hook "$hook_build_dir/samcheonpo-hook$exe"
 else
 	if [ "$hook_impl" = "rust" ]; then
