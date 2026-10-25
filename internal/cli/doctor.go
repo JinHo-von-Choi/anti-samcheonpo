@@ -128,8 +128,11 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 		add("ledger", "warning", "아직 원장 없음; 진단에서 만들지 않았음")
 	} else if err != nil {
 		add("ledger", "error", "원장 경로 접근 실패")
-	} else if version, err := ledger.Inspect(db); err != nil {
+	} else if version, skipped, err := ledger.InspectWithBudget(db); err != nil {
 		add("ledger", "error", fmt.Sprintf("원장 무결성/스키마 확인 실패 (읽은 버전 %d); 원문·레코드는 출력하지 않음", version))
+	} else if skipped {
+		add("ledger", "ok", fmt.Sprintf("원장이 크므로 페이지 전체 검사(quick_check, 용량 비례)를 건너뛰고 스키마 %d만 확인함; 무결성 의심 시 파일 크기 증가가 멈췄는지로 먼저 가린다", version))
+		addLedgerUsage(&r, db)
 	} else {
 		add("ledger", "ok", fmt.Sprintf("원장 읽기 전용 무결성 검사 통과, 스키마 %d", version))
 		addLedgerUsage(&r, db)

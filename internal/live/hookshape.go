@@ -82,16 +82,20 @@ func (d *Daemon) capsFor(agent string) adapter.Caps {
 
 // markShapeBad drops every session of an agent to observation after one of
 // its hook payloads did not match: a changed format could otherwise be
-// misread into wrong advice or a wrong block. It stays so until the daemon
-// restarts; the reason is shown on the status line and by doctor.
+// misread into wrong advice or a wrong block. The downgrade is not
+// permanent: when later payloads of the same hooks match again (see
+// noteShapeGood), the agent is restored. The reason is shown on the status
+// line while the downgrade lasts and by doctor.
 func (d *Daemon) markShapeBad(agent, reason string) {
 	d.mu.Lock()
 	if d.shapeBad == nil {
 		d.shapeBad = map[string]string{}
 	}
-	if d.shapeBad[agent] != "" {
-		d.mu.Unlock()
-		return
+	if d.shapeBad[agent] == "" {
+		if d.shapeGood == nil {
+			d.shapeGood = map[string]int{}
+		}
+		d.shapeGood[agent] = 0
 	}
 	d.shapeBad[agent] = reason
 	var sessions []*Session
@@ -108,4 +112,78 @@ func (d *Daemon) markShapeBad(agent, reason string) {
 		s.shapeNote = reason
 		s.mu.Unlock()
 	}
+}
+
+// noteShapeGood counts consecutive well-shaped hooks of an agent and ends
+// its observe-only downgrade once shapeRecoveryGood payloads in a row
+// matched again: one bad payload can be one tool kind the handlers don't
+// read (a benign format variance), so a run of good payloads is the
+// evidence that the format is readable, not a single lucky one.
+func (d *Daemon) noteShapeGood(agent, name string) {
+	switch name {
+	case "PreToolUse", "PostToolUse", "PostToolUseFailure":
+	default:
+		return
+	}
+	d.mu.Lock()
+	if d.shapeBad[agent] == "" {
+		d.mu.Unlock()
+		return
+	}
+	if d.shapeGood == nil {
+		d.shapeGood = map[string]int{}
+	}
+	d.shapeGood[agent]++
+	if d.shapeGood[agent] < shapeRecoveryGood {
+		d.mu.Unlock()
+		return
+	}
+	reason := d.shapeBad[agent]
+	delete(d.shapeBad, agent)
+	delete(d.shapeGood, agent)
+	var sessions []*Session
+	for _, s := range d.sessions {
+		if s.Agent == agent {
+			sessions = append(sessions, s)
+		}
+	}
+	// the same caps a fresh session would get at this moment
+	caps := adapter.Observe(agent)
+	ready, tracked := d.versionReady[agent]
+	cause := observeCauseFor(caps, agent, ready, tracked)
+	if ready || (!tracked && d.versions[agent] != "") {
+		caps, _ = adapter.Resolve(agent, d.versions[agent])
+		cause = observeCauseFor(caps, agent, ready, tracked)
+	}
+	d.mu.Unlock()
+	for _, s := range sessions {
+		s.mu.Lock()
+		if s.shapeNote == reason {
+			s.shapeNote = ""
+		}
+		s.observeCause = cause
+		if !s.closed {
+			s.caps = caps
+		}
+		s.mu.Unlock()
+	}
+}
+
+// shapeRecoveryGood is the run of well-shaped hooks that ends an
+// observe-only downgrade.
+const shapeRecoveryGood = 3
+
+// observeCauseFor names why capabilities are observe-only without a shape
+// problem: a version probe that has not come back yet, or a versioned
+// profile that is observe by itself (an untested version included). It
+// reaches the ledger as the recovery delivery reason so a post-hoc
+// analysis can distinguish a probe-pending race from a downgraded agent.
+func observeCauseFor(caps adapter.Caps, agent string, probeReady, probeTracked bool) string {
+	if caps != adapter.Observe(agent) {
+		return ""
+	}
+	if !probeReady && probeTracked {
+		return "probe_pending"
+	}
+	return "caps_observe"
 }

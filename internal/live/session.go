@@ -141,6 +141,10 @@ type Session struct {
 	// shapeNote is why this agent's hook payloads stopped matching and the
 	// session was dropped to observation, "" while they match.
 	shapeNote string
+	// observeCause is why this session's capabilities are observe-only
+	// for a reason other than payload shape: a version probe that has not
+	// returned yet, or a versioned profile that is observe by itself.
+	observeCause string
 	// ironSeen holds external error-hiding findings already reported, by
 	// path, rule and line text, so a finding is reported once.
 	ironSeen          map[string]bool

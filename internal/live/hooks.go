@@ -174,6 +174,8 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 		if agent == "cursor" {
 			return nil, s, nil
 		}
+	} else {
+		d.noteShapeGood(agent, name)
 	}
 	if name != "SessionEnd" {
 		s.opMu.RLock()

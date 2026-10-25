@@ -90,7 +90,7 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 		a.ObservationBasis = "produce_after_read_streak"
 	}
 	if decision.Route == "observe" {
-		a.DeliveryReason = "no_supported_advice_route"
+		a.DeliveryReason = s.observeDeliveryCause()
 		s.recordDecision(v, "unsupported_route")
 	}
 	s.recoveries = append(s.recoveries, a)
@@ -110,6 +110,20 @@ func (s *Session) saveRecovery(a recovery.Attempt) {
 	if s.db != nil {
 		s.recordStorageError(s.db.SaveRecovery(a))
 	}
+}
+
+// observeDeliveryCause names why a recovery cannot be delivered while the
+// route is observe: payload shape is read live (s.shapeNote, cleared by
+// noteShapeGood), everything else is the agent's observe-only profile.
+// proposeRecovery holds s.mu, which guards both fields.
+func (s *Session) observeDeliveryCause() string {
+	if s.shapeNote != "" {
+		return "shape_bad"
+	}
+	if s.observeCause != "" {
+		return s.observeCause
+	}
+	return "caps_observe"
 }
 
 // markRecoveryOutput records only markers that survived capability filtering
