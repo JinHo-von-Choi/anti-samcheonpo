@@ -1,5 +1,12 @@
 # 변경 이력
 
+## 0.9.9 — 2026-10-26
+
+### 추가
+
+- 원장에 남은 기록만으로 규칙별 실측 신뢰도를 보는 `samcheonpo accuracy`를 넣었다. 규칙별 차단·제안·전달·‘재발 없음’·재발·미관측의 수와 사용자가 반박한 위양성(`false_positive` 라벨)을 한 표로 보고, 정밀도 추정은 ‘재발 없음’÷(‘재발 없음’+재발)으로 냈다. 이 값은 재발 프록시이며 인과 효과가 아님을 출력에 명시한다. 근거: 회귀 시험 `TestAccuracyCombinesBlocksPrescriptionsAndFeedback`·`TestAccuracyJSONParses`, 실측 원장(649MB)에서 합계 제안 1,929건·재발 없음 124건, 합계 추정 86.7%.
+- 규칙별 원장 근거(차단·처방·피드백)를 정렬해 SHA256 다이제스트로 요약하는 `samcheonpo provenance <규칙>`을 넣었다. 같은 원장에서 다시 실행하면 같은 값이 나오고 근거가 한 건이라도 쌓이면 바뀐다. 코드만 읽고 개념을 도용한 복제 규칙 세트가 자신이 만들지 않은 근거를 주장할 수 없게 하는 것이 목적이다. 상세 보기는 근거 세션 목록과 전체 다이제스트를 함께 보여준다. 근거: 회귀 시험 `TestProvenanceDigestIsDeterministicAndEvidenceSensitive`·`TestProvenanceDetailListsSessionsAndFullDigest`, 실측 원장에서 규칙 19개 다이제스트 발급.
+
 ## 0.9.8 — 2026-10-25
 
 ### 추가
