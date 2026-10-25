@@ -9,6 +9,29 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter"
 )
 
+func TestObserveCauseForBranches(t *testing.T) {
+	cases := []struct {
+		name  string
+		ready bool
+		obs   adapter.Caps
+		att   string
+	}{
+		{"probe still running", false, adapter.Observe("claude"), "probe_pending"},
+		{"untested version observed by caps", true, adapter.Observe("claude"), "caps_observe"},
+		{"deliverable caps carry no cause", true, adapter.Profiles["claude"].Caps, ""},
+	}
+	for _, c := range cases {
+		t.Run(c.name, func(t *testing.T) {
+			if got := observeCauseFor(c.obs, "claude", c.ready, true); got != c.att {
+				t.Fatalf("got %q, want %q", got, c.att)
+			}
+		})
+	}
+	if got := observeCauseFor(adapter.Observe("claude"), "claude", true, true); got != "caps_observe" {
+		t.Fatalf("a finished probe with no version is not a pending probe: %q", got)
+	}
+}
+
 func TestHookShapeAcceptsCapturedPayloads(t *testing.T) {
 	for _, name := range []string{"PreToolUse-bash", "PostToolUse-bash", "PreToolUse-apply_patch"} {
 		m := loadFixture(t, name)
@@ -102,5 +125,80 @@ func TestVersionDoesNotGateCapabilitiesButPayloadShapeDoes(t *testing.T) {
 	defer later.mu.Unlock()
 	if later.caps != adapter.Observe("claude") {
 		t.Fatal("a new session of the same agent starts observation-only")
+	}
+}
+
+func TestShapeDowngradeRecoversOnAStreakOfGoodHooks(t *testing.T) {
+	s, d := reliabilitySession(t)
+	d.versions = map[string]string{}
+	d.versionProbe = func(string) string { return "2.9.0" }
+	next, err := d.session("recov", "claude", s.Root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = next.Finalize() })
+	bad := HookInput{SessionID: "recov", Cwd: s.Root, ToolName: "Bash", ToolUseID: "t9", ToolInput: json.RawMessage(`{"cmdline":"pytest"}`)}
+	if _, _, err := d.dispatch("claude", "PreToolUse", bad); err != nil {
+		t.Fatal(err)
+	}
+	next.mu.Lock()
+	if next.caps != adapter.Observe("claude") || next.shapeNote == "" {
+		next.mu.Unlock()
+		t.Fatal("a changed payload drops the agent to observation first")
+	}
+	next.mu.Unlock()
+	good := HookInput{SessionID: "recov", Cwd: s.Root, ToolName: "Bash", ToolUseID: "t10", ToolInput: json.RawMessage(`{"command":"pytest"}`)}
+	// The probe runs off the hook path; on a slow scheduler it can still be
+	// running when the recovery streak starts, and a not-yet-probed agent
+	// legitimately restores observation caps. Wait for the probe first.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		d.mu.Lock()
+		ready, version := d.versionReady["claude"], d.versions["claude"]
+		d.mu.Unlock()
+		if ready && version == "2.9.0" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the version probe never finished")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
+	for i := 0; i < shapeRecoveryGood-1; i++ {
+		if _, _, err := d.dispatch("claude", "PreToolUse", good); err != nil {
+			t.Fatal(err)
+		}
+	}
+	next.mu.Lock()
+	if next.caps != adapter.Observe("claude") {
+		next.mu.Unlock()
+		t.Fatalf("a partial streak must not restore capabilities: %+v", next.caps)
+	}
+	next.mu.Unlock()
+	if _, _, err := d.dispatch("claude", "PreToolUse", good); err != nil {
+		t.Fatal(err)
+	}
+	next.mu.Lock()
+	caps, note := next.caps, next.shapeNote
+	next.mu.Unlock()
+	if caps != adapter.Profiles["claude"].Caps || note != "" {
+		t.Fatalf("a full streak of good hooks restores the agent: %+v %q", caps, note)
+	}
+	if line := next.Statusline(); strings.Contains(line, "훅 형식 불일치") {
+		t.Fatalf("the status line forgets the recovered mismatch: %s", line)
+	}
+	_, text, err := d.handle(Request{Event: "AgentStatus", Payload: json.RawMessage(`{"agent":"claude"}`)})
+	if err != nil || strings.Contains(text, "셸 명령 없음") {
+		t.Fatalf("agent status forgets the recovered mismatch: %s %v", text, err)
+	}
+	restored, err := d.session("restored", "claude", s.Root, "")
+	if err != nil {
+		t.Fatal(err)
+	}
+	t.Cleanup(func() { _, _ = restored.Finalize() })
+	restored.mu.Lock()
+	defer restored.mu.Unlock()
+	if restored.caps != adapter.Profiles["claude"].Caps {
+		t.Fatal("a new session of the recovered agent gets full capabilities")
 	}
 }

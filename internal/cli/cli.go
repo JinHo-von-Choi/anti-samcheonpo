@@ -595,13 +595,17 @@ func sessionsCmd() *cobra.Command {
 				} else if r.Tokens > 0 {
 					pct = float64(r.WasteTokens) / float64(r.Tokens) * 100
 				}
-				fmt.Fprintf(w, "%-8s  %-6s  %-11s  %12s  %5.0f%%  %s\n", short8(r.ID), r.Agent, r.Started.Local().Format("01-02 15:04"), tot, pct, trunc(r.Prompt, 40))
+				started := r.Started.Local().Format("01-02 15:04")
+				if r.Started.IsZero() {
+					started = "기록 없음"
+				}
+				fmt.Fprintf(w, "%-8s  %-6s  %-11s  %12s  %5.0f%%  %s\n", short8(r.ID), r.Agent, started, tot, pct, trunc(r.Prompt, 40))
 			}
 			return nil
 		},
 	}
 	c.Flags().StringVar(&since, "since", "7d", "기간")
-	c.Flags().StringVar(&agent, "agent", "all", "claude | codex | all")
+	c.Flags().StringVar(&agent, "agent", "all", "에이전트 필터: claude | codex | all")
 	return c
 }
 

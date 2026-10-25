@@ -10,6 +10,7 @@
 /.unlazy/
 .samcheonpo/
 /.samcheonpo.yml
+/tmp-probe*/
 
 # local experiment configuration, results and labels
 /bench/ab.yml

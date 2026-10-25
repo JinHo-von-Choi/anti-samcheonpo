@@ -73,6 +73,9 @@ type Daemon struct {
 	// shapeBad holds, per agent, why one of its hook payloads stopped
 	// matching what the handlers read; such an agent is observed only
 	shapeBad map[string]string
+	// shapeGood counts consecutive well-shaped hooks while shapeBad is
+	// set; a full run ends the downgrade
+	shapeGood map[string]int
 	// probedAt is when an agent's version probe last finished; a probe that
 	// read no version is retried after probeRetry
 	probedAt map[string]time.Time
@@ -573,8 +576,11 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 	// until the probe has finished the agent is observed; after it, the
 	// profile applies whatever the version, as long as payloads match
 	caps := adapter.Observe(agent)
-	if ready, tracked := d.versionReady[agent]; ready || (!tracked && d.versions[agent] != "") {
+	ready, tracked := d.versionReady[agent]
+	cause := observeCauseFor(caps, agent, ready, tracked)
+	if ready || (!tracked && d.versions[agent] != "") {
 		caps = d.capsFor(agent)
+		cause = observeCauseFor(caps, agent, ready, tracked)
 	}
 	// Give the host its watch budget back before taking another one.
 	d.reclaimWatchers()
@@ -586,6 +592,7 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 		return nil, err
 	}
 	s.daemon = d
+	s.observeCause = cause
 	d.sessions[id] = s
 	if l := s.taskLink; l != nil && l.ParentSessionID != "" {
 		// an explicit handoff link is lineage evidence
@@ -624,6 +631,7 @@ func (d *Daemon) probeAgent(agent string) {
 	d.mu.Lock()
 	d.versions[agent] = version
 	caps := d.capsFor(agent)
+	cause := observeCauseFor(caps, agent, true, true)
 	var sessions []*Session
 	for _, s := range d.sessions {
 		if s.Agent == agent {
@@ -636,6 +644,7 @@ func (d *Daemon) probeAgent(agent string) {
 		if !s.closed {
 			s.caps = caps
 		}
+		s.observeCause = cause
 		s.mu.Unlock()
 	}
 	d.mu.Lock()
