@@ -30,13 +30,13 @@ type provenanceRow struct {
 }
 
 type provenanceRuleJSON struct {
-	Rule      string `json:"rule"`
-	Blocked   int    `json:"blocked"`
-	Attempts  int    `json:"attempts"`
-	Feedback  int    `json:"feedback"`
-	First     string `json:"first,omitempty"`
-	Last      string `json:"last,omitempty"`
-	Digest    string `json:"digest"`
+	Rule     string `json:"rule"`
+	Blocked  int    `json:"blocked"`
+	Attempts int    `json:"attempts"`
+	Feedback int    `json:"feedback"`
+	First    string `json:"first,omitempty"`
+	Last     string `json:"last,omitempty"`
+	Digest   string `json:"digest"`
 }
 
 // provenanceCmd prints per-rule evidence digests computed from this ledger.
