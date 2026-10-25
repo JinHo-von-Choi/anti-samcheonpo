@@ -148,6 +148,22 @@ func TestShapeDowngradeRecoversOnAStreakOfGoodHooks(t *testing.T) {
 	}
 	next.mu.Unlock()
 	good := HookInput{SessionID: "recov", Cwd: s.Root, ToolName: "Bash", ToolUseID: "t10", ToolInput: json.RawMessage(`{"command":"pytest"}`)}
+	// The probe runs off the hook path; on a slow scheduler it can still be
+	// running when the recovery streak starts, and a not-yet-probed agent
+	// legitimately restores observation caps. Wait for the probe first.
+	deadline := time.Now().Add(5 * time.Second)
+	for {
+		d.mu.Lock()
+		ready, version := d.versionReady["claude"], d.versions["claude"]
+		d.mu.Unlock()
+		if ready && version == "2.9.0" {
+			break
+		}
+		if time.Now().After(deadline) {
+			t.Fatal("the version probe never finished")
+		}
+		time.Sleep(10 * time.Millisecond)
+	}
 	for i := 0; i < shapeRecoveryGood-1; i++ {
 		if _, _, err := d.dispatch("claude", "PreToolUse", good); err != nil {
 			t.Fatal(err)
