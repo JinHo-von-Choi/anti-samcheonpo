@@ -47,6 +47,42 @@ func (d *DB) BlocksSince(since time.Time) ([]BlockCount, error) {
 	return out, rows.Err()
 }
 
+// BlockEvidenceRow is one (rule, agent, session) group of stopped calls,
+// reduced to what a provenance digest needs.
+type BlockEvidenceRow struct {
+	Rule    string
+	Agent   string
+	Session string
+	Count   int
+}
+
+// BlockEvidence returns blocked-call groups over all history for the rule
+// provenance digests. Unlike BlocksSince it needs no session start bound,
+// so a zero-floor constant stands in for "all time": SQLite cannot compare
+// a timestamp against NULL, and ts() of a zero time is NULL.
+func (d *DB) BlockEvidence() ([]BlockEvidenceRow, error) {
+	rows, err := d.Query(`SELECT COALESCE(NULLIF(i.rule,''), COALESCE(v.rule,'')), COALESCE(s.agent,''), i.session_id, COUNT(*)
+		FROM intervention i
+		LEFT JOIN verdict v ON v.id = i.verdict_id
+		LEFT JOIN session s ON s.id = i.session_id
+		WHERE i.blocked = 1
+		GROUP BY 1, 2, 3
+		ORDER BY 1, 2, 3`)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []BlockEvidenceRow
+	for rows.Next() {
+		var b BlockEvidenceRow
+		if err := rows.Scan(&b.Rule, &b.Agent, &b.Session, &b.Count); err != nil {
+			return nil, err
+		}
+		out = append(out, b)
+	}
+	return out, rows.Err()
+}
+
 // BlockedRulesForSession counts the interventions that stopped a tool call
 // before it ran, per rule, for one session.
 func (d *DB) BlockedRulesForSession(id string) (map[string]int, error) {

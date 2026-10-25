@@ -143,6 +143,8 @@ Claude Code에서는 `samcheonpo cmd summary` 대신 `/samcheonpo:summary`처럼
 | `samcheonpo why <세션ID>` | 판단한 근거와 판단하지 못한 이유 |
 | `samcheonpo coverage <세션ID>` | 기록과 비용의 확인 범위 |
 | `samcheonpo interventions --since 7d --by-agent` | 안내 전달·차단 기록 |
+| `samcheonpo accuracy --since 30d` | 규칙별 실측 신뢰도(제안·전달·재발·위양성) |
+| `samcheonpo provenance <규칙>` | 규칙별 원장 근거와 증거다이제스트 |
 | `samcheonpo dashboard` | 로컬 웹 화면. 출력된 주소와 접근 코드로 로그인 |
 
 0%는 관측된 비용 중 낭비로 분류한 몫이 없다는 뜻입니다. 정확한 작업·완료·절약을 보장하지 않습니다. 원화는 API 등가 추정이며 미확인 부분을 0원으로 읽으면 안 됩니다.
