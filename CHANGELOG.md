@@ -1,5 +1,11 @@
 # 변경 이력
 
+## 0.9.12 — 2026-10-27
+
+### 수정
+
+- `s5.release_without_preflight`: CI 로그에 실패한 포맷터·린터(rustfmt·clippy·gofmt·go vet·golangci-lint·ruff·eslint·prettier)가 나오면, 변경 뒤 로컬에서 같은 도구가 통과한 것을 재현으로 인정한다. 이전에는 `cargo fmt --check`로 고친 뒤에도 릴리스 전에 CI 실패가 재현되지 않았다고 판정했다. `cargo fmt … --check`, `gofmt -l`, `prettier --check`를 검사 명령으로 센다.
+
 ## 0.9.11 — 2026-10-27
 
 ### 수정

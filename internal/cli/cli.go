@@ -38,7 +38,7 @@ import (
 )
 
 // Version is set at build time.
-var Version = "0.9.11"
+var Version = "0.9.12"
 
 var (
 	flagDB        string
