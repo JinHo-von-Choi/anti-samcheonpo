@@ -3,6 +3,7 @@ package detect
 import (
 	"sort"
 	"strings"
+	"sync/atomic"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 )
@@ -173,6 +174,52 @@ func ruleForKind(kind string) string {
 // It returns the kind of the first instruction it finds. The text is not
 // returned and never stored: only the shape of the instruction is.
 func ScanSmuggling(text string) (kind string, ok bool) {
+	kind, ok = scanSmuggling(text)
+	if !ok {
+		return "", false
+	}
+	if stripped, changed := stripOwnText(text); changed {
+		return scanSmuggling(stripped)
+	}
+	return kind, true
+}
+
+// ownText holds the fixed sentences of samcheonpo's own messages.
+//
+// Those messages describe the instructions the scan looks for, so a tool
+// output that quotes one, such as a ledger dump or a log, would read as an
+// instruction. Only exact sentences are removed: anything outside them is
+// still scanned, so quoting a message cannot hide a different instruction.
+var ownText atomic.Pointer[[]string]
+
+// SetOwnText registers the fixed sentences of samcheonpo's own messages.
+//
+// Longer sentences are removed first, so a template piece contained in a
+// rendered line does not break the line apart before the line is matched.
+func SetOwnText(sentences []string) {
+	s := append([]string(nil), sentences...)
+	sort.SliceStable(s, func(i, j int) bool { return len(s[i]) > len(s[j]) })
+	ownText.Store(&s)
+}
+
+// stripOwnText removes the registered sentences from text.
+func stripOwnText(text string) (string, bool) {
+	p := ownText.Load()
+	if p == nil {
+		return text, false
+	}
+	changed := false
+	for _, sentence := range *p {
+		if strings.Contains(text, sentence) {
+			text = strings.ReplaceAll(text, sentence, " ")
+			changed = true
+		}
+	}
+	return text, changed
+}
+
+// scanSmuggling is one pass of the scan over the text as given.
+func scanSmuggling(text string) (kind string, ok bool) {
 	if text == "" {
 		return "", false
 	}
@@ -313,7 +360,11 @@ func (e *Engine) smuggling(ev *event.Event, sigs *[]Signal) {
 		return
 	}
 	e.stashSmuggling(SmugglingHit{Seq: ev.Seq, Rule: ruleForKind(kind), Kind: kind, Source: sourceOf(ev)})
-	e.add(sigs, Signal{Detector: "S9", Rule: ruleForKind(kind), Confidence: 0.7, Level: L2, Evidence: []int64{ev.Seq},
+	// Text the agent read is recorded only. Global instruction files, quoted
+	// documents and analysis output share the literals of an instruction,
+	// and a warning on read text cannot tell an instruction from a mention.
+	// Text the agent writes itself is judged by smugglingPatch.
+	e.add(sigs, Signal{Detector: "S9", Rule: ruleForKind(kind), Confidence: 0.5, Level: L0, Evidence: []int64{ev.Seq},
 		Facts: map[string]any{"kind": kind, "source": sourceOf(ev)}})
 }
 

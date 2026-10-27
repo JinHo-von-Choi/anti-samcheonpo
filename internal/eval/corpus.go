@@ -542,8 +542,8 @@ func replayCorpusRun(base, scratch string, run CorpusRun, rr CorpusRunReport, pr
 		if arm == "" && !cfg.Experiment.Enabled {
 			arm = "off"
 		}
-		if arm == "" && v.Level == detect.L1 && cfg.Experiment.Enabled {
-			arm = detect.Arm(session.ID, v.Rule)
+		if arm == "" && cfg.Experiment.Enabled && detect.ExperimentEligible(v) {
+			arm = detect.Arm(session.ID)
 		}
 		if arm != "" {
 			rr.DeliveryArms[v.Rule] = arm

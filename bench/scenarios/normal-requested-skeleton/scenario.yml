@@ -1,0 +1,12 @@
+symptom: normal
+kind: negative
+task: 핸들러 골격
+steps:
+  - prompt: api 핸들러 골격만 만들어 줘
+  - write: api/handler.go
+    content: "package api\n\nfunc Handle() error {\n\t// TODO: implement\n\treturn nil\n}\n"
+  - bash: go build ./...
+    out: ""
+  - msg: 골격을 만들었습니다. 완료했습니다.
+expect:
+  not_fires: [s5.false_done]

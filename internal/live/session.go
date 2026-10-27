@@ -125,6 +125,7 @@ type Session struct {
 	anchorDue       bool                      // a compaction happened; the next readable response repeats the contract anchor
 	userMsg         []string                  // user messages waiting (systemMessage)
 	stopBlocks      int
+	heldStops       map[string]bool // evidence keys a stop hold already answered
 	// advised holds escalation keys (revision, rule, pattern, target) whose
 	// advice reached the agent; released holds rules the user marked as false
 	// positives. Both drive policy.Escalate.
@@ -201,7 +202,7 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 		return nil, err
 	}
 	s := &Session{ID: id, Agent: agent, Root: root, Transcript: transcript, Cfg: cfg, CfgHash: config.Hash(cfg), db: db, prices: prices, caps: caps,
-		byTool: map[string]*event.Event{}, msgEvents: map[string]*event.Event{}, usageTargets: map[string][]*event.Event{}, usageSeen: map[string]event.Usage{}, awaiting: map[string]*event.Event{}, flushed: map[string]bool{}, shell: map[string]bool{}, checks: map[string]CheckResult{}, advised: map[string]bool{}, failedEdits: map[string]ledger.FailedAttempt{}, pendingRule: map[string]string{}, released: map[string]bool{}, queue: make(chan *job, 256), workerDone: make(chan struct{}), lastActive: time.Now()}
+		byTool: map[string]*event.Event{}, msgEvents: map[string]*event.Event{}, usageTargets: map[string][]*event.Event{}, usageSeen: map[string]event.Usage{}, awaiting: map[string]*event.Event{}, flushed: map[string]bool{}, shell: map[string]bool{}, checks: map[string]CheckResult{}, advised: map[string]bool{}, failedEdits: map[string]ledger.FailedAttempt{}, pendingRule: map[string]string{}, released: map[string]bool{}, heldStops: map[string]bool{}, queue: make(chan *job, 256), workerDone: make(chan struct{}), lastActive: time.Now()}
 	s.applyOverrides()
 	s.parser = claude.NewParser(transcript)
 	s.parser.Session.ID = id
@@ -256,6 +257,10 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 	s.eng = detect.NewEngine(cfg, s.engineContract(), s.acc.State == contract.StateAccepted, "live", root, id, "")
 	s.loadCandidatePack()
 	s.eng.FirstPrompt = s.firstPrompt
+	if r := s.intentRevision; r != nil && r.Kind == intent.Followup {
+		// a restart keeps the latest followup; earlier ones are in the ledger
+		s.eng.AddRequest(r.Message)
+	}
 	if err := s.restoreHistory(); err != nil {
 		s.ws.Close()
 		return nil, err
@@ -581,14 +586,20 @@ func (s *Session) deliver(sigs []detect.Signal) {
 			s.record(v, "shadow")
 			continue
 		}
+		if s.repeatedAcrossSessions(v) {
+			s.recordDecision(v, "repeated_across_sessions")
+			s.record(v, "shadow")
+			continue
+		}
 		s.lastPrimary = &cp
 		ctx := s.msgContext()
-		if v.Level >= detect.L2 {
-			s.unresolved = &cp
-		}
-		if v.Level == detect.L1 && v.Arm == "none" {
+		if v.Arm == "none" {
+			// control arm of the intervention experiment: record only
 			s.record(v, "none")
 			continue
+		}
+		if v.Level >= detect.L2 {
+			s.unresolved = &cp
 		}
 		attempt, prescription, proposed := s.proposeRecovery(v)
 		if !proposed {
@@ -694,11 +705,25 @@ func (s *Session) msgContext() intervene.Context {
 	if s.c != nil {
 		c.Goal = s.c.Goal
 		c.Scope = strings.Join(s.c.Scope.Allow, ", ")
-	} else if s.firstPrompt != "" {
-		c.Goal = "첫 요청(" + trunc(s.firstPrompt, 60) + ")"
+	} else {
+		c.Goal = s.requestGoal()
 	}
 	c.Handoff = filepath.Join(contract.Dir(s.Root), "handoff")
 	return c
+}
+
+// requestGoal names the work without a contract: the latest request, and
+// how many earlier requests of the same task are still part of it.
+func (s *Session) requestGoal() string {
+	latest := s.eng.LatestRequest()
+	if strings.TrimSpace(latest) == "" {
+		return ""
+	}
+	goal := "최신 요청(" + trunc(latest, 60) + ")"
+	if n := len(s.eng.Requests); n > 0 {
+		goal += fmt.Sprintf(" 외 이전 요청 %d개", n)
+	}
+	return goal
 }
 
 func trunc(s string, n int) string {
@@ -1309,7 +1334,7 @@ func (s *Session) handoffDoc(reason string) string {
 		b.WriteString("- 마지막 검증이 실패한 상태다\n")
 	}
 	b.WriteString("\n## 다음 세션 첫 지시문\n\n")
-	goal := s.firstPrompt
+	goal := s.eng.RequestText()
 	if s.c != nil {
 		goal = s.c.Goal
 	}

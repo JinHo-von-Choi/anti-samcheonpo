@@ -61,6 +61,8 @@ var kindNames = map[string]string{
 	"auth_rejected": "인증 거부", "command_missing": "설치되지 않은 명령", "not_executable": "실행 권한이 없는 파일", "disk_full": "디스크 공간 부족",
 	"mock_substituted": "시험의 실제 외부 서비스를 가짜로 대체", "stale_goal": "이전 목표의 경로로 되돌아감", "guessed": "요청에서 추정한 범위 밖",
 	"bypass_monitor": "감시 우회 지시", "hide_report": "보고 은폐 지시", "fake_result": "미수행 검사 보고 지시",
+	"failing_left": "마지막 검사가 실패한 채로 남아 있다", "no_check_after_change": "마지막 코드 변경 뒤에 실행한 검사가 없다",
+	"unmet_left": "완료 조건 일부가 실패한 채로 남아 있다",
 }
 
 // sourceNames names where a context instruction came from.
@@ -84,7 +86,7 @@ func data(v detect.Signal, c Context) map[string]any {
 	d["evidence"] = strings.Join(ev, ", ")
 	goal := c.Goal
 	if goal == "" {
-		goal = "첫 요청에 적힌 작업"
+		goal = "최신 요청에 적힌 작업"
 	}
 	d["goal"] = goal
 	d["scope"] = c.Scope
@@ -145,6 +147,12 @@ func data(v detect.Signal, c Context) map[string]any {
 		d["reason"] = "마지막 검증 뒤에 코드가 바뀌었고 다시 검증되지 않았다"
 	case "unverified":
 		d["reason"] = "이 세션에서 검증이 한 번도 실행되지 않았다"
+	case "hollow":
+		d["reason"] = fmt.Sprintf("바꾼 기능 코드에 TODO·미구현 표시나 상수만 돌려주는 본문이 남아 있다(%v)", v.Facts["paths"])
+	case "no_evidence":
+		d["reason"] = fmt.Sprintf("요청에 적힌 %v는 어떤 변경에도 나오지 않는다", v.Facts["missing"])
+	case "narrow_check":
+		d["reason"] = fmt.Sprintf("통과한 검사 `%v`는 이번에 새로 만든 시험 파일만 실행했다", v.Facts["cmd"])
 	case "unmet":
 		d["reason"] = "계약의 완료 조건 일부가 실패했다"
 		if u, ok := v.Facts["unmet"].([]string); ok {

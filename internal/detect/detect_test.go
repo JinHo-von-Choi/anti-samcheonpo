@@ -301,6 +301,19 @@ func TestReadOnlyStreak(t *testing.T) {
 	}
 }
 
+// A later request to analyze makes reading the work itself, even when the
+// first request was a fix.
+func TestReadOnlyStreakFollowsLatestRequest(t *testing.T) {
+	b := newB(t, "api/a.go 고쳐 줘", nil)
+	b.e.AddRequest("원장 기록을 분석해 줘")
+	for i := 0; i < 30; i++ {
+		b.read("f.go")
+	}
+	if len(all(b.e, "s4.read_only_streak")) != 0 {
+		t.Error("reading for a later analysis request was flagged")
+	}
+}
+
 func TestTestWeakening(t *testing.T) {
 	b := newB(t, "x", nil)
 	v := fired(b.write("tests/test_a.py", "a", []string{"@pytest.mark.skip"}, nil), "s5.test_weakening")
@@ -545,8 +558,8 @@ func TestDeterminism(t *testing.T) {
 func TestArmDeterministic(t *testing.T) {
 	seen := map[string]bool{}
 	for i := 0; i < 60; i++ {
-		a := Arm("session-"+string(rune('a'+i%26))+string(rune('0'+i/26)), "s1.identical_rerun")
-		if a != Arm("session-"+string(rune('a'+i%26))+string(rune('0'+i/26)), "s1.identical_rerun") {
+		a := Arm("session-" + string(rune('a'+i%26)) + string(rune('0'+i/26)))
+		if a != Arm("session-"+string(rune('a'+i%26))+string(rune('0'+i/26))) {
 			t.Fatal("arm must be deterministic")
 		}
 		seen[a] = true
@@ -837,8 +850,8 @@ func TestGuessedScopeRepeatRetargetAndStaleGoal(t *testing.T) {
 		t.Fatalf("one write outside a guessed scope is not delivered: %+v", v)
 	}
 	v := fired(b.write("src/theme/light.css", "c", []string{"x"}, nil), "s3.out_of_scope")
-	if v == nil || v.Level != L1 || !v.Estimate || v.Facts["kind"] != "guessed" {
-		t.Fatalf("the second write into the same group is advised: %+v", v)
+	if v == nil || v.Level != L0 || !v.Estimate || v.Facts["kind"] != "guessed" {
+		t.Fatalf("the second write into the same group is recorded, not delivered: %+v", v)
 	}
 	// a new revision moves the guessed scope and restarts the counters
 	b.e.Retarget("src/theme 다크 모드 색 바꿔 줘")
@@ -984,5 +997,19 @@ func TestStuckErrorLadderKeepsOrderWhenNudgeIsRaised(t *testing.T) {
 	}
 	if len(levels) == 0 || levels[0] != L1 {
 		t.Fatalf("the first stuck-error step is L1: %v", levels)
+	}
+}
+
+// One session gets one arm for every rule, and completion verdicts (S5)
+// take part in the experiment. Accepted guardrails never do.
+func TestArmIsPerSessionAndCoversCompletion(t *testing.T) {
+	if Arm("s-1") != Arm("s-1") {
+		t.Fatal("arm must be deterministic")
+	}
+	if !ExperimentEligible(Signal{Rule: "s5.false_done", Level: L2}) || !ExperimentEligible(Signal{Rule: "s4.read_only_streak", Level: L1}) {
+		t.Fatal("completion and L1 verdicts must be eligible")
+	}
+	if ExperimentEligible(Signal{Rule: "s3.protected_path", Level: L2}) || ExperimentEligible(Signal{Rule: "s4.read_only_streak", Level: L0}) {
+		t.Fatal("guardrails and record-only verdicts must stay out")
 	}
 }

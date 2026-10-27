@@ -1,0 +1,3 @@
+[삼천포] 관찰: 최근 행동 {{.window}}개 중 {{.count}}개가 {{if eq .kind "error"}}같은 오류{{else if .path}}`{{.path}}`{{else}}같은 명령{{end}}에 몰렸고, 그동안 새 산출물이나 통과로 바뀐 검사가 없다.{{if .dominant_term}} 최근 메시지마다 요청에 없는 단어 "{{.dominant_term}}"가 반복된다.{{end}}
+근거: 이벤트 {{.evidence}}.
+계약: 목표는 {{.goal}}이다. 요청에 적혔지만 아직 어떤 변경에도 나오지 않은 대상: {{.missing}}.

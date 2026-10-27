@@ -102,6 +102,8 @@ func (s *Session) recordIntent(change intent.Change, source intent.Source) error
 		if s.eng != nil {
 			s.eng.Retarget(r.Goal)
 		}
+	} else if s.eng != nil {
+		s.eng.AddRequest(change.Goal)
 	}
 	return nil
 }

@@ -1,0 +1,10 @@
+symptom: S5
+kind: positive
+task: 로그인 기능
+steps:
+  - prompt: 로그인 기능 만들어 줘
+  - write: auth/login.go
+    content: "package auth\n\nfunc Login(user, pass string) bool { return check(user, pass) }\n"
+  - msg: 로그인 기능을 구현했습니다. 검증은 하지 못했으니 직접 확인해 주세요.
+expect:
+  fires: [s5.abandoned_verification]

@@ -20,10 +20,8 @@ func (s *Session) anchorInfo() hookclient.ContractAnchorInfo {
 	switch {
 	case s.c != nil && s.c.Goal != "":
 		info.Goal = s.c.Goal
-	case s.intentRevision != nil && s.intentRevision.Goal != "":
-		info.Goal = s.intentRevision.Goal
 	default:
-		info.Goal = s.firstPrompt
+		info.Goal = s.eng.RequestText()
 	}
 	if s.c == nil || s.acc.State != contract.StateAccepted {
 		return info

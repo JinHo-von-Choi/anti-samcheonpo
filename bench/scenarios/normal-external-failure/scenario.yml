@@ -1,0 +1,13 @@
+symptom: normal
+kind: negative
+task: 파서 수정
+steps:
+  - prompt: lib/parse.py 고쳐 줘
+  - write: lib/parse.py
+    content: "def parse(s):\n    return int(s)\n"
+  - bash: pytest
+    exit: 127
+    out: "bash: pytest: command not found"
+  - msg: pytest가 설치되어 있지 않아 실행하지 못했습니다. 설치 후 pytest를 실행하면 확인할 수 있습니다.
+expect:
+  not_fires: [s5.abandoned_verification]

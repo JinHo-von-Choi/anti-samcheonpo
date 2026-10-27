@@ -91,6 +91,12 @@ func Prescribe(cause Cause, res DiagnosticResult) Prescription {
 	return p
 }
 
+// The prescription that replaces a repeated one.
+const (
+	HandoffAction = "앞서 제안한 처방을 반복하지 않는다. 관측한 실패·시도·미확인 조건을 묶어 사용자에게 인수인계한다."
+	HandoffStop   = "새 정보나 명시적 사용자 선택이 있어야 다음 전략을 시작한다."
+)
+
 func For(cause Cause) Prescription {
 	p := Prescription{Cause: cause, MaxAttempts: 1}
 	switch cause {
@@ -251,8 +257,8 @@ func Select(cause Cause, key string, revision uint64, history []Attempt) (Prescr
 	p := For(cause)
 	if same > 0 {
 		p.Handoff = true
-		p.Action = "앞서 제안한 처방을 반복하지 않는다. 관측한 실패·시도·미확인 조건을 묶어 사용자에게 인수인계한다."
-		p.StopCondition = "새 정보나 명시적 사용자 선택이 있어야 다음 전략을 시작한다."
+		p.Action = HandoffAction
+		p.StopCondition = HandoffStop
 	}
 	return p, true
 }

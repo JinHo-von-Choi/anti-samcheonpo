@@ -1,0 +1,26 @@
+symptom: normal
+kind: negative
+task: 한 함수의 버그
+steps:
+  - prompt: data 패키지 `Export` 버그 고쳐 줘
+  - write: data/export.go
+    content: "package data\n\nfunc Export(x int) int { return x }\n"
+  - bash: go test ./data
+    exit: 1
+    out: "--- FAIL: TestExport (0.00s)\n    export_test.go:7: got 1, want 2\nFAIL"
+  - read: data/export_test.go
+  - edit: data/export.go
+    old: "return x }"
+    new: "return x + 1 }"
+  - bash: go test ./data
+    exit: 1
+    out: "--- FAIL: TestExport (0.00s)\n    export_test.go:9: got 3, want 4\nFAIL"
+  - read: data/export_test.go
+  - edit: data/export.go
+    old: "return x + 1 }"
+    new: "return x * 2 }"
+  - bash: go test ./data
+    out: "ok data"
+  - msg: TestExport가 통과합니다. 고쳤습니다.
+expect:
+  not_fires: [s3.fixation]

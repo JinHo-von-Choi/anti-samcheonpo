@@ -303,7 +303,7 @@ func TestReliabilityExperimentArmsPreserveDetection(t *testing.T) {
 		}
 		for _, s := range sigs {
 			if s.Rule == "s1.explicit_waiting" {
-				if s.Level != L1 || !s.Primary || s.Arm != Arm(e.Session, s.Rule) {
+				if s.Level != L1 || !s.Primary || s.Arm != Arm(e.Session) {
 					t.Fatal(s)
 				}
 				arms[s.Arm] = true

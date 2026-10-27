@@ -124,6 +124,16 @@ func ts(t time.Time) any {
 	return t.UTC().Format(time.RFC3339Nano)
 }
 
+// sinceBound is a lower time bound for text comparison. ts maps the zero
+// time to NULL, and "x >= NULL" is never true, so "all history" needs an
+// explicit earliest value.
+func sinceBound(t time.Time) string {
+	if t.IsZero() {
+		return "0000-01-01T00:00:00Z"
+	}
+	return t.UTC().Format(time.RFC3339Nano)
+}
+
 func b2i(b bool) int {
 	if b {
 		return 1
@@ -377,7 +387,63 @@ func (d *DB) SourceOf(id string) (string, string, string, error) {
 func (d *DB) AddFeedback(verdictID, session, rule, label, reason, note, project string) error {
 	_, err := d.Exec(`INSERT INTO feedback(verdict_id,session_id,rule,label,reason,note,project_path,created_at) VALUES (?,?,?,?,?,?,?,?)`,
 		verdictID, session, rule, label, reason, note, project, time.Now().UTC().Format(time.RFC3339))
+	if err != nil {
+		return err
+	}
+	// The judgment also lands on the intervention it answers, so delivery,
+	// outcome and the user's verdict are read from one row.
+	_, err = d.Exec(`UPDATE intervention SET user_choice=? WHERE verdict_id=? AND session_id=?`, label, verdictID, session)
 	return err
+}
+
+// DeliveredOnPath counts interventions of a rule delivered on one path of a
+// project since a time, leaving out those the user confirmed.
+func (d *DB) DeliveredOnPath(project, rule, path string, since time.Time) (int, error) {
+	var n int
+	err := d.QueryRow(`SELECT COUNT(*) FROM intervention i
+		JOIN verdict v ON v.id=i.verdict_id AND v.session_id=i.session_id
+		JOIN session s ON s.id=i.session_id
+		WHERE s.project_path=? AND i.rule=? AND json_extract(v.facts,'$.path')=? AND i.delivery_state='delivered'
+		AND COALESCE(i.user_choice,'')!=? AND COALESCE(i.emitted_at,'')>=?`,
+		project, rule, path, LabelTruePositive, sinceBound(since)).Scan(&n)
+	return n, err
+}
+
+// ReviewRow is one delivered intervention waiting for the user's judgment.
+type ReviewRow struct {
+	Verdict   detect.Signal
+	Session   string
+	Agent     string
+	Project   string
+	EmittedAt string
+}
+
+// UnreviewedInterventions returns delivered interventions the user has not
+// judged yet, newest first.
+func (d *DB) UnreviewedInterventions(since time.Time, limit int) ([]ReviewRow, error) {
+	rows, err := d.Query(`SELECT i.verdict_id, i.session_id, i.rule, i.level, COALESCE(v.facts,'{}'), COALESCE(s.agent,''), COALESCE(s.project_path,''), COALESCE(i.emitted_at,'')
+		FROM intervention i
+		LEFT JOIN verdict v ON v.id=i.verdict_id AND v.session_id=i.session_id
+		LEFT JOIN session s ON s.id=i.session_id
+		WHERE i.delivery_state IN ('delivered','emitted') AND i.user_choice IS NULL AND COALESCE(i.emitted_at,'')>=?
+		ORDER BY i.emitted_at DESC LIMIT ?`, sinceBound(since), limit)
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	var out []ReviewRow
+	for rows.Next() {
+		var r ReviewRow
+		var level int
+		var facts string
+		if err := rows.Scan(&r.Verdict.ID, &r.Session, &r.Verdict.Rule, &level, &facts, &r.Agent, &r.Project, &r.EmittedAt); err != nil {
+			return nil, err
+		}
+		r.Verdict.Level = detect.Level(level)
+		_ = json.Unmarshal([]byte(facts), &r.Verdict.Facts)
+		out = append(out, r)
+	}
+	return out, rows.Err()
 }
 
 // FalsePositives counts false-positive feedback for a rule in a project since t.

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 
@@ -586,8 +587,8 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 			v.Facts = facts
 		}
 	}
-	if v.Level == detect.L1 && s.Cfg.Experiment.Enabled {
-		v.Arm = detect.Arm(s.ID, v.Rule)
+	if s.Cfg.Experiment.Enabled && detect.ExperimentEligible(v) {
+		v.Arm = detect.Arm(s.ID)
 	}
 	if v.Arm == "none" {
 		// control arm of the intervention experiment: record, do not block
@@ -608,6 +609,7 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	if route != "block" || !s.caps.BlockPre {
 		if route == "block" {
 			route = "advice" // the agent cannot be blocked here
+			s.recordDecision(v, "block_unsupported_by_host")
 		}
 		s.persistVerdict(v)
 		s.record(v, route)
@@ -896,9 +898,17 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 	s.enqueue(msg, time.Second)
 	s.mu.Lock()
 	sigs := s.eng.TurnEnd(msg, unmet)
+	s.settleCompletion(sigs)
+	hold := s.stopHold(sigs, unmet, in.StopHookActive, shadow)
+	if hold != nil {
+		sigs = slices.DeleteFunc(sigs, func(v detect.Signal) bool { return v.Rule == hold.Rule && v.Seq == hold.Seq })
+	}
 	s.deliver(sigs)
 	blocks := s.stopBlocks
 	s.mu.Unlock()
+	if hold != nil {
+		return s.holdStop(*hold, in)
+	}
 	route := "Stop"
 	if canBlock && len(unmet) > 0 && blocks < s.Cfg.Levels.MaxStopBlocks && !in.StopHookActive {
 		route = "StopBlock"

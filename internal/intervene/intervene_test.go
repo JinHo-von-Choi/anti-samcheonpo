@@ -5,11 +5,12 @@ import (
 	"testing"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/recovery"
 )
 
 var rules = []string{"s1.explicit_waiting", "s8.progress_stall", "s1.identical_rerun", "s1.verify_after_docs", "s1.review_repeat", "s1.evidence_rerun", "s1.verify_ratio", "s1.test_bloat", "s2.stuck_error", "s2.oscillation", "s2.whack_a_mole", "s2.environment", "s2.attempt_repeat",
 	"s3.out_of_scope", "s3.config_bypass", "s3.protected_path", "s4.read_only_streak", "s5.test_weakening", "s5.error_hiding",
-	"s5.false_done", "s5.answer_copy", "s7.memory_rot", "s8.velocity", "s8.budget", "s8.idle_spend", "s8.forced_no_progress", "s5.stop_unmet", "s6.capability_limit", "s3.drift",
+	"s5.false_done", "s5.abandoned_verification", "s3.fixation", "s5.answer_copy", "s7.memory_rot", "s8.velocity", "s8.budget", "s8.idle_spend", "s8.forced_no_progress", "s5.stop_unmet", "s6.capability_limit", "s3.drift",
 	"s2.semantic_oscillation", "s1.full_suite_local_change", "s1.unprobed_long_run", "s4.serial_triage", "s2.verifier_deadlock", "s5.release_without_preflight",
 	"s5.release_rate", "s2.flaky_ui_race", "s8.session_long", "s8.session_ceiling",
 	"s9.instruction_smuggling", "s9.unverified_claim_request", "s10.grader_access"}
@@ -110,5 +111,27 @@ func TestEnvironmentAndCapabilityWordingStaysTentative(t *testing.T) {
 		if strings.Contains(Raw(r), "고칠 수 없는") || strings.Contains(Raw(r), "더 강한 모델") {
 			t.Errorf("%s states a cause more strongly than the evidence: %s", r, Raw(r))
 		}
+	}
+}
+
+// Every rendered smuggling message is registered as samcheonpo's own text,
+// so reading it back does not raise the rule it reports.
+func TestOwnMessagesDoNotTriggerSmuggling(t *testing.T) {
+	for _, kind := range []string{detect.KindBypassMonitor, detect.KindHideReport, detect.KindFakeResult} {
+		for _, source := range []string{"prompt", "tool_output", "message", "written"} {
+			v := detect.Signal{Detector: "S9", Rule: "s9.instruction_smuggling", Level: detect.L2,
+				Facts: map[string]any{"kind": kind, "source": source}}
+			for _, text := range []string{Agent(v, Context{}, ""), User(v, Context{}), Say(v, Context{})} {
+				if text == "" {
+					continue
+				}
+				if got, ok := detect.ScanSmuggling(text); ok {
+					t.Fatalf("own message for %s/%s read as %q: %s", kind, source, got, text)
+				}
+			}
+		}
+	}
+	if _, ok := detect.ScanSmuggling(recovery.HandoffAction); ok {
+		t.Fatal("the handoff prescription reads as an instruction")
 	}
 }

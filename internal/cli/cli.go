@@ -58,7 +58,7 @@ func Root() *cobra.Command {
 	root.PersistentFlags().StringVar(&flagDB, "db", "", "원장 경로 (기본 ~/.samcheonpo/ledger.db)")
 	root.PersistentFlags().StringVar(&flagClaudeDir, "claude-dir", "", "Claude Code projects 경로")
 	root.PersistentFlags().StringVar(&flagCodexDir, "codex-dir", "", "Codex sessions 경로")
-	root.AddCommand(auditCmd(), gapsCmd(), interventionsCmd(), accuracyCmd(), provenanceCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(), forkCmd(),
+	root.AddCommand(auditCmd(), gapsCmd(), interventionsCmd(), accuracyCmd(), reviewCmd(), provenanceCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(), forkCmd(),
 		labelCmd(), evalCmd(), benchCmd(), evasionCmd(), lineageCmd(), detectionTimingCmd(), surfaceCmd(), debugCmd(), contractCmd(), specCmd(), importOtelCmd(), rulesCmd(), handoffCmd(), reportCmd(), taskCoverageCmd(), diagnosticCmd("why"), diagnosticCmd("coverage"), compactCmd())
 	root.AddCommand(liveCommands()...)
 	root.AddCommand(dashboardCmd())

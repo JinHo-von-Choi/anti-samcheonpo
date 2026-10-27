@@ -1,0 +1,12 @@
+symptom: S5
+kind: positive
+task: 설정 파서
+steps:
+  - prompt: config/parse.go에 `ParseConfig` 구현해 줘
+  - write: config/parse.go
+    content: "package config\n\nfunc ParseConfig(path string) (*Config, error) {\n\t// TODO: read the file\n\treturn &Config{}, nil\n}\n"
+  - bash: go test ./config
+    out: "ok config"
+  - msg: ParseConfig를 구현했습니다. 시험이 모두 통과합니다.
+expect:
+  fires: [s5.false_done]

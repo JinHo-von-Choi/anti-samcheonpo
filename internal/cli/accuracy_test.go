@@ -82,10 +82,10 @@ func TestAccuracyCombinesBlocksPrescriptionsAndFeedback(t *testing.T) {
 	for _, line := range strings.Split(text, "\n") {
 		if strings.HasPrefix(line, "s1.identical_rerun") {
 			fields := strings.Fields(line)
-			if len(fields) != 10 {
+			if len(fields) != 12 {
 				t.Fatalf("columns: %q", line)
 			}
-			// 차단 제안 전달 인지 재발없음 재발 미관측 위양성 정밀도
+			// 차단 제안 전달 인지 재발없음 재발 미관측 위양성 확인 정밀도 판정정밀도
 			if fields[1] != "0" {
 				t.Fatalf("blocked count = %q, want 0 (rule never blocked)", fields[1])
 			}
@@ -101,8 +101,14 @@ func TestAccuracyCombinesBlocksPrescriptionsAndFeedback(t *testing.T) {
 			if fields[8] != "1" {
 				t.Fatalf("false positive feedback = %q", fields[8])
 			}
-			if fields[9] != "100.0" {
-				t.Fatalf("precision estimate = %q, want 100.0", fields[9])
+			if fields[9] != "0" {
+				t.Fatalf("confirmed feedback = %q", fields[9])
+			}
+			if fields[10] != "100.0" {
+				t.Fatalf("precision estimate = %q, want 100.0", fields[10])
+			}
+			if fields[11] != "0.0" {
+				t.Fatalf("judged precision = %q, want 0.0 from one false positive", fields[11])
 			}
 			return
 		}

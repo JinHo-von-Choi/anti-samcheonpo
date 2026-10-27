@@ -8,6 +8,7 @@ import (
 type FeedbackStat struct {
 	Rule          string
 	FalsePositive int
+	TruePositive  int
 	Extend        int
 }
 
@@ -15,6 +16,7 @@ type FeedbackStat struct {
 // verdict fired on ordinary behavior. Extend is the session-ceiling label.
 const (
 	LabelFalsePositive = "false_positive"
+	LabelTruePositive  = "true_positive"
 	LabelExtend        = "extend"
 )
 
@@ -24,8 +26,9 @@ const (
 func (d *DB) FeedbackStats() ([]FeedbackStat, error) {
 	rows, err := d.Query(`SELECT COALESCE(NULLIF(rule,''),'(규칙없음)'),
 		SUM(CASE WHEN label=? THEN 1 ELSE 0 END),
+		SUM(CASE WHEN label=? THEN 1 ELSE 0 END),
 		SUM(CASE WHEN label=? THEN 1 ELSE 0 END)
-		FROM feedback GROUP BY 1 ORDER BY 1`, LabelFalsePositive, LabelExtend)
+		FROM feedback GROUP BY 1 ORDER BY 1`, LabelFalsePositive, LabelTruePositive, LabelExtend)
 	if err != nil {
 		return nil, err
 	}
@@ -33,7 +36,7 @@ func (d *DB) FeedbackStats() ([]FeedbackStat, error) {
 	var out []FeedbackStat
 	for rows.Next() {
 		var f FeedbackStat
-		if err := rows.Scan(&f.Rule, &f.FalsePositive, &f.Extend); err != nil {
+		if err := rows.Scan(&f.Rule, &f.FalsePositive, &f.TruePositive, &f.Extend); err != nil {
 			return nil, err
 		}
 		out = append(out, f)

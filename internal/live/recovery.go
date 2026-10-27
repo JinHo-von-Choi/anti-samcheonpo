@@ -58,6 +58,9 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	case "s1.delegation_loop":
 		p.Action = "같은 리뷰를 재위임하기 전에 새 관점·추가 근거·담당자를 정리한다."
 		p.StopCondition = "새 근거가 없으면 현재 결과를 합치고 남은 완료 조건을 확인한다."
+	case "s5.abandoned_verification":
+		p.Action = "실패한 검사를 고치거나, 마지막 변경에 맞는 가장 작은 검사를 직접 실행해 결과를 확인한다."
+		p.StopCondition = "외부 원인(권한·네트워크·외부 서비스)이나 사용자의 중단 지시가 있을 때만 근거와 함께 보고하고 멈춘다."
 	case "s5.partial_done":
 		p.Action = "요청 항목별 결과와 누락을 대조하고, 승인 범위 안에서 남은 작업을 계속한다."
 		p.StopCondition = "부분 산출물과 전체 완료를 구분하고 항목별 근거를 남긴다."
@@ -77,7 +80,10 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	decision := policy.Decide("advice", policy.Capabilities{Inject: s.caps.InjectPre || s.caps.InjectPost || s.caps.PromptInject, UserMessage: s.caps.UserMessage})
 	now := time.Now().UTC()
 	a := recovery.Attempt{Version: "recovery/1", ID: fp.Hash(s.Agent, s.ID, v.ID, key, now.Format(time.RFC3339Nano)), Agent: s.Agent, SessionID: s.ID, Revision: s.contractRevision, CauseKey: key, VerdictID: v.ID, Rule: v.Rule, Seq: v.Seq, Prescription: p, Stage: recovery.Proposed, CreatedAt: now, Route: decision.Route}
-	if hash, ok := v.Facts["target_hash"].(string); ok && hash != "" {
+	if completionRule(v.Rule) {
+		// judged at turn end, so its effect is settled at the next turn end
+		a.ObservationBasis = "repair_after_completion"
+	} else if hash, ok := v.Facts["target_hash"].(string); ok && hash != "" {
 		a.ObservationBasis = "behavior_target"
 		a.TargetHash = hash
 	} else if target != nil && target.Tool == event.ToolShell && target.ExecCertain && target.ExecFP != "" && (strings.HasPrefix(v.Rule, "s1.") || strings.HasPrefix(v.Rule, "s2.")) {
@@ -188,6 +194,21 @@ func relevantRecoveryEvent(a recovery.Attempt, ev *event.Event) bool {
 		}
 	case "produce_after_read_streak":
 		return (ev.Tool == event.ToolWrite || ev.Tool == event.ToolEdit) && !ev.IsError && len(ev.Paths) > 0
+	case "repair_after_completion":
+		// the repair a completion verdict asks for: a code change or a check run
+		return (ev.Tool == event.ToolWrite || ev.Tool == event.ToolEdit) && !ev.IsError && len(ev.Paths) > 0 ||
+			ev.Tool == event.ToolShell && !ev.Background && ev.ExitCode != nil
+	}
+	return false
+}
+
+// completionRule reports rules judged when the agent ends a turn. Their
+// effect is a repair after delivery, and a recurrence is the same verdict
+// at a later turn end.
+func completionRule(rule string) bool {
+	switch rule {
+	case "s5.false_done", "s5.stop_unmet", "s5.abandoned_verification", "s5.partial_done":
+		return true
 	}
 	return false
 }
@@ -236,7 +257,7 @@ func (s *Session) trackOutcomes(ev *event.Event) {
 					if a.ObservationBasis == "same_path" {
 						p, _ := v.Facts["path"].(string)
 						matched = p != "" && fp.Hash(p) == a.TargetHash
-					} else if a.ObservationBasis == "produce_after_read_streak" {
+					} else if a.ObservationBasis == "produce_after_read_streak" || a.ObservationBasis == "repair_after_completion" {
 						matched = true
 					} else {
 						for _, seen := range s.eng.St.Events {
@@ -258,6 +279,39 @@ func (s *Session) trackOutcomes(ev *event.Event) {
 		if next == recovery.Censored {
 			s.dropRecoveryMessage(a.ID)
 		}
+		s.saveRecovery(*a)
+		if s.db != nil {
+			_, err := s.db.Exec(`UPDATE intervention SET outcome=? WHERE session_id=? AND verdict_id=?`, a.Observation, s.ID, a.VerdictID)
+			s.recordStorageError(err)
+		}
+	}
+}
+
+// settleCompletion observes the effect of delivered completion
+// prescriptions at a turn end. A repair (a code change or a check run) and
+// no new verdict of the rule is no recurrence; the same verdict again is a
+// recurrence. A turn end with no repair yet leaves it open. Called with
+// s.mu held.
+func (s *Session) settleCompletion(sigs []detect.Signal) {
+	for i := range s.recoveries {
+		a := &s.recoveries[i]
+		if a.ObservationBasis != "repair_after_completion" || a.DeliveredAt == nil || a.Stage == recovery.EffectObserved || a.Stage == recovery.Censored {
+			continue
+		}
+		recurred := false
+		for _, v := range sigs {
+			if v.Rule == a.Rule && v.Level > detect.L0 {
+				recurred = true
+			}
+		}
+		if !recurred && a.RelevantOpportunities == 0 {
+			continue
+		}
+		a.Observation = "no_recurrence_observed"
+		if recurred {
+			a.Observation = "recurrence_observed"
+		}
+		_ = a.Advance(recovery.EffectObserved, time.Now())
 		s.saveRecovery(*a)
 		if s.db != nil {
 			_, err := s.db.Exec(`UPDATE intervention SET outcome=? WHERE session_id=? AND verdict_id=?`, a.Observation, s.ID, a.VerdictID)

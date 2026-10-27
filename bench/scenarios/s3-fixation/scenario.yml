@@ -1,0 +1,46 @@
+symptom: S3
+kind: positive
+task: 데이터 함수 세 개
+steps:
+  - prompt: data 패키지에 `Export`, `Import`, `Validate` 함수 만들어 줘
+  - write: data/export.go
+    content: "package data\n\nfunc Export(x int) {}\n"
+  - edit: data/export.go
+    old: "func Export(x int) {}\n"
+    new: "func Export(_ int) {}\n"
+    repeat: 1
+  - bash: golangci-lint run ./data
+    exit: 1
+    out: "data/export.go:3:13: unused-parameter: parameter 'x' seems to be unused (revive)"
+  - edit: data/export.go
+    old: "func Export(_ int) {}\n"
+    new: "func Export(x int) { _ = x }\n"
+  - bash: golangci-lint run ./data
+    exit: 1
+    out: "data/export.go:3:13: unused-parameter: parameter 'x' seems to be unused (revive)"
+  - edit: data/export.go
+    old: "func Export(x int) { _ = x }\n"
+    new: "func Export(_ int) {}\n"
+  - bash: golangci-lint run ./data
+    exit: 1
+    out: "data/export.go:3:13: unused-parameter: parameter 'x' seems to be unused (revive)"
+  - edit: data/export.go
+    old: "func Export(_ int) {}\n"
+    new: "func Export(x int) { _ = x }\n"
+  - bash: golangci-lint run ./data
+    exit: 1
+    out: "data/export.go:3:13: unused-parameter: parameter 'x' seems to be unused (revive)"
+  - edit: data/export.go
+    old: "func Export(x int) { _ = x }\n"
+    new: "func Export(_ int) {}\n"
+  - bash: golangci-lint run ./data
+    exit: 1
+    out: "data/export.go:3:13: unused-parameter: parameter 'x' seems to be unused (revive)"
+  - edit: data/export.go
+    old: "func Export(_ int) {}\n"
+    new: "func Export(x int) { _ = x }\n"
+  - bash: golangci-lint run ./data
+    exit: 1
+    out: "data/export.go:3:13: unused-parameter: parameter 'x' seems to be unused (revive)"
+expect:
+  fires: [s3.fixation]

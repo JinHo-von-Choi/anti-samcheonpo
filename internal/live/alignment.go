@@ -8,10 +8,7 @@ import (
 )
 
 func (s *Session) requirementGraph() alignment.Graph {
-	goal := s.firstPrompt
-	if s.intentRevision != nil {
-		goal = s.intentRevision.Goal
-	}
+	goal := s.eng.RequestText()
 	accepted := s.c != nil && s.acc.State == contract.StateAccepted
 	if accepted {
 		goal = s.c.Goal

@@ -73,6 +73,9 @@ type Engine struct {
 	Session   string
 	// FirstPrompt is used to infer scope in audit mode.
 	FirstPrompt string
+	// Requests are the user's later requests for the same task, oldest
+	// first. They add to the first request; they never replace it.
+	Requests []string
 
 	St       *State
 	Verdicts []Signal
@@ -150,6 +153,19 @@ type State struct {
 	lastWriteSeq         int64
 	lastCodeWriteSeq     int64
 	lastProdWriteSeq     int64 // non-doc, non-temp in-scope write: counts as productive progress
+	lastProdPath         string
+	lastPromptSeq        int64                // latest user prompt; forced continuations are not answers
+	hollow               map[string]hollowHit // production files whose latest change left an unwritten body
+	changedText          map[string]bool      // paths and identifier words the session changed
+	createdTests         map[string]bool      // test files the session created
+	seenPath             map[string]bool
+	fixActions           []fixAction
+	fixFired             map[string]bool
+	fixWritten           map[string]bool
+	fixLastFailing       bool
+	fixOpenErr           string // error of the latest failing run, until it or a check passes
+	fixOpenCmd           string
+	recentMsgs           []string
 	writes               int
 	testAdded, codeAdded int
 	testLits             map[string]int64
@@ -324,6 +340,13 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 	case event.KindPrompt:
 		if ev.Forced {
 			e.forcedTurn(ev, &sigs)
+		} else {
+			st.lastPromptSeq = ev.Seq
+			// live sessions record later requests through the intent ledger;
+			// a replayed session has only its prompts
+			if e.Mode == "audit" && ev.PromptOrigin != "agent" && strings.TrimSpace(ev.Text) != strings.TrimSpace(e.FirstPrompt) && !strings.HasPrefix(strings.TrimSpace(ev.Text), "/") {
+				e.AddRequest(ev.Text)
+			}
 		}
 	case event.KindTool:
 		e.refine(ev)
@@ -332,6 +355,7 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 		e.recordShortCircuit(ev, &sigs)
 	}
 	e.observeBehavior(ev, &sigs)
+	e.observeFixation(ev, &sigs)
 	e.observeRequirementChanges(ev, &sigs)
 	e.observeResearchProgress(ev)
 	e.observeLearned(ev, &sigs)
@@ -866,6 +890,7 @@ func (e *Engine) production(ev *event.Event, sigs *[]Signal) {
 			st.lastCodeWriteSeq = ev.Seq
 			if !pathnorm.IsTempPath(p) {
 				st.lastProdWriteSeq = ev.Seq
+				st.lastProdPath = p
 			}
 		}
 	}
@@ -1043,7 +1068,7 @@ func (e *Engine) scope(ev *event.Event, paths []string, sigs *[]Signal) {
 // revision's scope after a compaction is reported as a return to an old goal.
 func (e *Engine) guessedOut(ev *event.Event, p string, sigs *[]Signal) {
 	st := e.St
-	if IsExploreTask(e.FirstPrompt) {
+	if IsExploreTask(e.LatestRequest()) {
 		return
 	}
 	st.Estimated[ev.Seq] = true
@@ -1059,7 +1084,9 @@ func (e *Engine) guessedOut(ev *event.Event, p string, sigs *[]Signal) {
 		e.add(sigs, Signal{Detector: "S3", Rule: "s3.out_of_scope", Confidence: 0.4, Level: L0, Evidence: []int64{ev.Seq}, Estimate: true,
 			Facts: map[string]any{"path": p, "count": 1, "kind": "guessed"}})
 	case 2:
-		e.add(sigs, Signal{Detector: "S3", Rule: "s3.out_of_scope", Confidence: 0.55, Level: L1, Evidence: []int64{ev.Seq}, Estimate: true,
+		// a scope guessed from prose is not a boundary the user set: it
+		// supports other judgments and is recorded, never delivered
+		e.add(sigs, Signal{Detector: "S3", Rule: "s3.out_of_scope", Confidence: 0.55, Level: L0, Evidence: []int64{ev.Seq}, Estimate: true,
 			Facts: map[string]any{"path": p, "count": 2, "kind": "guessed"}})
 	}
 }
@@ -1103,6 +1130,7 @@ func (e *Engine) InScope(rel string) (in, known bool) { return e.inScope(rel) }
 // compaction. An accepted contract scope is not touched.
 func (e *Engine) Retarget(goal string) {
 	e.FirstPrompt = goal
+	e.Requests = nil
 	st := e.St
 	if st.scopeKnown {
 		return
@@ -1111,6 +1139,41 @@ func (e *Engine) Retarget(goal string) {
 	st.allowGuess = e.guessedScope(goal)
 	st.guessOut = map[string]int{}
 	st.compacted = false
+}
+
+// maxRequests bounds the later requests one task keeps.
+const maxRequests = 20
+
+// AddRequest records a later user request for the current task.
+func (e *Engine) AddRequest(text string) {
+	text = strings.TrimSpace(text)
+	if text == "" {
+		return
+	}
+	if len(e.Requests) >= maxRequests {
+		e.Requests = e.Requests[1:]
+	}
+	e.Requests = append(e.Requests, text)
+	if !e.St.scopeKnown {
+		// a later request widens the guessed scope; it never narrows it
+		e.St.allowGuess = e.guessedScope(e.RequestText())
+	}
+}
+
+// LatestRequest is the user's most recent request for the current task.
+func (e *Engine) LatestRequest() string {
+	if n := len(e.Requests); n > 0 {
+		return e.Requests[n-1]
+	}
+	return e.FirstPrompt
+}
+
+// RequestText is every request of the current task, oldest first.
+func (e *Engine) RequestText() string {
+	if len(e.Requests) == 0 {
+		return e.FirstPrompt
+	}
+	return strings.Join(append([]string{e.FirstPrompt}, e.Requests...), "\n")
 }
 
 func forbids(c *contract.Contract, words ...string) bool {
@@ -1149,7 +1212,7 @@ func (e *Engine) bypass(ev *event.Event, sigs *[]Signal) {
 				}
 				continue
 			}
-			if MockSubstitution(pf.Added, pf.Removed) && !MentionsMock(e.FirstPrompt) {
+			if MockSubstitution(pf.Added, pf.Removed) && !MentionsMock(e.RequestText()) {
 				e.add(sigs, Signal{Detector: "S5", Rule: "s5.test_weakening", Confidence: 0.75, Level: L1, Evidence: []int64{ev.Seq},
 					Facts: map[string]any{"path": p, "kind": string(KindMockSubstituted)}})
 			}
@@ -1211,7 +1274,8 @@ func (e *Engine) testBloat(ev *event.Event, sigs *[]Signal) {
 	if st.bloatFired || st.testAdded < 60 || float64(st.testAdded) <= float64(st.codeAdded)*e.Cfg.Detectors.S1.TestBloat {
 		return
 	}
-	if e.Contract.AllowsTestWriting() || strings.Contains(strings.ToLower(e.FirstPrompt), "test") || strings.Contains(e.FirstPrompt, "테스트") || strings.Contains(e.FirstPrompt, "시험") {
+	requests := e.RequestText()
+	if e.Contract.AllowsTestWriting() || strings.Contains(strings.ToLower(requests), "test") || strings.Contains(requests, "테스트") || strings.Contains(requests, "시험") {
 		return
 	}
 	st.bloatFired = true
@@ -1232,7 +1296,7 @@ func (e *Engine) exploration(ev *event.Event, sigs *[]Signal) {
 			st.rereads++
 		}
 	}
-	if (e.Contract != nil && e.Contract.Explore) || (e.Contract == nil && IsExploreTask(e.FirstPrompt)) {
+	if (e.Contract != nil && e.Contract.Explore) || (e.Contract == nil && IsExploreTask(e.LatestRequest())) {
 		return
 	}
 	long := false
@@ -1368,7 +1432,7 @@ func (e *Engine) cost(ev *event.Event, sigs *[]Signal) {
 			quiet++
 		}
 	}
-	exploreTask := (e.Contract != nil && e.Contract.Explore) || (e.Contract == nil && IsExploreTask(e.FirstPrompt))
+	exploreTask := (e.Contract != nil && e.Contract.Explore) || (e.Contract == nil && IsExploreTask(e.LatestRequest()))
 	if !st.idleFired && idle > limit && quiet >= d.IdleMinToolEvents && !exploreTask {
 		st.idleFired = true
 		e.add(sigs, Signal{Detector: "S8", Rule: "s8.idle_spend", Confidence: 0.8, Level: L2, Evidence: []int64{ev.Seq},
@@ -1416,23 +1480,39 @@ func (e *Engine) TurnEnd(msg *event.Event, unmet []string) []Signal {
 	if s := e.rejectionWait(msg); s != nil {
 		e.add(&sigs, *s)
 	}
-	if !IsCompletionClaim(msg.Text) || st.writes == 0 {
-		return e.combine(msg, sigs)
-	}
+	// A completion claim over a failing, stale or unmet state is a false
+	// completion. Without a claim, or with no check at all, the same state
+	// is judged as an abandoned verification: the report may be honest, but
+	// the turn ends while the agent can still run the check or the fix.
 	lv := st.lastVerify
-	switch {
-	case len(unmet) > 0:
-		e.add(&sigs, Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.8, Level: L2, Evidence: []int64{msg.Seq},
-			Facts: map[string]any{"kind": "unmet", "unmet": unmet}})
-	case lv == nil:
+	if IsCompletionClaim(msg.Text) && st.writes > 0 {
+		switch {
+		case len(unmet) > 0:
+			e.add(&sigs, Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.8, Level: L2, Evidence: []int64{msg.Seq},
+				Facts: map[string]any{"kind": "unmet", "unmet": unmet}})
+			return e.combine(msg, sigs)
+		case lv == nil:
+		case failing(lv):
+			e.add(&sigs, Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.8, Level: L2, Evidence: []int64{lv.Seq, msg.Seq},
+				Facts: map[string]any{"kind": "failed", "cmd": lv.CmdNorm, "failed_tests": lv.FailedTests}})
+			return e.combine(msg, sigs)
+		case lv.Seq < st.lastCodeWriteSeq:
+			e.add(&sigs, Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.7, Level: L1, Evidence: []int64{lv.Seq, st.lastWriteSeq, msg.Seq},
+				Facts: map[string]any{"kind": "stale", "cmd": lv.CmdNorm}})
+			return e.combine(msg, sigs)
+		default:
+			// the check passed after the last change: is what passed real work?
+			if s := e.hollowCompletion(msg); s != nil {
+				e.add(&sigs, *s)
+				return e.combine(msg, sigs)
+			}
+		}
+	}
+	if s := e.abandonedVerification(msg, unmet); s != nil {
+		e.add(&sigs, *s)
+	} else if lv == nil && IsCompletionClaim(msg.Text) && st.writes > 0 {
 		e.add(&sigs, Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.6, Level: L0, Evidence: []int64{msg.Seq},
 			Facts: map[string]any{"kind": "unverified"}})
-	case failing(lv):
-		e.add(&sigs, Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.8, Level: L2, Evidence: []int64{lv.Seq, msg.Seq},
-			Facts: map[string]any{"kind": "failed", "cmd": lv.CmdNorm, "failed_tests": lv.FailedTests}})
-	case lv.Seq < st.lastCodeWriteSeq:
-		e.add(&sigs, Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.7, Level: L1, Evidence: []int64{lv.Seq, st.lastWriteSeq, msg.Seq},
-			Facts: map[string]any{"kind": "stale", "cmd": lv.CmdNorm}})
 	}
 	return e.combine(msg, sigs)
 }
@@ -1666,8 +1746,8 @@ func (e *Engine) combine(ev *event.Event, sigs []Signal) []Signal {
 		key := reliabilityCooldown(sigs[best])
 		e.cooldownUntil[key] = ev.Seq + cool
 		e.cooldownLevel[key] = sigs[best].Level
-		if sigs[best].Level == L1 && e.Mode == "live" && e.Cfg.Experiment.Enabled && sigs[best].Detector != "S5" {
-			sigs[best].Arm = Arm(e.Session, sigs[best].Rule)
+		if e.Mode == "live" && e.Cfg.Experiment.Enabled && ExperimentEligible(sigs[best]) {
+			sigs[best].Arm = Arm(e.Session)
 		}
 	}
 	for _, s := range sigs {
@@ -1681,9 +1761,19 @@ func (e *Engine) combine(ev *event.Event, sigs []Signal) []Signal {
 	return sigs
 }
 
-// Arm deterministically assigns an experiment arm.
-func Arm(session, rule string) string {
-	h := fp.Hash("arm", session, rule)
+// ExperimentEligible reports whether a verdict takes part in the
+// intervention experiment. Explicit guardrails the user accepted (protected
+// paths, budgets) are never withheld, so they stay out of it.
+func ExperimentEligible(v Signal) bool {
+	return v.Level >= L1 && !policy.ExplicitGuardrail(v.Rule)
+}
+
+// Arm deterministically assigns an experiment arm to a session.
+//
+// The arm is per session, not per rule: every eligible verdict of one
+// session gets the same treatment, so sessions can be compared as units.
+func Arm(session string) string {
+	h := fp.Hash("arm", session)
 	switch h[0] % 3 {
 	case 0:
 		return "none"

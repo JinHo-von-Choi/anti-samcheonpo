@@ -431,6 +431,23 @@ func Describe(v detect.Signal) string {
 			return "검증 없이 완료 선언"
 		case "unmet":
 			return "완료 조건 미충족 상태에서 완료 선언"
+		case "hollow":
+			return "미구현 본문이 남은 채 완료 선언"
+		case "no_evidence":
+			return "요청에 적힌 대상을 바꾸지 않고 완료 선언"
+		case "narrow_check":
+			return "새로 만든 시험만 실행하고 완료 선언"
+		}
+	case "s3.fixation":
+		return "한 항목에 몰린 채 요청한 다른 대상을 방치"
+	case "s5.abandoned_verification":
+		switch str("kind") {
+		case "failing_left":
+			return "실패한 검사를 고치지 않고 작업 종료"
+		case "no_check_after_change":
+			return "코드 변경 뒤 검사 없이 작업 종료"
+		case "unmet_left":
+			return "완료 조건 실패 상태로 작업 종료"
 		}
 	case "s5.answer_copy":
 		return "시험의 기대값을 기능 코드에 그대로 넣음"

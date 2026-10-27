@@ -24,6 +24,7 @@ type accuracyRow struct {
 	recur     int
 	censored  int
 	fp        int
+	tp        int
 	extend    int
 }
 
@@ -38,6 +39,8 @@ type accuracyRuleJSON struct {
 	Recurrence            int      `json:"recurrence"`
 	Censored              int      `json:"censored"`
 	FalsePositiveFeedback int      `json:"false_positive_feedback"`
+	TruePositiveFeedback  int      `json:"true_positive_feedback"`
+	JudgedPrecisionPct    *float64 `json:"judged_precision_pct,omitempty"`
 	ExtendFeedback        int      `json:"extend_feedback"`
 	PrecisionEstimatePct  *float64 `json:"precision_estimate_pct,omitempty"`
 }
@@ -120,6 +123,7 @@ func accuracyCmd() *cobra.Command {
 					by[f.Rule] = r
 				}
 				r.fp = f.FalsePositive
+				r.tp = f.TruePositive
 				r.extend = f.Extend
 			}
 			rules := make([]string, 0, len(by))
@@ -147,6 +151,7 @@ func accuracyCmd() *cobra.Command {
 				tot.recur += r.recur
 				tot.censored += r.censored
 				tot.fp += r.fp
+				tot.tp += r.tp
 				tot.extend += r.extend
 			}
 			if format == "json" {
@@ -155,14 +160,15 @@ func accuracyCmd() *cobra.Command {
 					"rules":        jsonRows,
 				})
 			}
-			fmt.Fprintf(w, "%-24s %5s %5s %5s %5s %8s %6s %7s %5s %8s\n", "규칙", "차단", "제안", "전달", "인지", "재발없음", "재발", "미관측", "위양성", "정밀도%")
+			fmt.Fprintf(w, "%-24s %5s %5s %5s %5s %8s %6s %7s %5s %5s %8s %10s\n", "규칙", "차단", "제안", "전달", "인지", "재발없음", "재발", "미관측", "위양성", "확인", "정밀도%", "판정정밀도%")
 			for _, r := range rows {
-				fmt.Fprintf(w, "%-24s %5d %5d %5d %5d %8d %6d %7d %5d %8s\n", r.rule, r.blocked, r.proposed, r.delivered, r.acked, r.effect, r.recur, r.censored, r.fp, accPrecision(r.effect, r.recur))
+				fmt.Fprintf(w, "%-24s %5d %5d %5d %5d %8d %6d %7d %5d %5d %8s %10s\n", r.rule, r.blocked, r.proposed, r.delivered, r.acked, r.effect, r.recur, r.censored, r.fp, r.tp, accPrecision(r.effect, r.recur), accPrecision(r.tp, r.fp))
 			}
-			fmt.Fprintf(w, "%-24s %5d %5d %5d %5d %8d %6d %7d %5d %8s\n", "합계", tot.blocked, tot.proposed, tot.delivered, tot.acked, tot.effect, tot.recur, tot.censored, tot.fp, accPrecision(tot.effect, tot.recur))
+			fmt.Fprintf(w, "%-24s %5d %5d %5d %5d %8d %6d %7d %5d %5d %8s %10s\n", "합계", tot.blocked, tot.proposed, tot.delivered, tot.acked, tot.effect, tot.recur, tot.censored, tot.fp, tot.tp, accPrecision(tot.effect, tot.recur), accPrecision(tot.tp, tot.fp))
 			fmt.Fprintln(w, "")
 			fmt.Fprintln(w, "정밀도 추정 = 재발없음/(재발없음+재발). 관측 창 안에서 같은 판정이 다시 나오지 않은 처방의 비율이며 인과 효과가 아니다.")
 			fmt.Fprintln(w, "위양성은 사용자가 직접 기록한 반박(false_positive 라벨)의 수다. 분류기가 스스로 세는 성공과 겹치지 않는다.")
+			fmt.Fprintln(w, "확인은 samcheonpo review에서 맞음으로 판정한 수이고, 판정정밀도 = 확인/(확인+위양성)이다.")
 			fmt.Fprintln(w, "차단은 처방과 별개의 행동이고, 재발은 관측 기회가 새겨진 처방만 계산된다. 자세한 전달 단계는 samcheonpo interventions를 본다.")
 			return nil
 		},
@@ -186,7 +192,11 @@ func accRowToJSON(r *accuracyRow) accuracyRuleJSON {
 	out := accuracyRuleJSON{
 		Rule: r.rule, Blocked: r.blocked, Proposed: r.proposed, Delivered: r.delivered, Acked: r.acked,
 		NoRecurrence: r.effect, Recurrence: r.recur, Censored: r.censored,
-		FalsePositiveFeedback: r.fp, ExtendFeedback: r.extend,
+		FalsePositiveFeedback: r.fp, TruePositiveFeedback: r.tp, ExtendFeedback: r.extend,
+	}
+	if n := r.tp + r.fp; n > 0 {
+		p := 100.0 * float64(r.tp) / float64(n)
+		out.JudgedPrecisionPct = &p
 	}
 	if n := r.effect + r.recur; n > 0 {
 		p := 100.0 * float64(r.effect) / float64(n)

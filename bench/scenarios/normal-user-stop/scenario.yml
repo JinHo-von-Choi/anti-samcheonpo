@@ -1,0 +1,11 @@
+symptom: normal
+kind: negative
+task: 중단 지시
+steps:
+  - prompt: lib/fmt.go 포맷 함수 고쳐 줘
+  - write: lib/fmt.go
+    content: "package lib\n\nfunc F(s string) string { return s }\n"
+  - prompt: 여기까지만 하고 멈춰
+  - msg: 멈췄습니다. 검증은 하지 않았습니다.
+expect:
+  not_fires: [s5.abandoned_verification]

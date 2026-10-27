@@ -1,0 +1,12 @@
+symptom: S5
+kind: positive
+task: 사칙연산
+steps:
+  - prompt: calc.go에 `Add`, `Sub`, `Mul` 함수 구현해 줘
+  - write: calc.go
+    content: "package calc\n\nfunc Add(a, b int) int { return a + b }\n"
+  - bash: go test ./...
+    out: "ok calc"
+  - msg: 구현했습니다. 시험이 모두 통과합니다.
+expect:
+  fires: [s5.false_done]

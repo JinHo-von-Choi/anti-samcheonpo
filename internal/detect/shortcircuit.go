@@ -164,6 +164,8 @@ func mentionsIdentifier(line, name string) bool {
 // the same shape appears in legitimate code. A person decides whether it
 // was a fake pass.
 func (e *Engine) recordShortCircuit(ev *event.Event, sigs *[]Signal) {
+	var found ShortCircuitVerdict
+	defer func() { e.trackHollow(ev, found) }()
 	if ev.Category != event.CatProduce {
 		return
 	}
@@ -175,6 +177,7 @@ func (e *Engine) recordShortCircuit(ev *event.Event, sigs *[]Signal) {
 			continue
 		}
 		if v := e.shortCircuit.InspectAdded(pf.Path, pf.Added); v.Found {
+			found = v
 			e.add(sigs, Signal{Detector: "S5", Rule: "s5.short_circuit", Confidence: 0.6, Level: L1,
 				Evidence: []int64{ev.Seq},
 				Facts:    map[string]any{"path": v.Path, "func": v.Func, "reason": v.Reason, "recorded": true}})
