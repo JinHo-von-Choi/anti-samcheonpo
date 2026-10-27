@@ -329,6 +329,38 @@ func (s *Session) applyOverrides() {
 	for _, rule := range []string{"s1.identical_rerun", "s2.stuck_error", "s4.read_only_streak"} {
 		s.Cfg.Detectors.Overrides[rule] = OverrideSteps(s.db, s.Root, rule, time.Now())
 	}
+	judged, err := s.db.Judged(time.Now().Add(-judgedWindow))
+	if err != nil {
+		s.recordStorageError(err)
+		return
+	}
+	for _, rule := range OverBudget(judged) {
+		if !slices.Contains(s.Cfg.Rollout.ShadowRules, rule) {
+			s.Cfg.Rollout.ShadowRules = append(s.Cfg.Rollout.ShadowRules, rule)
+		}
+	}
+}
+
+// A rule whose reviewed warnings were mostly false positives is recorded
+// only: at least judgedMin judgments in judgedWindow, fewer than half
+// confirmed.
+const (
+	judgedWindow = 90 * 24 * time.Hour
+	judgedMin    = 5
+)
+
+// OverBudget lists the rules whose judged precision is under one half.
+// Explicit guardrails the user accepted are never silenced.
+func OverBudget(judged map[string][2]int) []string {
+	var out []string
+	for rule, n := range judged {
+		tp, fp := n[0], n[1]
+		if tp+fp >= judgedMin && tp < fp && !policy.ExplicitGuardrail(rule) {
+			out = append(out, rule)
+		}
+	}
+	slices.Sort(out)
+	return out
 }
 
 // OverrideSteps converts false-positive feedback into threshold steps: one

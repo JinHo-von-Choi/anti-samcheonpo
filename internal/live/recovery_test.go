@@ -294,3 +294,15 @@ func TestRecoveryFactArmOmitsPrescription(t *testing.T) {
 		t.Fatalf("fact arm message: %s", m)
 	}
 }
+
+func TestOverBudgetSilencesMostlyFalseRules(t *testing.T) {
+	got := OverBudget(map[string][2]int{
+		"s9.instruction_smuggling": {1, 4}, // mostly false
+		"s1.identical_rerun":       {3, 2}, // mostly right
+		"s3.out_of_scope":          {0, 4}, // too few judgments
+		"s3.protected_path":        {0, 9}, // an accepted guardrail
+	})
+	if strings.Join(got, ",") != "s9.instruction_smuggling" {
+		t.Fatalf("%v", got)
+	}
+}

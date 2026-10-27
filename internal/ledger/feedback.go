@@ -83,3 +83,24 @@ func (d *DB) FeedbackEvidence(since time.Time) ([]FeedbackEvidenceRow, error) {
 	}
 	return out, rows.Err()
 }
+
+// Judged counts the review judgments per rule since t: warnings the user
+// confirmed and warnings the user called false positives.
+func (d *DB) Judged(since time.Time) (map[string][2]int, error) {
+	rows, err := d.Query(`SELECT rule, SUM(CASE WHEN label=? THEN 1 ELSE 0 END), SUM(CASE WHEN label=? THEN 1 ELSE 0 END)
+		FROM feedback WHERE rule<>'' AND created_at>=? GROUP BY rule`, LabelTruePositive, LabelFalsePositive, since.UTC().Format(time.RFC3339))
+	if err != nil {
+		return nil, err
+	}
+	defer rows.Close()
+	out := map[string][2]int{}
+	for rows.Next() {
+		var rule string
+		var tp, fp int
+		if err := rows.Scan(&rule, &tp, &fp); err != nil {
+			return nil, err
+		}
+		out[rule] = [2]int{tp, fp}
+	}
+	return out, rows.Err()
+}
