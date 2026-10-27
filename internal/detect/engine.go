@@ -154,6 +154,8 @@ type State struct {
 	lastCodeWriteSeq     int64
 	lastProdWriteSeq     int64 // non-doc, non-temp in-scope write: counts as productive progress
 	lastProdPath         string
+	prodPaths            map[string]bool      // production files the session changed
+	lastExercise         *event.Event         // latest completed run naming a changed production file
 	lastPromptSeq        int64                // latest user prompt; forced continuations are not answers
 	hollow               map[string]hollowHit // production files whose latest change left an unwritten body
 	changedText          map[string]bool      // paths and identifier words the session changed
@@ -351,6 +353,7 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 	case event.KindTool:
 		e.refine(ev)
 		e.tool(ev, &sigs)
+		e.noteExercise(ev)
 		e.recordChurnProposal(ev)
 		e.recordShortCircuit(ev, &sigs)
 	}
@@ -891,6 +894,10 @@ func (e *Engine) production(ev *event.Event, sigs *[]Signal) {
 			if !pathnorm.IsTempPath(p) {
 				st.lastProdWriteSeq = ev.Seq
 				st.lastProdPath = p
+				if st.prodPaths == nil {
+					st.prodPaths = map[string]bool{}
+				}
+				st.prodPaths[p] = true
 			}
 		}
 	}
@@ -1517,6 +1524,17 @@ func (e *Engine) TurnEnd(msg *event.Event, unmet []string) []Signal {
 	return e.combine(msg, sigs)
 }
 
+// ProtectedCheck returns the S10 verdict for a call that reaches a path the
+// operator declared protected, or nil.
+func (e *Engine) ProtectedCheck(ev *event.Event) *Signal {
+	p := e.protectedHit(ev)
+	if p == "" {
+		return nil
+	}
+	return &Signal{Detector: "S10", Rule: RuleGraderAccess, Confidence: 1.0, Level: L3, Evidence: []int64{ev.Seq},
+		Facts: map[string]any{"path": p, "blocked": true}}
+}
+
 // PreCheck is the live PreToolUse decision: it returns a deny reason when the
 // call is an identical verification rerun or touches a protected path.
 func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
@@ -1603,10 +1621,8 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 	// puts the grader, the answer and the rubric on that list, so a trial
 	// cannot read what it is being graded against. The call is stopped
 	// before it runs: this is a block, not a warning.
-	if p := e.protectedHit(ev); p != "" {
-		s := Signal{Detector: "S10", Rule: RuleGraderAccess, Confidence: 1.0, Level: L3, Evidence: []int64{ev.Seq},
-			Facts: map[string]any{"path": p, "blocked": true}}
-		return true, &s
+	if s := e.ProtectedCheck(ev); s != nil {
+		return true, s
 	}
 	// S2: a write that proposes a content this session already wrote, while
 	// the file sits at a state that already failed, is the A-B-A loop: the

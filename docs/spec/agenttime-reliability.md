@@ -212,6 +212,6 @@ v0.6.0에 포함했으며 2026-10-10 로컬 시험을 수행했다. 실제 에�
 | 훅 처리 | 200회 정상 응답, 시간 초과·실패·큐 누락 0 |
 | 훅 처리 시간 | p95 2.53ms, 기준 6ms. 요청 95%가 이 시간 안에 처리됨 |
 
-호스트의 파일 감시 자원이 고갈돼(inotify `ENOSPC`) 마지막 통합·live race 검사에서 `TestWatchInvalidates`, `TestAgentTimeLiveShadowAndInputInvalidation`을 건너뛰었다. 감시 실패·용량 초과 때 판단을 보류하는 동작은 별도 시험으로 확인했다. 커널 설정은 변경하지 않았다.
+통합·live race 검사는 `TestWatchInvalidates`, `TestAgentTimeLiveShadowAndInputInvalidation`을 포함하며 둘 다 통과한다. 감시 실패·용량 초과 때 판단을 보류하는 동작은 별도 시험으로 확인한다.
 
 남은 검증은 실제 AgentTime 원본과 독립 라벨을 이용한 성능 평가, 그리고 안내를 켠 경우와 끈 경우의 완료율·비용·오탐 비교다. 이 비교 실행이 프로젝트의 G12 효과 검증 관문이다. 플랫폼별 확인 수준은 [지원 범위](../support-matrix.md)를 따른다.

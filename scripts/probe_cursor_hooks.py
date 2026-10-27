@@ -86,6 +86,7 @@ def main():
     parser.add_argument("--mode", choices=("capture", "bridge", "host"), default="capture")
     parser.add_argument("--binary", type=Path, help="samcheonpo main binary (bridge mode)")
     parser.add_argument("--cursor", default="cursor-agent")
+    parser.add_argument("--model", help="model passed to the CLI (a free plan accepts only auto)")
     parser.add_argument("--timeout", type=int, default=120)
     parser.add_argument("--output", type=Path, help="new private output directory")
     parser.add_argument("--prepare-only", action="store_true")
@@ -134,7 +135,7 @@ def main():
     version = subprocess.run([args.cursor, "--version"], capture_output=True, text=True, timeout=10)
     agent_version = version.stdout.strip() if version.returncode == 0 else "unknown"
     process = subprocess.Popen(
-        [args.cursor, "-p", "--trust", "--output-format", "text", prompt],
+        [args.cursor, "-p", "--trust", "--output-format", "text"] + (["--model", args.model] if args.model else []) + [prompt],
         cwd=work, env=env, stdout=subprocess.PIPE, stderr=subprocess.PIPE,
         text=True, start_new_session=True)
     status = "finished"

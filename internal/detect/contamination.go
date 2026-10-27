@@ -25,18 +25,12 @@ func (e *Engine) protectedHit(ev *event.Event) string {
 		if p == "" {
 			continue
 		}
-		abs, err := filepath.Abs(p)
-		if err != nil {
-			abs = p
-		}
+		abs := e.resolve(p)
 		for _, ep := range ev.Paths {
 			if ep == "" {
 				continue
 			}
-			candidate, err := filepath.Abs(ep)
-			if err != nil {
-				candidate = ep
-			}
+			candidate := e.resolve(ep)
 			if under(abs, candidate) || under(candidate, abs) {
 				return ep
 			}
@@ -46,6 +40,22 @@ func (e *Engine) protectedHit(ev *event.Event) string {
 		}
 	}
 	return ""
+}
+
+// resolve makes a path absolute against the session's project. Event paths
+// are stored relative to the project, and one daemon serves many projects,
+// so the daemon's own working directory is never the base.
+func (e *Engine) resolve(p string) string {
+	if filepath.IsAbs(p) {
+		return filepath.Clean(p)
+	}
+	if e.Root != "" {
+		return filepath.Join(e.Root, p)
+	}
+	if abs, err := filepath.Abs(p); err == nil {
+		return abs
+	}
+	return p
 }
 
 // under reports whether path is inside root.

@@ -70,6 +70,9 @@ func (s *Session) holdStop(v detect.Signal, in HookInput) json.RawMessage {
 	if nudge != "" {
 		reason = nudge + "\n\n" + reason
 	}
+	s.mu.Lock()
+	s.holdReason = strings.TrimSpace(reason)
+	s.mu.Unlock()
 	s.storeSnapshot()
 	return hookOut(map[string]any{"decision": "block", "reason": reason})
 }

@@ -322,6 +322,12 @@ func copilotOut(name string, m, hs map[string]any) json.RawMessage {
 				r["additionalContext"] = reason
 			}
 		}
+	case "userPromptSubmitted", "UserPromptSubmitted":
+		if hs != nil {
+			if c, ok := hs["additionalContext"].(string); ok && c != "" {
+				r["additionalContext"] = c
+			}
+		}
 	case "agentStop", "Stop":
 		if d, ok := m["decision"].(string); ok && (d == "block" || d == "allow") {
 			r["decision"] = d

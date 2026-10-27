@@ -314,6 +314,16 @@ func (s *Session) onPrompt(in HookInput) json.RawMessage {
 	s.mu.Lock()
 	ev := &event.Event{PromptOrigin: "user", Kind: event.KindPrompt, TS: time.Now(), Summary: "prompt", Text: in.Prompt, Basis: "live"}
 	ev.Forced = rules.Current().ForcedPrompts.Match(strings.TrimSpace(in.Prompt))
+	if s.holdReason != "" && strings.TrimSpace(in.Prompt) == s.holdReason {
+		// a host that continues a held stop by sending the hold reason as the
+		// next prompt (Copilot): the text is samcheonpo's, not a user request
+		ev.Forced = true
+		s.holdReason = ""
+		s.parser.AddEvent(ev)
+		s.mu.Unlock()
+		s.enqueue(ev, 0)
+		return nil
+	}
 	s.parser.AddEvent(ev)
 	s.prompts++
 	newTask := s.prompts == 1 || s.acc.State == contract.StateDone
@@ -530,6 +540,10 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	var sig *detect.Signal
 	if s.queueRejected.Load() == 0 && (ev.WSBefore != "" || ev.Category == event.CatProduce) {
 		deny, sig = s.eng.PreCheck(ev)
+	} else if g := s.eng.ProtectedCheck(ev); g != nil {
+		// a protected path needs no workspace fingerprint: a read before the
+		// watcher is ready is still a read of the grader
+		deny, sig = true, g
 	}
 	if !deny && s.queueRejected.Load() == 0 {
 		if pre := s.attemptPre(ev); pre != nil {
@@ -592,10 +606,10 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	}
 	if v.Arm == "none" {
 		// control arm of the intervention experiment: record, do not block
-		s.mu.Lock()
-		s.persistVerdict(v)
-		s.record(v, "none")
-		s.mu.Unlock()
+		s.storeAfterAnswer(func() {
+			s.persistVerdict(v)
+			s.record(v, "none")
+		})
 		return nil
 	}
 	reason := intervene.Agent(v, ctx, v.Arm)
@@ -607,17 +621,23 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	s.lastPrimary = &lp // the user can keep/steer the verdict they just saw
 	route, escalated := s.routeFor(v)
 	if route != "block" || !s.caps.BlockPre {
-		if route == "block" {
+		downgraded := route == "block"
+		if downgraded {
 			route = "advice" // the agent cannot be blocked here
-			s.recordDecision(v, "block_unsupported_by_host")
 		}
-		s.persistVerdict(v)
-		s.record(v, route)
 		if route == "advice" && s.caps.InjectPre {
 			s.noteAdvice(in.Ack, s.adviceKey(v))
 		}
-		s.broadcastHUD()
 		s.mu.Unlock()
+		recorded := route
+		s.storeAfterAnswer(func() {
+			if downgraded {
+				s.recordDecision(v, "block_unsupported_by_host")
+			}
+			s.persistVerdict(v)
+			s.record(v, recorded)
+			s.broadcastHUD()
+		})
 		if route == "observe" {
 			return nil
 		}
@@ -633,13 +653,15 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	delete(s.shell, ev.CallID)
 	ev.ExitCode = intPtr(-1) // blocked, never executed
 	s.blocks++
-	s.persistVerdict(v)
-	s.recordBlock(v)
 	if v.Level >= detect.L3 {
 		s.unresolved = &v
 	}
-	s.broadcastHUD()
 	s.mu.Unlock()
+	s.storeAfterAnswer(func() {
+		s.persistVerdict(v)
+		s.recordBlock(v)
+		s.broadcastHUD()
+	})
 	return hookOut(map[string]any{"hookSpecificOutput": map[string]any{
 		"hookEventName":            "PreToolUse",
 		"permissionDecision":       "deny",
@@ -648,6 +670,22 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 }
 
 func intPtr(i int) *int { return &i }
+
+// storeAfterAnswer stores a pre-tool verdict after the answer is sent.
+//
+// The hook client waits about 15ms for a pre-tool answer and then lets the
+// call run without it. Writing the verdict to the ledger first can pass that
+// deadline and turn a deny or a warning into nothing, so the answer goes out
+// first and the record follows. Finalization waits for these writes.
+func (s *Session) storeAfterAnswer(store func()) {
+	s.preWrites.Add(1)
+	go func() {
+		defer s.preWrites.Done()
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		store()
+	}()
+}
 
 func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 	if s.Agent == "cursor" {
@@ -935,6 +973,9 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 		if nudge != "" {
 			reason = nudge + "\n\n" + reason
 		}
+		s.mu.Lock()
+		s.holdReason = strings.TrimSpace(reason)
+		s.mu.Unlock()
 		s.storeSnapshot()
 		return hookOut(map[string]any{"decision": "block", "reason": reason})
 	}

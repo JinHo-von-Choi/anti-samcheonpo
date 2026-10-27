@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"path"
 	"strings"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
@@ -61,6 +62,10 @@ func (e *Engine) abandonedVerification(msg *event.Event, unmet []string) *Signal
 	facts := map[string]any{"deferral": deferral}
 	evidence := []int64{st.lastProdWriteSeq, msg.Seq}
 	lv := st.lastVerify
+	if x := st.lastExercise; x != nil && (lv == nil || x.Seq > lv.Seq) {
+		// running the changed program is a check of the change
+		lv = x
+	}
 	switch {
 	case len(unmet) > 0:
 		facts["kind"] = KindUnmetLeft
@@ -98,4 +103,22 @@ func verifyCommand(ev *event.Event) string {
 		return string(r[:120]) + "…"
 	}
 	return strings.TrimSpace(cmd)
+}
+
+// noteExercise records a completed run that names a production file the
+// session changed, such as "python3 a.py" after editing a.py.
+func (e *Engine) noteExercise(ev *event.Event) {
+	if ev.Tool != event.ToolShell || ev.Background || ev.ExitCode == nil || *ev.ExitCode < 0 {
+		return
+	}
+	cmd := ev.CmdNorm
+	if cmd == "" {
+		cmd = ev.Cmd
+	}
+	for p := range e.St.prodPaths {
+		if base := path.Base(p); len(base) >= 3 && strings.Contains(cmd, base) {
+			e.St.lastExercise = ev
+			return
+		}
+	}
 }

@@ -83,6 +83,15 @@ def hook(event):
                       "permissionDecisionReason": "PROBE_DENIED"}
         elif event in ("postToolUse", "PostToolUse"):
             output = {"additionalContext": "Include PROBE_CONTEXT in your final reply."}
+        elif event in ("userPromptSubmitted", "UserPromptSubmitted"):
+            output = {"additionalContext": "Include PROMPT_CONTEXT in your final reply."}
+        elif event in ("agentStop", "Stop"):
+            # hold the first stop only, so a host that honours it cannot loop
+            held = Path(os.environ["COPILOT_PROBE_CAPTURE"]) / "stop-held"
+            if not held.exists():
+                held.touch()
+                output = {"decision": "block",
+                          "reason": "Before finishing, run one shell call: touch stop-marker. Then finish."}
     capture = Path(os.environ["COPILOT_PROBE_CAPTURE"])
     record = {"event": event, "input": payload, "output": output,
               "transport_exit": code, "duration_ns": time.monotonic_ns() - started}
@@ -198,6 +207,8 @@ def main():
         "hooks": len(records),
         "events": events,
         "edited": (work / "a.py").read_text() != "print(1)\n",
+        "stop_marker_exists": (work / "stop-marker").exists(),
+        "prompt_context_echoed": "PROMPT_CONTEXT" in stdout,
         "deny_attempted": any(r["output"].get("permissionDecision") == "deny" for r in records),
         "deny_marker_exists": (work / "deny-marker").exists(),
         "context_echoed": "PROBE_CONTEXT" in stdout,

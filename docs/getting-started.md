@@ -94,7 +94,7 @@ samcheonpo install --agent copilot --hooks-file "$HOME/.copilot/hooks/samcheonpo
 
 새 Copilot 세션에서 작업한 뒤 `doctor --agent copilot`의 마지막 수신 기록을 확인하세요. 필수 훅이 맞아도 수신 기록이 없다면 실제 연결은 아직 확인되지 않은 상태입니다.
 
-Copilot은 도구 호출 ID를 보내지 않습니다. 시작과 결과는 도구 이름과 도착 순서로 이어지며, 셸 종료 코드는 결과 본문에만 있습니다. 사용량·비용은 Copilot 훅이 알려 주지 않아 비어 있습니다. 실행 전 차단과 도구 뒤 안내는 실제 CLI로 확인했지만 종료 후속 실행과 프롬프트 주입은 꺼 둡니다. [확인한 범위](support-matrix.md#github-copilot-cli)
+Copilot은 도구 호출 ID를 보내지 않습니다. 시작과 결과는 도구 이름과 도착 순서로 이어지며, 셸 종료 코드는 결과 본문에만 있습니다. 사용량·비용은 Copilot 훅이 알려 주지 않아 비어 있습니다. 실행 전 차단, 도구 뒤 안내, 종료 보류, 프롬프트 안내를 실제 CLI로 확인했습니다. 종료를 보류하면 Copilot이 보류 사유를 다음 프롬프트로 다시 보내며, 삼천포는 이것을 사용자 요청으로 세지 않습니다. [확인한 범위](support-matrix.md#github-copilot-cli)
 
 ### Cursor CLI에서 관찰하기
 

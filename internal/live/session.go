@@ -126,6 +126,8 @@ type Session struct {
 	userMsg         []string                  // user messages waiting (systemMessage)
 	stopBlocks      int
 	heldStops       map[string]bool // evidence keys a stop hold already answered
+	holdReason      string          // the last stop hold reason, until a prompt echoes it
+	preWrites       sync.WaitGroup  // pre-tool verdicts stored after the answer
 	// advised holds escalation keys (revision, rule, pattern, target) whose
 	// advice reached the agent; released holds rules the user marked as false
 	// positives. Both drive policy.Escalate.
@@ -1178,6 +1180,7 @@ func (s *Session) finalize(reason string) (string, error) {
 	// snapshot wait for a finalization that is waiting for the hook.
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
+	s.preWrites.Wait() // pre-tool verdicts answered before they were stored
 	s.finalizeMu.Lock()
 	defer s.finalizeMu.Unlock()
 	s.mu.Lock()

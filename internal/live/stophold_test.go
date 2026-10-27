@@ -1,6 +1,8 @@
 package live
 
 import (
+	"encoding/json"
+	"path/filepath"
 	"strings"
 	"testing"
 	"time"
@@ -80,5 +82,54 @@ func TestStopHoldEffectSettlesAtNextTurnEnd(t *testing.T) {
 	var outcome string
 	if err := s.db.QueryRow(`SELECT COALESCE(outcome,'') FROM intervention WHERE session_id=? AND rule=? AND blocked=1`, s.ID, detect.RuleAbandonedVerification).Scan(&outcome); err != nil || outcome != "no_recurrence_observed" {
 		t.Fatalf("outcome %q %v", outcome, err)
+	}
+}
+
+// A host that continues a held stop by sending the hold reason as the next
+// prompt (Copilot) does not turn samcheonpo's text into a user request.
+func TestHoldReasonEchoedAsPromptIsNotARequest(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	s.onPrompt(HookInput{Prompt: "로그인 기능 만들어 줘"})
+	feedWrite(t, s, "w1", "auth/login.go")
+	out := s.onStop(HookInput{LastMessage: "구현했습니다."})
+	var held struct{ Reason string }
+	if err := json.Unmarshal(out, &held); err != nil || held.Reason == "" {
+		t.Fatalf("not held: %s", out)
+	}
+	s.onPrompt(HookInput{Prompt: held.Reason})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.eng.Requests) != 0 || strings.Contains(s.msgContext().Goal, "[삼천포]") {
+		t.Fatalf("hold reason became a request: %q", s.eng.Requests)
+	}
+	if s.intentRevision != nil && strings.Contains(s.intentRevision.Message, "[삼천포]") {
+		t.Fatal("hold reason was recorded as an intent revision")
+	}
+}
+
+func TestCopilotPromptInjectionOutput(t *testing.T) {
+	out := string(copilotOut("userPromptSubmitted", nil, map[string]any{"additionalContext": "삼천포 안내"}))
+	if !strings.Contains(out, `"additionalContext":"삼천포 안내"`) {
+		t.Fatalf("prompt context not translated: %s", out)
+	}
+}
+
+// A read of a protected path is denied in the answer itself, and the block
+// record is stored after the answer.
+func TestProtectedReadIsDeniedAndRecorded(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	s.mu.Lock()
+	s.Cfg.ProtectedPaths = []string{filepath.Join(s.Root, "grader")}
+	s.eng.Cfg.ProtectedPaths = s.Cfg.ProtectedPaths
+	s.mu.Unlock()
+	s.onPrompt(HookInput{Prompt: "grader 읽어 줘"})
+	out := string(s.onPreTool(HookInput{ToolUseID: "r1", ToolName: "Read", ToolInput: json.RawMessage(`{"file_path":"` + filepath.Join(s.Root, "grader", "answer.txt") + `"}`)}))
+	if !strings.Contains(out, `"permissionDecision":"deny"`) {
+		t.Fatalf("protected read not denied: %s", out)
+	}
+	s.preWrites.Wait()
+	var n int
+	if err := s.db.QueryRow(`SELECT COUNT(*) FROM intervention WHERE session_id=? AND rule='s10.grader_access' AND blocked=1`, s.ID).Scan(&n); err != nil || n != 1 {
+		t.Fatalf("block not stored: %d %v", n, err)
 	}
 }

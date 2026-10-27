@@ -190,3 +190,18 @@ func TestFixationLeavesFocusedWorkAlone(t *testing.T) {
 		}
 	}
 }
+
+// Running the changed program after the change is a check of it.
+func TestAbandonedVerificationRunningTheChangedFileCounts(t *testing.T) {
+	b := newB(t, "a.py가 2를 출력하게 고쳐 줘", nil)
+	b.write("a.py", "a", []string{"print(2)"}, nil)
+	exit := 0
+	b.next(&event.Event{Kind: event.KindTool, Tool: event.ToolShell, Cmd: "python a.py", CmdNorm: "python a.py", ExitCode: &exit})
+	if v := fired(b.msg("a.py를 고쳤고 실행하면 2가 나옵니다."), RuleAbandonedVerification); v != nil {
+		t.Fatalf("a run of the changed file was not taken as a check: %+v", v)
+	}
+	b.write("a.py", "b", []string{"print(3)"}, nil)
+	if v := fired(b.msg("다시 고쳤습니다."), RuleAbandonedVerification); v == nil || v.Facts["kind"] != KindNoCheckAfterChange {
+		t.Fatalf("a run before the latest change still counted: %+v", v)
+	}
+}
