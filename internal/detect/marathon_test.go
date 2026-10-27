@@ -179,6 +179,20 @@ func TestReleaseAfterCIFailureNamingATestNeedsThatTest(t *testing.T) {
 	}
 }
 
+func TestReleaseAfterFormatterFailureNeedsThatFormatter(t *testing.T) {
+	b := newB(t, "x", nil)
+	b.run("gh run view 7 --log-failed", 0, "rust\tRun cargo fmt --all -- --check\nDiff in /w/crates/hook/tests/contract.rs:12:", time.Second)
+	b.write("crates/hook/tests/contract.rs", "h", []string{"a"}, []string{"b"})
+	b.run("go vet ./...", 0, "", time.Second)
+	if s := b.pre("gh release create v0.9.11"); s == nil || s.Facts["kind"] != "ci_failed" {
+		t.Fatalf("another linter passing does not reproduce a formatter failure: %+v", s)
+	}
+	b.run("cargo fmt --all -- --check", 0, "", time.Second)
+	if s := b.pre("gh release create v0.9.11"); s != nil {
+		t.Fatalf("the failed formatter passing locally is the reproduction: %+v", s)
+	}
+}
+
 func TestReleaseRateAndUnverifiedRerelease(t *testing.T) {
 	b := newB(t, "x", nil)
 	b.run("git push origin v1.0.0", 0, "", time.Second)

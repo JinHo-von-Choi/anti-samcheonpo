@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"regexp"
 	"strings"
 	"time"
 
@@ -14,8 +15,34 @@ type ciMark struct {
 	seq   int64
 	ws    string
 	cmd   string
-	tests []string // failing tests the CI output named, when it named any
-	pkgs  []string // failing Go packages the CI output named
+	tests []string         // failing tests the CI output named, when it named any
+	pkgs  []string         // failing Go packages the CI output named
+	tools []*regexp.Regexp // local commands for formatters and linters the CI output named
+}
+
+// ciTools maps what a CI log shows to the local command that runs the same
+// formatter or linter.
+var ciTools = []struct{ seen, local *regexp.Regexp }{
+	{regexp.MustCompile(`\brustfmt\b|cargo fmt`), regexp.MustCompile(`\bcargo\s+fmt\b|\brustfmt\b`)},
+	{regexp.MustCompile(`\bclippy\b`), regexp.MustCompile(`\bcargo\s+clippy\b`)},
+	{regexp.MustCompile(`\bgofmt\b`), regexp.MustCompile(`\bgofmt\b|\bgoimports\b`)},
+	{regexp.MustCompile(`\bgo vet\b`), regexp.MustCompile(`\bgo\s+vet\b`)},
+	{regexp.MustCompile(`\bgolangci-lint\b`), regexp.MustCompile(`\bgolangci-lint\b`)},
+	{regexp.MustCompile(`\bruff\b`), regexp.MustCompile(`\bruff\b`)},
+	{regexp.MustCompile(`\beslint\b`), regexp.MustCompile(`\beslint\b|\b(?:npm|pnpm|yarn|bun)\s+(?:run\s+)?lint\b`)},
+	{regexp.MustCompile(`\bprettier\b`), regexp.MustCompile(`\bprettier\b`)},
+}
+
+// failedTools lists the local commands for the formatters and linters a CI
+// log names.
+func failedTools(log string) []*regexp.Regexp {
+	var out []*regexp.Regexp
+	for _, t := range ciTools {
+		if t.seen.MatchString(log) {
+			out = append(out, t.local)
+		}
+	}
+	return out
 }
 
 // trackRelease records remote CI results the agent read and the releases
@@ -33,7 +60,7 @@ func (e *Engine) trackRelease(ev *event.Event) {
 		m.ci, m.blindRelease, m.ciRerun = nil, 0, 0
 		return
 	case classify.CIFailed:
-		m.ci = &ciMark{seq: ev.Seq, ws: ev.WSBefore, cmd: ev.CmdNorm, tests: testout.FailedTests(log), pkgs: classify.FailedPackages(log)}
+		m.ci = &ciMark{seq: ev.Seq, ws: ev.WSBefore, cmd: ev.CmdNorm, tests: testout.FailedTests(log), pkgs: classify.FailedPackages(log), tools: failedTools(log)}
 		if r := m.ciRerun; r > 0 {
 			// rerunning the same commit after a failure and failing again
 			// repeated a known result remotely
@@ -64,6 +91,7 @@ func (e *Engine) trackRelease(ev *event.Event) {
 		// failing tests read back from a saved CI log after the failure
 		m.ci.tests = append(m.ci.tests, testout.FailedTests(log)...)
 		m.ci.pkgs = append(m.ci.pkgs, classify.FailedPackages(log)...)
+		m.ci.tools = append(m.ci.tools, failedTools(log)...)
 	}
 	if k := classify.Release(cmdOf(ev)); k != classify.ReleaseNone && k != classify.ReleaseTag && *ev.ExitCode == 0 {
 		m.lastRelease, m.released = ev.Seq, true
@@ -150,6 +178,12 @@ func (e *Engine) reproduced(ci *ciMark) bool {
 		}
 		if len(ci.tests) > 0 && coversTests(cmd, ci.tests) {
 			return true
+		}
+		// a failing formatter or linter is reproduced by running it
+		for _, t := range ci.tools {
+			if t.MatchString(ev.CmdNorm) {
+				return true
+			}
 		}
 	}
 	return false
