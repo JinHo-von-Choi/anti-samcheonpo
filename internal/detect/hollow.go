@@ -4,6 +4,7 @@ import (
 	"sort"
 	"strings"
 
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/alignment"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/classify"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lazyre"
@@ -144,6 +145,7 @@ var leaveAloneRe = lazyre.New(`(?i)^[^.\n]{0,12}?(?:수정하지|고치지|건�
 func requestIdents(text string) []string {
 	seen := map[string]bool{}
 	var out []string
+	text = alignment.WithoutNotes(text)
 	for _, loc := range identRe.Get().FindAllStringSubmatchIndex(text, -1) {
 		if leaveAloneRe.MatchString(text[loc[1]:]) {
 			continue

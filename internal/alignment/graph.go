@@ -71,7 +71,7 @@ func Requirements(goal string, c *contract.Contract, accepted bool) []Requiremen
 		return out
 	}
 	seen := map[string]bool{}
-	for _, line := range regexp.MustCompile(`\n|[;；]|(?:그리고|하고 나서|한 뒤)`).Split(goal, -1) {
+	for _, line := range regexp.MustCompile(`\n|[;；]|(?:그리고|하고 나서|한 뒤)`).Split(WithoutNotes(goal), -1) {
 		line = strings.TrimLeft(strings.TrimSpace(line), "-*0123456789. ")
 		if line == "" {
 			continue
@@ -315,4 +315,24 @@ func claimProse(text string) string {
 		}
 	}
 	return strings.Join(lines, " ")
+}
+
+// noteRE opens a bracketed note a harness puts before the user's words,
+// such as "[IMPORTANT: You are running as a scheduled cron job. ...]".
+var noteRE = regexp.MustCompile(`^\s*\[[A-Z][A-Z _-]{2,}:`)
+
+// WithoutNotes drops the leading bracketed notes of a request. A note
+// addresses the agent, so its sentences are not requirements of the user.
+func WithoutNotes(goal string) string {
+	for noteRE.MatchString(goal) {
+		end := strings.Index(goal, "]\n")
+		if end < 0 {
+			if strings.HasSuffix(strings.TrimSpace(goal), "]") {
+				return ""
+			}
+			return goal
+		}
+		goal = goal[end+2:]
+	}
+	return goal
 }

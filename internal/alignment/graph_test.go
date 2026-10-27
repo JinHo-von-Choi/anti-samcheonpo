@@ -108,3 +108,15 @@ func TestLaterRequestAndLaterFailureCannotRewriteEarlierClaims(t *testing.T) {
 		t.Fatal("later failure used to contradict earlier claim")
 	}
 }
+
+// A harness note before the user's words is not a requirement.
+func TestRequirementsSkipLeadingHarnessNotes(t *testing.T) {
+	goal := "[IMPORTANT: You are running as a scheduled cron job. DELIVERY: do NOT use send_message; treat phrasing like \"each Monday\" as context.]\n위키 문서 세 개를 요약해 줘"
+	got := Requirements(goal, nil, false)
+	if len(got) != 1 || got[0].Label != "위키 문서 세 개를 요약해 줘" {
+		t.Fatalf("requirements %+v", got)
+	}
+	if got := Requirements("[참고] 이 줄은 그대로 둔다\n로그 정리해 줘", nil, false); len(got) != 2 {
+		t.Fatalf("an ordinary bracket was dropped: %+v", got)
+	}
+}

@@ -252,3 +252,11 @@ func TestAbandonedVerificationShellWriteIsNotACheck(t *testing.T) {
 		t.Fatalf("a shell write counted as a check: %+v", v)
 	}
 }
+
+// A harness note before the request names no work targets.
+func TestRequestIdentsSkipHarnessNotes(t *testing.T) {
+	got := requestIdents("[IMPORTANT: You are running as a scheduled cron job. Do NOT use send_message.]\nreport.py 정리해 줘")
+	if strings.Join(got, ",") != "report.py" {
+		t.Fatalf("idents %q", got)
+	}
+}
