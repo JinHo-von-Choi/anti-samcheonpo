@@ -242,3 +242,17 @@ func (e *Engine) hollowCompletion(msg *event.Event) *Signal {
 	}
 	return nil
 }
+
+// TargetStatus splits the targets a text names precisely into those some
+// change of the session mentions and those no change mentions yet. A
+// mention is not a verification; it only says where work has happened.
+func (e *Engine) TargetStatus(text string) (changed, missing []string) {
+	for _, id := range requestIdents(text) {
+		if e.St.changed(id) {
+			changed = append(changed, id)
+		} else {
+			missing = append(missing, id)
+		}
+	}
+	return changed, missing
+}

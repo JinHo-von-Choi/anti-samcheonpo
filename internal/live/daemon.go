@@ -965,17 +965,20 @@ func readFile(p string) ([]byte, error) { return os.ReadFile(p) }
 // next to what the agent is doing now, in plain words, so a non-developer can
 // see a drift without reading code.
 func (s *Session) requestVsNow() string {
-	request := s.firstPrompt
-	if s.intentRevision != nil && s.intentRevision.Goal != "" {
-		request = s.intentRevision.Goal
-	}
-	request = strings.Join(strings.Fields(request), " ")
+	request := strings.Join(strings.Fields(s.eng.LatestRequest()), " ")
 	if r := []rune(request); len(r) > 120 {
 		request = string(r[:120]) + "…"
 	}
 	var b strings.Builder
 	if request != "" {
-		fmt.Fprintf(&b, "요청한 일: \"%s\"\n", request)
+		fmt.Fprintf(&b, "요청한 일: \"%s\"", request)
+		if n := len(s.eng.Requests); n > 0 {
+			fmt.Fprintf(&b, " (이전 요청 %d개 포함)", n)
+		}
+		b.WriteString("\n")
+	}
+	if _, missing := s.eng.TargetStatus(s.eng.RequestText()); len(missing) > 0 {
+		fmt.Fprintf(&b, "요청에 적힌 대상 중 아직 어떤 변경에도 없는 것: %s\n", strings.Join(missing, ", "))
 	}
 	var files, outside []string
 	seen := map[string]bool{}

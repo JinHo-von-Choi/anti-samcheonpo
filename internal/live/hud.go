@@ -97,6 +97,10 @@ func (s *Session) hudState() notify.HUDState {
 			label := r.Label
 			if r.Status == "passing_evidence_candidate" {
 				label += " · 통과 근거의 현재성 확인"
+			} else if changed, missing := s.eng.TargetStatus(r.Label); len(missing) > 0 {
+				label += " · 아직 변경 없음: " + strings.Join(missing, ", ")
+			} else if len(changed) > 0 {
+				label += " · 변경 있음, 검증 전"
 			}
 			work.Remaining = append(work.Remaining, label)
 		}
@@ -141,10 +145,7 @@ func (s *Session) hudState() notify.HUDState {
 	h.StatusText = s.stateLabel(met, total)
 	h.Summary = strings.Join(parts, " · ")
 	h.IsBlocked = s.unresolved != nil
-	h.Requested = s.firstPrompt
-	if s.intentRevision != nil {
-		h.Requested = s.intentRevision.Goal
-	}
+	h.Requested = s.requestGoal()
 	if s.c != nil && s.c.Goal != "" && s.acc.RequestedGoal == "" && (s.intentRevision == nil || s.intentRevision.Goal == s.c.Goal) {
 		h.Requested = s.c.Goal
 	}
