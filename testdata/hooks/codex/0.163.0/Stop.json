@@ -1,0 +1,11 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "turn_id": "00000000-0000-4000-8000-000000000002",
+  "transcript_path": "/home/u/.codex/sessions/2026/10/27/rollout-2026-10-27T16-11-33-00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/w/proj",
+  "hook_event_name": "Stop",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "stop_hook_active": false,
+  "last_assistant_message": "`calc.go`에 두 정수의 합을 반환하는 `Add(a, b int) int` 함수를 추가했습니다.\n\n`go test ./...` 통과했습니다 (`ok calc`)."
+}

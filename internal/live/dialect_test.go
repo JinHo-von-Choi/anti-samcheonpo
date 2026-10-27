@@ -195,3 +195,28 @@ func TestAgyVersionOneFourFixtures(t *testing.T) {
 		}
 	}
 }
+
+// Codex 0.163.0 payloads captured from the real CLI keep the shape the
+// handlers read, including a post-tool result for apply_patch.
+func TestCodexVersionZeroOneSixThreeFixtures(t *testing.T) {
+	files, err := filepath.Glob("../../testdata/hooks/codex/0.163.0/*.json")
+	if err != nil || len(files) < 8 {
+		t.Fatalf("fixtures %v %v", files, err)
+	}
+	for _, path := range files {
+		if strings.HasSuffix(path, "manifest.json") {
+			continue
+		}
+		raw, _ := os.ReadFile(path)
+		event, _, _ := strings.Cut(strings.TrimSuffix(filepath.Base(path), ".json"), "-")
+		names, ins, err := translateIn("codex", event, raw)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		for i, n := range names {
+			if reason := hookShape(n, ins[i]); reason != "" {
+				t.Fatalf("%s: %s", path, reason)
+			}
+		}
+	}
+}

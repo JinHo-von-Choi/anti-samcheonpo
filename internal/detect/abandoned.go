@@ -111,6 +111,10 @@ func (e *Engine) noteExercise(ev *event.Event) {
 	if ev.Tool != event.ToolShell || ev.Background || ev.ExitCode == nil || *ev.ExitCode < 0 {
 		return
 	}
+	if ev.Category == event.CatProduce || ev.Mutating {
+		// "cat > a.go <<EOF" names the file because it writes it
+		return
+	}
 	cmd := ev.CmdNorm
 	if cmd == "" {
 		cmd = ev.Cmd

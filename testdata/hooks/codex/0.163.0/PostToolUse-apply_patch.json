@@ -1,0 +1,15 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "turn_id": "00000000-0000-4000-8000-000000000002",
+  "transcript_path": "/home/u/.codex/sessions/2026/10/27/rollout-2026-10-27T16-11-33-00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/w/proj",
+  "hook_event_name": "PostToolUse",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "apply_patch",
+  "tool_input": {
+    "command": "*** Begin Patch\n*** Update File: /w/proj/calc.go\n@@\n package calc\n+\n+func Add(a, b int) int {\n+\treturn a + b\n+}\n*** End Patch"
+  },
+  "tool_response": "Exit code: 0\nWall time: 0.6 seconds\nOutput:\nSuccess. Updated the following files:\nM /w/proj/calc.go\n",
+  "tool_use_id": "exec-593b9d7b-48fe-4fb5-b297-a1a7e36696e7"
+}

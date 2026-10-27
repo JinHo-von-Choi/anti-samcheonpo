@@ -1,0 +1,15 @@
+{
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "turn_id": "00000000-0000-4000-8000-000000000002",
+  "transcript_path": "/home/u/.codex/sessions/2026/10/27/rollout-2026-10-27T16-11-33-00000000-0000-4000-8000-000000000001.jsonl",
+  "cwd": "/w/proj",
+  "hook_event_name": "PostToolUse",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "pwd && rg --files -g 'AGENTS.md' -g 'calc.go' -g 'go.mod' -g '*_test.go'"
+  },
+  "tool_response": "/w/proj\ngo.mod\ncalc_test.go\ncalc.go\n",
+  "tool_use_id": "exec-eeb22b76-125a-4687-8f30-938eb21f83d8"
+}

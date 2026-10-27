@@ -52,8 +52,9 @@ var Profiles = map[string]Profile{
 	// Codex 0.160.0: payloads captured in testdata/hooks/codex. PostToolUse
 	// carries the output as a plain string without the exit code; apply_patch
 	// may have no PostToolUse; SessionEnd may take at most 3 seconds. Codex
-	// 0.162.0 sends the same fields, tool names and call IDs.
-	"codex": {Agent: "codex", Tested: Tested{Min: "0.160.0", Max: "0.162.999"}, Caps: Caps{
+	// 0.162.0 sends the same fields, tool names and call IDs. Codex 0.163.0
+	// (testdata/hooks/codex/0.163.0) also sends a PostToolUse for apply_patch.
+	"codex": {Agent: "codex", Tested: Tested{Min: "0.160.0", Max: "0.163.0"}, Caps: Caps{
 		BlockPre: true, InjectPre: true, InjectPost: true, BlockStop: true, EndTurnPost: false, PromptInject: true,
 		StatusLine: false, UserMessage: true, PostFailure: false, ExitInHook: false, SessionEndBudget: 3 * time.Second}},
 	// opencode 1.18.34 through the forwarder plugin (plugins/opencode): a

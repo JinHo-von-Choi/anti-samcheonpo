@@ -1,0 +1,42 @@
+{
+  "agent_version": "0.163.0",
+  "redactions": [
+    "session and turn ids replaced",
+    "workspace path replaced with /w/proj",
+    "CODEX_HOME replaced with /home/u/.codex"
+  ],
+  "captures": [
+    {
+      "file": "SessionStart.json",
+      "sha256": "f594c1d1aee33f570b62209fe2117b06921c7ce87e40c4deb44faecf366f868d"
+    },
+    {
+      "file": "UserPromptSubmit.json",
+      "sha256": "ec3a59eb7377b7e542a34a8d98cec3c123317ca3a0e61d05944dbb23015e0ea0"
+    },
+    {
+      "file": "PreToolUse-bash.json",
+      "sha256": "3a546716b6908506fa801f6a4cb59e2cb6105fc3e91c6b875fe49e51361cdd14"
+    },
+    {
+      "file": "PostToolUse-bash.json",
+      "sha256": "4ba53d7278af712d6a995f626754f59993926d5eed6b1328df3797724a60a4ee"
+    },
+    {
+      "file": "PreToolUse-apply_patch.json",
+      "sha256": "ac62d3f5a20b06a52a55a9843da3824846e0f77f308294cba056ebc4bf4c41c1"
+    },
+    {
+      "file": "PostToolUse-apply_patch.json",
+      "sha256": "ad4145ea169888d2625f8bcddbbf319825cceb3739c4e5925ecc86e22e702ba4"
+    },
+    {
+      "file": "Stop.json",
+      "sha256": "f2de439c0ff7a075c5fd7734c0c8f3d871a97e85a8b2a072aa1a9d2609ec7842"
+    },
+    {
+      "file": "SessionEnd.json",
+      "sha256": "3cf3812b1a25976cd871a2f101d32c4c2aafc1c5fba50f9886ba179a9c0106fb"
+    }
+  ]
+}

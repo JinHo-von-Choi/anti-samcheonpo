@@ -240,3 +240,15 @@ func TestProtectedPathRelativeShellRead(t *testing.T) {
 		}
 	}
 }
+
+// A shell command that writes the file names it, but writing is not
+// running it.
+func TestAbandonedVerificationShellWriteIsNotACheck(t *testing.T) {
+	b := newB(t, "calc.go에 Add 추가해 줘", nil)
+	exit := 0
+	b.next(&event.Event{Kind: event.KindTool, Tool: event.ToolShell, Category: event.CatProduce, Mutating: true, Paths: []string{"calc.go"},
+		Cmd: "cat > calc.go <<'EOF'\npackage calc\nEOF", CmdNorm: "cat > calc.go", ExitCode: &exit})
+	if v := fired(b.msg("추가했습니다."), RuleAbandonedVerification); v == nil || v.Facts["kind"] != KindNoCheckAfterChange {
+		t.Fatalf("a shell write counted as a check: %+v", v)
+	}
+}

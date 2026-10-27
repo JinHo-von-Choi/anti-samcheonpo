@@ -185,3 +185,22 @@ func TestAssertionGuard_SuppressionRuleNeedsBothParts(t *testing.T) {
 		t.Fatalf("a suppression without an assertion drop is allowed: %+v", v)
 	}
 }
+
+// Folding assertions into a table keeps every expected value; dropping
+// one is still weakening.
+func TestAssertionGuardTellsParametrizationFromWeakening(t *testing.T) {
+	g := NewAssertionGuard()
+	removed := []string{"\tif Add(1, 2) != 3 {", "\t\tt.Fatal(\"want 3\")", "\t}", "\tif Add(2, 5) != 7 {", "\t\tt.Fatal(\"want 7\")", "\t}"}
+	table := []string{"\tfor _, tc := range []struct{ a, b, want int }{{1, 2, 3}, {2, 5, 7}} {", "\t\tif got := Add(tc.a, tc.b); got != tc.want {", "\t\t\tt.Fatalf(\"Add(%d, %d) = %d, want %d\", tc.a, tc.b, got, tc.want)", "\t\t}", "\t}"}
+	if v := g.InspectPatch("calc_test.go", table, removed); v.Blocked {
+		t.Fatalf("parametrization blocked: %+v", v)
+	}
+	dropped := []string{"\tfor _, tc := range []struct{ a, b, want int }{{1, 2, 3}} {", "\t\tif got := Add(tc.a, tc.b); got != tc.want {", "\t\t\tt.Fatalf(\"got %d\", got)", "\t\t}", "\t}"}
+	if v := g.InspectPatch("calc_test.go", dropped, removed); !v.Blocked {
+		t.Fatal("a table that drops a case was not blocked")
+	}
+	py := []string{"@pytest.mark.parametrize('a,b,want', [(1, 2, 3), (2, 5, 7)])", "def test_add(a, b, want):", "    assert add(a, b) == want"}
+	if v := g.InspectPatch("tests/test_calc.py", py, []string{"def test_add():", "    assert add(1, 2) == 3", "    assert add(2, 5) == 7"}); v.Blocked {
+		t.Fatalf("pytest parametrize blocked: %+v", v)
+	}
+}

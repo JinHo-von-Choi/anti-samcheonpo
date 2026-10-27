@@ -54,7 +54,7 @@ func (g *AssertionGuard) InspectPatch(path string, added, removed []string) Asse
 	if !classify.IsTestPath(path) {
 		return AssertionVerdict{}
 	}
-	if a, r := Count(assertionRE, added), Count(assertionRE, removed); r > a {
+	if a, r := Count(assertionRE, added), Count(assertionRE, removed); r > a && !parametrized(added, removed, a) {
 		return AssertionVerdict{Blocked: true, Reason: "assertion_count_decreased", Kind: KindAssertionMutilated}
 	}
 	if a, r := Count(identityRE, added), Count(identityRE, removed); a > r {
@@ -128,3 +128,45 @@ func itoa(n int) string {
 	}
 	return string(buf[i:])
 }
+
+// tableRE finds a test written over a table of cases.
+var tableRE = lazyre.New(`@pytest\.mark\.parametrize|\b(?:test|it|describe)\.each\b|for\s+_,\s*\w+\s*:=\s*range\b|\[\]struct\s*\{|\bt\.Run\(|\bsubTest\(|for\s+\w+(?:\s*,\s*\w+)*\s+in\s+\w*(?:cases|tests|params|table)\w*`)
+
+// literalRE finds the expected values an assertion compares against.
+var literalRE = lazyre.New(`-?\b\d+(?:\.\d+)?\b|"[^"\n]*"|'[^'\n]*'`)
+
+// parametrized reports a change that folds assertions into a table of
+// cases: fewer assertion calls, but a loop or table over the cases, at
+// least one assertion left, and every expected value of the removed
+// assertions still present in the added lines.
+func parametrized(added, removed []string, remaining int) bool {
+	if remaining == 0 || Count(tableRE, added) == 0 {
+		return false
+	}
+	text := strings.Join(added, "\n")
+	for i, line := range removed {
+		if !assertionRE.MatchString(line) {
+			continue
+		}
+		// a Go check states the expectation on the line before t.Fatal,
+		// and the t.Fatal text itself is a message, not an expectation
+		context := []string{line}
+		if goFailRE.MatchString(line) {
+			context = []string{goFailRE.ReplaceAllString(line, "")}
+			if i > 0 {
+				context = append(context, removed[i-1])
+			}
+		}
+		for _, c := range context {
+			for _, lit := range literalRE.FindAllString(c, -1) {
+				if !strings.Contains(text, strings.Trim(lit, `"'`)) {
+					return false
+				}
+			}
+		}
+	}
+	return true
+}
+
+// goFailRE is a Go failure call and its message arguments.
+var goFailRE = lazyre.New(`\bt\.(?:Error|Fatal)f?\(.*$`)
