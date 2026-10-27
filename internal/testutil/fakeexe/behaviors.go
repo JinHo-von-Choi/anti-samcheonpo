@@ -39,7 +39,7 @@ func ironLaws(_ Spec, args []string) int {
 	}
 	items := make([]string, n)
 	for i := range items {
-		items[i] = `{"rule_id":"IL-301","iron_law":3,"line_number":1,"confidence":"CONFIRMED"}`
+		items[i] = `{"rule_id":"IL-301","iron_law":3,"severity":"HIGH","line_number":1,"confidence":"CONFIRMED"}`
 	}
 	if err := os.WriteFile(out, []byte(`{"violations":[`+strings.Join(items, ",")+`]}`), 0o644); err != nil {
 		return 1

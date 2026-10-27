@@ -213,7 +213,13 @@ func (s *Session) ironLawsSignals(ev *event.Event, p string, fs []IronLawsFindin
 		if f.Confidence == "CONFIRMED" {
 			conf = 0.9
 		}
-		sigs = append(sigs, detect.Signal{Detector: "S5", Rule: "s5.error_hiding", Confidence: conf, Level: detect.L1, Evidence: []int64{ev.Seq}, Facts: map[string]any{"kind": "iron_laws:" + f.RuleID, "path": p, "line": f.Line, "source": "iron-laws", "finding_key": key, "attribution": "changed_line"}})
+		// a medium or low finding (a broad but logged except, IL-304) is
+		// questionable handling, not a hidden error: record it only
+		level := detect.L1
+		if f.Severity != "HIGH" && f.Severity != "CRITICAL" {
+			level = detect.L0
+		}
+		sigs = append(sigs, detect.Signal{Detector: "S5", Rule: "s5.error_hiding", Confidence: conf, Level: level, Evidence: []int64{ev.Seq}, Facts: map[string]any{"kind": "iron_laws:" + f.RuleID, "path": p, "line": f.Line, "source": "iron-laws", "finding_key": key, "attribution": "changed_line"}})
 	}
 	for i := range sigs {
 		sigs[i].Facts["finding_count"] = len(sigs)

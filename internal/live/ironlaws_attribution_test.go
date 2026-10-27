@@ -8,7 +8,7 @@ import (
 
 func TestIronLawsRequiresChangedLinesAndStableSnapshot(t *testing.T) {
 	s, _ := reliabilitySession(t)
-	findings := []IronLawsFinding{{RuleID: "IL-301", Line: 1, Confidence: "CONFIRMED"}}
+	findings := []IronLawsFinding{{RuleID: "IL-301", Severity: "HIGH", Line: 1, Confidence: "CONFIRMED"}}
 	ev := &event.Event{Seq: 1}
 	for _, tc := range []struct {
 		name   string
@@ -40,7 +40,7 @@ func TestIronLawsRequiresChangedLinesAndStableSnapshot(t *testing.T) {
 func TestIronLawsFindingKeySurvivesLineMovementAndRestart(t *testing.T) {
 	s, _ := reliabilitySession(t)
 	ev := &event.Event{Seq: 1, Patch: []event.PatchFile{{Path: "io.py", Added: []string{"SWALLOW"}}}}
-	findings := []IronLawsFinding{{RuleID: "IL-301", Line: 1}}
+	findings := []IronLawsFinding{{RuleID: "IL-301", Severity: "HIGH", Line: 1}}
 	vs := s.ironLawsSignals(ev, "io.py", findings, []string{"SWALLOW"}, true)
 	if len(vs) != 1 || vs[0].Level == detect.L0 {
 		t.Fatal(vs)
@@ -51,5 +51,15 @@ func TestIronLawsFindingKeySurvivesLineMovementAndRestart(t *testing.T) {
 	ev.Seq = 2
 	if got := s.ironLawsSignals(ev, "io.py", findings, []string{"new line", "SWALLOW"}, true); len(got) != 0 {
 		t.Fatalf("same finding repeated after restart: %+v", got)
+	}
+}
+
+// A medium finding (a broad except that logs) is recorded, not advised.
+func TestIronLawsMediumFindingIsRecordedOnly(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	ev := &event.Event{Seq: 1, Patch: []event.PatchFile{{Path: "io.py", Added: []string{"except Exception as e:"}}}}
+	vs := s.ironLawsSignals(ev, "io.py", []IronLawsFinding{{RuleID: "IL-304", Severity: "MEDIUM", Line: 1}}, []string{"except Exception as e:"}, true)
+	if len(vs) != 1 || vs[0].Level != detect.L0 {
+		t.Fatalf("%+v", vs)
 	}
 }

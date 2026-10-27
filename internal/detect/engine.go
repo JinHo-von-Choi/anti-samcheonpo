@@ -6,6 +6,7 @@ package detect
 import (
 	"fmt"
 	"path"
+	"slices"
 	"sort"
 	"strconv"
 	"strings"
@@ -1231,6 +1232,11 @@ func (e *Engine) bypass(ev *event.Event, sigs *[]Signal) {
 					Facts: map[string]any{"path": p, "kind": string(KindMockSubstituted)}})
 			}
 			for _, k := range TestChange(pf.Added, pf.Removed) {
+				if k == KindLiteralReplaced && e.createdCode(ev) {
+					// the expectation follows a feature the session added (a
+					// registry count growing with a new parser and its test)
+					continue
+				}
 				conf, lvl := 0.9, L2
 				if k == KindLiteralReplaced {
 					// expected values also change when the specification changes
@@ -1244,6 +1250,10 @@ func (e *Engine) bypass(ev *event.Event, sigs *[]Signal) {
 					st.testLits[l] = ev.Seq
 				}
 			}
+			continue
+		}
+		if pathnorm.IsTempPath(p) {
+			// a scratch script is thrown away, not shipped
 			continue
 		}
 		for _, k := range HidingChange(pf.Added, pf.Removed) {
@@ -1281,6 +1291,18 @@ func (e *Engine) bypass(ev *event.Event, sigs *[]Signal) {
 			}
 		}
 	}
+}
+
+// createdCode reports whether the session, up to ev, created a code or
+// test file, which a feature added in the session brings.
+func (e *Engine) createdCode(ev *event.Event) bool {
+	code := func(p string) bool { return !IsDataPath(p) && !IsDocPath(p) }
+	for p := range e.St.created {
+		if code(p) {
+			return true
+		}
+	}
+	return slices.ContainsFunc(ev.Created, code)
 }
 
 func (e *Engine) testBloat(ev *event.Event, sigs *[]Signal) {

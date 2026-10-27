@@ -48,7 +48,7 @@ python3 scripts/codex_pilot.py --binary /absolute/path/to/samcheonpo --run
 ## 릴리즈 절차
 
 1. 변경 이력과 한국어·영문 설치 버전을 갱신합니다. `internal/cli/cli.go`와 `internal/hookclient/executable.go`의 버전도 일치시킵니다.
-2. 변경을 커밋하고 CI를 확인합니다.
+2. 변경을 커밋하고 CI를 확인합니다. 규칙을 바꿨다면 `scripts/replay-diff.sh [이전 태그] [기간]`으로 지난 세션 기록에서 규칙별 경고 수가 어떻게 달라지는지 확인합니다. 두 빌드를 임시 폴더에서 차례로 돌리므로, 진행 중인 세션이 있으면 몇 건의 차이는 실행 사이에 늘어난 기록 때문일 수 있습니다.
 3. `release-candidate` 워크플로를 해당 커밋에서 실행합니다. 여섯 플랫폼의 빌드·설치·제거·기록 분석·첫 훅 검사를 통과한 압축 파일만 사용합니다.
 4. artifact의 체크섬을 확인하고 전체 `SHA256SUMS`를 합칩니다. 태그가 검사한 커밋을 가리키는지 확인한 뒤 GitHub Release에 게시합니다.
 5. 공개 릴리즈의 태그·파일 6개·체크섬을 확인합니다.

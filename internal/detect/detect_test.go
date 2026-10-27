@@ -1029,3 +1029,27 @@ func TestArmSharesAreEven(t *testing.T) {
 		}
 	}
 }
+
+// An expected value that grows with a feature the session added is not a
+// weakened test; the same change with no new code still is.
+func TestLiteralReplacedWithNewFeature(t *testing.T) {
+	old, new := []string{"    expect(parsers.length).toBe(41)"}, []string{"    expect(parsers.length).toBe(42)"}
+	b := newB(t, "x", nil)
+	if v := fired(b.write("tests/registry.test.ts", "a", new, old), "s5.test_weakening"); v == nil || v.Facts["kind"] != "literal_replaced" {
+		t.Fatalf("a replaced expectation alone is judged: %+v", v)
+	}
+	b2 := newB(t, "x", nil)
+	ev := &event.Event{Kind: event.KindTool, Tool: event.ToolWrite, Category: event.CatProduce, Paths: []string{"tests/lsmod.test.ts", "tests/registry.test.ts"},
+		Created: []string{"tests/lsmod.test.ts"}, WriteHashes: map[string]string{"tests/lsmod.test.ts": "a", "tests/registry.test.ts": "b"},
+		Patch: []event.PatchFile{{Path: "tests/lsmod.test.ts", Added: []string{"it('parses', () => {})"}}, {Path: "tests/registry.test.ts", Added: new, Removed: old}}}
+	if v := fired(b2.next(ev), "s5.test_weakening"); v != nil {
+		t.Fatalf("an expectation growing with a new parser is not weakening: %+v", v)
+	}
+}
+
+func TestErrorHidingSkipsScratchFiles(t *testing.T) {
+	b := newB(t, "x", nil)
+	if v := fired(b.write("/tmp/run/probe.py", "a", []string{"    except Exception: pass"}, nil), "s5.error_hiding"); v != nil {
+		t.Fatalf("a scratch script is not shipped code: %+v", v)
+	}
+}
