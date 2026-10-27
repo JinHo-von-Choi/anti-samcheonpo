@@ -132,18 +132,32 @@ func identWords(line string) []string {
 	})
 }
 
-// requestIdents returns the identifiers a request names precisely.
+// leaveAloneRe finds the words right after a name that tell the agent to
+// leave it unchanged ("calc_test.go는 수정하지 말고", "don't touch x").
+var leaveAloneRe = lazyre.New(`(?i)^[^.\n]{0,12}?(?:수정하지|고치지|건드리지|바꾸지|손대지|변경하지|don'?t (?:touch|modify|change|edit)|do not (?:touch|modify|change|edit)|unchanged|as is)`)
+
+// requestIdents returns the identifiers a request names as work targets.
+//
+// A name the request tells the agent to leave alone is context, and so is
+// a test file: "make calc_test.go pass" names what to satisfy, not what to
+// change. Neither can be missing from the changes.
 func requestIdents(text string) []string {
 	seen := map[string]bool{}
 	var out []string
-	for _, m := range identRe.FindAllStringSubmatch(text, -1) {
-		for _, g := range m[1:] {
-			g = strings.ToLower(strings.Trim(g, "./"))
-			if g == "" || seen[g] {
+	for _, loc := range identRe.Get().FindAllStringSubmatchIndex(text, -1) {
+		if leaveAloneRe.MatchString(text[loc[1]:]) {
+			continue
+		}
+		for g := 1; g < len(loc)/2; g++ {
+			if loc[2*g] < 0 {
 				continue
 			}
-			seen[g] = true
-			out = append(out, g)
+			name := strings.ToLower(strings.Trim(text[loc[2*g]:loc[2*g+1]], "./"))
+			if name == "" || seen[name] || classify.IsTestPath(name) {
+				continue
+			}
+			seen[name] = true
+			out = append(out, name)
 		}
 	}
 	return out

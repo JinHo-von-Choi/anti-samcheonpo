@@ -127,6 +127,7 @@ type Session struct {
 	stopBlocks      int
 	heldStops       map[string]bool // evidence keys a stop hold already answered
 	holdReason      string          // the last stop hold reason, until a prompt echoes it
+	lastResultAt    time.Time       // the latest post-tool result
 	preWrites       sync.WaitGroup  // pre-tool verdicts stored after the answer
 	// advised holds escalation keys (revision, rule, pattern, target) whose
 	// advice reached the agent; released holds rules the user marked as false

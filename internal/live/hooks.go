@@ -434,7 +434,7 @@ func (s *Session) buildTool(in HookInput) *event.Event {
 // earlier call ended.
 func (s *Session) flushTurn() {
 	s.mu.Lock()
-	stale := s.flushAwaiting("")
+	stale := s.flushAwaiting(func(string, *event.Event) bool { return true })
 	s.mu.Unlock()
 	for _, ev := range stale {
 		s.enqueue(ev, 0)
@@ -444,10 +444,10 @@ func (s *Session) flushTurn() {
 // flushAwaiting finalizes earlier calls that never received a post-tool hook:
 // they are kept for cost but marked as not executed, so they count neither as
 // writes nor as checks. A late result for a flushed call is ignored.
-func (s *Session) flushAwaiting(except string) []*event.Event {
+func (s *Session) flushAwaiting(stale func(id string, ev *event.Event) bool) []*event.Event {
 	var out []*event.Event
 	for id, ev := range s.awaiting {
-		if id == except {
+		if !stale(id, ev) {
 			continue
 		}
 		delete(s.awaiting, id)
@@ -528,6 +528,16 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	if ev.Category == event.CatProduce {
 		s.trackBefore(in, ev.CallID, ev.Paths)
 	}
+	var superseded []*event.Event
+	if s.Agent == "claude" && !s.lastResultAt.IsZero() {
+		// Claude Code starts a new call only after the previous batch has
+		// answered, so a call that began before the latest result and still
+		// has no result of its own was refused (a permission denial has no
+		// post-tool hook). Left waiting, it would mark every later wait as
+		// possibly overlapping a running call.
+		cut := s.lastResultAt
+		superseded = s.flushAwaiting(func(id string, x *event.Event) bool { return !x.TS.IsZero() && x.TS.Before(cut) })
+	}
 	s.awaiting[ev.CallID] = ev
 	s.byTool[ev.CallID] = ev
 	if cur, fresh := s.ws.Current(); fresh {
@@ -565,6 +575,9 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	ctx := s.msgContext()
 	seq, tool, execFP, certain, norm := ev.Seq, ev.Tool, ev.ExecFP, ev.ExecCertain, ev.CmdNorm
 	s.mu.Unlock()
+	for _, x := range superseded {
+		s.enqueue(x, 0)
+	}
 	if !deny && s.queueRejected.Load() == 0 {
 		if tool == event.ToolShell {
 			if pre := s.evidencePre(execFP, certain, norm, seq, deadline); pre != nil {
@@ -762,6 +775,7 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 	}
 	delete(s.shell, ev.CallID)
 	delete(s.awaiting, ev.CallID)
+	s.lastResultAt = time.Now()
 	resp := in.ToolResponse
 	errText := in.Error
 	if failure && errText == "" {

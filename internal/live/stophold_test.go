@@ -133,3 +133,31 @@ func TestProtectedReadIsDeniedAndRecorded(t *testing.T) {
 		t.Fatalf("block not stored: %d %v", n, err)
 	}
 }
+
+// A call refused by Claude Code's permission check gets no post-tool hook.
+// Once a later call has answered, the next call closes it, so it does not
+// look like a call still running next to every later wait.
+func TestRefusedCallIsClosedAfterALaterResult(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	s.onPrompt(HookInput{Prompt: "go test 돌려 줘"})
+	s.onPreTool(HookInput{ToolUseID: "refused", ToolName: "Bash", ToolInput: json.RawMessage(`{"command":"go test ./... ; echo $?"}`)})
+	time.Sleep(2 * time.Millisecond)
+	s.onPreTool(HookInput{ToolUseID: "ok", ToolName: "Bash", ToolInput: json.RawMessage(`{"command":"go test ./..."}`)})
+	s.mu.Lock()
+	if s.awaiting["refused"] == nil {
+		s.mu.Unlock()
+		t.Fatal("a call of the same batch was closed before any result")
+	}
+	s.mu.Unlock()
+	s.onPostTool(HookInput{ToolUseID: "ok", ToolName: "Bash", ToolResponse: json.RawMessage(`{"stdout":"ok calc","exit_code":0}`)}, false)
+	time.Sleep(2 * time.Millisecond)
+	s.onPreTool(HookInput{ToolUseID: "wait", ToolName: "Bash", ToolInput: json.RawMessage(`{"command":"sleep 2"}`)})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if s.awaiting["refused"] != nil {
+		t.Fatal("the refused call is still waiting after a later result")
+	}
+	if s.awaiting["wait"] == nil {
+		t.Fatal("the new call is not waiting")
+	}
+}

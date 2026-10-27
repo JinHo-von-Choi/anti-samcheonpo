@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"strings"
 	"testing"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
@@ -203,5 +204,17 @@ func TestAbandonedVerificationRunningTheChangedFileCounts(t *testing.T) {
 	b.write("a.py", "b", []string{"print(3)"}, nil)
 	if v := fired(b.msg("다시 고쳤습니다."), RuleAbandonedVerification); v == nil || v.Facts["kind"] != KindNoCheckAfterChange {
 		t.Fatalf("a run before the latest change still counted: %+v", v)
+	}
+}
+
+// A file the request tells the agent to leave alone, and a test file to be
+// satisfied, are context, not targets that can be missing.
+func TestRequestIdentsSkipLeftAloneAndTestFiles(t *testing.T) {
+	got := requestIdents("calc_test.go는 수정하지 말고 calc.go의 `Add`만 고쳐 줘. `Sub`는 건드리지 마.")
+	if strings.Join(got, ",") != "calc.go,add" {
+		t.Fatalf("idents %q", got)
+	}
+	if got := requestIdents("tests/test_cart.py가 통과하도록 cart.py 고쳐 줘"); strings.Join(got, ",") != "cart.py" {
+		t.Fatalf("test file kept as a target: %q", got)
 	}
 }
