@@ -1016,3 +1016,16 @@ func TestArmIsPerSessionAndCoversCompletion(t *testing.T) {
 		t.Fatal("guardrails and record-only verdicts must stay out")
 	}
 }
+
+// Arms are assigned in equal shares.
+func TestArmSharesAreEven(t *testing.T) {
+	n := map[string]int{}
+	for i := 0; i < 30000; i++ {
+		n[Arm(fmt.Sprintf("session-%d", i))]++
+	}
+	for _, arm := range []string{"none", "fact", "prescription"} {
+		if share := float64(n[arm]) / 30000; share < 0.32 || share > 0.347 {
+			t.Fatalf("uneven arm %s: %.3f %v", arm, share, n)
+		}
+	}
+}

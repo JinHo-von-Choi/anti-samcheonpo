@@ -148,6 +148,10 @@ type Attempt struct {
 	TargetHash            string `json:"target_hash,omitempty"`
 	RelevantOpportunities int    `json:"relevant_opportunities,omitempty"`
 	DeliveryReason        string `json:"delivery_reason,omitempty"`
+	// Arm is the intervention experiment arm of the verdict. In the control
+	// arm ("none") the prescription is proposed but not sent, and its outcome
+	// is observed from the verdict on, like a delivered one.
+	Arm string `json:"arm,omitempty"`
 
 	Version         string       `json:"version"`
 	ID              string       `json:"id"`
@@ -215,6 +219,8 @@ func (a *Attempt) Advance(next Stage, now time.Time) error {
 	case a.Stage == Delivered && next == Acknowledged:
 		allowed = true
 	case (a.Stage == Delivered || a.Stage == Acknowledged) && next == EffectObserved && a.Observation != "":
+		allowed = true
+	case a.Stage == Proposed && a.Arm == "none" && next == EffectObserved && a.Observation != "":
 		allowed = true
 	}
 	if !allowed {

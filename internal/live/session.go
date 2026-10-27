@@ -597,7 +597,9 @@ func (s *Session) deliver(sigs []detect.Signal) {
 		s.lastPrimary = &cp
 		ctx := s.msgContext()
 		if v.Arm == "none" {
-			// control arm of the intervention experiment: record only
+			// control arm of the intervention experiment: the recovery is
+			// proposed and withheld, so its outcome is observed like a sent one
+			s.proposeRecovery(v)
 			s.record(v, "none")
 			continue
 		}
@@ -620,12 +622,7 @@ func (s *Session) deliver(sigs []detect.Signal) {
 		}
 		switch {
 		case v.Level == detect.L1:
-			m := intervene.Agent(v, ctx, "fact")
-			if v.Arm != "fact" {
-				m = strings.TrimSpace(m + "\n" + prescription)
-			} else {
-				m = recoveryMarker(attempt.ID) + "\n" + m
-			}
+			m := armMessage(v, intervene.Agent(v, ctx, "fact"), attempt, prescription)
 			if attempt.Route == "user" {
 				s.userMsg = append(s.userMsg, m)
 			} else {
@@ -635,12 +632,12 @@ func (s *Session) deliver(sigs []detect.Signal) {
 			s.record(v, channel)
 		case v.Level >= detect.L2:
 			if attempt.Route == "advice" {
-				m := strings.TrimSpace(intervene.Agent(v, ctx, "fact") + "\n" + prescription)
+				m := armMessage(v, intervene.Agent(v, ctx, "fact"), attempt, prescription)
 				s.pending = append(s.pending, m)
 				s.pendingRule[m] = s.adviceKey(v)
 			}
 			um := intervene.User(v, ctx)
-			if attempt.Route == "user" {
+			if attempt.Route == "user" && v.Arm != "fact" {
 				um += "\n" + prescription
 			}
 			s.userMsg = append(s.userMsg, um)

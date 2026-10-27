@@ -71,7 +71,7 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	if res.Category == recovery.CategoryExternalEnvironment {
 		p.Shell = res.PrescribedAction
 	}
-	if v.Level == detect.L1 && v.Arm == "fact" {
+	if v.Arm == "fact" {
 		p.Action = "관측 사실만 전달한다(처방 없는 비교군)."
 		p.StopCondition = "자동 복구 처방을 추가하지 않는다."
 		p.MaxAttempts = 0
@@ -79,7 +79,7 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	}
 	decision := policy.Decide("advice", policy.Capabilities{Inject: s.caps.InjectPre || s.caps.InjectPost || s.caps.PromptInject, UserMessage: s.caps.UserMessage})
 	now := time.Now().UTC()
-	a := recovery.Attempt{Version: "recovery/1", ID: fp.Hash(s.Agent, s.ID, v.ID, key, now.Format(time.RFC3339Nano)), Agent: s.Agent, SessionID: s.ID, Revision: s.contractRevision, CauseKey: key, VerdictID: v.ID, Rule: v.Rule, Seq: v.Seq, Prescription: p, Stage: recovery.Proposed, CreatedAt: now, Route: decision.Route}
+	a := recovery.Attempt{Version: "recovery/1", ID: fp.Hash(s.Agent, s.ID, v.ID, key, now.Format(time.RFC3339Nano)), Agent: s.Agent, SessionID: s.ID, Revision: s.contractRevision, CauseKey: key, VerdictID: v.ID, Rule: v.Rule, Seq: v.Seq, Prescription: p, Stage: recovery.Proposed, CreatedAt: now, Route: decision.Route, Arm: v.Arm}
 	if completionRule(v.Rule) {
 		// judged at turn end, so its effect is settled at the next turn end
 		a.ObservationBasis = "repair_after_completion"
@@ -213,6 +213,20 @@ func completionRule(rule string) bool {
 	return false
 }
 
+// exposed reports whether an attempt's outcome is observed: delivered, or
+// withheld as the control arm.
+func exposed(a recovery.Attempt) bool { return a.DeliveredAt != nil || a.Arm == "none" }
+
+// armMessage is the agent message of a verdict with its recovery. The fact
+// arm gets the observation and the recovery marker only, so the arms differ
+// by the prescription alone.
+func armMessage(v detect.Signal, observation string, a recovery.Attempt, prescription string) string {
+	if v.Arm == "fact" {
+		return strings.TrimSpace(recoveryMarker(a.ID) + "\n" + observation)
+	}
+	return strings.TrimSpace(observation + "\n" + prescription)
+}
+
 func (s *Session) trackOutcomes(ev *event.Event) {
 	for i := range s.recoveries {
 		a := &s.recoveries[i]
@@ -227,7 +241,7 @@ func (s *Session) trackOutcomes(ev *event.Event) {
 			continue
 		}
 		a.ObservedThrough = ev.Seq
-		if a.DeliveredAt != nil && a.Revision == s.contractRevision && relevantRecoveryEvent(*a, ev) {
+		if exposed(*a) && a.Revision == s.contractRevision && relevantRecoveryEvent(*a, ev) {
 			a.RelevantOpportunities++
 		}
 		if ev.Seq < start+10 {
@@ -236,7 +250,7 @@ func (s *Session) trackOutcomes(ev *event.Event) {
 		}
 		a.Observation = "delivery_unconfirmed"
 		next := recovery.Censored
-		if a.DeliveredAt != nil {
+		if exposed(*a) {
 			a.Observation = "no_relevant_observation"
 			if a.Revision != s.contractRevision {
 				a.Observation = "target_revision_changed"
@@ -295,7 +309,7 @@ func (s *Session) trackOutcomes(ev *event.Event) {
 func (s *Session) settleCompletion(sigs []detect.Signal) {
 	for i := range s.recoveries {
 		a := &s.recoveries[i]
-		if a.ObservationBasis != "repair_after_completion" || a.DeliveredAt == nil || a.Stage == recovery.EffectObserved || a.Stage == recovery.Censored {
+		if a.ObservationBasis != "repair_after_completion" || !exposed(*a) || a.Stage == recovery.EffectObserved || a.Stage == recovery.Censored {
 			continue
 		}
 		recurred := false

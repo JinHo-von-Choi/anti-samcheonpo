@@ -62,9 +62,13 @@ func (s *Session) holdStop(v detect.Signal, in HookInput) json.RawMessage {
 	s.lastPrimary = &v
 	s.persistVerdict(v)
 	s.recordBlock(v)
-	reason := intervene.Agent(v, s.msgContext(), "prescription")
-	if _, prescription, ok := s.proposeRecovery(v); ok {
-		reason = strings.TrimSpace(reason + "\n" + prescription)
+	arm := "prescription"
+	if v.Arm == "fact" {
+		arm = "fact"
+	}
+	reason := intervene.Agent(v, s.msgContext(), arm)
+	if a, prescription, ok := s.proposeRecovery(v); ok {
+		reason = armMessage(v, reason, a, prescription)
 	}
 	s.mu.Unlock()
 	if nudge != "" {

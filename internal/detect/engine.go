@@ -7,6 +7,7 @@ import (
 	"fmt"
 	"path"
 	"sort"
+	"strconv"
 	"strings"
 	"time"
 
@@ -1808,8 +1809,10 @@ func ExperimentEligible(v Signal) bool {
 // The arm is per session, not per rule: every eligible verdict of one
 // session gets the same treatment, so sessions can be compared as units.
 func Arm(session string) string {
-	h := fp.Hash("arm", session)
-	switch h[0] % 3 {
+	// the first 32 bits of the hash, not one hex character: '0'–'9' and
+	// 'a'–'f' fall unevenly into three groups (6/5/5)
+	n, _ := strconv.ParseUint(fp.Hash("arm", session)[:8], 16, 32)
+	switch n % 3 {
 	case 0:
 		return "none"
 	case 1:

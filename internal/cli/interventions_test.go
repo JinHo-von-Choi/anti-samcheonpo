@@ -55,8 +55,8 @@ func TestInterventionsCountsStagesPerRule(t *testing.T) {
 		}
 	}
 	for _, line := range strings.Split(text, "\n") {
-		// 제안 발신 전달 인지 차단 재발없음 재발 미관측
-		if strings.HasPrefix(line, "s2.stuck_error") && strings.Join(strings.Fields(line), " ") != "s2.stuck_error 2 1 1 0 0 1 0 1" {
+		// 제안 발신 전달 인지 차단 재발없음 재발 미관측 진행
+		if strings.HasPrefix(line, "s2.stuck_error") && strings.Join(strings.Fields(line), " ") != "s2.stuck_error 2 1 1 0 0 1 0 1 0" {
 			t.Fatalf("per-stage counts: %q", line)
 		}
 	}
@@ -101,8 +101,8 @@ func TestInterventionsCountsBlocksSeparately(t *testing.T) {
 	for _, line := range strings.Split(text, "\n") {
 		if strings.HasPrefix(line, "s1.identical_rerun") {
 			fields := strings.Fields(line)
-			// 제안 발신 전달 인지 차단 재발없음 재발 미관측
-			if len(fields) != 9 {
+			// 제안 발신 전달 인지 차단 재발없음 재발 미관측 진행
+			if len(fields) != 10 {
 				t.Fatalf("unexpected columns: %q", line)
 			}
 			if fields[5] != "3" {
