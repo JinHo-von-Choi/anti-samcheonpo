@@ -248,12 +248,16 @@ fn the_transport_always_exits_zero() {
             .stdout(Stdio::piped())
             .stderr(Stdio::piped());
         let mut child = child.spawn().expect("훅 실행 실패");
-        child
+        // A hook that exits before reading (--version) closes the pipe; the
+        // exit code is what this test checks, so a broken pipe is not a failure.
+        if let Err(err) = child
             .stdin
             .as_mut()
             .expect("표준입력 없음")
             .write_all(b"{\"broken\":")
-            .expect("입력 쓰기 실패");
+        {
+            assert_eq!(err.kind(), std::io::ErrorKind::BrokenPipe, "입력 쓰기 실패: {err:?}");
+        }
         drop(child.stdin.take());
         let started = Instant::now();
         let status = child.wait().expect("훅 대기 실패");

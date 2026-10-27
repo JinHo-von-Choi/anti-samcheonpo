@@ -123,7 +123,8 @@ func TestProtectedReadIsDeniedAndRecorded(t *testing.T) {
 	s.eng.Cfg.ProtectedPaths = s.Cfg.ProtectedPaths
 	s.mu.Unlock()
 	s.onPrompt(HookInput{Prompt: "grader 읽어 줘"})
-	out := string(s.onPreTool(HookInput{ToolUseID: "r1", ToolName: "Read", ToolInput: json.RawMessage(`{"file_path":"` + filepath.Join(s.Root, "grader", "answer.txt") + `"}`)}))
+	input, _ := json.Marshal(map[string]string{"file_path": filepath.Join(s.Root, "grader", "answer.txt")})
+	out := string(s.onPreTool(HookInput{ToolUseID: "r1", ToolName: "Read", ToolInput: input}))
 	if !strings.Contains(out, `"permissionDecision":"deny"`) {
 		t.Fatalf("protected read not denied: %s", out)
 	}

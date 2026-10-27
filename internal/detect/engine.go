@@ -159,7 +159,10 @@ type State struct {
 	lastPromptSeq        int64                // latest user prompt; forced continuations are not answers
 	hollow               map[string]hollowHit // production files whose latest change left an unwritten body
 	changedText          map[string]bool      // paths and identifier words the session changed
-	createdTests         map[string]bool      // test files the session created
+	changedCompound      []string             // the dotted or slashed entries of changedText
+	changedGen           uint64
+	targetCache          *targetStatus
+	createdTests         map[string]bool // test files the session created
 	seenPath             map[string]bool
 	fixActions           []fixAction
 	fixFired             map[string]bool

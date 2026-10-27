@@ -1,6 +1,7 @@
 package detect
 
 import (
+	"path/filepath"
 	"strings"
 	"testing"
 
@@ -228,8 +229,8 @@ func TestRequestIdentsSkipLeftAloneAndTestFiles(t *testing.T) {
 // command that only names the project is not.
 func TestProtectedPathRelativeShellRead(t *testing.T) {
 	b := newB(t, "작업", nil)
-	b.e.Root = "/w/proj"
-	b.e.Cfg.ProtectedPaths = []string{"/w/proj/grader"}
+	b.e.Root = t.TempDir()
+	b.e.Cfg.ProtectedPaths = []string{filepath.Join(b.e.Root, "grader")}
 	read := &event.Event{Kind: event.KindTool, Tool: event.ToolShell, Cmd: "cat grader/answer.txt", CmdNorm: "cat grader/answer.txt"}
 	if s := b.e.ProtectedCheck(read); s == nil {
 		t.Fatal("relative read of the grader was not stopped")

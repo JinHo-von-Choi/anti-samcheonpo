@@ -65,10 +65,10 @@ func (e *Engine) trackHollow(ev *event.Event, sc ShortCircuitVerdict) {
 	}
 	for _, pf := range ev.Patch {
 		p := pf.Path
-		st.changedText[strings.ToLower(p)] = true
+		st.noteChanged(strings.ToLower(p))
 		for _, line := range pf.Added {
 			for _, w := range identWords(line) {
-				st.changedText[w] = true
+				st.noteChanged(w)
 			}
 		}
 		if classify.IsTestPath(p) {
@@ -167,13 +167,36 @@ func requestIdents(text string) []string {
 	return out
 }
 
+// noteChanged records a path or a word a change contains. A dotted or
+// slashed name also records its last part, so "calc/add.go" or "calc.Add"
+// answers for "add.go" or "add" with a map lookup.
+func (st *State) noteChanged(w string) {
+	if w == "" || st.changedText[w] {
+		return
+	}
+	st.changedText[w] = true
+	if i := strings.LastIndexAny(w, "./"); i >= 0 && i+1 < len(w) {
+		st.changedText[w[i+1:]] = true
+	}
+	if i := strings.LastIndex(w, "/"); i >= 0 && i+1 < len(w) {
+		st.changedText[w[i+1:]] = true
+	}
+	if strings.ContainsAny(w, "._/") {
+		st.changedCompound = append(st.changedCompound, w)
+	}
+	st.changedGen++
+}
+
 // changed reports whether a session change mentions an identifier.
 func (st *State) changed(ident string) bool {
 	if st.changedText[ident] {
 		return true
 	}
-	for w := range st.changedText {
-		if strings.HasSuffix(w, "/"+ident) || strings.HasSuffix(w, "."+ident) || strings.Contains(w, ident) && strings.ContainsAny(ident, "._/") {
+	if !strings.ContainsAny(ident, "._/") {
+		return false
+	}
+	for _, w := range st.changedCompound {
+		if strings.Contains(w, ident) {
 			return true
 		}
 	}
@@ -250,13 +273,27 @@ func (e *Engine) hollowCompletion(msg *event.Event) *Signal {
 // TargetStatus splits the targets a text names precisely into those some
 // change of the session mentions and those no change mentions yet. A
 // mention is not a verification; it only says where work has happened.
+//
+// The HUD asks on every update, so the answer is kept until the text or the
+// recorded changes differ.
 func (e *Engine) TargetStatus(text string) (changed, missing []string) {
+	st := e.St
+	if c := st.targetCache; c != nil && c.text == text && c.gen == st.changedGen {
+		return c.changed, c.missing
+	}
 	for _, id := range requestIdents(text) {
-		if e.St.changed(id) {
+		if st.changed(id) {
 			changed = append(changed, id)
 		} else {
 			missing = append(missing, id)
 		}
 	}
+	st.targetCache = &targetStatus{text: text, gen: st.changedGen, changed: changed, missing: missing}
 	return changed, missing
+}
+
+type targetStatus struct {
+	text             string
+	gen              uint64
+	changed, missing []string
 }
