@@ -80,3 +80,22 @@ func TestReviewRecordsJudgmentsAndAccuracyCountsThem(t *testing.T) {
 		t.Fatalf("judged precision missing:\n%s", acc.String())
 	}
 }
+
+func TestReviewTakesRulesInTurn(t *testing.T) {
+	row := func(rule string) ledger.ReviewRow {
+		var r ledger.ReviewRow
+		r.Verdict.Rule = rule
+		return r
+	}
+	rows := []ledger.ReviewRow{row("s9.a"), row("s9.a"), row("s9.a"), row("s3.b"), row("s5.c"), row("s3.b")}
+	var got []string
+	for _, r := range spreadRules(rows, 5) {
+		got = append(got, r.Verdict.Rule)
+	}
+	if strings.Join(got, " ") != "s9.a s3.b s5.c s9.a s3.b" {
+		t.Fatalf("%v", got)
+	}
+	if n := len(spreadRules(rows, 10)); n != len(rows) {
+		t.Fatalf("a limit above the pool keeps every row: %d", n)
+	}
+}

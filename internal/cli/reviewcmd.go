@@ -43,10 +43,13 @@ func reviewCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
-			rows, err := db.UnreviewedInterventions(from, limit)
+			// a pool wider than the limit, so one noisy rule cannot fill the
+			// whole review
+			rows, err := db.UnreviewedInterventions(from, reviewPool)
 			if err != nil {
 				return err
 			}
+			rows = spreadRules(rows, limit)
 			out := cmd.OutOrStdout()
 			if len(rows) == 0 {
 				fmt.Fprintln(out, "판정할 경고가 없습니다.")
@@ -88,8 +91,43 @@ func reviewCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&since, "since", "7d", "이 기간 안에 전달된 경고만 (예: 7d, 30d)")
-	c.Flags().IntVar(&limit, "limit", 20, "한 번에 보여 줄 최대 건수")
+	c.Flags().IntVar(&limit, "limit", 5, "한 번에 보여 줄 최대 건수 (규칙마다 돌아가며 고른다)")
 	return c
+}
+
+// reviewPool is how many unreviewed warnings the review picks from.
+const reviewPool = 2000
+
+// spreadRules picks up to limit warnings taking one rule at a time in turn,
+// newest first within a rule, so every rule gets judged instead of the one
+// that warns most.
+func spreadRules(rows []ledger.ReviewRow, limit int) []ledger.ReviewRow {
+	var order []string
+	byRule := map[string][]ledger.ReviewRow{}
+	for _, r := range rows {
+		if _, ok := byRule[r.Verdict.Rule]; !ok {
+			order = append(order, r.Verdict.Rule)
+		}
+		byRule[r.Verdict.Rule] = append(byRule[r.Verdict.Rule], r)
+	}
+	var out []ledger.ReviewRow
+	for len(out) < limit {
+		took := false
+		for _, rule := range order {
+			if len(out) == limit {
+				break
+			}
+			if q := byRule[rule]; len(q) > 0 {
+				out = append(out, q[0])
+				byRule[rule] = q[1:]
+				took = true
+			}
+		}
+		if !took {
+			break
+		}
+	}
+	return out
 }
 
 func finishReview(out io.Writer, counts map[string]int, err error) error {
