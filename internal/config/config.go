@@ -192,6 +192,9 @@ type Privacy struct {
 // Experiment configures the intervention experiment.
 type Experiment struct {
 	Enabled bool `yaml:"enabled" json:"enabled"`
+	// Arms are assigned per session in equal shares: none (record only),
+	// fact (observation without prescription), prescription (as usual).
+	Arms []string `yaml:"arms" json:"arms"`
 }
 
 // Checkpoint configures the checkpoint runner.
@@ -246,6 +249,7 @@ func Default() Config {
 	c.Notify.Desktop = true
 	c.Privacy = Privacy{ExternalJudge: false, StoreRawText: false}
 	c.Experiment.Enabled = false
+	c.Experiment.Arms = []string{"none", "prescription"}
 	c.Checkpoint.TimeoutSec = 120
 	c.IronLaws.Enabled = true
 	return c
@@ -273,6 +277,7 @@ func Load(projectDir string) (Config, string, error) {
 		userPush := c.Notify.Push
 		userJudge := c.Detectors.S3.Judge
 		userExperiment := c.Experiment.Enabled
+		userArms := append([]string(nil), c.Experiment.Arms...)
 		userDetectors, userLevels := c.Detectors, c.Levels
 		userLevels.PauseOn = append([]string(nil), c.Levels.PauseOn...)
 		userMode := c.Rollout.Mode
@@ -330,6 +335,7 @@ func Load(projectDir string) (Config, string, error) {
 				}
 			}
 			c.Experiment.Enabled = userExperiment && c.Experiment.Enabled
+			c.Experiment.Arms = userArms // only the user picks the arms
 			loosenOnly(&c.Detectors, &c.Levels, userDetectors, userLevels)
 			rank := map[string]int{"shadow": 0, "recommend": 1, "validated": 2}
 			if rank[c.Rollout.Mode] > rank[userMode] {
@@ -362,6 +368,14 @@ func Load(projectDir string) (Config, string, error) {
 	}
 	if c.Rollout.EscalateMaxBlocks < 0 {
 		return c, "", fmt.Errorf("rollout.escalate_max_blocks must be 0 or greater")
+	}
+	if len(c.Experiment.Arms) < 2 {
+		return c, "", fmt.Errorf("experiment.arms must list at least two of none, fact, prescription")
+	}
+	for i, arm := range c.Experiment.Arms {
+		if arm != "none" && arm != "fact" && arm != "prescription" || slices.Contains(c.Experiment.Arms[:i], arm) {
+			return c, "", fmt.Errorf("experiment.arms must list distinct arms among none, fact, prescription")
+		}
 	}
 	if c.Detectors.Overrides == nil {
 		c.Detectors.Overrides = map[string]int{}

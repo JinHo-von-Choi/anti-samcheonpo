@@ -543,7 +543,7 @@ func replayCorpusRun(base, scratch string, run CorpusRun, rr CorpusRunReport, pr
 			arm = "off"
 		}
 		if arm == "" && cfg.Experiment.Enabled && detect.ExperimentEligible(v) {
-			arm = detect.Arm(session.ID)
+			arm = detect.Arm(session.ID, cfg.Experiment.Arms)
 		}
 		if arm != "" {
 			rr.DeliveryArms[v.Rule] = arm

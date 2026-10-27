@@ -1805,7 +1805,7 @@ func (e *Engine) combine(ev *event.Event, sigs []Signal) []Signal {
 		e.cooldownUntil[key] = ev.Seq + cool
 		e.cooldownLevel[key] = sigs[best].Level
 		if e.Mode == "live" && e.Cfg.Experiment.Enabled && ExperimentEligible(sigs[best]) {
-			sigs[best].Arm = Arm(e.Session)
+			sigs[best].Arm = Arm(e.Session, e.Cfg.Experiment.Arms)
 		}
 	}
 	for _, s := range sigs {
@@ -1830,19 +1830,19 @@ func ExperimentEligible(v Signal) bool {
 //
 // The arm is per session, not per rule: every eligible verdict of one
 // session gets the same treatment, so sessions can be compared as units.
-func Arm(session string) string {
+// arms lists the arms in equal shares; with none given, the session gets
+// none or prescription.
+func Arm(session string, arms []string) string {
+	if len(arms) == 0 {
+		arms = defaultArms
+	}
 	// the first 32 bits of the hash, not one hex character: '0'–'9' and
 	// 'a'–'f' fall unevenly into three groups (6/5/5)
 	n, _ := strconv.ParseUint(fp.Hash("arm", session)[:8], 16, 32)
-	switch n % 3 {
-	case 0:
-		return "none"
-	case 1:
-		return "fact"
-	default:
-		return "prescription"
-	}
+	return arms[n%uint64(len(arms))]
 }
+
+var defaultArms = []string{"none", "prescription"}
 
 // ReserveIDs makes verdict IDs continue after n, so a session resumed by a
 // restarted daemon does not reuse the IDs of verdicts it already stored.

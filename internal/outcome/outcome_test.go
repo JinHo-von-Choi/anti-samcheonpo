@@ -1,6 +1,7 @@
 package outcome
 
 import (
+	"math"
 	"testing"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
@@ -48,5 +49,23 @@ func TestMeasureIgnoresFailedChecksAndOtherRules(t *testing.T) {
 	verdicts := []detect.Signal{{Rule: "s4.read_only_streak", Seq: 3, Level: detect.L1}, {Rule: "s1.identical_rerun", Seq: 3, Level: detect.L0}}
 	if o := Measure(1, "s1.identical_rerun", nil, evs, verdicts, 5); o.Verified || o.Reverted || o.Recurred || o.Repeated {
 		t.Fatalf("%+v", o)
+	}
+}
+
+func TestConfSeqNarrowsWithSamplesAndCoversTheMean(t *testing.T) {
+	xs := make([]float64, 0, 4000)
+	for i := 0; i < 4000; i++ {
+		xs = append(xs, float64(i%10)/10) // mean 0.45
+	}
+	m1, h1 := ConfSeq(xs[:100], 0.05)
+	m2, h2 := ConfSeq(xs, 0.05)
+	if h2 >= h1 || h2 <= 0 {
+		t.Fatalf("width %v then %v", h1, h2)
+	}
+	if m1-h1 > 0.45 || m1+h1 < 0.45 || m2-h2 > 0.45 || m2+h2 < 0.45 {
+		t.Fatalf("mean not covered: %v±%v %v±%v", m1, h1, m2, h2)
+	}
+	if _, h := ConfSeq(nil, 0.05); !math.IsInf(h, 1) {
+		t.Fatal("no sample, no interval")
 	}
 }

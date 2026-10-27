@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"io"
 	"sort"
 	"time"
 
@@ -38,6 +39,9 @@ func outcomesCmd() *cobra.Command {
 			}
 			type agg struct{ n, complete, verified, repeated, recurred, testEdited, reverted int }
 			by := map[string]*agg{}
+			// per experiment arm, each session's share of warnings followed by
+			// each behaviour: the session is the unit the arm was assigned to
+			bySession := map[string][][4]float64{}
 			// rows are ordered by session, so each session is loaded once
 			for i := 0; i < len(rows); {
 				j := i
@@ -52,6 +56,8 @@ func outcomesCmd() *cobra.Command {
 				if err != nil {
 					return err
 				}
+				var share [4]float64
+				arm, inArm := "", 0
 				for _, r := range rows[i:j] {
 					key := r.Rule
 					if byArm {
@@ -67,6 +73,15 @@ func outcomesCmd() *cobra.Command {
 						by[key] = a
 					}
 					o := outcome.Measure(r.Seq, r.Rule, r.Evidence, evs, verdicts, window)
+					if r.Arm != "" {
+						arm = r.Arm
+						inArm++
+						for k, on := range []bool{o.Verified, o.Repeated, o.Recurred, o.Reverted} {
+							if on {
+								share[k]++
+							}
+						}
+					}
 					a.n++
 					for _, x := range []struct {
 						on  bool
@@ -76,6 +91,12 @@ func outcomesCmd() *cobra.Command {
 							*x.cnt++
 						}
 					}
+				}
+				if inArm > 0 {
+					for k := range share {
+						share[k] /= float64(inArm)
+					}
+					bySession[arm] = append(bySession[arm], share)
 				}
 				i = j
 			}
@@ -96,6 +117,9 @@ func outcomesCmd() *cobra.Command {
 				fmt.Fprintf(w, "%-36s %6d %7s %6s %7s %6s %8s %7s\n", k, a.n, pct(a.complete, a.n), pct(a.verified, a.n), pct(a.repeated, a.n), pct(a.recurred, a.n), pct(a.testEdited, a.n), pct(a.reverted, a.n))
 			}
 			fmt.Fprintf(w, "각 비율은 경고 뒤 도구 호출 %d번 안에서 그 행동이 한 번 이상 나온 경고의 비율이다. 창완료는 세션이 %d번을 다 채운 비율이다.\n", window, window)
+			if byArm {
+				compareArms(w, bySession)
+			}
 			fmt.Fprintln(w, "경고를 보낸 군과 보내지 않은 군(none)을 --by-arm으로 비교할 때만 차이를 경고의 효과로 읽을 수 있다. 실험 밖(-) 수치는 경고 뒤 행동일 뿐이다.")
 			return nil
 		},
@@ -104,4 +128,46 @@ func outcomesCmd() *cobra.Command {
 	c.Flags().IntVar(&window, "window", 20, "경고 뒤에 볼 도구 호출 수")
 	c.Flags().BoolVar(&byArm, "by-arm", false, "실험 군별 집계")
 	return c
+}
+
+// compareArms prints, per behaviour, each arm's mean share over sessions and
+// its difference from the control arm with a 95% interval that stays valid
+// however often it is read.
+func compareArms(w io.Writer, bySession map[string][][4]float64) {
+	control := bySession["none"]
+	if len(control) == 0 {
+		fmt.Fprintln(w, "\n대조군(none) 세션이 아직 없어 군 비교를 하지 않는다.")
+		return
+	}
+	var arms []string
+	for arm := range bySession {
+		if arm != "none" {
+			arms = append(arms, arm)
+		}
+	}
+	sort.Strings(arms)
+	column := func(rows [][4]float64, k int) []float64 {
+		out := make([]float64, len(rows))
+		for i, r := range rows {
+			out[i] = r[k]
+		}
+		return out
+	}
+	fmt.Fprintf(w, "\n군 비교 (세션 단위, 대조군 none %d세션)\n", len(control))
+	for _, arm := range arms {
+		fmt.Fprintf(w, "%s %d세션\n", arm, len(bySession[arm]))
+		for k, name := range []string{"검증", "재실행", "재발", "되돌림"} {
+			mc, hc := outcome.ConfSeq(column(control, k), 0.025)
+			ma, ha := outcome.ConfSeq(column(bySession[arm], k), 0.025)
+			d, h := ma-mc, ha+hc
+			verdict := "차이 없음 또는 판단 보류"
+			if d-h > 0 {
+				verdict = "높다"
+			} else if d+h < 0 {
+				verdict = "낮다"
+			}
+			fmt.Fprintf(w, "  %-6s none %5.1f%%  %s %5.1f%%  차이 %+5.1f%%p (95%% 구간 %+5.1f ~ %+5.1f) %s\n", name, 100*mc, arm, 100*ma, 100*d, 100*(d-h), 100*(d+h), verdict)
+		}
+	}
+	fmt.Fprintln(w, "구간은 표본이 쌓이는 동안 언제 봐도 유효한 신뢰열이다. 구간이 0을 포함하면 차이를 주장하지 않는다.")
 }

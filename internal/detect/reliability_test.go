@@ -294,6 +294,7 @@ func TestReliabilityExperimentArmsPreserveDetection(t *testing.T) {
 		e := reliabilityEngine()
 		e.Session = fmt.Sprintf("arm-%d", i)
 		e.Cfg.Experiment.Enabled = true
+		e.Cfg.Experiment.Arms = []string{"none", "fact", "prescription"}
 		e.Cfg.Rollout.ShadowRules = nil
 		var sigs []Signal
 		for n := int64(1); n <= 3; n++ {
@@ -303,7 +304,7 @@ func TestReliabilityExperimentArmsPreserveDetection(t *testing.T) {
 		}
 		for _, s := range sigs {
 			if s.Rule == "s1.explicit_waiting" {
-				if s.Level != L1 || !s.Primary || s.Arm != Arm(e.Session) {
+				if s.Level != L1 || !s.Primary || s.Arm != Arm(e.Session, e.Cfg.Experiment.Arms) {
 					t.Fatal(s)
 				}
 				arms[s.Arm] = true

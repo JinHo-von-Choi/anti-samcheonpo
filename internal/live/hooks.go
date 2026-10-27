@@ -624,7 +624,7 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 		}
 	}
 	if s.Cfg.Experiment.Enabled && detect.ExperimentEligible(v) {
-		v.Arm = detect.Arm(s.ID)
+		v.Arm = detect.Arm(s.ID, s.Cfg.Experiment.Arms)
 	}
 	if v.Arm == "none" {
 		// control arm of the intervention experiment: record, do not block

@@ -558,14 +558,14 @@ func TestDeterminism(t *testing.T) {
 func TestArmDeterministic(t *testing.T) {
 	seen := map[string]bool{}
 	for i := 0; i < 60; i++ {
-		a := Arm("session-" + string(rune('a'+i%26)) + string(rune('0'+i/26)))
-		if a != Arm("session-"+string(rune('a'+i%26))+string(rune('0'+i/26))) {
+		a := Arm("session-"+string(rune('a'+i%26))+string(rune('0'+i/26)), nil)
+		if a != Arm("session-"+string(rune('a'+i%26))+string(rune('0'+i/26)), nil) {
 			t.Fatal("arm must be deterministic")
 		}
 		seen[a] = true
 	}
-	if len(seen) != 3 {
-		t.Errorf("all three arms must occur, got %v", seen)
+	if len(seen) != 2 {
+		t.Errorf("both default arms must occur, got %v", seen)
 	}
 }
 
@@ -1006,7 +1006,7 @@ func TestStuckErrorLadderKeepsOrderWhenNudgeIsRaised(t *testing.T) {
 // One session gets one arm for every rule, and completion verdicts (S5)
 // take part in the experiment. Accepted guardrails never do.
 func TestArmIsPerSessionAndCoversCompletion(t *testing.T) {
-	if Arm("s-1") != Arm("s-1") {
+	if Arm("s-1", nil) != Arm("s-1", nil) {
 		t.Fatal("arm must be deterministic")
 	}
 	if !ExperimentEligible(Signal{Rule: "s5.false_done", Level: L2}) || !ExperimentEligible(Signal{Rule: "s4.read_only_streak", Level: L1}) {
@@ -1017,15 +1017,25 @@ func TestArmIsPerSessionAndCoversCompletion(t *testing.T) {
 	}
 }
 
-// Arms are assigned in equal shares.
+// Arms are assigned in equal shares, two by default.
 func TestArmSharesAreEven(t *testing.T) {
-	n := map[string]int{}
-	for i := 0; i < 30000; i++ {
-		n[Arm(fmt.Sprintf("session-%d", i))]++
-	}
-	for _, arm := range []string{"none", "fact", "prescription"} {
-		if share := float64(n[arm]) / 30000; share < 0.32 || share > 0.347 {
-			t.Fatalf("uneven arm %s: %.3f %v", arm, share, n)
+	for _, arms := range [][]string{nil, {"none", "fact", "prescription"}} {
+		n := map[string]int{}
+		for i := 0; i < 30000; i++ {
+			n[Arm(fmt.Sprintf("session-%d", i), arms)]++
+		}
+		want := arms
+		if want == nil {
+			want = []string{"none", "prescription"}
+		}
+		if len(n) != len(want) {
+			t.Fatalf("arms %v: %v", want, n)
+		}
+		for _, arm := range want {
+			share := float64(n[arm]) / 30000
+			if d := share - 1/float64(len(want)); d < -0.015 || d > 0.015 {
+				t.Fatalf("uneven arm %s: %.3f %v", arm, share, n)
+			}
 		}
 	}
 }

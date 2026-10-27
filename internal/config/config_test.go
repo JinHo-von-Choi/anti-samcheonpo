@@ -3,6 +3,7 @@ package config
 import (
 	"os"
 	"path/filepath"
+	"strings"
 	"testing"
 )
 
@@ -189,5 +190,27 @@ func TestLongSessionLimitsMergeAsLimits(t *testing.T) {
 	}
 	if c, _, _ = Load(project); c.Detectors.S8.CeilingHours != 2 {
 		t.Fatalf("a project may tighten the ceiling: %v", c.Detectors.S8.CeilingHours)
+	}
+}
+
+func TestExperimentArmsAreUserOnlyAndValidated(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("SAMCHEONPO_HOME", home)
+	proj := t.TempDir()
+	write := func(path, body string) {
+		t.Helper()
+		if err := os.WriteFile(path, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write(filepath.Join(home, "config.yml"), "experiment: {enabled: true, arms: [none, fact, prescription]}\n")
+	write(filepath.Join(proj, ".samcheonpo.yml"), "experiment: {arms: [none, none]}\n")
+	c, _, err := Load(proj)
+	if err != nil || !c.Experiment.Enabled || strings.Join(c.Experiment.Arms, ",") != "none,fact,prescription" {
+		t.Fatalf("%v %v", c.Experiment, err)
+	}
+	write(filepath.Join(home, "config.yml"), "experiment: {arms: [none, placebo]}\n")
+	if _, _, err := Load(proj); err == nil {
+		t.Fatal("an unknown arm is refused")
 	}
 }

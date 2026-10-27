@@ -4,6 +4,7 @@
 package outcome
 
 import (
+	"math"
 	"slices"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/classify"
@@ -72,4 +73,31 @@ func Measure(seq int64, rule string, evidence []int64, evs []*event.Event, verdi
 		}
 	}
 	return o
+}
+
+// ConfSeq returns the mean of xs, values in [0, 1], and the half-width of an
+// asymptotic confidence sequence: an interval that holds at every sample
+// size at once, so the comparison may be read while data keep arriving
+// (Waudby-Smith et al., "Time-uniform central limit theory", 2021). The
+// width is tuned for about 100 samples.
+func ConfSeq(xs []float64, alpha float64) (mean, half float64) {
+	n := float64(len(xs))
+	if n == 0 {
+		return 0, math.Inf(1)
+	}
+	for _, x := range xs {
+		mean += x
+	}
+	mean /= n
+	var v float64
+	for _, x := range xs {
+		v += (x - mean) * (x - mean)
+	}
+	v /= n
+	// a sample with no spread still has the spread a single change would add
+	v = math.Max(v, 1/(4*n))
+	l := -2 * math.Log(alpha)
+	rho2 := (l + math.Log(l+1)) / 100
+	k := n*v*rho2 + 1
+	return mean, math.Sqrt(2 * k / (n * n * rho2) * math.Log(math.Sqrt(k)/alpha))
 }
