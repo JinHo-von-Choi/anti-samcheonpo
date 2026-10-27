@@ -256,7 +256,11 @@ fn the_transport_always_exits_zero() {
             .expect("표준입력 없음")
             .write_all(b"{\"broken\":")
         {
-            assert_eq!(err.kind(), std::io::ErrorKind::BrokenPipe, "입력 쓰기 실패: {err:?}");
+            assert_eq!(
+                err.kind(),
+                std::io::ErrorKind::BrokenPipe,
+                "입력 쓰기 실패: {err:?}"
+            );
         }
         drop(child.stdin.take());
         let started = Instant::now();
