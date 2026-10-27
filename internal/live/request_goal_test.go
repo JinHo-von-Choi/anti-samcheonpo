@@ -68,3 +68,22 @@ func TestSummaryListsRemainingNamedTargets(t *testing.T) {
 		t.Fatalf("HUD request %q", h.Requested)
 	}
 }
+
+// A background task notification delivered in the user turn is not a
+// request: the goal and the intent revision stay as the user left them.
+func TestHarnessNotificationIsNotARequest(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	s.onPrompt(HookInput{Prompt: "계산기 버그 고쳐 줘"})
+	s.mu.Lock()
+	rev := s.intentRevision.Number
+	s.mu.Unlock()
+	s.onPrompt(HookInput{Prompt: "<task-notification>\n<task-id>b1</task-id>\n<status>completed</status>\n</task-notification>"})
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	if len(s.eng.Requests) != 0 || s.eng.LatestRequest() != "계산기 버그 고쳐 줘" {
+		t.Fatalf("notification became a request: %q", s.eng.Requests)
+	}
+	if s.intentRevision.Number != rev {
+		t.Fatal("notification revised the intent")
+	}
+}

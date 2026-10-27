@@ -296,3 +296,12 @@ func TestRealUseFalsePositives(t *testing.T) {
 		}
 	}
 }
+
+// A replayed harness notification is not a later request.
+func TestReplayedHarnessNotificationIsNotARequest(t *testing.T) {
+	b := newB(t, "계산기 고쳐 줘", nil)
+	b.prompt("<system-reminder>\nThe task tools have not been used recently.\n</system-reminder>")
+	if len(b.e.Requests) != 0 {
+		t.Fatalf("requests %q", b.e.Requests)
+	}
+}

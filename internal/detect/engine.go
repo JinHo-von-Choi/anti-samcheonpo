@@ -343,6 +343,9 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 		st.compacted = true
 		e.memoryRot(ev, &sigs)
 	case event.KindPrompt:
+		if ev.PromptOrigin == "harness" || intent.HarnessNotice(ev.Text) {
+			break // a harness notification, not the user
+		}
 		if ev.Forced {
 			e.forcedTurn(ev, &sigs)
 		} else {

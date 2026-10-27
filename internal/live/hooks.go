@@ -314,6 +314,15 @@ func (s *Session) onPrompt(in HookInput) json.RawMessage {
 	s.mu.Lock()
 	ev := &event.Event{PromptOrigin: "user", Kind: event.KindPrompt, TS: time.Now(), Summary: "prompt", Text: in.Prompt, Basis: "live"}
 	ev.Forced = rules.Current().ForcedPrompts.Match(strings.TrimSpace(in.Prompt))
+	if intent.HarnessNotice(in.Prompt) {
+		// a background task or reminder delivered in the user turn is neither
+		// a request nor a forced continuation
+		ev.PromptOrigin = "harness"
+		s.parser.AddEvent(ev)
+		s.mu.Unlock()
+		s.enqueue(ev, 0)
+		return nil
+	}
 	if s.holdReason != "" && strings.TrimSpace(in.Prompt) == s.holdReason {
 		// a host that continues a held stop by sending the hold reason as the
 		// next prompt (Copilot): the text is samcheonpo's, not a user request
