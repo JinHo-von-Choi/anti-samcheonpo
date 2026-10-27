@@ -1,0 +1,15 @@
+{
+  "hook_event_name": "PostToolUse",
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "timestamp": "2026-10-27T05:57:06.577Z",
+  "cwd": "/w/proj",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "python3 -c 'raise SystemExit(7)'",
+    "description": "Run the second requested Python command"
+  },
+  "tool_result": {
+    "result_type": "success",
+    "text_result_for_llm": "\n<shellId: 1 completed with exit code 7>"
+  }
+}

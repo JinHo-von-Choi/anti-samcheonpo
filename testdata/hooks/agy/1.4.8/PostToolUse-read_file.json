@@ -1,0 +1,18 @@
+{
+  "artifactDirectoryPath": "/home/u/.gemini/antigravity-cli/brain/00000000-0000-4000-8000-0000000000a1",
+  "conversationId": "00000000-0000-4000-8000-0000000000a1",
+  "error": "",
+  "lastUserInput": "calc.go 내용을 한 줄로 요약해 줘. 파일은 바꾸지 마.",
+  "modelName": "gemini-4-argon-medium",
+  "stepIdx": 2,
+  "toolCall": {
+    "args": {
+      "Path": "/w/proj/calc.go"
+    },
+    "name": "read_file"
+  },
+  "transcriptPath": "/home/u/.gemini/antigravity-cli/brain/00000000-0000-4000-8000-0000000000a1/.system_generated/logs/transcript_full.jsonl",
+  "workspacePaths": [
+    "/w/proj"
+  ]
+}

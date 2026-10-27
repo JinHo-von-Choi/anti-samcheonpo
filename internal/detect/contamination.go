@@ -38,8 +38,30 @@ func (e *Engine) protectedHit(ev *event.Event) string {
 		if ev.CmdNorm != "" && strings.Contains(ev.CmdNorm, abs) {
 			return p
 		}
+		// a relative path in the command ("cat grader/answer.txt") is
+		// resolved against the project. Only a word inside the protected
+		// path counts: "ls ." names the project, not the grader.
+		for _, w := range commandWords(ev.Cmd) {
+			if under(abs, e.resolve(w)) {
+				return w
+			}
+		}
 	}
 	return ""
+}
+
+// commandWords returns the words of a shell command that look like paths.
+func commandWords(cmd string) []string {
+	var out []string
+	for _, w := range strings.FieldsFunc(cmd, func(r rune) bool {
+		return r == ' ' || r == '\t' || r == '\n' || strings.ContainsRune(";|&<>()'\"`=", r)
+	}) {
+		if strings.HasPrefix(w, "-") || !strings.ContainsAny(w, "/.") {
+			continue
+		}
+		out = append(out, w)
+	}
+	return out
 }
 
 // resolve makes a path absolute against the session's project. Event paths

@@ -1,0 +1,10 @@
+{
+  "sessionId": "00000000-0000-4000-8000-000000000001",
+  "timestamp": 1793080623108,
+  "cwd": "/w/proj",
+  "toolName": "bash",
+  "toolArgs": {
+    "command": "python3 -c 'print(123)'",
+    "description": "Run the first requested Python command"
+  }
+}

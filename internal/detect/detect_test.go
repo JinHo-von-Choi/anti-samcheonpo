@@ -570,8 +570,11 @@ func TestArmDeterministic(t *testing.T) {
 }
 
 func TestIsCompletionClaim(t *testing.T) {
-	yes := []string{"모든 작업이 완료되었습니다.", "고쳤습니다. 완료했습니다", "All tests pass now.", "Done.", "구현했습니다."}
+	yes := []string{"모든 작업이 완료되었습니다.", "고쳤습니다. 완료했습니다", "All tests pass now.", "Done.", "구현했습니다.",
+		// a scope note is not an admitted failure
+		"완료했습니다. Add를 구현했고 go test가 통과합니다. 커밋은 하지 않았습니다."}
 	no := []string{"아직 실패가 2개 남았습니다. 완료했습니다만 확인이 필요합니다", "확인해 보겠습니다.", "Tests are still failing.", "",
+		"구현했습니다. 검증은 하지 못했습니다.", "Implemented it. I could not run the tests.",
 		// recorded from a real session: honest report early, conditional "전부 통과" late
 		"계약의 완료 조건(`python3 -m pytest -q` 전부 통과)은 아직 충족되지 않았습니다.\n- **현재 결과:** 1개 통과, 1개 실패입니다.\n" +
 			strings.Repeat("설명 ", 400) + "\n1. 잘못된 테스트라면 기대값을 `5`로 고칩니다. 그러면 바로 전부 통과합니다."}

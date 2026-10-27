@@ -76,7 +76,10 @@ var Profiles = map[string]Profile{
 	// agy 1.3.0: payloads captured in testdata/hooks/agy. Pre-tool deny and
 	// stop continuation verified with the real CLI; advice reaches the model
 	// through PreInvocation injectSteps; results come from the transcript.
-	"agy": {Agent: "agy", Tested: Tested{Min: "1.3.0", Max: "1.3.999"}, Caps: Caps{
+	// agy 1.4.8 (testdata/hooks/agy/1.4.8) names paths Path, states an edit as
+	// Target and Replacement, and writes read and edit results to the
+	// transcript like shell results.
+	"agy": {Agent: "agy", Tested: Tested{Min: "1.3.0", Max: "1.4.8"}, Caps: Caps{
 		BlockPre: true, InjectPre: false, InjectPost: false, BlockStop: true, PromptInject: true,
 		StatusLine: false, UserMessage: false, PostFailure: true, ExitInHook: true, SessionEndBudget: 5 * time.Second}},
 	// Hermes 0.21 through the forwarder plugin (plugins/hermes): pre_tool_call

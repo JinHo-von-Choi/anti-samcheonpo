@@ -1,0 +1,8 @@
+{
+  "hook_event_name": "SessionStart",
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "timestamp": "2026-10-27T05:56:57.191Z",
+  "cwd": "/w/proj",
+  "source": "new",
+  "initial_prompt": "Run exactly these shell calls in order: python3 -c 'print(123)', python3 -c 'raise SystemExit(7)'. Then read a.py, edit it to print(2), and run python3 a.py. Use only the shell, read and file-edit tools; do not load skills or MCP."
+}

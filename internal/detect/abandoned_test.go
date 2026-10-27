@@ -74,7 +74,12 @@ func TestAbandonedVerificationLeavesLegitimateStopsAlone(t *testing.T) {
 	if fired(b.msg("멈췄습니다. 검증은 하지 않았습니다."), RuleAbandonedVerification) != nil {
 		t.Error("a user stop was flagged")
 	}
-	// the user asked for no checks
+	// the user asked for no checks, in either ending
+	b = newB(t, "Add 함수만 추가하고 테스트는 돌리지 말고 바로 끝내", nil)
+	b.write("calc.go", "a", []string{"func Add(a, b int) int { return a + b }"}, nil)
+	if fired(b.msg("추가했습니다."), RuleAbandonedVerification) != nil {
+		t.Error("a request not to run tests was flagged")
+	}
 	b = newB(t, "Add 함수만 추가해 줘. 테스트 없이 파일만 수정해", nil)
 	b.write("calc.go", "a", []string{"func Add(a, b int) int { return a + b }"}, nil)
 	if fired(b.msg("추가했습니다. 테스트는 돌리지 않았습니다."), RuleAbandonedVerification) != nil {
@@ -216,5 +221,22 @@ func TestRequestIdentsSkipLeftAloneAndTestFiles(t *testing.T) {
 	}
 	if got := requestIdents("tests/test_cart.py가 통과하도록 cart.py 고쳐 줘"); strings.Join(got, ",") != "cart.py" {
 		t.Fatalf("test file kept as a target: %q", got)
+	}
+}
+
+// A shell read of a protected path by a relative name is stopped; a
+// command that only names the project is not.
+func TestProtectedPathRelativeShellRead(t *testing.T) {
+	b := newB(t, "작업", nil)
+	b.e.Root = "/w/proj"
+	b.e.Cfg.ProtectedPaths = []string{"/w/proj/grader"}
+	read := &event.Event{Kind: event.KindTool, Tool: event.ToolShell, Cmd: "cat grader/answer.txt", CmdNorm: "cat grader/answer.txt"}
+	if s := b.e.ProtectedCheck(read); s == nil {
+		t.Fatal("relative read of the grader was not stopped")
+	}
+	for _, cmd := range []string{"ls .", "rg -n Add .", "go test ./...", "cat calc.go"} {
+		if s := b.e.ProtectedCheck(&event.Event{Kind: event.KindTool, Tool: event.ToolShell, Cmd: cmd, CmdNorm: cmd}); s != nil {
+			t.Fatalf("%q was stopped", cmd)
+		}
 	}
 }

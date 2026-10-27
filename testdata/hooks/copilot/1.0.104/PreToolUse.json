@@ -1,0 +1,11 @@
+{
+  "hook_event_name": "PreToolUse",
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "timestamp": "2026-10-27T05:57:03.108Z",
+  "cwd": "/w/proj",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "python3 -c 'print(123)'",
+    "description": "Run the first requested Python command"
+  }
+}

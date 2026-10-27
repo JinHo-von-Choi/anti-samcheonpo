@@ -1,0 +1,20 @@
+{
+  "artifactDirectoryPath": "/home/u/.gemini/antigravity-cli/brain/00000000-0000-4000-8000-0000000000a1",
+  "conversationId": "00000000-0000-4000-8000-0000000000a1",
+  "error": "",
+  "lastUserInput": "calc.go에 두 정수를 더하는 Add(a, b int) int 함수를 추가해 줘. 파일만 수정하고 바로 끝내.",
+  "modelName": "gemini-4-argon-medium",
+  "stepIdx": 8,
+  "toolCall": {
+    "args": {
+      "CommandLine": "go test ./...",
+      "WaitMsBeforeAsync": 5000,
+      "toolSummary": "Run go test"
+    },
+    "name": "run_command"
+  },
+  "transcriptPath": "/home/u/.gemini/antigravity-cli/brain/00000000-0000-4000-8000-0000000000a1/.system_generated/logs/transcript_full.jsonl",
+  "workspacePaths": [
+    "/w/proj"
+  ]
+}

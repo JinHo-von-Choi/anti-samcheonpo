@@ -1,0 +1,9 @@
+{
+  "hook_event_name": "Stop",
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "timestamp": "2026-10-27T05:57:21.824Z",
+  "cwd": "/w/proj",
+  "transcript_path": "/w/state/session-state/00000000-0000-4000-8000-000000000001/events.jsonl",
+  "stop_reason": "end_turn",
+  "stop_hook_active": false
+}

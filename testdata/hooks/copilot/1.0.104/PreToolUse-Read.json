@@ -1,0 +1,10 @@
+{
+  "hook_event_name": "PreToolUse",
+  "session_id": "00000000-0000-4000-8000-000000000001",
+  "timestamp": "2026-10-27T05:57:10.448Z",
+  "cwd": "/w/proj",
+  "tool_name": "Read",
+  "tool_input": {
+    "path": "/w/proj/a.py"
+  }
+}

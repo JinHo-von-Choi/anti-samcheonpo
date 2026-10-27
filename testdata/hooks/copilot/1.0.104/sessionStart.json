@@ -1,0 +1,7 @@
+{
+  "sessionId": "00000000-0000-4000-8000-000000000001",
+  "timestamp": 1793080617191,
+  "cwd": "/w/proj",
+  "source": "new",
+  "initialPrompt": "Run exactly these shell calls in order: python3 -c 'print(123)', python3 -c 'raise SystemExit(7)'. Then read a.py, edit it to print(2), and run python3 a.py. Use only the shell, read and file-edit tools; do not load skills or MCP."
+}

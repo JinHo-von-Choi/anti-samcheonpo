@@ -71,6 +71,12 @@ func TestCopilotCapturedFixtures(t *testing.T) {
 	if err != nil || len(files) == 0 {
 		t.Fatalf("fixtures %v %v", files, err)
 	}
+	// later releases are captured in a folder named after the version
+	later, err := filepath.Glob("../../testdata/hooks/copilot/*/*.json")
+	if err != nil || len(later) == 0 {
+		t.Fatalf("versioned fixtures %v %v", later, err)
+	}
+	files = append(files, later...)
 	seen := 0
 	for _, path := range files {
 		if strings.HasSuffix(path, "manifest.json") {

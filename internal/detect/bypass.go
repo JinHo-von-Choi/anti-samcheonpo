@@ -136,13 +136,37 @@ func ExpectedLiterals(lines []string) []string {
 }
 
 var completionRe = lazyre.New(`(?i)(완료(?:했|되었|됐|입니다|합니다|\.|$)|끝났|마쳤|다 됐|모두 통과|전부 통과|구현했습니다|해결했습니다|고쳤습니다|\ball (?:tests? )?(?:pass|passing|green)\b|\b(?:done|completed?|finished|fixed|implemented)\b[.!]?\s*$|\btests? (?:now )?pass)`)
-var honestFailRe = lazyre.New(`(?i)(실패(?:가|한|했|합니다|입니다|하는|\s*\d)|\d+\s*개\s*실패|미검증|미완료|못했|못합니다|하지 못|않았|되지 않|않습니다|아직|남아|남은|오류가 (?:남|있)|\bfail(?:ed|ing|s)?\b|\bnot (?:yet|done|passing|met)\b|\bremain|\bunverified\b|\bcould not\b|\bcan't\b|\bcannot\b)`)
+var honestFailRe = lazyre.New(`(?i)(실패(?:가|한|했|합니다|입니다|하는|\s*\d)|\d+\s*개\s*실패|미검증|미완료|아직|남아|남은|오류가 (?:남|있)|\bfail(?:ed|ing|s)?\b|\bnot (?:yet|done|passing|met)\b|\bremain|\bunverified\b)`)
+
+// negationRe and outcomeRe judge a negation together with what it denies.
+// "커밋은 하지 않았습니다" reports a choice, not a failure; "검증은 하지 못했습니다"
+// reports an unverified outcome. Only the second makes a message an honest
+// report instead of a completion claim.
+var (
+	negationRe = lazyre.New(`(?i)(못했|못합니다|하지 못|않았|되지 않|않습니다|\bcould not\b|\bcan't\b|\bcannot\b|\bdid not\b|\bdidn't\b)`)
+	outcomeRe  = lazyre.New(`(?i)(테스트|시험|검증|검사|확인|통과|빌드|컴파일|동작|작동|해결|\btests?\b|\bbuild|\bpass|\bverif|\bwork)`)
+	sentenceRe = lazyre.New(`[.!?。\n]+`)
+)
+
+// honestReport reports whether a message admits a failure or an unverified
+// outcome anywhere in it.
+func honestReport(t string) bool {
+	if honestFailRe.MatchString(t) {
+		return true
+	}
+	for _, sentence := range sentenceRe.Get().Split(t, -1) {
+		if negationRe.MatchString(sentence) && outcomeRe.MatchString(sentence) {
+			return true
+		}
+	}
+	return false
+}
 
 // IsCompletionClaim reports whether an assistant message declares completion
 // without acknowledging failure.
 func IsCompletionClaim(text string) bool {
 	t := strings.TrimSpace(text)
-	if t == "" || honestFailRe.MatchString(t) {
+	if t == "" || honestReport(t) {
 		// any acknowledged failure anywhere in the message is an honest report
 		return false
 	}

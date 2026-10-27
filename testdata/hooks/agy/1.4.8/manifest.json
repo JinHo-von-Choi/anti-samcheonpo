@@ -1,0 +1,42 @@
+{
+  "agent_version": "1.4.8",
+  "redactions": [
+    "conversation id replaced",
+    "workspace path replaced with /w/proj",
+    "home path replaced with /home/u"
+  ],
+  "captures": [
+    {
+      "file": "PreInvocation.json",
+      "sha256": "d7ec8f51355cc3b1fe5409ebe301e4dc1ef8ee5b73740a6bffea5ae112534e32"
+    },
+    {
+      "file": "PreToolUse-read_file.json",
+      "sha256": "a9d97190dd6859215e8324415c2b66fe716851e5200e6b54936f6c5bef660573"
+    },
+    {
+      "file": "PostToolUse-read_file.json",
+      "sha256": "33605eb98c76fe0c503ec18e3fabbfe1c15db3fc66f7e0dc7a3e26a0987f5ed4"
+    },
+    {
+      "file": "Stop.json",
+      "sha256": "1bd400c6a6596c149c335dac65afec3246f0da5d9102f45fe1b07e2f55bc3d9a"
+    },
+    {
+      "file": "PreToolUse-edit_file.json",
+      "sha256": "c2c25e6b5457debe4ab4e600695ab5afa67f8e2fb14845171b7ca4db7dea1513"
+    },
+    {
+      "file": "PostToolUse-edit_file.json",
+      "sha256": "d0dd44b7f203266c89cebee80fe3bb0506bc4593eaae69663e995a4654382398"
+    },
+    {
+      "file": "PreToolUse-run_command.json",
+      "sha256": "1efa666420c819d6ccf4745cd7f531f09fcf85370bf59c619fb3067da9528469"
+    },
+    {
+      "file": "PostToolUse-run_command.json",
+      "sha256": "3b44d9ceb2dec77ae6b2f37142f96ef4b997f32616ee699a35bc6a971d08413f"
+    }
+  ]
+}

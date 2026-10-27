@@ -1,0 +1,11 @@
+{
+  "hookName": "permissionRequest",
+  "sessionId": "00000000-0000-4000-8000-000000000001",
+  "timestamp": 1793080623332,
+  "cwd": "/w/proj",
+  "toolName": "bash",
+  "toolInput": {
+    "command": "python3 -c 'print(123)'"
+  },
+  "permissionSuggestions": []
+}

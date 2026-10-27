@@ -71,12 +71,19 @@ func agyIn(event string, raw json.RawMessage) ([]string, []HookInput, error) {
 			evs, ins := agyFlush(a.ConversationID, false)
 			return append(evs, "PostToolUseFailure"), append(ins, b), nil
 		}
-		if b.ToolName == "Bash" {
-			agyHold(a.ConversationID, agyPost{in: b, transcript: a.TranscriptPath, step: step})
-			return nil, nil, nil
+		if b.ToolName != "Bash" {
+			// agy 1.4 states no result in the hook; a read or an edit result is
+			// in the transcript when the step is already written
+			if out, _, _ := agyStepResult(a.TranscriptPath, step); out != "" {
+				b.ToolResponse, _ = json.Marshal(map[string]string{"stdout": out})
+				evs, ins := agyFlush(a.ConversationID, false)
+				return append(evs, "PostToolUse"), append(ins, b), nil
+			}
 		}
-		evs, ins := agyFlush(a.ConversationID, false)
-		return append(evs, "PostToolUse"), append(ins, b), nil
+		// the result is written after this hook returns: it is read at the
+		// next event
+		agyHold(a.ConversationID, agyPost{in: b, transcript: a.TranscriptPath, step: step})
+		return nil, nil, nil
 	case "Stop":
 		evs, ins := agyFlush(a.ConversationID, true)
 		uevs, uins := agyUsage(base, a.TranscriptPath, a.ModelName)
@@ -138,23 +145,32 @@ func agyFlush(conv string, final bool) ([]string, []HookInput) {
 
 // agyInput maps Antigravity tool arguments to the Claude tool input fields.
 func agyInput(name string, args map[string]any) json.RawMessage {
-	s := func(k string) string { v, _ := args[k].(string); return v }
+	// first returns the first argument present under one of the names: agy
+	// 1.3 and 1.4 name the same fields differently (TargetFile, Path).
+	first := func(keys ...string) string {
+		for _, k := range keys {
+			if v, _ := args[k].(string); v != "" {
+				return v
+			}
+		}
+		return ""
+	}
 	var m map[string]any
 	switch strings.ToLower(name) {
 	case "run_command", "run_terminal_command":
-		m = map[string]any{"command": s("CommandLine"), "workdir": s("Cwd")}
+		m = map[string]any{"command": first("CommandLine", "Command"), "workdir": first("Cwd", "Workdir")}
 	case "write_to_file", "create_file":
-		m = map[string]any{"file_path": s("TargetFile"), "content": s("CodeContent")}
+		m = map[string]any{"file_path": first("TargetFile", "Path"), "content": first("CodeContent", "Content")}
 	case "view_file", "read_file":
-		p := s("AbsolutePath")
-		if p == "" {
-			p = s("TargetFile")
-		}
-		m = map[string]any{"file_path": p}
+		m = map[string]any{"file_path": first("AbsolutePath", "TargetFile", "Path")}
 	case "replace_file_content", "multi_replace_file_content", "edit_file":
-		// the replacement chunks are not reproduced exactly; the path is enough
-		// for scope and repeat decisions, and rollback treats ownership as unknown
-		m = map[string]any{"file_path": s("TargetFile")}
+		m = map[string]any{"file_path": first("TargetFile", "Path")}
+		if target, repl := first("Target", "TargetContent"), first("Replacement", "ReplacementContent"); target != "" {
+			// agy 1.4 states one replacement; it is the edit's text
+			m["old_string"], m["new_string"] = target, repl
+		}
+		// multi-chunk replacements are not reproduced exactly; the path is
+		// enough for scope and repeat decisions
 	default:
 		b, _ := json.Marshal(args)
 		return b

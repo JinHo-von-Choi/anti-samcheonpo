@@ -3,6 +3,7 @@ package live
 import (
 	"bytes"
 	"encoding/json"
+	"fmt"
 	"os"
 	"path/filepath"
 	"strings"
@@ -127,6 +128,70 @@ func TestClientExplicitAllowWhenDaemonDown(t *testing.T) {
 		hookclient.MainAgent(k[1], k[0], strings.NewReader(`{"session_id":"x"}`), &out)
 		if want == "" && out.Len() != 0 || want != "" && !strings.Contains(out.String(), want) {
 			t.Errorf("%v: %q", k, out.String())
+		}
+	}
+}
+
+// agy 1.4 names the path Path and states an edit as Target and Replacement.
+func TestAgyInputReadsVersionOneFourNames(t *testing.T) {
+	var read, edit map[string]any
+	_ = json.Unmarshal(agyInput("read_file", map[string]any{"Path": "/w/proj/calc.go"}), &read)
+	_ = json.Unmarshal(agyInput("edit_file", map[string]any{"Path": "/w/proj/calc.go", "Target": "package calc", "Replacement": "package calc\n\nfunc Add() {}"}), &edit)
+	if read["file_path"] != "/w/proj/calc.go" || edit["file_path"] != "/w/proj/calc.go" {
+		t.Fatalf("paths: %v %v", read, edit)
+	}
+	if edit["old_string"] != "package calc" || edit["new_string"] != "package calc\n\nfunc Add() {}" {
+		t.Fatalf("edit text: %v", edit)
+	}
+	var old map[string]any
+	_ = json.Unmarshal(agyInput("view_file", map[string]any{"AbsolutePath": "/w/proj/a.go"}), &old)
+	if old["file_path"] != "/w/proj/a.go" {
+		t.Fatalf("1.3 name lost: %v", old)
+	}
+}
+
+// agy 1.4.8 payloads captured from the real CLI translate to complete Claude
+// inputs: paths, edit text and results read from the transcript.
+func TestAgyVersionOneFourFixtures(t *testing.T) {
+	files, err := filepath.Glob("../../testdata/hooks/agy/1.4.8/*.json")
+	if err != nil || len(files) < 8 {
+		t.Fatalf("fixtures %v %v", files, err)
+	}
+	tr := filepath.Join(t.TempDir(), "transcript_full.jsonl")
+	var lines []string
+	for step := 0; step < 64; step++ {
+		lines = append(lines, fmt.Sprintf(`{"step_index":%d,"type":"GENERIC","content":"The command exited with code 0.\nOutput:\nok"}`, step))
+	}
+	if err := os.WriteFile(tr, []byte(strings.Join(lines, "\n")+"\n"), 0o600); err != nil {
+		t.Fatal(err)
+	}
+	for _, path := range files {
+		if strings.HasSuffix(path, "manifest.json") {
+			continue
+		}
+		var m map[string]any
+		raw, _ := os.ReadFile(path)
+		if err := json.Unmarshal(raw, &m); err != nil {
+			t.Fatal(err)
+		}
+		m["transcriptPath"] = tr
+		raw, _ = json.Marshal(m)
+		event, _, _ := strings.Cut(strings.TrimSuffix(filepath.Base(path), ".json"), "-")
+		names, ins, err := translateIn("agy", event, raw)
+		if err != nil {
+			t.Fatalf("%s: %v", path, err)
+		}
+		for i, n := range names {
+			if reason := hookShape(n, ins[i]); reason != "" {
+				t.Fatalf("%s: %s", path, reason)
+			}
+			if (n == "PreToolUse" || n == "PostToolUse") && ins[i].ToolName != "Bash" {
+				var in map[string]any
+				_ = json.Unmarshal(ins[i].ToolInput, &in)
+				if in["file_path"] != "/w/proj/calc.go" {
+					t.Fatalf("%s: path %v", path, in["file_path"])
+				}
+			}
 		}
 	}
 }

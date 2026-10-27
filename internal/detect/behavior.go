@@ -143,7 +143,7 @@ func (e *Engine) observeBehavior(ev *event.Event, sigs *[]Signal) {
 		}
 	}
 	target := BehaviorTarget(ev)
-	if ev.Category == event.CatExplore && !IsReview(ev) && intent.ResearchRequest(e.FirstPrompt) && result != "" {
+	if researchCall(ev) && !IsReview(ev) && intent.ResearchRequest(e.LatestRequest()) && result != "" {
 		target = fp.Hash("research-result", result)
 	}
 	if target == "" {
@@ -178,7 +178,7 @@ func (e *Engine) observeBehavior(ev *event.Event, sigs *[]Signal) {
 	switch {
 	case ExecutedVerify(ev) && failing(ev) && (len(ev.FailedTests) > 0 || len(ev.ErrFPs) > 0 || ev.Reliability != nil && ev.Reliability.CheckID != ""):
 		rule, key = "s2.behavior_loop", "failure:"+target
-	case ev.Category == event.CatExplore && !IsReview(ev) && intent.ResearchRequest(e.FirstPrompt) && result != "" && !ev.IsError:
+	case researchCall(ev) && !IsReview(ev) && intent.ResearchRequest(e.LatestRequest()) && result != "" && !ev.IsError:
 		rule, key = "s4.research_repeat", "research:"+target
 	case IsReview(ev) && result != "" && !ev.IsError:
 		rule, key = "s1.delegation_loop", "review:"+target
@@ -257,4 +257,21 @@ func (e *Engine) behaviorSelection(ev *event.Event) string {
 		return sortedHash(identities)
 	}
 	return classify.CheckSelection(cmdOf(ev))
+}
+
+// researchCall reports a call that looks something up: a read, a search, a
+// web fetch, or a shell command classified as a lookup. A tool the
+// classifier does not know (a skill manager, an MCP action) is filed under
+// exploration by default, but repeating it is not repeated research.
+func researchCall(ev *event.Event) bool {
+	if ev.Category != event.CatExplore {
+		return false
+	}
+	switch ev.Tool {
+	case event.ToolRead, event.ToolSearch, event.ToolWeb:
+		return true
+	case event.ToolShell:
+		return !ev.Unknown
+	}
+	return false
 }

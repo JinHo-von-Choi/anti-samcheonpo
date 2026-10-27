@@ -1,0 +1,11 @@
+{
+  "sessionId": "00000000-0000-4000-8000-000000000001",
+  "timestamp": 1793080633686,
+  "cwd": "/w/proj",
+  "toolName": "apply_patch",
+  "toolArgs": "*** Begin Patch\n*** Update File: /w/proj/a.py\n@@\n-print(1)\n+print(2)\n*** End Patch\n",
+  "toolResult": {
+    "resultType": "success",
+    "textResultForLlm": "Modified 1 file(s): /w/proj/a.py"
+  }
+}

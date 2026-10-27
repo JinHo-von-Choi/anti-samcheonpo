@@ -1,0 +1,14 @@
+{
+  "sessionId": "00000000-0000-4000-8000-000000000001",
+  "timestamp": 1793080626577,
+  "cwd": "/w/proj",
+  "toolName": "bash",
+  "toolArgs": {
+    "command": "python3 -c 'raise SystemExit(7)'",
+    "description": "Run the second requested Python command"
+  },
+  "toolResult": {
+    "resultType": "success",
+    "textResultForLlm": "\n<shellId: 1 completed with exit code 7>"
+  }
+}

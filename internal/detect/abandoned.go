@@ -39,7 +39,7 @@ var deferralRe = lazyre.New(`(?i)(미검증|미확인|검증(?:은|을|이)?\s*(
 
 // userStopRe finds a request that ends the work or forbids running and
 // changing things. Stopping there is following the user.
-var userStopRe = lazyre.New(`(?i)(여기까지|멈춰|그만\s*(?:해|하)|중단(?:해|하)|중지|실행하지\s*마|고치지\s*마|건드리지\s*마|수정하지\s*마|(?:검증|테스트|시험|빌드)\s*없이|(?:검증|테스트|시험|빌드)(?:은|는)?\s*(?:하지|돌리지)\s*마|\bwithout (?:running |any )?(?:tests?|testing|verification|checks?)\b|\bno tests?\b|\bskip (?:the )?(?:tests?|verification)\b|\bstop here\b|\bdon'?t (?:run|change|fix)\b|\bdo not (?:run|change|fix)\b)`)
+var userStopRe = lazyre.New(`(?i)(여기까지|멈춰|그만\s*(?:해|하)|중단(?:해|하)|중지|(?:실행하지|고치지|건드리지|수정하지)\s*(?:마|말)|(?:검증|테스트|시험|빌드)\s*없이|(?:검증|테스트|시험|빌드)(?:은|는|도)?\s*(?:하지|돌리지|실행하지)\s*(?:마|말|않)|\bwithout (?:running |any )?(?:tests?|testing|verification|checks?)\b|\bno tests?\b|\bskip (?:the )?(?:tests?|verification)\b|\bstop here\b|\bdon'?t (?:run|change|fix)\b|\bdo not (?:run|change|fix)\b)`)
 
 // abandonedVerification judges the end of a turn.
 func (e *Engine) abandonedVerification(msg *event.Event, unmet []string) *Signal {
