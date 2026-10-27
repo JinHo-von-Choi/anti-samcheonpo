@@ -35,7 +35,9 @@ var stubRequestRe = lazyre.New(`(?i)(스텁|골격|뼈대|틀만|껍데기|목�
 
 // identRe finds the identifiers a request names precisely: quoted names,
 // file names with an extension, calls, and CamelCase or snake_case names.
-var identRe = lazyre.New("`([^`\\s]{2,80})`|\\b([\\w./-]+\\.(?:go|py|ts|tsx|js|jsx|java|kt|rs|rb|php|cs|swift|c|cc|cpp|h|hpp|sql|sh|yml|yaml|json|toml))\\b|\\b([A-Za-z_][A-Za-z0-9_]{2,})\\(|\\b([a-z]+_[a-z0-9_]+|[a-z]+(?:[A-Z][a-z0-9]+)+|(?:[A-Z][a-z0-9]+){2,})\\b")
+// A bare snake_case word is left out: agent harness prompts are full of tool
+// and parameter names (send_message, write_file) that name no work target.
+var identRe = lazyre.New("`([^`\\s]{2,80})`|\\b([\\w./-]+\\.(?:go|py|ts|tsx|js|jsx|java|kt|rs|rb|php|cs|swift|c|cc|cpp|h|hpp|sql|sh|yml|yaml|json|toml))\\b|\\b([A-Za-z_][A-Za-z0-9_]{2,})\\(|\\b([a-z]+(?:[A-Z][a-z0-9]+)+|(?:[A-Z][a-z0-9]+){2,})\\b")
 
 // hollowHit is one changed file that still holds an unwritten body.
 type hollowHit struct {

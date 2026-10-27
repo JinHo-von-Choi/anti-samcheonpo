@@ -260,3 +260,38 @@ func TestRequestIdentsSkipHarnessNotes(t *testing.T) {
 		t.Fatalf("idents %q", got)
 	}
 }
+
+// Cases from real use: a scheduled job writing its run record, harness
+// prompts naming tools, and a document drafted by repeated edits.
+func TestRealUseFalsePositives(t *testing.T) {
+	// a run record written at the end is not a code change
+	b := newB(t, "허브 순회 작업", nil)
+	b.write("scripts/agent/last_cycle_x.c1330.2026-10-27.json", "a", []string{`{"done": true}`}, nil)
+	if v := fired(b.msg("이번 순회를 마쳤습니다."), RuleAbandonedVerification); v != nil {
+		t.Fatalf("a run record held the stop: %+v", v)
+	}
+	// ...nor does it make a passing check stale
+	b = newB(t, "게이트 통과시키기", nil)
+	b.verify("python3 gate.py th57.json draft.txt", 0, nil)
+	b.write("scripts/agent/last_cycle_y.json", "a", []string{`{}`}, nil)
+	if v := fired(b.msg("완료했습니다."), "s5.false_done"); v != nil {
+		t.Fatalf("a record write made the check stale: %+v", v)
+	}
+	// a build manifest still counts as a change a check depends on
+	b = newB(t, "의존성 올려 줘", nil)
+	b.write("package.json", "a", []string{`"x": "2"`}, nil)
+	if v := fired(b.msg("올렸습니다."), RuleAbandonedVerification); v == nil {
+		t.Fatal("a manifest change was not seen")
+	}
+	// tool and parameter names in a harness prompt are not targets
+	if got := requestIdents("send_message를 쓰지 말고 write_file로 저장하라. include_memories=false"); len(got) != 0 {
+		t.Fatalf("tool names taken as targets: %q", got)
+	}
+	// drafting a document by repeated edits is not fixation
+	b = newB(t, "`Byron` 문서와 `Shelley` 문서를 작성하라", nil)
+	for i := 0; i < 14; i++ {
+		if v := fired(b.write("drafts/b11_바이런.txt", "x", []string{"줄"}, nil), RuleFixation); v != nil {
+			t.Fatalf("document drafting flagged: %+v", v)
+		}
+	}
+}

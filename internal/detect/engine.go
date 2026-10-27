@@ -889,7 +889,7 @@ func (e *Engine) production(ev *event.Event, sigs *[]Signal) {
 	st.writes++
 	st.lastWriteSeq = ev.Seq
 	for _, p := range ev.Paths {
-		if !IsDocPath(p) {
+		if !IsDocPath(p) && !IsDataPath(p) {
 			st.lastCodeWriteSeq = ev.Seq
 			if !pathnorm.IsTempPath(p) {
 				st.lastProdWriteSeq = ev.Seq
@@ -1322,6 +1322,19 @@ var exploreTaskRe = lazyre.New(`(?i)(검토|리뷰|분석|조사|파악|설명|�
 var buildTaskRe = lazyre.New(`(?i)(고쳐|수정해|만들어|구현|추가해|작성해|바꿔|변경해|리팩터|refactor|\bfix\b|\bimplement|\badd\b|\bcreate\b|\bbuild\b|\bwrite\b|\bchange\b)`)
 
 var docExt = map[string]bool{".md": true, ".txt": true, ".rst": true, ".adoc": true, ".org": true}
+
+var dataExt = map[string]bool{".json": true, ".jsonl": true, ".ndjson": true, ".csv": true, ".tsv": true, ".log": true}
+
+// buildData are data-format files that configure a build or a tool, so
+// changing one can change what a check sees.
+var buildData = lazyre.New(`(?i)(^|/)(package|composer|deno|angular|project|app|manifest|lerna|nx|turbo|vercel|firebase)\.json$|(^|/)tsconfig[\w.-]*\.json$|(^|/)\.?[\w-]*rc\.json$|\.config\.json$`)
+
+// IsDataPath reports record and data files (run logs, state snapshots,
+// exports): writing one changes no code a check verifies. Data files that
+// configure a build are not data in this sense.
+func IsDataPath(p string) bool {
+	return dataExt[strings.ToLower(path.Ext(p))] && !buildData.MatchString(p)
+}
 
 // IsDocPath reports documentation files (writing them does not invalidate a verification).
 func IsDocPath(p string) bool {

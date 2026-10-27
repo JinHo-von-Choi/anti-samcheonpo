@@ -141,6 +141,10 @@ func (e *Engine) observeFixation(ev *event.Event, sigs *[]Signal) {
 	if n < fixationShare || st.fixFired[top] {
 		return
 	}
+	if kind, target, _ := strings.Cut(top, ":"); kind == "path" && (IsDocPath(target) || IsDataPath(target)) {
+		// writing a document or a record is repeated editing by nature
+		return
+	}
 	requests := e.RequestText()
 	var missing []string
 	for _, id := range requestIdents(requests) {
