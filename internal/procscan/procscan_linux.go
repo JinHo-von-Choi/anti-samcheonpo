@@ -61,13 +61,20 @@ func within(p, root string) bool {
 	return err == nil && rel != ".." && !strings.HasPrefix(rel, "../")
 }
 
-// systemService reports a process systemd started for a unit of its own.
-func systemService(pid string) bool {
+func cgroupOf(pid string) string {
 	b, err := os.ReadFile("/proc/" + pid + "/cgroup")
 	if err != nil {
-		return false
+		return ""
 	}
-	return strings.Contains(string(b), "/system.slice/")
+	return strings.TrimSpace(string(b))
+}
+
+// systemService reports a process systemd runs for a unit other than the
+// one this process runs in. An agent run by a service (a CI runner) starts
+// its processes in that service's own cgroup, so they stay candidates.
+func systemService(pid, own string) bool {
+	cg := cgroupOf(pid)
+	return strings.Contains(cg, "/system.slice/") && cg != own
 }
 
 // listening maps socket inodes to the TCP ports in LISTEN state.
@@ -108,6 +115,7 @@ func Leftover(root string, windows []Window, exclude map[int]bool, deadline time
 		return nil
 	}
 	uid := os.Getuid()
+	own := cgroupOf("self")
 	var out []Proc
 	var ports map[string]int
 	for _, e := range entries {
@@ -132,7 +140,7 @@ func Leftover(root string, windows []Window, exclude map[int]bool, deadline time
 			continue
 		}
 		started := boot.Add(time.Duration(ticks) * time.Second / clockTicks)
-		if !inWindows(started, windows) || systemService(e.Name()) {
+		if !inWindows(started, windows) || systemService(e.Name(), own) {
 			continue
 		}
 		p := Proc{PID: pid, Started: started, Exe: exe}

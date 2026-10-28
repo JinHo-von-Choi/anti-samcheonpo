@@ -255,6 +255,9 @@ func TestMcodeBackgroundRunCompletesLater(t *testing.T) {
 	// the captured notice states an end before this test began, which is no
 	// end of this run; a notice stating a later end is taken
 	mcodeSend(t, s, d, "background-016-UserPromptSubmit.json")
+	// a stated end on the launch's own millisecond leaves no run time; the
+	// run lasts a moment in the test so the stated end lies after it
+	time.Sleep(5 * time.Millisecond)
 	stated := time.Now()
 	notice := `<background-task-finished>
   <task task_id="bg_task-4" status="failed" description="x" ended_at_ms="` + strconv.FormatInt(stated.UnixMilli(), 10) + `"/>

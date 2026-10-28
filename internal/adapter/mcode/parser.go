@@ -101,7 +101,12 @@ func loadTasks(path, session string) (map[string]task, error) {
 	if _, err := os.Stat(path); err != nil {
 		return nil, nil
 	}
-	u := url.URL{Scheme: "file", Path: path, RawQuery: "mode=ro&_pragma=busy_timeout(200)&_pragma=query_only(1)"}
+	// file:///C:/... on Windows, like the ledger opens its own database
+	slashed := filepath.ToSlash(path)
+	if filepath.VolumeName(path) != "" && !strings.HasPrefix(slashed, "//") {
+		slashed = "/" + slashed
+	}
+	u := url.URL{Scheme: "file", Path: slashed, RawQuery: "mode=ro&_pragma=busy_timeout(200)&_pragma=query_only(1)"}
 	db, err := sql.Open("sqlite", u.String())
 	if err != nil {
 		return nil, err
