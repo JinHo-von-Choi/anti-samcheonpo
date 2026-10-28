@@ -90,3 +90,26 @@ func TestCIResultFromTheRESTAPI(t *testing.T) {
 		}
 	}
 }
+
+// TestCIResultFromGHFields covers run states gh prints as bare words, as
+// in a wait loop: for r in A B; do echo "== $r $(gh run view $r --json
+// conclusion --jq .conclusion)"; done.
+func TestCIResultFromGHFields(t *testing.T) {
+	loop := `until [ "$(gh run list --limit 2 --json status --jq '[.[]|select(.status=="completed")]|length')" = "2" ]; do sleep 30; done; for r in 40708489120 40708515892; do echo "== $r $(gh run view $r --json conclusion --jq .conclusion)"; done`
+	for _, tc := range []struct{ out, want string }{
+		{"== 40708489120 success\n== 40708515892 success", CIPassed},
+		{"== 40708489120 success\n== 40708515892 failure", CIFailed},
+		{"== 40708489120 success\n== 40708515892 in_progress", CIUnknown},
+		{"", CIUnknown},
+	} {
+		if got := CIResult(loop, 0, tc.out); got != tc.want {
+			t.Errorf("%q: %s want %s", tc.out, got, tc.want)
+		}
+	}
+	if got := CIResult(`gh run list --limit 3 --json conclusion,headSha --jq '.[]|"\(.conclusion) \(.headSha)"'`, 0, "success 439c1a9\nsuccess 2a2a314"); got != CIPassed {
+		t.Errorf("list: %s", got)
+	}
+	if got := CIRunID(`gh run view 40705689294 --log-failed | grep FAIL`); got != "40705689294" {
+		t.Errorf("run id %q", got)
+	}
+}

@@ -577,6 +577,9 @@ func CIResult(cmd string, exitCode int, out string) string {
 	if r := ciAPIResult(cmd, exitCode, out); r != CIUnknown {
 		return r
 	}
+	if r := ciGHFieldResult(cmd, exitCode, out); r != CIUnknown {
+		return r
+	}
 	for _, st := range fp.SplitStages(outer) {
 		n, _ := fp.NormalizeCmd(st)
 		w := strings.Fields(n)
@@ -643,8 +646,46 @@ var (
 	// a line of a script's report: a job or pipeline with its state word
 	ciLineFailRe = lazyre.New(`(?i)\b(?:failed|failure|canceled|cancelled|timed_out)\b`)
 	ciLinePassRe = lazyre.New(`(?i)\b(?:success|passed)\b`)
-	ciLineOpenRe = lazyre.New(`(?i)\b(?:running|pending|created|queued|in_progress|waiting_for_resource|preparing)\b`)
+	ciLineOpenRe = lazyre.New(`(?i)\b(?:running|pending|created|queued|in_progress|waiting_for_resource|preparing|waiting|requested)\b`)
 )
+
+// ciGHFieldRe matches gh asked for the conclusion or status of runs as
+// fields (--json conclusion --jq .conclusion), anywhere in the command: in a
+// loop or a command substitution too.
+var ciGHFieldRe = lazyre.New(`\bgh\s+run\s+(?:view|list)\b[^\n;|&]*--json\s+[\w,]*\b(?:conclusion|status)\b`)
+
+// ciGHFieldResult reads run states gh printed as bare words, one run per
+// line. Any failed run fails the result; success needs every stated run to
+// have succeeded and none still running.
+func ciGHFieldResult(cmd string, exitCode int, out string) string {
+	if exitCode != 0 || !ciGHFieldRe.MatchString(cmd) {
+		return CIUnknown
+	}
+	body := strings.TrimSpace(out)
+	if body == "" || body[0] == '{' || body[0] == '[' {
+		return CIUnknown // JSON is read by the gh branch below
+	}
+	return ciLines(body)
+}
+
+// ciLines reads a report of one state per line.
+func ciLines(body string) string {
+	passed, open := false, false
+	for _, l := range strings.Split(body, "\n") {
+		switch {
+		case ciLineFailRe.MatchString(l):
+			return CIFailed
+		case ciLineOpenRe.MatchString(l):
+			open = true
+		case ciLinePassRe.MatchString(l):
+			passed = true
+		}
+	}
+	if passed && !open {
+		return CIPassed
+	}
+	return CIUnknown
+}
 
 // ciAPIResult reads a CI state fetched from a pipeline, job or run
 // endpoint. JSON answers newest first, so the first stated state is the
@@ -677,21 +718,7 @@ func ciAPIResult(cmd string, exitCode int, out string) string {
 		}
 		return CIUnknown
 	}
-	passed, open := false, false
-	for _, l := range strings.Split(body, "\n") {
-		switch {
-		case ciLineFailRe.MatchString(l):
-			return CIFailed
-		case ciLineOpenRe.MatchString(l):
-			open = true
-		case ciLinePassRe.MatchString(l):
-			passed = true
-		}
-	}
-	if passed && !open {
-		return CIPassed
-	}
-	return CIUnknown
+	return ciLines(body)
 }
 
 // ciLogPrefixRe is the "job<TAB>step<TAB>timestamp " prefix gh puts on each
@@ -700,6 +727,20 @@ var ciLogPrefixRe = lazyre.New(`(?m)^[^\t\n]*\t[^\t\n]*\t(?:\d{4}-\d{2}-\d{2}T[\
 
 // goPkgFailRe matches the package line of a failed Go test run.
 var goPkgFailRe = lazyre.New(`(?m)^FAIL\s+(\S+/\S+)\s+[\d.]+s\s*$`)
+
+var ciRunIDRe = lazyre.New(`\bgh\s+run\s+(?:view|watch)\s+(\d+)|/pipelines/(\d+)|/actions/runs/(\d+)|\bglab\s+ci\s+(?:view|status)\s+(\d+)`)
+
+// CIRunID returns the CI run a command reads, when it names one.
+func CIRunID(cmd string) string {
+	if m := ciRunIDRe.FindStringSubmatch(cmd); m != nil {
+		for _, g := range m[1:] {
+			if g != "" {
+				return g
+			}
+		}
+	}
+	return ""
+}
 
 // CIRerun reports whether a command reruns a CI run as it was (gh run
 // rerun, glab ci retry): the same commit checked again remotely.

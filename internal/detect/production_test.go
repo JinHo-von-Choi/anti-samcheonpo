@@ -99,3 +99,28 @@ func TestProductionWrite(t *testing.T) {
 		t.Fatalf("allowed by the contract: %+v", s)
 	}
 }
+
+// TestReleaseAfterAFixedCIFailure replays the 0.10.0 release: the failed
+// run's log read in two parts, the failing packages checked locally, the
+// rerun read as bare words, then the release.
+func TestReleaseAfterAFixedCIFailure(t *testing.T) {
+	b := newB(t, "릴리즈해", nil)
+	b.run("gh run view 40705689294 --log-failed | grep -E 'FAIL'", 0,
+		"macos\ttest\t2026-10-28T14:26:46Z --- FAIL: TestMcodeBackgroundRunCompletesLater (0.03s)\nmacos\ttest\t2026-10-28T14:26:46Z FAIL\tgithub.com/x/y/internal/live\t36.259s", time.Second)
+	b.run(`gh run view 40705689294 --log-failed | grep "^rust"`, 0,
+		"rust\thook latency\t2026-10-28T14:26:01Z samcheonpo: 훅 전송/관측 검증 실패\nrust\thook latency\t2026-10-28T14:26:01Z ##[error]Process completed with exit code 1.", time.Second)
+	b.write("internal/live/mcode_test.go", "h", []string{"time.Sleep(5 * time.Millisecond)"}, nil)
+	b.run("go test ./internal/live/ -run 'Leftover|McodeBackground' -count=5", 0, "ok  \tgithub.com/x/y/internal/live\t10.833s", 11*time.Second)
+	if s := b.pre("gh release create v0.10.0 --verify-tag"); s != nil && s.Facts["kind"] == "ci_failed" {
+		t.Fatalf("the second read of the same run kept the failed package, which ran locally: %+v", s)
+	}
+	b2 := newB(t, "릴리즈해", nil)
+	b2.run(`gh run view 40705689294 --log-failed | grep "^rust"`, 0, "rust\thook latency\t2026-10-28T14:26:01Z ##[error]Process completed with exit code 1.", time.Second)
+	if s := b2.pre("gh release create v0.10.0"); s == nil || s.Facts["kind"] != "ci_failed" {
+		t.Fatalf("a failure nobody reran is still judged: %+v", s)
+	}
+	b2.run(`for r in 40708489120 40708515892; do echo "== $r $(gh run view $r --json conclusion --jq .conclusion)"; done`, 0, "== 40708489120 success\n== 40708515892 success", time.Second)
+	if s := b2.pre("gh release create v0.10.0"); s != nil && s.Facts["kind"] == "ci_failed" {
+		t.Fatalf("a passing rerun read as bare words clears the failure: %+v", s)
+	}
+}

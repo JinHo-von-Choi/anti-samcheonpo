@@ -15,6 +15,7 @@ type ciMark struct {
 	seq   int64
 	ws    string
 	cmd   string
+	run   string           // the CI run the result was read from, when the command names one
 	tests []string         // failing tests the CI output named, when it named any
 	pkgs  []string         // failing Go packages the CI output named
 	tools []*regexp.Regexp // local commands for formatters and linters the CI output named
@@ -60,7 +61,15 @@ func (e *Engine) trackRelease(ev *event.Event) {
 		m.ci, m.blindRelease, m.ciRerun = nil, 0, 0
 		return
 	case classify.CIFailed:
-		m.ci = &ciMark{seq: ev.Seq, ws: ev.WSBefore, cmd: ev.CmdNorm, tests: testout.FailedTests(log), pkgs: classify.FailedPackages(log), tools: failedTools(log)}
+		mark := &ciMark{seq: ev.Seq, ws: ev.WSBefore, cmd: ev.CmdNorm, run: classify.CIRunID(cmdOf(ev)), tests: testout.FailedTests(log), pkgs: classify.FailedPackages(log), tools: failedTools(log)}
+		if prev := m.ci; prev != nil && mark.run != "" && prev.run == mark.run {
+			// another part of the same failed run's log: what it names adds
+			// to what was read before
+			mark.tests = append(prev.tests, mark.tests...)
+			mark.pkgs = append(prev.pkgs, mark.pkgs...)
+			mark.tools = append(prev.tools, mark.tools...)
+		}
+		m.ci = mark
 		if r := m.ciRerun; r > 0 {
 			// rerunning the same commit after a failure and failing again
 			// repeated a known result remotely
