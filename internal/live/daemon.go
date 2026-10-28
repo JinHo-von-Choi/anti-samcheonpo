@@ -81,6 +81,8 @@ type Daemon struct {
 	probedAt map[string]time.Time
 	db       *ledger.DB
 	prices   *cost.Table
+	heavy    heavyRegistry // heavy test runs per workspace, across sessions
+	host     hostRegistry  // build output per workspace, across sessions
 	last     time.Time
 	Idle     time.Duration
 	ln       net.Listener

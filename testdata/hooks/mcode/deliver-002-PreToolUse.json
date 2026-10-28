@@ -1,0 +1,15 @@
+{
+  "tool_name": "bash",
+  "tool_input": {
+    "command": "echo PROBE_DENY",
+    "description": "Run probe echo command"
+  },
+  "tool_use_id": "chatcmpl-tool-a0e65bfedeea8844",
+  "hook_event_name": "PreToolUse",
+  "session_id": "mcode-session-5",
+  "turn-1": "turn-6",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

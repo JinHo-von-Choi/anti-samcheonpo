@@ -1,0 +1,29 @@
+{
+  "tool_name": "edit",
+  "tool_input": {
+    "file_path": "/w/proj/note.txt",
+    "old_string": "alpha",
+    "new_string": "beta"
+  },
+  "tool_response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Successfully replaced 1 block(s) in /w/proj/note.txt."
+      }
+    ],
+    "details": {
+      "diff": "-1 alpha\n+1 beta",
+      "patch": "--- /w/proj/note.txt\n+++ /w/proj/note.txt\n@@ -1,1 +1,1 @@\n-alpha\n+beta\n",
+      "firstChangedLine": 1
+    }
+  },
+  "tool_use_id": "call_function_zwii16yxmr57_1",
+  "hook_event_name": "PostToolUse",
+  "session_id": "mcode-session-1",
+  "turn-1": "turn-2",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

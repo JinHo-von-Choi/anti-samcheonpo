@@ -1,0 +1,48 @@
+{
+  "tool_name": "task_output",
+  "tool_input": {
+    "task_id": "bg_task-4",
+    "wait_ms": 30000
+  },
+  "tool_response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "<task_output status=\"failed\">\n<task_output_cursor next_offset=\"87\" truncated=\"false\" timed_out=\"false\" />\n<bash_status>Command exited with code 3</bash_status>\nbg-done\n\n<bash_status>Background bash failed: Command exited with code 3</bash_status>\n\n</task_output>"
+      }
+    ],
+    "details": {
+      "task_id": "bg_task-4",
+      "status": "failed",
+      "execution": {
+        "status": "failed",
+        "reason": "exited",
+        "exitCode": 3,
+        "message": "Command exited with code 3"
+      },
+      "output": {
+        "rawBytes": 8,
+        "persistence": "complete",
+        "omittedBytes": 0
+      },
+      "timing": {
+        "commandTimeoutSeconds": 180,
+        "commandTimerStartedAt": 1793191754619,
+        "commandDeadlineAt": 1793191934619
+      },
+      "effective_wait_ms": 30000,
+      "wait_ms_clamped": false,
+      "timed_out": false,
+      "next_offset": 87,
+      "truncated": false
+    }
+  },
+  "tool_use_id": "call_function_97uiolq8scaw_1",
+  "hook_event_name": "PostToolUse",
+  "session_id": "mcode-session-2",
+  "turn-1": "turn-3",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

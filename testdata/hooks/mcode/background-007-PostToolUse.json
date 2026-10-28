@@ -1,0 +1,49 @@
+{
+  "tool_name": "task_output",
+  "tool_input": {
+    "task_id": "bg_task-3",
+    "wait_ms": 10000
+  },
+  "tool_response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "<task_output status=\"failed\">\n<task_output_cursor next_offset=\"58\" truncated=\"false\" timed_out=\"false\" />\n<bash_status>Command timed out after 40 seconds</bash_status>\nBackground bash failed: Command timed out after 40 seconds\n</task_output>"
+      }
+    ],
+    "details": {
+      "task_id": "bg_task-3",
+      "status": "failed",
+      "execution": {
+        "status": "failed",
+        "reason": "command_timeout",
+        "exitCode": null,
+        "message": "Command timed out after 40 seconds",
+        "signal": "SIGTERM"
+      },
+      "output": {
+        "rawBytes": 0,
+        "persistence": "complete",
+        "omittedBytes": 0
+      },
+      "timing": {
+        "commandTimeoutSeconds": 40,
+        "commandTimerStartedAt": 1793191686444,
+        "commandDeadlineAt": 1793191726444
+      },
+      "effective_wait_ms": 10000,
+      "wait_ms_clamped": false,
+      "timed_out": false,
+      "next_offset": 58,
+      "truncated": false
+    }
+  },
+  "tool_use_id": "call_function_1qu2bt6fztba_1",
+  "hook_event_name": "PostToolUse",
+  "session_id": "mcode-session-2",
+  "turn-1": "turn-3",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

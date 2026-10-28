@@ -82,6 +82,15 @@ func NewWorkspace(root string) *Workspace {
 }
 
 // Current returns the last computed fingerprint and whether it is fresh.
+// Key identifies the working tree: its git directory (a worktree has its
+// own), else the root.
+func (w *Workspace) Key() string {
+	if w.isGit && w.gitDir != "" {
+		return w.gitDir
+	}
+	return w.Root
+}
+
 func (w *Workspace) Current() (string, bool) {
 	w.mu.Lock()
 	defer w.mu.Unlock()

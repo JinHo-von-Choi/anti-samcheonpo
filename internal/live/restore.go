@@ -48,6 +48,7 @@ func (s *Session) restoreHistory() error {
 		}
 	}
 	s.parser.ContinueAt(evs[len(evs)-1].Seq + 1)
+	s.restoreBackground(evs)
 	s.eng.ReserveIDs(len(vs) + len(s.eng.Verdicts) + 1)
 	// the receipt lists the verdicts as they were delivered, not as the
 	// replay with less evidence would raise them again

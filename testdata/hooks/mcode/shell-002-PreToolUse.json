@@ -1,0 +1,15 @@
+{
+  "tool_name": "bash",
+  "tool_input": {
+    "command": "echo probe-ok",
+    "description": "Run echo probe-ok"
+  },
+  "tool_use_id": "call_ucPBtRxFsFZ992IegPraIcSF",
+  "hook_event_name": "PreToolUse",
+  "session_id": "mcode-session-1",
+  "turn-1": "turn-2",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

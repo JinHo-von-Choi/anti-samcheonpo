@@ -1,0 +1,11 @@
+{
+  "stop_hook_active": false,
+  "last_assistant_message": "The background run completed.\n\n**Exit status: 3** — the command printed `bg-done` and terminated with code 3 (the harness labels the task \"failed\" simply because a non-zero exit code was returned).\n\nOne note for accuracy: my first attempt ran in managed-foreground mode with a 40s timeout I set, which is shorter than the 75s sleep, so that invocation was killed before it reached the echo or `exit 3` and produced no exit status. The completed run is the backgrounded one (`task_id: bg_task-4`), which ran the command to completion.",
+  "hook_event_name": "Stop",
+  "session_id": "mcode-session-2",
+  "turn-1": "turn-3",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

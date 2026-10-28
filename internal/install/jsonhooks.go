@@ -17,11 +17,23 @@ import (
 type HookDialect struct {
 	Agent  string
 	Events map[string]int // event -> timeout seconds
+	// TimeoutKey names the handler's limit field ("timeout" when empty).
+	TimeoutKey string
+	// RootEnabled marks a file whose hooks run only while its top level says
+	// "enabled": true.
+	RootEnabled bool
 }
 
 // Codex is the Codex CLI hooks.json dialect (tested with 0.160.0).
 var Codex = HookDialect{Agent: "codex", Events: map[string]int{
 	"SessionStart": 5, "UserPromptSubmit": 5, "PreToolUse": 5, "PostToolUse": 5, "Stop": 160, "PreCompact": 5, "SessionEnd": 3,
+}}
+
+// Mcode is the MiniMax Code user hooks file (~/.minimax/hooks.json, tested
+// with 0.6.13). Its hooks run only while the top level says "enabled": true,
+// and a handler states its limit as timeoutSeconds.
+var Mcode = HookDialect{Agent: "mcode", TimeoutKey: "timeoutSeconds", RootEnabled: true, Events: map[string]int{
+	"SessionStart": 5, "UserPromptSubmit": 5, "PreToolUse": 5, "PostToolUse": 5, "Stop": 160, "PreCompact": 5, "SessionEnd": 5,
 }}
 
 type hookState struct {
@@ -31,6 +43,9 @@ type hookState struct {
 	Marker  string                     `json:"marker"`
 	At      time.Time                  `json:"installed_at"`
 	Entries map[string]json.RawMessage `json:"entries,omitempty"`
+	// EnabledSet records that the install turned on a file whose hooks were
+	// off, so the uninstall turns it off again.
+	EnabledSet bool `json:"enabled_set,omitempty"`
 }
 
 func hookStatePath(agent string) string {
@@ -66,15 +81,41 @@ func InstallHooks(d HookDialect, bin, path string, out func(string)) error {
 			return errors.New("hooks는 JSON 객체여야 합니다")
 		}
 	}
+	enabledSet := false
+	if d.RootEnabled {
+		var on *bool
+		if v, ok := root["enabled"]; ok {
+			var b bool
+			if json.Unmarshal(v, &b) != nil {
+				return fmt.Errorf("%s의 enabled는 true나 false여야 한다", path)
+			}
+			on = &b
+		}
+		switch {
+		case on != nil && !*on:
+			return fmt.Errorf("%s의 훅이 꺼져 있다(\"enabled\": false). 켜려면 직접 true로 바꾼 뒤 다시 설치한다", path)
+		case on == nil && len(hooks) > 0:
+			// turning the file on would also start the hooks already in it,
+			// which have never run
+			return fmt.Errorf("%s에 아직 실행된 적 없는 훅이 있다(\"enabled\" 없음). 그 훅을 켜도 되면 \"enabled\": true를 넣은 뒤 다시 설치한다", path)
+		case on == nil:
+			root["enabled"] = json.RawMessage("true")
+			enabledSet = true
+		}
+	}
 	if err := backup(path, raw); err != nil {
 		return err
 	}
 	mk := marker(bin, d.Agent)
+	timeoutKey := d.TimeoutKey
+	if timeoutKey == "" {
+		timeoutKey = "timeout"
+	}
 	installed := map[string]json.RawMessage{}
 	for ev, timeout := range d.Events {
 		entry, _ := json.Marshal(map[string]any{
 			"matcher": "*",
-			"hooks":   []map[string]any{{"type": "command", "command": mk + ev + " " + d.Agent, "timeout": timeout}},
+			"hooks":   []map[string]any{{"type": "command", "command": mk + ev + " " + d.Agent, timeoutKey: timeout}},
 		})
 		hooks[ev] = append(hooks[ev], entry)
 		installed[ev] = entry
@@ -85,7 +126,7 @@ func InstallHooks(d HookDialect, bin, path string, out func(string)) error {
 	if err != nil {
 		return err
 	}
-	st, _ := json.MarshalIndent(hookState{Agent: d.Agent, Path: path, Existed: existed, Marker: mk, At: time.Now().UTC(), Entries: installed}, "", "  ")
+	st, _ := json.MarshalIndent(hookState{Agent: d.Agent, Path: path, Existed: existed, Marker: mk, At: time.Now().UTC(), Entries: installed, EnabledSet: enabledSet}, "", "  ")
 	if err := writeHookSettings(path, append(b, '\n'), raw, hookStatePath(d.Agent), st); err != nil {
 		return err
 	}
@@ -135,6 +176,10 @@ func UninstallHooks(agent string, out func(string)) error {
 		}
 		if len(hooks) == 0 {
 			delete(root, "hooks")
+			if st.EnabledSet {
+				// the install turned the file on for its own hooks only
+				delete(root, "enabled")
+			}
 		} else {
 			hb, _ := json.Marshal(hooks)
 			root["hooks"] = hb

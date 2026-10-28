@@ -136,6 +136,12 @@ func installCmd() *cobra.Command {
 				}
 				w := cmd.OutOrStdout()
 				return install.InstallHooks(install.Codex, exe, hooksFile, func(s string) { fmt.Fprintln(w, s) })
+			case "mcode":
+				if hooksFile == "" {
+					hooksFile = filepath.Join(mcodeHome(), "hooks.json")
+				}
+				w := cmd.OutOrStdout()
+				return install.InstallHooks(install.Mcode, exe, hooksFile, func(s string) { fmt.Fprintln(w, s) })
 			case "opencode":
 				return installOpencode(cmd, exe)
 			case "copilot":
@@ -162,7 +168,7 @@ func installCmd() *cobra.Command {
 			case "openclaw":
 				return install.InstallOpenclaw(exe, func(s string) { fmt.Fprintln(cmd.OutOrStdout(), s) })
 			default:
-				return fmt.Errorf("지원하는 에이전트: claude, codex, opencode, agy, hermes, openclaw, copilot, cursor")
+				return fmt.Errorf("지원하는 에이전트: claude, codex, mcode, opencode, agy, hermes, openclaw, copilot, cursor")
 			}
 			if settings == "" {
 				settings = install.DefaultSettings()
@@ -171,9 +177,9 @@ func installCmd() *cobra.Command {
 			return install.Install(install.Options{Binary: exe, SettingsPath: settings, UsePluginCLI: !noCLI, Out: func(s string) { fmt.Fprintln(w, s) }})
 		},
 	}
-	c.Flags().StringVar(&agent, "agent", "claude", "대상 에이전트 (claude, codex, opencode, agy, hermes, openclaw, copilot, cursor)")
+	c.Flags().StringVar(&agent, "agent", "claude", "대상 에이전트 (claude, codex, mcode, opencode, agy, hermes, openclaw, copilot, cursor)")
 	c.Flags().StringVar(&settings, "settings", "", "Claude Code settings.json 경로")
-	c.Flags().StringVar(&hooksFile, "hooks-file", "", "Codex/Cursor hooks.json 경로 (기본 ~/.codex/hooks.json 또는 ~/.cursor/hooks.json)")
+	c.Flags().StringVar(&hooksFile, "hooks-file", "", "Codex/mcode/Cursor hooks.json 경로 (기본 ~/.codex/hooks.json, ~/.minimax/hooks.json, ~/.cursor/hooks.json)")
 	c.Flags().BoolVar(&noCLI, "no-plugin-cli", false, "claude plugin 명령으로 등록하지 않는다")
 	return c
 }
@@ -191,6 +197,8 @@ func uninstallCmd() *cobra.Command {
 				return install.Uninstall(say)
 			case "codex":
 				return install.UninstallHooks("codex", say)
+			case "mcode":
+				return install.UninstallHooks("mcode", say)
 			case "opencode":
 				return install.UninstallOpencode(say)
 			case "copilot":
@@ -204,11 +212,20 @@ func uninstallCmd() *cobra.Command {
 			case "openclaw":
 				return install.UninstallOpenclaw(say)
 			}
-			return fmt.Errorf("지원하는 에이전트: claude, codex, opencode, agy, hermes, openclaw, copilot, cursor")
+			return fmt.Errorf("지원하는 에이전트: claude, codex, mcode, opencode, agy, hermes, openclaw, copilot, cursor")
 		},
 	}
 	c.Flags().StringVar(&agent, "agent", "claude", "대상 에이전트")
 	return c
+}
+
+// mcodeHome is MiniMax Code's data folder; MINIMAX_DATA_DIR moves it.
+func mcodeHome() string {
+	if d := os.Getenv("MINIMAX_DATA_DIR"); d != "" {
+		return d
+	}
+	h, _ := os.UserHomeDir()
+	return filepath.Join(h, ".minimax")
 }
 
 func codexHome() string {

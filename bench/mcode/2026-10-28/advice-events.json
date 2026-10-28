@@ -1,0 +1,98 @@
+{
+ "mcode_version": "0.6.13",
+ "scenario": "repeat",
+ "mode": "bridge",
+ "events": [
+  {
+   "event": "SessionStart",
+   "tool": "",
+   "command": "",
+   "answered": false,
+   "hook_exit": 0
+  },
+  {
+   "event": "UserPromptSubmit",
+   "tool": "",
+   "command": "",
+   "answered": false,
+   "hook_exit": 0
+  },
+  {
+   "event": "PreToolUse",
+   "tool": "write",
+   "command": "",
+   "answered": false,
+   "hook_exit": 0
+  },
+  {
+   "event": "PostToolUse",
+   "tool": "write",
+   "command": "",
+   "answered": false,
+   "hook_exit": 0
+  },
+  {
+   "event": "PreToolUse",
+   "tool": "bash",
+   "command": "cd /w/proj && python3 -m pytest -q test_probe.py",
+   "answered": false,
+   "hook_exit": 0
+  },
+  {
+   "event": "PostToolUse",
+   "tool": "bash",
+   "command": "cd /w/proj && python3 -m pytest -q test_probe.py",
+   "answered": false,
+   "hook_exit": 0
+  },
+  {
+   "event": "PreToolUse",
+   "tool": "bash",
+   "command": "cd /w/proj && python3 -m pytest -q test_probe.py",
+   "answered": false,
+   "hook_exit": 0
+  },
+  {
+   "event": "PostToolUse",
+   "tool": "bash",
+   "command": "cd /w/proj && python3 -m pytest -q test_probe.py",
+   "answered": false,
+   "hook_exit": 0
+  },
+  {
+   "event": "PreToolUse",
+   "tool": "bash",
+   "command": "cd /w/proj && python3 -m pytest -q test_probe.py",
+   "answered": false,
+   "hook_exit": 0
+  },
+  {
+   "event": "PostToolUse",
+   "tool": "bash",
+   "command": "cd /w/proj && python3 -m pytest -q test_probe.py",
+   "answered": false,
+   "hook_exit": 0
+  },
+  {
+   "event": "PreToolUse",
+   "tool": "bash",
+   "command": "cd /w/proj && python3 -m pytest -q test_probe.py",
+   "answered": false,
+   "hook_exit": 0
+  },
+  {
+   "event": "PostToolUse",
+   "tool": "bash",
+   "command": "cd /w/proj && python3 -m pytest -q test_probe.py",
+   "answered": true,
+   "hook_exit": 0
+  },
+  {
+   "event": "Stop",
+   "tool": "",
+   "command": "",
+   "answered": false,
+   "hook_exit": 0
+  }
+ ]
+}

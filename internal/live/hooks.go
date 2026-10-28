@@ -23,6 +23,7 @@ import (
 type HookInput struct {
 	Cursor         *cursorEvidence  `json:"-"`
 	Copilot        *copilotEvidence `json:"-"`
+	Mcode          *mcodeEvidence   `json:"-"`
 	SessionID      string           `json:"session_id"`
 	TranscriptPath string           `json:"transcript_path"`
 	Cwd            string           `json:"cwd"`
@@ -223,7 +224,18 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 	case "PreToolUse":
 		return s.onPreTool(in), s, nil
 	case "PostToolUse", "PostToolUseFailure":
-		return s.onPostTool(in, name == "PostToolUseFailure"), s, nil
+		out := s.onPostTool(in, name == "PostToolUseFailure")
+		if in.Mcode != nil && in.Mcode.Result.Child != "" && in.Mcode.Result.Child != in.SessionID {
+			// the finished subagent call names the session it ran in
+			d.mu.Lock()
+			limit := d.treeLimitLocked(s, in.SessionID)
+			d.mu.Unlock()
+			d.swarm.register(in.Mcode.Result.Child, in.SessionID, false, limit)
+		}
+		return out, s, nil
+	case "BackgroundResult":
+		s.onBackgroundResult(in)
+		return nil, s, nil
 	case "Stop":
 		if in.Cursor != nil && (in.Cursor.EndStatus != "completed" || in.Cursor.LoopCount > 0) {
 			return nil, s, nil
@@ -261,6 +273,7 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 		return nil, s, nil
 	case "SessionEnd":
 		s.flushTurn()
+		s.closeBackground()
 		if in.Cursor != nil {
 			s.mu.Lock()
 			ev := &event.Event{Kind: event.KindSessionEnd, TS: time.Now(), Summary: "cursor session end: " + cursorEndStatus(in.Cursor.EndStatus), Basis: "live"}
@@ -310,11 +323,18 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 }
 
 func (s *Session) onPrompt(in HookInput) json.RawMessage {
-	s.flushTurn()
+	notice := intent.HarnessNotice(in.Prompt)
+	if notice {
+		// a harness notice is delivered while calls of the turn may still be
+		// running, so it closes none of them; it can state task end times
+		s.noteBackgroundEnds(in.Prompt)
+	} else {
+		s.flushTurn()
+	}
 	s.mu.Lock()
 	ev := &event.Event{PromptOrigin: "user", Kind: event.KindPrompt, TS: time.Now(), Summary: "prompt", Text: in.Prompt, Basis: "live"}
 	ev.Forced = rules.Current().ForcedPrompts.Match(strings.TrimSpace(in.Prompt))
-	if intent.HarnessNotice(in.Prompt) {
+	if notice {
 		// a background task or reminder delivered in the user turn is neither
 		// a request nor a forced continuation
 		ev.PromptOrigin = "harness"
@@ -462,6 +482,7 @@ func (s *Session) flushAwaiting(stale func(id string, ev *event.Event) bool) []*
 		delete(s.awaiting, id)
 		s.flushed[id] = true
 		delete(s.shell, id)
+		s.releaseHeavy(id, false)
 		x := -1
 		ev.ExitCode = &x
 		if s.Agent == "cursor" {
@@ -581,6 +602,16 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 			deny, sig = true, pre
 		}
 	}
+	if !deny {
+		if pre := s.heavyPre(ev); pre != nil {
+			deny, sig = true, pre
+		}
+	}
+	if !deny {
+		if pre := s.hostBudgetPre(ev); pre != nil {
+			deny, sig = true, pre
+		}
+	}
 	ctx := s.msgContext()
 	seq, tool, execFP, certain, norm := ev.Seq, ev.Tool, ev.ExecFP, ev.ExecCertain, ev.CmdNorm
 	s.mu.Unlock()
@@ -595,6 +626,9 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 		}
 	}
 	if !deny {
+		s.mu.Lock()
+		s.holdHeavy(ev)
+		s.mu.Unlock()
 		nudge, user := s.takePendingFor("PreToolUse", in.Ack)
 		out := map[string]any{}
 		if nudge != "" {
@@ -650,6 +684,7 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 		if route == "advice" && s.caps.InjectPre {
 			s.noteAdvice(in.Ack, s.adviceKey(v))
 		}
+		s.holdHeavy(ev) // the call runs
 		s.mu.Unlock()
 		recorded := route
 		s.storeAfterAnswer(func() {
@@ -800,7 +835,18 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 	if s.Agent == "copilot" {
 		applyCopilotResult(ev, in, failure)
 	}
-	if s.Agent != "cursor" && s.Agent != "copilot" && ev.ExitCode != nil && *ev.ExitCode == -1 && !failure {
+	if s.Agent == "mcode" {
+		applyMcodeResult(ev, in, failure)
+		if in.Mcode != nil && in.Mcode.Result.State == "background" {
+			s.trackBackground(ev, in.Mcode.Result.TaskID)
+		}
+	}
+	if ev.Tool == event.ToolShell {
+		// only a background run whose result is joined later keeps its
+		// place; elsewhere nothing would ever release it
+		s.releaseHeavy(ev.CallID, ev.Background && s.joinsBackground())
+	}
+	if s.Agent != "cursor" && s.Agent != "copilot" && s.Agent != "mcode" && ev.ExitCode != nil && *ev.ExitCode == -1 && !failure {
 		ev.ExitCode = nil
 	}
 	cx := s.cx
@@ -822,6 +868,7 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 	if !started.IsZero() && ev.DurationMS == 0 {
 		ev.DurationMS = ev.TS.Sub(started).Milliseconds()
 	}
+	s.noteVerify(ev)
 	contractWrite := false
 	for _, p := range ev.Paths {
 		if p == ".samcheonpo/contract.yml" || strings.HasSuffix(p, "/.samcheonpo/contract.yml") || filepath.Clean(p) == contract.Path(s.Root) {
@@ -955,6 +1002,7 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 	}
 	msg := &event.Event{Kind: event.KindMessage, TS: time.Now(), Summary: "message", Text: text, Basis: "live", Priced: true}
 	s.parser.AddEvent(msg)
+	s.leftoverAtStop(msg)
 	s.mu.Unlock()
 	s.enqueue(msg, time.Second)
 	s.mu.Lock()

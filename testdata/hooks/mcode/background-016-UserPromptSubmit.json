@@ -1,0 +1,10 @@
+{
+  "prompt": "<background-task-finished>\nLocal background tasks have finished in this conversation.\n  <task task_id=\"bg_task-4\" status=\"failed\" description=\"sleep 75; echo bg-done; exit 3\" ended_at_ms=\"1793191830608\"/>\nUse task_output with each task_id to read the results, then report the relevant results to the user as a normal assistant reply in this conversation.\nDo not mention this internal notice unless it is necessary to explain the results.\n</background-task-finished>",
+  "hook_event_name": "UserPromptSubmit",
+  "session_id": "mcode-session-2",
+  "turn-1": "turn-3",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

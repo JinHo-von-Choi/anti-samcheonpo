@@ -69,6 +69,11 @@ type Contract struct {
 		KRW              int64 `yaml:"krw" json:"krw"`
 		Minutes          int   `yaml:"minutes" json:"minutes"`
 		SameErrorRetries int   `yaml:"same_error_retries" json:"same_error_retries"`
+		// ArtifactGB bounds the growth of build artifacts in the session and
+		// VerifyMinutes the summed time of checks (minutes is active
+		// session time). Absent, they keep earlier digests unchanged.
+		ArtifactGB    int `yaml:"artifact_gb,omitempty" json:"artifact_gb,omitempty"`
+		VerifyMinutes int `yaml:"verify_minutes,omitempty" json:"verify_minutes,omitempty"`
 	} `yaml:"budget" json:"budget"`
 	Forbid []string `yaml:"forbid" json:"forbid"`
 	// Explore marks the contract as a research task (S4 is not raised).
@@ -76,6 +81,36 @@ type Contract struct {
 	// SimplifyTests licenses deliberate test simplification: the assertion
 	// guard stands down for test edits while this is set.
 	SimplifyTests bool `yaml:"simplify_tests,omitempty" json:"simplify_tests,omitempty"`
+	// Production names what runs in production. With it accepted, a write to
+	// a production database and a deploy are judged against it. Absent
+	// fields keep the digest of contracts accepted before they existed.
+	Production *Production `yaml:"production,omitempty" json:"production,omitempty"`
+}
+
+// Production is the production side of a project as the user states it.
+type Production struct {
+	// EnvFiles hold the production connection settings (default
+	// .env.production and .env.prod when empty).
+	EnvFiles []string `yaml:"env_files,omitempty" json:"env_files,omitempty"`
+	// Hosts are production database hosts.
+	Hosts []string `yaml:"hosts,omitempty" json:"hosts,omitempty"`
+	// Services are systemd units that serve production; restarting one is a deploy.
+	Services []string `yaml:"services,omitempty" json:"services,omitempty"`
+	// DeployCommands are this project's deploy commands, as typed.
+	DeployCommands []string `yaml:"deploy_commands,omitempty" json:"deploy_commands,omitempty"`
+	// AllowWrite lets the agent write to production data.
+	AllowWrite bool `yaml:"allow_write,omitempty" json:"allow_write,omitempty"`
+}
+
+// DefaultProductionEnvFiles are read as production settings without a contract.
+var DefaultProductionEnvFiles = []string{".env.production", ".env.prod"}
+
+// ProductionEnvFiles returns the files that hold production settings.
+func (c *Contract) ProductionEnvFiles() []string {
+	if c != nil && c.Production != nil && len(c.Production.EnvFiles) > 0 {
+		return c.Production.EnvFiles
+	}
+	return DefaultProductionEnvFiles
 }
 
 // State is the acceptance state (stored in .samcheonpo/contract.state.json).

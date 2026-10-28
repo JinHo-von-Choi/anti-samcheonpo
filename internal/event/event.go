@@ -109,6 +109,10 @@ type Event struct {
 	// Background marks a shell call started without waiting for its end.
 	TimeoutMS  int64 `json:"timeout_ms,omitempty"`
 	Background bool  `json:"background,omitempty"`
+	// OriginSeq is the background start a completion event finishes: the
+	// shell call keeps its own event and its final result arrives later as
+	// a new event in arrival order.
+	OriginSeq int64 `json:"origin_seq,omitempty"`
 	// DurationMS is the observed wall time of a tool call (0: unknown).
 	DurationMS  int64             `json:"duration_ms,omitempty"`
 	Dir         string            `json:"dir,omitempty"`

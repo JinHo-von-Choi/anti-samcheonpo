@@ -60,6 +60,8 @@ Start a **new agent session**. If the agent asks you to trust hooks or a plugin,
 
 Cursor CLI is observation-only. The current source supports generic tool hooks and connection checks; actual blocking and advice delivery remain unverified. See the [Cursor connection guide](docs/getting-started.md#cursor-cli에서-관찰하기).
 
+MiniMax Code (mcode) connects with `samcheonpo install --agent mcode`. Pre-tool blocking, post-tool advice and stop continuation were verified against the real CLI. See the [mcode connection guide](docs/getting-started.md#minimax-codemcode에-연결하기).
+
 GitHub Copilot CLI connects with `samcheonpo install --agent copilot`. Pre-tool blocking, post-tool advice, stop continuation and prompt advice were verified against the real CLI. See the [Copilot connection guide](docs/getting-started.md#github-copilot-cli에-연결하기).
 
 **3. Work normally and respond to warnings.** Run these in your own terminal, in the project directory:

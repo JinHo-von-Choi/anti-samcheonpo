@@ -37,6 +37,18 @@ func timeoutFor(event, agent string) time.Duration {
 			return 2500 * time.Millisecond
 		}
 	}
+	if agent == "mcode" {
+		// MiniMax Code runs each hook as a process and waits for it up to the
+		// timeoutSeconds the hooks file states, so a pre tool answer can take
+		// the time a first verdict needs; a post tool answer carries advice
+		// that a 50ms limit dropped in a real session (60ms measured).
+		switch event {
+		case "PreToolUse":
+			return 250 * time.Millisecond
+		case "PostToolUse":
+			return 500 * time.Millisecond
+		}
+	}
 	if agent == "cursor" {
 		switch event {
 		case "preToolUse", "beforeShellExecution", "beforeReadFile", "beforeMCPExecution":

@@ -1,0 +1,15 @@
+{
+  "tool_name": "bash",
+  "tool_input": {
+    "command": "sleep 75; echo bg-done; exit 3",
+    "timeout": 40
+  },
+  "tool_use_id": "call_01a1828dad447177988628e1",
+  "hook_event_name": "PreToolUse",
+  "session_id": "mcode-session-2",
+  "turn-1": "turn-3",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

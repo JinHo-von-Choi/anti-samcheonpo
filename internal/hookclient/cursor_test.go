@@ -12,6 +12,15 @@ import (
 	"time"
 )
 
+// TestMcodeBudgets mirrors crates/samcheonpo-hook/src/agent.rs.
+func TestMcodeBudgets(t *testing.T) {
+	for event, want := range map[string]time.Duration{"PreToolUse": 250 * time.Millisecond, "PostToolUse": 500 * time.Millisecond, "Stop": 150 * time.Second, "SessionEnd": 2500 * time.Millisecond, "UserPromptSubmit": 50 * time.Millisecond} {
+		if got := timeoutFor(event, "mcode"); got != want {
+			t.Fatalf("%s: %s", event, got)
+		}
+	}
+}
+
 func TestCursorBudgetsAndUnavailable(t *testing.T) {
 	for event, want := range map[string]time.Duration{"preToolUse": 15 * time.Millisecond, "beforeShellExecution": 15 * time.Millisecond, "beforeReadFile": 15 * time.Millisecond, "sessionEnd": 2500 * time.Millisecond, "stop": 2500 * time.Millisecond, "postToolUse": 50 * time.Millisecond} {
 		if got := timeoutFor(event, "cursor"); got != want {

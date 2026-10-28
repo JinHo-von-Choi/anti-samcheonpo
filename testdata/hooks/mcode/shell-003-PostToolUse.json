@@ -1,0 +1,60 @@
+{
+  "tool_name": "bash",
+  "tool_input": {
+    "command": "echo probe-ok",
+    "description": "Run echo probe-ok"
+  },
+  "tool_response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "probe-ok\n"
+      }
+    ],
+    "details": {
+      "execution": {
+        "status": "succeeded",
+        "reason": "exited",
+        "exitCode": 0
+      },
+      "timing": {
+        "commandTimeoutSeconds": 3600,
+        "commandTimerStartedAt": 1793191543814,
+        "commandDeadlineAt": 1793195143814
+      },
+      "output": {
+        "rawBytes": 9,
+        "persistence": "complete",
+        "omittedBytes": 0
+      },
+      "processOutput": {
+        "stdout": "probe-ok\n",
+        "stderr": "",
+        "exitCode": 0,
+        "interrupted": false,
+        "stdoutTruncated": false,
+        "stderrTruncated": false,
+        "rawOutputPath": "/home/u/.minimax/background-tasks/bg_task-1/output.log"
+      },
+      "description": "Run echo probe-ok",
+      "fullOutputPath": "/home/u/.minimax/background-tasks/bg_task-1/output.log",
+      "envSanitized": [
+        "MAVIS_BUILD_ENV",
+        "MAVIS_DATA_DIR",
+        "MAVIS_REGION",
+        "MINIMAX_DATA_DIR",
+        "__MAVIS_RUNTIME_MANAGED"
+      ],
+      "status": "succeeded",
+      "task_id": "bg_task-1"
+    }
+  },
+  "tool_use_id": "call_ucPBtRxFsFZ992IegPraIcSF",
+  "hook_event_name": "PostToolUse",
+  "session_id": "mcode-session-1",
+  "turn-1": "turn-2",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

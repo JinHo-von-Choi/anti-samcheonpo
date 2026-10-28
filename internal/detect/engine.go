@@ -154,6 +154,7 @@ type State struct {
 	verifyStreak         []int64 // consecutive distinct passing verifications with no progress in between
 	lastWriteSeq         int64
 	lastCodeWriteSeq     int64
+	codeWritten          bool  // a code file was written (lastCodeWriteSeq is set)
 	lastProdWriteSeq     int64 // non-doc, non-temp in-scope write: counts as productive progress
 	lastProdPath         string
 	prodPaths            map[string]bool      // production files the session changed
@@ -176,6 +177,8 @@ type State struct {
 	writes               int
 	testAdded, codeAdded int
 	testLits             map[string]int64
+	flake                flakeState
+	revert               revertState
 	lastUnknown          int64
 	forced               int
 	forcedSeqs           []int64
@@ -401,9 +404,12 @@ func (e *Engine) tool(ev *event.Event, sigs *[]Signal) {
 		e.verification(ev, sigs)
 	case event.CatProduce:
 		e.production(ev, sigs)
+		e.flakeMasking(ev, sigs)
 	case event.CatExplore:
 		e.exploration(ev, sigs)
 	}
+	e.trackFlaky(ev)
+	e.revertReverify(ev, sigs)
 	e.environment(ev, sigs)
 	e.reviewRepeat(ev, sigs)
 	if ev.Tool == event.ToolShell && OrTrueRE.MatchString(ev.CmdNorm) && ev.Category == event.CatVerify {
@@ -899,6 +905,7 @@ func (e *Engine) production(ev *event.Event, sigs *[]Signal) {
 	for _, p := range ev.Paths {
 		if !IsDocPath(p) && !IsDataPath(p) {
 			st.lastCodeWriteSeq = ev.Seq
+			st.codeWritten = true
 			if !pathnorm.IsTempPath(p) {
 				st.lastProdWriteSeq = ev.Seq
 				st.lastProdPath = p

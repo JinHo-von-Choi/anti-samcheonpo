@@ -1,0 +1,32 @@
+{
+  "tool_name": "bash",
+  "tool_input": {
+    "command": "sleep 75; echo bg-done; exit 3",
+    "run_in_background": true,
+    "timeout": 180
+  },
+  "tool_response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "<bash_background task_id=\"bg_task-4\">\nPurpose: sleep 75; echo bg-done; exit 3\nBackground Bash task accepted; command startup may still be in progress. Command limit: 180s total; yielding does not reset it. The owning conversation will automatically resume when it finishes; use task_output to inspect incremental output, and task_stop to cancel if that tool is available.\n</bash_background>"
+      }
+    ],
+    "details": {
+      "description": "sleep 75; echo bg-done; exit 3",
+      "timing": {
+        "commandTimeoutSeconds": 180
+      },
+      "status": "started",
+      "task_id": "bg_task-4"
+    }
+  },
+  "tool_use_id": "call_function_m18nmw7j21d1_1",
+  "hook_event_name": "PostToolUse",
+  "session_id": "mcode-session-2",
+  "turn-1": "turn-3",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

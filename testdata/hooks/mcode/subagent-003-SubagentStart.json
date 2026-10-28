@@ -1,0 +1,11 @@
+{
+  "agent_id": "mcode-session-4",
+  "agent_type": "worker",
+  "hook_event_name": "SubagentStart",
+  "session_id": "mcode-session-4",
+  "turn-1": "turn-5",
+  "transcript_path": "/home/u/.minimax/v2/sessions/2026/10/28/12-51-28-352-session_X/display.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

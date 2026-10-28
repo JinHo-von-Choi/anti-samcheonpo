@@ -1,0 +1,15 @@
+{
+  "tool_name": "task_output",
+  "tool_input": {
+    "task_id": "bg_task-4",
+    "wait_ms": 30000
+  },
+  "tool_use_id": "call_function_642l19je4uia_1",
+  "hook_event_name": "PreToolUse",
+  "session_id": "mcode-session-2",
+  "turn-1": "turn-3",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

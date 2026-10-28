@@ -10,7 +10,7 @@
 
 | 환경 | 배포 파일 | 확인 수준 | 비고 |
 | --- | --- | --- | --- |
-| Linux x86-64 | 있음 | 실제 실행 | Claude Code, Codex, opencode, agy, Hermes, OpenClaw |
+| Linux x86-64 | 있음 | 실제 실행 | Claude Code, Codex, opencode, agy, Hermes, OpenClaw, MiniMax Code |
 | Linux arm64 | 있음 | 배포 파일 설치 확인 | 실제 에이전트 실행 미확인 |
 | macOS (amd64, arm64) | 있음 | CI 시험 | 실제 에이전트 실행 미확인 |
 | Windows (x64, arm64) | 있음 | CI 시험, 실제 실행(arm64, Claude Code) | 다른 에이전트 미확인 |
@@ -37,6 +37,7 @@
 | Hermes 0.21.x | 플러그인 + `hermes plugins enable` | 도구 결과에 귀띔, 실행 전 차단 | 종료 보류는 코드를 고친 차례에서만 불린다. 실행 중인 게이트웨이는 재시작해야 적용된다 |
 | OpenClaw 2026.7.x | 플러그인 + `openclaw plugins install` | 다음 요청에 귀띔, 실행 전 차단 | 실행 중에 도구 결과를 모델에 보여 줄 훅이 없어 같은 실행 안의 반복은 막지 않는다. 실행 중인 게이트웨이는 재시작해야 적용된다 |
 | Cursor CLI 2026.10.19-6bbf2c4 | `~/.cursor/hooks.json`의 범용 도구 훅 | 관찰만 | Linux 입력 캡처·원장 재생 확인. 실제 차단·안내 전달은 미검증 |
+| MiniMax Code(mcode) 0.6.13 | `~/.minimax/hooks.json` (최상위 `"enabled": true`) | 도구 뒤 귀띔, 실행 전 차단, 종료 보류 | 이미 떠 있던 세션은 훅 파일을 읽지 않는다. 백그라운드 셸은 `task_output` 결과로 완료 사건을 더한다. 부모·자식 세션은 `task` 결과에 자식 세션 ID가 나올 때만 잇는다. 토큰·비용은 오지 않는다 |
 | GitHub Copilot CLI 1.0.101–1.0.104 | `.github/hooks/samcheonpo.json`의 명령 훅 | 귀띔, 실행 전 차단, 종료 보류, 프롬프트 안내 | 호출 ID가 없어 시작·결과를 순서로 잇는다. 종료 코드는 결과 본문에만 있다. 종료 보류 사유는 다음 프롬프트로 다시 들어오며 사용자 요청으로 세지 않는다. 토큰·비용은 오지 않는다 |
 
 Codex 0.163.0의 실행·계측 확인 범위는 [아래 별도 기록](#codex-01630-확인-범위)을 참고한다.
@@ -56,7 +57,14 @@ flowchart LR
 
 | 기능 | 실제 에이전트로 확인 | 시험으로만 확인 |
 | --- | --- | --- |
-| 같은 실패 반복의 귀띔과 실행 전 차단 | Claude Code, Codex, agy, Hermes, OpenClaw, opencode (귀띔만, 차단 미발화) | |
+| 같은 작업 폴더의 무거운 시험 겹침 (`s1.concurrent_heavy_check`) | 사후 감사: Vellum mcode 세션 2개에서 `cargo test --workspace` 겹침 3건 확인 | 두 세션·백그라운드 실행·다른 폴더·가벼운 시험·결과 없는 실행 만료·계약 검사 대기 시험 |
+| 검사 없는 운영 배포 (`s5.deploy_without_preflight`) | 사후 감사: Vellum mcode 루트 세션에서 3건(CI 실패 상태 2건, 변경 뒤 검사 없음 1건) | CI REST API 조회·스크립트 출력, 첫 배포, 계약 서비스 재시작, 비배포 서비스 제어 |
+| 운영 데이터 쓰기·마이그레이션 이력 수동 변경 | 분류만: Vellum mcode 작업 기록의 실제 명령 193개에서 이력 테이블 변경 4건 | 운영 설정 파일·계약 호스트·허용, 로컬 대상 제외, 읽기 전용 문장 |
+| 재시도·시간 한도로 flake 덮기 (`s5.flake_masking`) | | Vellum의 `--retries=1`, 타임아웃 90→180초, 재시도 반복문 재현과 비발화 사례 |
+| 되돌려 재검증 (`s1.revert_reverify`) | | 반복 루프, 앞으로 가는 수정, red-green 요청 |
+| 호스트 자원 (`s8.host_resource`, `s8.host_budget`) | | 산출물 증가 단계, 검사 시간 단계, 측정 상한, 계약 예산 |
+| 남은 프로세스 (`s8.leftover_process`, Linux) | | 작업 폴더에서 시작된 프로세스, 시간 창 밖·다른 폴더 제외 |
+| 같은 실패 반복의 귀띔과 실행 전 차단 | Claude Code, Codex, agy, Hermes, OpenClaw, opencode (귀띔만, 차단 미발화), MiniMax Code (귀띔) | |
 | 코드 밖 원인 수정 보류 | Claude Code (보류 사유 전달) | 두 번째 쓰기 거부, `keep normal` 해제 |
 | 통과 시점 기록과 `rollback golden` | Claude Code (기록, 목록, 미리보기) | `apply` (사용자 전용) |
 | 전체 시험 재실행, 장시간 실행, 배포 연타, 반복 거부, 브라우저 타이밍, 세션 길이 | 지난 Codex 기록 감사에서 판정 | 실시간 귀띔·차단 전달 |
@@ -109,6 +117,14 @@ Copilot은 도구 호출 ID를 보내지 않는다. 삼천포는 같은 도구 �
 `samcheonpo install --agent copilot`는 실행 중인 폴더에 저장소 수준 훅 파일을 쓴다. Copilot은 신뢰된 작업 폴더에서만 저장소 훅을 불러오므로, 다른 폴더까지 쓰려면 `--hooks-file`로 사용자 수준 파일(`~/.copilot/hooks/samcheonpo.json`)을 지정한다. `doctor --agent copilot`는 설치 기록·필수 이벤트·실행 파일·마지막 수신 기록과 "호출 ID 부재" 제한을 함께 표시한다.
 
 실행 전 차단과 도구 뒤 안내는 실제 CLI로 확인했다. 차단 사유가 에이전트에 닿고, 안내 문장이 모델 문맥에 들어가는 것을 봤다. 종료 후속 실행과 프롬프트 주입은 확인하지 못해 비활성 상태다. 실행 전 조언은 Copilot에 전달할 자리가 없어 조용히 사라지며 전달된 것으로 기록되지 않는다. 토큰·비용은 Copilot 훅이 알려 주지 않는다. IDE 연동·Cloud Agent·다른 OS의 지원을 의미하지 않는다. [실측 기록](benchmarks/2026-10-22-copilot-support.md)
+
+### MiniMax Code
+
+`samcheonpo install --agent mcode`는 `~/.minimax/hooks.json`에 훅 7종(SessionStart, UserPromptSubmit, PreToolUse, PostToolUse, Stop, PreCompact, SessionEnd)을 넣는다. mcode는 이 파일의 최상위가 `"enabled": true`일 때만 훅을 실행한다. 파일이 없으면 만들어 켜고, 제거할 때 삼천포가 켠 경우에만 다시 끈다. 사용자가 꺼 둔 파일과 `enabled` 없이 다른 훅이 있는 파일은 켜지 않고 설치를 거부한다.
+
+실행 전 차단, 도구 뒤 귀띔, 종료 보류를 실제 CLI로 확인했고, 같은 실패 시험을 반복한 실제 세션에서 귀띔이 전달돼 반복이 멈췄다. 프롬프트 귀띔은 확인하지 않아 꺼 두었다. 하위 에이전트의 SubagentStart·SubagentStop에는 부모 필드가 없어 등록하지 않는다. `doctor --agent mcode`는 설치 기록, `enabled`, 필수 이벤트, 실행 파일, 마지막 수신 기록을 확인한다.
+
+사후 감사(`samcheonpo audit --agent mcode`)는 `~/.minimax/v2/sessions/**/messages.jsonl`을 읽는다. 기록에 결과가 없는 백그라운드 셸은 `~/.minimax/v2/sqlite/runtime-state.sqlite`의 작업 기록을 읽기 전용으로 열어 채운다. 이 파일을 읽지 못하면 그 셸은 결과 없음으로 남긴다. 압축된 세션은 압축 이전 대화가 기록에 없어 그 부분을 분석하지 못한다. [실측 기록](benchmarks/2026-10-28-mcode-support.md)
 
 ## Codex 0.163.0 확인 범위
 

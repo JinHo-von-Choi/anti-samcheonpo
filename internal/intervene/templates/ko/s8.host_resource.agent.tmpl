@@ -1,0 +1,4 @@
+[삼천포] 관찰: {{if eq .kind "artifacts"}}이 작업 폴더의 빌드 산출물({{.dirs}})이 세션 중 {{.grown_gb}}GB 늘어 {{.total_gb}}GB가 됐다{{else if eq .kind "free"}}작업 폴더가 있는 디스크의 여유 공간이 {{.free_gb}}GB({{.free_pct}}%)로 줄었다{{else}}이 세션에서 검사 실행에 쓴 시간이 {{.minutes}}분이다{{end}}.
+근거: 이벤트 {{.evidence}}. {{if eq .kind "artifacts"}}같은 시험을 다시 빌드할 때마다 산출물이 새로 쌓인다{{else if eq .kind "free"}}디스크가 차면 빌드·시험·데이터베이스가 함께 실패한다{{else}}시간을 모르는 검사 {{.unknown}}건은 합계에 넣지 않았다{{end}}.
+비용: {{.cost_summary}}
+계약: 목표는 {{.goal}}이다. 같은 확인을 반복해 기계 자원을 쓰는 것은 진척이 아니다.

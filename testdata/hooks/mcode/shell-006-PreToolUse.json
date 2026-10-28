@@ -1,0 +1,15 @@
+{
+  "tool_name": "write",
+  "tool_input": {
+    "path": "/w/proj/note.txt",
+    "content": "alpha\n"
+  },
+  "tool_use_id": "call_function_jd1wtv5zzv0n_1",
+  "hook_event_name": "PreToolUse",
+  "session_id": "mcode-session-1",
+  "turn-1": "turn-2",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

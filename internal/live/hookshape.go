@@ -22,6 +22,9 @@ func hookShape(name string, in HookInput) string {
 	if in.Copilot != nil && in.Copilot.Shape != "" {
 		return in.Copilot.Shape
 	}
+	if in.Mcode != nil && in.Mcode.Shape != "" {
+		return in.Mcode.Shape
+	}
 	switch name {
 	case "PreToolUse", "PostToolUse", "PostToolUseFailure":
 	default:

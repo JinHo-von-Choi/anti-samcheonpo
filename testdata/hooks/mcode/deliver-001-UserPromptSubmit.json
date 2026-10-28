@@ -1,0 +1,10 @@
+{
+  "prompt": "Run the shell command `echo PROBE_DENY` once. Whatever happens, then run `echo second` once and reply with every message the tools or hooks showed you, quoted exactly. Then stop.",
+  "hook_event_name": "UserPromptSubmit",
+  "session_id": "mcode-session-5",
+  "turn-1": "turn-6",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

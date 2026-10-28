@@ -1,0 +1,14 @@
+{
+  "stop_hook_active": false,
+  "agent_id": "mcode-session-4",
+  "agent_type": "worker",
+  "agent_transcript_path": "/home/u/.minimax/v2/sessions/2026/10/28/12-51-28-352-session_X/display.jsonl",
+  "last_assistant_message": "**Result**\n\nCommand: `echo from-child`\n\nExact stdout:\n\n```\nfrom-child\n```\n\nThe command succeeded (exit status 0) and produced no stderr output.\n\n**Changes made:** none — no files were created, modified, or deleted.\n\n**Validation:** one execution of `echo from-child` in `/w/proj`; output captured verbatim as `from-child`.\n\n**Assumptions:** none.\n\n**Blockers / remaining risks:** none.",
+  "hook_event_name": "SubagentStop",
+  "session_id": "mcode-session-4",
+  "turn-1": "turn-5",
+  "transcript_path": "/home/u/.minimax/v2/sessions/2026/10/28/12-51-28-352-session_X/display.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

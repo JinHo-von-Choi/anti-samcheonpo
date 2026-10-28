@@ -176,3 +176,22 @@ func (e *Engine) trackCheckCost(ev *event.Event, c checkInfo) {
 		e.St.mar.checkCost[c.key] = time.Duration(ev.DurationMS) * time.Millisecond
 	}
 }
+
+// HeavyCheck reports whether a shell call is a heavy test run (the whole
+// suite, or tests that took expensive_check_sec or longer last time) and how
+// long the same tests took last time (0 when unknown).
+func (e *Engine) HeavyCheck(ev *event.Event) (bool, time.Duration) {
+	if ev.Tool != event.ToolShell || ev.Category != event.CatVerify {
+		return false, 0
+	}
+	c := e.checkOf(ev)
+	if c.key == "" {
+		return false, 0
+	}
+	cost := e.St.mar.checkCost[c.key]
+	if len(c.tests) == 0 {
+		// a check that runs no named test (a CI script) is heavy by its time
+		return e.expensive(c), cost
+	}
+	return e.wide(c), cost
+}

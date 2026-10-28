@@ -1,0 +1,15 @@
+{
+  "tool_name": "bash",
+  "tool_input": {
+    "command": "sh -c 'echo probe-fail >&2; exit 7'",
+    "description": "Run failing command that exits 7"
+  },
+  "tool_use_id": "call_function_u747y5kknvwp_1",
+  "hook_event_name": "PreToolUse",
+  "session_id": "mcode-session-1",
+  "turn-1": "turn-2",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

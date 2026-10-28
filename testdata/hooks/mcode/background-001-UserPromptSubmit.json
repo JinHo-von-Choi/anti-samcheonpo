@@ -1,0 +1,10 @@
+{
+  "prompt": "Run the shell command `sleep 75; echo bg-done; exit 3` exactly once. If it moves to the background, wait for it with the task output tool until it finishes, then reply with its exit status and stop. Do nothing else.",
+  "hook_event_name": "UserPromptSubmit",
+  "session_id": "mcode-session-2",
+  "turn-1": "turn-3",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

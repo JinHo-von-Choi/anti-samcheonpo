@@ -1,0 +1,11 @@
+{
+  "stop_hook_active": false,
+  "last_assistant_message": "Both commands ran. Here is every message the tools and hooks showed me, quoted exactly:\n\n**1. Tool result — first command** (`echo PROBE_DENY`):\n```\nPROBE_DENY_REASON\n```\n\n**2. Tool result — second command** (`echo second`):\n```\nsecond\n```\n\n**3. Hook message attached to the second command:**\n```\n<plugin-hook-context>\nPROBE_ADVICE\n</plugin-hook-context>\n```\n\nTwo things worth flagging:\n\n- The first command's output was **not** `PROBE_DENY`. It came back as `PROBE_DENY_REASON`, so something between the shell and me rewrote or intercepted that output — the exact string the command should have printed never appeared.\n- The second command's stdout (`second`) was accompanied by the `PROBE_ADVICE` hook context, which appears to be guidance injected by a hook rather than command output. It contained no instructions beyond that single token.\n\nBeyond these, the harness also injected two `<system-reminder>` blocks into my context (one about using `tool_search`/`mcp_invoke` for scheduled-task, session-management, and MCP tooling; one about loading the `mcode-tools-master` skill before any `mcode-tools` Bash command). Those came from the harness system prompt rather than from any tool call or hook in this turn, so I'm reporting them separately from the quoted tool/hook messages above.\n\nNo files were created or modified. Stopping here as instructed.",
+  "hook_event_name": "Stop",
+  "session_id": "mcode-session-5",
+  "turn-1": "turn-6",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

@@ -1,0 +1,11 @@
+{
+  "stop_hook_active": false,
+  "last_assistant_message": "DONE\n\nThe subagent ran `echo from-child` and reported the output as `from-child` (exit status 0, no stderr, no files changed).",
+  "hook_event_name": "Stop",
+  "session_id": "mcode-session-3",
+  "turn-1": "turn-4",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

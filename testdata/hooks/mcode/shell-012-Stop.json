@@ -1,0 +1,11 @@
+{
+  "stop_hook_active": false,
+  "last_assistant_message": "All five steps completed:\n\n1. `echo probe-ok` → `probe-ok`\n2. `sh -c 'echo probe-fail >&2; exit 7'` → stderr `probe-fail`, exit code 7\n3. Wrote [note.txt](/w/proj/note.txt) containing `alpha`\n4. Edited `alpha` → `beta`\n5. Read back: contents are `beta`\n\nDONE",
+  "hook_event_name": "Stop",
+  "session_id": "mcode-session-1",
+  "turn-1": "turn-2",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

@@ -32,6 +32,7 @@ type observationPayload struct {
 	ExecFP             string                      `json:"exec_fp,omitempty"`
 	ExecCertain        bool                        `json:"exec_certain,omitempty"`
 	Background         bool                        `json:"background,omitempty"`
+	OriginSeq          int64                       `json:"origin_seq,omitempty"`
 	ErrFPs             []string                    `json:"err_fps,omitempty"`
 	FailedTests        []string                    `json:"failed_tests,omitempty"`
 	Reliability        *event.Reliability          `json:"reliability,omitempty"`
@@ -40,7 +41,7 @@ type observationPayload struct {
 var safeIdentifier = regexp.MustCompile(`^[a-z][a-z0-9_.]{0,63}$`)
 
 func observationJSON(ev *event.Event) ([]byte, error) {
-	p := observationPayload{PromptOrigin: ev.PromptOrigin, ObservationFP: ev.ObservationFP, Selection: ev.BehaviorSelection, Requirements: ev.Requirements, IsError: ev.IsError, Unknown: ev.Unknown, Mutating: ev.Mutating, Estimated: ev.Estimated, DurationMS: ev.DurationMS, TimeoutMS: ev.TimeoutMS, Progress: ev.WorkProgress, Context: ev.BehaviorContext, Target: ev.BehaviorTarget, Result: ev.BehaviorResult, ExecFP: ev.ExecFP, ExecCertain: ev.ExecCertain, Background: ev.Background, ErrFPs: ev.ErrFPs, FailedTests: ev.FailedTests, Reliability: ev.Reliability}
+	p := observationPayload{PromptOrigin: ev.PromptOrigin, ObservationFP: ev.ObservationFP, Selection: ev.BehaviorSelection, Requirements: ev.Requirements, IsError: ev.IsError, Unknown: ev.Unknown, Mutating: ev.Mutating, Estimated: ev.Estimated, DurationMS: ev.DurationMS, TimeoutMS: ev.TimeoutMS, Progress: ev.WorkProgress, Context: ev.BehaviorContext, Target: ev.BehaviorTarget, Result: ev.BehaviorResult, ExecFP: ev.ExecFP, ExecCertain: ev.ExecCertain, Background: ev.Background, OriginSeq: ev.OriginSeq, ErrFPs: ev.ErrFPs, FailedTests: ev.FailedTests, Reliability: ev.Reliability}
 	p.RequirementChanges = ev.RequirementChanges
 	p.ResultObserved = ev.ResultObserved
 	p.Execution = ev.Execution
@@ -131,6 +132,7 @@ func applyObservation(ev *event.Event, p observationPayload) {
 	ev.ExecFP = p.ExecFP
 	ev.ExecCertain = p.ExecCertain
 	ev.Background = p.Background
+	ev.OriginSeq = p.OriginSeq
 	ev.ErrFPs = p.ErrFPs
 	ev.FailedTests = p.FailedTests
 	ev.Reliability = p.Reliability

@@ -1,0 +1,4 @@
+[삼천포] 관찰: 수락된 작업 계약의 {{if eq .kind "artifacts"}}빌드 산출물 예산{{else}}검사 시간 예산{{end}} {{.budget}}을(를) 이미 썼는데({{.spent}}) 무거운 검사 `{{.cmd}}`을(를) 시작하려 한다.
+근거: contract.yml의 budget.{{if eq .kind "artifacts"}}artifact_gb{{else}}verify_minutes{{end}}.
+비용: 차단 제안 자체로 실제 비용 절감이 입증되는 것은 아니다.
+계약: 목표는 {{.goal}}이다. 예산 안에서는 바뀐 범위의 가벼운 시험으로 확인하는 것이 계약에 맞다.

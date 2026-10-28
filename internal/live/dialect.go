@@ -13,6 +13,8 @@ func translateIn(agent, event string, raw json.RawMessage) ([]string, []HookInpu
 		return copilotIn(event, raw)
 	case "cursor":
 		return cursorIn(event, raw)
+	case "mcode":
+		return mcodeIn(event, raw)
 	}
 	if agent == "agy" {
 		return agyIn(event, raw)
@@ -59,6 +61,8 @@ func translateOut(agent, event, claudeEvent string, out json.RawMessage, failClo
 		return copilotOut(event, m, hs)
 	case "cursor":
 		return cursorOut(event, m, hs)
+	case "mcode":
+		return mcodeOut(event, m, hs)
 	case "agy":
 		return marshalOrNil(agyOut(event, claudeEvent, m))
 	}

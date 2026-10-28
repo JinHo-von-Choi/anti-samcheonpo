@@ -388,6 +388,36 @@ func Describe(v detect.Signal) string {
 			return "의존성 파일 변경 (" + short(str("path"), 40) + ")"
 		}
 		return "검사·빌드 설정 변경 (" + short(str("path"), 40) + ")"
+	case "s8.leftover_process":
+		return fmt.Sprintf("세션이 작업 폴더에서 띄운 프로세스 %d개가 남음", num("count"))
+	case "s1.revert_reverify":
+		return fmt.Sprintf("수정을 되돌려 실패를 확인한 뒤 복원해 다시 검사 %d회 (%s)", num("count"), short(str("cmd"), 40))
+	case "s5.flake_masking":
+		return fmt.Sprintf("실패 원인 대신 재시도·시간 한도를 바꿈 (%s, %s)", str("kinds"), short(str("path"), 40))
+	case "s8.host_resource":
+		switch str("kind") {
+		case "artifacts":
+			return fmt.Sprintf("빌드 산출물이 세션 중 %vGB 늘어 %vGB", f["grown_gb"], f["total_gb"])
+		case "free":
+			return fmt.Sprintf("디스크 여유 공간 %vGB(%d%%)", f["free_gb"], num("free_pct"))
+		}
+		return fmt.Sprintf("검사 실행 시간 누적 %d분", num("minutes"))
+	case "s8.host_budget":
+		return fmt.Sprintf("계약 예산 초과(%s / %s)로 무거운 검사 중단", str("spent"), str("budget"))
+	case "s5.deploy_without_preflight":
+		switch str("kind") {
+		case "ci_failed":
+			return fmt.Sprintf("원격 CI 실패를 로컬에서 확인하지 않고 운영 배포 (%s)", short(str("cmd"), 40))
+		case "ui_timing":
+			return fmt.Sprintf("화면 시험이 실패한 채 운영 배포 (%s)", short(str("cmd"), 40))
+		}
+		return fmt.Sprintf("마지막 코드 변경 뒤 검사 없이 운영 배포 (%s)", short(str("cmd"), 40))
+	case "s3.production_write", "s3.production_guard":
+		return fmt.Sprintf("운영 데이터베이스 쓰기 (%s, %s)", str("where"), short(str("cmd"), 40))
+	case "s3.migration_history_write":
+		return fmt.Sprintf("마이그레이션 이력 테이블을 손으로 변경 (%s)", short(str("cmd"), 40))
+	case "s1.concurrent_heavy_check":
+		return fmt.Sprintf("다른 무거운 시험이 %d분째 실행 중인데 무거운 시험 추가 시작 (%s)", num("since"), short(str("cmd"), 40))
 	case "s1.full_suite_local_change":
 		return fmt.Sprintf("%s만 바꾸고 전체 시험 재실행 (%s)", str("size"), short(str("cmd"), 40))
 	case "s1.unprobed_long_run":

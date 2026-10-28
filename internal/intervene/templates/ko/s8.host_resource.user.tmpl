@@ -1,0 +1,2 @@
+{{if eq .kind "artifacts"}}이 작업 폴더의 빌드 산출물이 세션 중 {{.grown_gb}}GB 늘어 {{.total_gb}}GB입니다.{{else if eq .kind "free"}}디스크 여유 공간이 {{.free_gb}}GB({{.free_pct}}%)로 줄었습니다.{{else}}이 세션에서 검사 실행에 {{.minutes}}분을 썼습니다.{{end}}
+같은 시험을 반복하고 있다면 멈추게 하고, 산출물 정리 여부는 직접 정하세요.

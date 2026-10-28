@@ -112,6 +112,12 @@ func (e *Engine) preGuard(ev *event.Event, live bool) *Signal {
 	if s := e.releaseCheck(ev, live); s != nil {
 		return s
 	}
+	if s := e.dataWriteCheck(ev); s != nil {
+		return s
+	}
+	if s := e.deployCheck(ev, live); s != nil {
+		return s
+	}
 	if s := e.longRunCheck(ev, live); s != nil {
 		return s
 	}

@@ -1,0 +1,55 @@
+{
+  "tool_name": "bash",
+  "tool_input": {
+    "command": "sh -c 'echo probe-fail >&2; exit 7'",
+    "description": "Run failing command that exits 7"
+  },
+  "tool_response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "probe-fail\n\n\nCommand exited with code 7"
+      }
+    ],
+    "details": {
+      "execution": {
+        "status": "failed",
+        "reason": "exited",
+        "exitCode": 7,
+        "message": "Command exited with code 7"
+      },
+      "timing": {
+        "commandTimeoutSeconds": 3600,
+        "commandTimerStartedAt": 1793191546021,
+        "commandDeadlineAt": 1793195146021
+      },
+      "output": {
+        "rawBytes": 11,
+        "persistence": "complete",
+        "omittedBytes": 0
+      },
+      "processOutput": {
+        "stdout": "",
+        "stderr": "probe-fail\n",
+        "exitCode": 7,
+        "interrupted": false,
+        "stdoutTruncated": false,
+        "stderrTruncated": false,
+        "rawOutputPath": "/home/u/.minimax/background-tasks/bg_task-2/output.log"
+      },
+      "description": "Run failing command that exits 7",
+      "fullOutputPath": "/home/u/.minimax/background-tasks/bg_task-2/output.log",
+      "status": "failed",
+      "task_id": "bg_task-2",
+      "is_error": true
+    }
+  },
+  "tool_use_id": "call_function_u747y5kknvwp_1",
+  "hook_event_name": "PostToolUse",
+  "session_id": "mcode-session-1",
+  "turn-1": "turn-2",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

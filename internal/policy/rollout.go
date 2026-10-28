@@ -32,13 +32,13 @@ func RolloutRoute(mode, rule string, evidence map[string]string) string {
 
 // AdviceOnly rules cannot block, even with an operator evaluation digest.
 func AdviceOnly(rule string) bool {
-	return rulepack.IsLearned(rule) || rule == "s3.drift" || rule == "s1.explicit_waiting" || rule == "s8.progress_stall" || rule == "s2.behavior_loop" || rule == "s4.research_repeat" || rule == "s1.delegation_loop" || rule == "s1.linked_loop" || rule == "s5.partial_done" || rule == "s3.requirement_substitution" || rule == "s3.repeated_permission" || rule == "s1.verify_streak"
+	return rulepack.IsLearned(rule) || rule == "s3.drift" || rule == "s1.explicit_waiting" || rule == "s8.progress_stall" || rule == "s2.behavior_loop" || rule == "s4.research_repeat" || rule == "s1.delegation_loop" || rule == "s1.linked_loop" || rule == "s5.partial_done" || rule == "s3.requirement_substitution" || rule == "s3.repeated_permission" || rule == "s1.verify_streak" || rule == "s8.host_resource" || rule == "s5.flake_masking" || rule == "s1.revert_reverify" || rule == "s8.leftover_process"
 }
 
 // ExplicitGuardrail reports rules that enforce a limit the user set: a
 // protected path, a budget, a session ceiling. They are not experiments.
 func ExplicitGuardrail(rule string) bool {
-	return rule == "s3.protected_path" || rule == "s8.budget" || rule == "s8.session_ceiling" || rule == "s10.grader_access"
+	return rule == "s3.protected_path" || rule == "s8.budget" || rule == "s8.session_ceiling" || rule == "s10.grader_access" || rule == "s3.production_guard" || rule == "s8.host_budget"
 }
 
 // Escalate turns advice into a block when the same rule was already advised
@@ -67,7 +67,8 @@ func Escalable(rule, kind string, contractAccepted bool) bool {
 	}
 	switch rule {
 	case "s1.identical_rerun", "s2.stuck_error", "s2.oscillation", "s2.semantic_oscillation", "s2.environment", "s5.error_hiding", "s5.test_weakening",
-		"s1.full_suite_local_change", "s5.release_without_preflight", "s5.release_rate":
+		"s1.full_suite_local_change", "s5.release_without_preflight", "s5.release_rate", "s1.concurrent_heavy_check",
+		"s5.deploy_without_preflight", "s3.production_write", "s3.migration_history_write":
 		return true
 	case "s1.unprobed_long_run":
 		// a run time inferred from a test's name is an estimate

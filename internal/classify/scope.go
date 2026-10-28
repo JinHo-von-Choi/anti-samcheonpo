@@ -574,6 +574,9 @@ func CIResult(cmd string, exitCode int, out string) string {
 			}
 		}
 	}
+	if r := ciAPIResult(cmd, exitCode, out); r != CIUnknown {
+		return r
+	}
 	for _, st := range fp.SplitStages(outer) {
 		n, _ := fp.NormalizeCmd(st)
 		w := strings.Fields(n)
@@ -623,6 +626,70 @@ func CIResult(cmd string, exitCode int, out string) string {
 				}
 			}
 		}
+	}
+	return CIUnknown
+}
+
+// ciAPIRe matches a command that reads CI state from the GitLab or GitHub
+// REST API: with an HTTP client, or from a script in the command (a Python
+// here-document building the URL). The address may be split, so the API
+// root and the CI resource are matched apart.
+var (
+	ciGitLabAPIRe = lazyre.New(`/api/v4/`)
+	ciGitLabCIRe  = lazyre.New(`/pipelines\b|/jobs\b`)
+	ciGitHubAPIRe = lazyre.New(`api\.github\.com`)
+	ciGitHubCIRe  = lazyre.New(`/actions/runs\b|/check-runs\b|/commits/[^/\s'"]+/status\b`)
+	ciAPIStatusRe = lazyre.New(`"(status|conclusion|state)"\s*:\s*"([a-z_]+)"`)
+	// a line of a script's report: a job or pipeline with its state word
+	ciLineFailRe = lazyre.New(`(?i)\b(?:failed|failure|canceled|cancelled|timed_out)\b`)
+	ciLinePassRe = lazyre.New(`(?i)\b(?:success|passed)\b`)
+	ciLineOpenRe = lazyre.New(`(?i)\b(?:running|pending|created|queued|in_progress|waiting_for_resource|preparing)\b`)
+)
+
+// ciAPIResult reads a CI state fetched from a pipeline, job or run
+// endpoint. JSON answers newest first, so the first stated state is the
+// latest run; an answer cut by the output limit (not starting as JSON) is
+// read line by line like a script's report. Any failed job fails the
+// result; success needs every stated job to have passed and none still
+// running.
+func ciAPIResult(cmd string, exitCode int, out string) string {
+	if exitCode != 0 {
+		return CIUnknown
+	}
+	if !(ciGitLabAPIRe.MatchString(cmd) && ciGitLabCIRe.MatchString(cmd) || ciGitHubAPIRe.MatchString(cmd) && ciGitHubCIRe.MatchString(cmd)) {
+		return CIUnknown
+	}
+	body := strings.TrimSpace(out)
+	if body == "" {
+		return CIUnknown
+	}
+	if body[0] == '{' || body[0] == '[' {
+		for _, m := range ciAPIStatusRe.FindAllStringSubmatch(body, -1) {
+			switch m[2] {
+			case "success":
+				return CIPassed
+			case "failed", "failure", "canceled", "cancelled", "timed_out", "startup_failure", "error":
+				return CIFailed
+			case "running", "pending", "created", "queued", "in_progress", "waiting_for_resource", "preparing", "scheduled", "manual":
+				return CIUnknown
+			}
+			// GitHub states "status":"completed" before its conclusion
+		}
+		return CIUnknown
+	}
+	passed, open := false, false
+	for _, l := range strings.Split(body, "\n") {
+		switch {
+		case ciLineFailRe.MatchString(l):
+			return CIFailed
+		case ciLineOpenRe.MatchString(l):
+			open = true
+		case ciLinePassRe.MatchString(l):
+			passed = true
+		}
+	}
+	if passed && !open {
+		return CIPassed
 	}
 	return CIUnknown
 }

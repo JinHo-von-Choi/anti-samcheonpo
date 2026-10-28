@@ -1,0 +1,284 @@
+{
+ "agent": "mcode",
+ "agent_version": "0.6.13",
+ "capture_command": "scripts/probe_mcode_hooks.py run --install user",
+ "capture_environment": {
+  "os": "Linux 6.8.0-138-generic x86_64",
+  "hooks_file": "~/.minimax/hooks.json with top-level enabled true; removed after each run",
+  "workspace": "private temporary directory",
+  "permission": "--permission full"
+ },
+ "scenarios": [
+  "shell",
+  "background",
+  "subagent",
+  "deliver"
+ ],
+ "capture_counts": {
+  "SessionStart": 4,
+  "UserPromptSubmit": 5,
+  "PreToolUse": 16,
+  "PostToolUse": 15,
+  "Stop": 5,
+  "SubagentStart": 1,
+  "SubagentStop": 1
+ },
+ "redactions": [
+  "session ids replaced consistently",
+  "background task ids replaced consistently",
+  "turn ids replaced consistently",
+  "workspace path replaced with /w/proj",
+  "home path replaced with /home/u"
+ ],
+ "captures": [
+  {
+   "file": "shell-000-SessionStart.json",
+   "hook_event_name": "SessionStart",
+   "sha256": "9f13ca0a8750f374e5ef8ab53424eb17d9d4e593a8ede1c4b994012dd487d8a5"
+  },
+  {
+   "file": "shell-001-UserPromptSubmit.json",
+   "hook_event_name": "UserPromptSubmit",
+   "sha256": "b55a409e29398b76b899bd62d9a6e591387a0aa069dc91713de2974565023d01"
+  },
+  {
+   "file": "shell-002-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "ea2df73578f2717c3b4510f611e5ac77aba956490d1c8daa9f3c67a111de15ee"
+  },
+  {
+   "file": "shell-003-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "701af7f71496c52dd946d9b5dbbc3a2667d45fbb160295b9458071f356e21154"
+  },
+  {
+   "file": "shell-004-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "d076889df63b7c9effd8683a5c83a5f9d280805b379f87c69d481840c85cb585"
+  },
+  {
+   "file": "shell-005-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "7268d3c522ee1683024dc9c8fd350a90be84f641cdab52b8a756ae41f818805d"
+  },
+  {
+   "file": "shell-006-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "bf84f82f8b2e82790640caab76b0e11a85c69a79f63908e9b594bd33cca164b3"
+  },
+  {
+   "file": "shell-007-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "f5b0c398c41a23d26a6511ddac6d5970973e04b65c648a9e41ebf64111647afe"
+  },
+  {
+   "file": "shell-008-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "bcd4442d95f0e6bbdea0169a15cb2d05a372b8841985ea0dd61a16e5ce3f1c81"
+  },
+  {
+   "file": "shell-009-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "10da55c306d6b4763c1a008f96be8e35feee0afde7a139ec9093420c89e1b4d2"
+  },
+  {
+   "file": "shell-010-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "f2c4bbf096a843ba2575d3ecefdecb6d0f23564c729c6488b02eb3b039e75165"
+  },
+  {
+   "file": "shell-011-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "1e202b99b5a380d58f0d1b5433ea7efe431597896b94426f79bf7e06a1bd1c95"
+  },
+  {
+   "file": "shell-012-Stop.json",
+   "hook_event_name": "Stop",
+   "sha256": "e68a3a0f0d2b874025b89f642cf3c9ece649e8da97101c00936d95d2a903bb05"
+  },
+  {
+   "file": "background-000-SessionStart.json",
+   "hook_event_name": "SessionStart",
+   "sha256": "63bcac2b9563c67b209e2d19aba4fefc2e7ae9b60fd0688cd5deb1365bfd7138"
+  },
+  {
+   "file": "background-001-UserPromptSubmit.json",
+   "hook_event_name": "UserPromptSubmit",
+   "sha256": "40ed87dff8249cef1d8e46d1304139782e8865de3d0d6dde0074f4d65c3ae361"
+  },
+  {
+   "file": "background-002-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "5a78a73f06f549d12d7f20f891be0530bcc2a03d774f4a15a7a81d19b03bfe62"
+  },
+  {
+   "file": "background-003-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "d6be301b47d462fc7a77d374b89da46c47f8526762c9a6694ff4cea41bc832bd"
+  },
+  {
+   "file": "background-004-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "7a1e9ca9953c809522739de3d8a2c8541a5e562e00d3307f67b280467f1f6d91"
+  },
+  {
+   "file": "background-005-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "19545b162f617951bb02f9aa53adcd887e0a7ed8038c8049222d3448aff86c4a"
+  },
+  {
+   "file": "background-006-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "f3c1e80aff207e51645dfcb1d368700a34d62926a2b28b9c2376b23c7b1164c4"
+  },
+  {
+   "file": "background-007-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "73a9c96d44939d74e4c012cb85881d3ce06576a2dfeff5c469c5e2831aecc36c"
+  },
+  {
+   "file": "background-008-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "655de94601f5a1b3b205787c6aaebd018016279e7cc44f09785022be7f99829d"
+  },
+  {
+   "file": "background-009-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "746df58604142fb1609ad17a3db3826bdc5b50d0a7feb9039a3be84964a86d94"
+  },
+  {
+   "file": "background-010-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "abff711452f5ebbdbcd30a5babb3b72cfbd2e0d2c500b8a84e6daf069abfe3fb"
+  },
+  {
+   "file": "background-011-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "38e257227d1c25d7150c74c0cf842badb02819dcb43d7c3e7c67302be9ee5ea9"
+  },
+  {
+   "file": "background-012-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "d920b502c17e9f853a19711fe027426c4c9a2cc8bdeafd0ec1eb69ff366ba288"
+  },
+  {
+   "file": "background-013-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "51ff50677b4bc0bbefc1454c25f6e3e67ee0b9061d93df5ac00a8bec45f83166"
+  },
+  {
+   "file": "background-014-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "a4aa9b5a943966ed0136baa61c4d897519a6db3e3847127c8c283053f4c3e428"
+  },
+  {
+   "file": "background-015-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "bcab8082ec7ef71213266b5908906211bea9dc843a97ab5ccc7e8e2735a6e6ac"
+  },
+  {
+   "file": "background-016-UserPromptSubmit.json",
+   "hook_event_name": "UserPromptSubmit",
+   "sha256": "439c218c0c741819094840bd37ef4d5d10e8465ad153e59666d44c4b48f415d7"
+  },
+  {
+   "file": "background-017-Stop.json",
+   "hook_event_name": "Stop",
+   "sha256": "a840dde2d39dbe86b290f07190bb844de0c86e603301da101f5b65b016db544e"
+  },
+  {
+   "file": "subagent-000-SessionStart.json",
+   "hook_event_name": "SessionStart",
+   "sha256": "f6a55118db204fe10f394be30db909e2343f63d2ad00746c4f635feeda5df831"
+  },
+  {
+   "file": "subagent-001-UserPromptSubmit.json",
+   "hook_event_name": "UserPromptSubmit",
+   "sha256": "e1b5c92f64632f63393ab835c853c27675551d0e2913ef4c23521ae455a9711f"
+  },
+  {
+   "file": "subagent-002-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "2bb715dbd5b1cd90163c37afd7be42e1720ec293a59c81ef2ca8c6e20e927dc9"
+  },
+  {
+   "file": "subagent-003-SubagentStart.json",
+   "hook_event_name": "SubagentStart",
+   "sha256": "18985633cc7c87471a5763f96cd61568fea9578152197469f10bde47f54a7316"
+  },
+  {
+   "file": "subagent-004-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "4619f8874b9a3a488dd905eaf1768756c7fc12ec27c7e48ec32cefbee7ccd70e"
+  },
+  {
+   "file": "subagent-005-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "9961a1e842899d2bacf381ef45a51e9e70c26cec39b7dd29ab10914065a81974"
+  },
+  {
+   "file": "subagent-006-SubagentStop.json",
+   "hook_event_name": "SubagentStop",
+   "sha256": "afc4fc912139da3bd6b9ff88b4ec735df12abbd2200beb3d848c2bd429ad2317"
+  },
+  {
+   "file": "subagent-007-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "0e96f75dc492f0443422cec312afb7ed48ceabee08f7028c56443c1bb136853e"
+  },
+  {
+   "file": "subagent-008-Stop.json",
+   "hook_event_name": "Stop",
+   "sha256": "a546124727ed63141c611746b4f07d8776f98f2b597abbf74630b456d0ace4c2"
+  },
+  {
+   "file": "deliver-000-SessionStart.json",
+   "hook_event_name": "SessionStart",
+   "sha256": "f2f3cdf86ceb08eb4da246c2995dbc798082ed846d65c93b69c56f87f0599ab3"
+  },
+  {
+   "file": "deliver-001-UserPromptSubmit.json",
+   "hook_event_name": "UserPromptSubmit",
+   "sha256": "fe8bc0287d48f42c94763875962ffed2e52488f35569152094698f3895b95848"
+  },
+  {
+   "file": "deliver-002-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "f3c36fcd306cb24dcee99141ba0a5f575adb8dfd99c06e07695c926757bcb33a",
+   "host_answer": {
+    "decision": "block",
+    "reason": "PROBE_DENY_REASON"
+   }
+  },
+  {
+   "file": "deliver-003-PreToolUse.json",
+   "hook_event_name": "PreToolUse",
+   "sha256": "74f6a7b3094915bd0be791f3c87ad19ec5cda1e48a6bd135ff1361d7c1a6c9ac"
+  },
+  {
+   "file": "deliver-004-PostToolUse.json",
+   "hook_event_name": "PostToolUse",
+   "sha256": "fa05cf9f5156fa1870175dd095eb6e771907b8217050a630421b830b3dae9972",
+   "host_answer": {
+    "hookSpecificOutput": {
+     "hookEventName": "PostToolUse",
+     "additionalContext": "PROBE_ADVICE"
+    }
+   }
+  },
+  {
+   "file": "deliver-005-Stop.json",
+   "hook_event_name": "Stop",
+   "sha256": "e53bccd7b6225ce9d1faa86ee01896013218876c5d1c615f20bbb2a35ae847f7",
+   "host_answer": {
+    "decision": "block",
+    "reason": "PROBE_HOLD"
+   }
+  },
+  {
+   "file": "deliver-006-Stop.json",
+   "hook_event_name": "Stop",
+   "sha256": "21a1e59e3c67d3481d3eecdd25b6b7f3bfc83b61812d55e79d3ab282fe32b72a"
+  }
+ ]
+}

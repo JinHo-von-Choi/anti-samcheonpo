@@ -58,6 +58,7 @@ func Root() *cobra.Command {
 	root.PersistentFlags().StringVar(&flagDB, "db", "", "원장 경로 (기본 ~/.samcheonpo/ledger.db)")
 	root.PersistentFlags().StringVar(&flagClaudeDir, "claude-dir", "", "Claude Code projects 경로")
 	root.PersistentFlags().StringVar(&flagCodexDir, "codex-dir", "", "Codex sessions 경로")
+	root.PersistentFlags().StringVar(&sources.McodeDir, "mcode-dir", "", "MiniMax Code sessions 경로 (기본 ~/.minimax/v2/sessions)")
 	root.AddCommand(auditCmd(), gapsCmd(), interventionsCmd(), outcomesCmd(), accuracyCmd(), reviewCmd(), provenanceCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(), forkCmd(),
 		labelCmd(), evalCmd(), benchCmd(), evasionCmd(), lineageCmd(), detectionTimingCmd(), surfaceCmd(), debugCmd(), contractCmd(), specCmd(), importOtelCmd(), rulesCmd(), handoffCmd(), reportCmd(), taskCoverageCmd(), diagnosticCmd("why"), diagnosticCmd("coverage"), compactCmd())
 	root.AddCommand(liveCommands()...)
@@ -191,10 +192,10 @@ func auditCmd() *cobra.Command {
 			// measured: ~25MB/s per worker overall, ~40MB/s for one large file
 			nw := float64(max(1, min(workers, runtime.NumCPU())))
 			est := max(float64(largest)/40e6, float64(total)/(nw*25e6))
-			fmt.Fprintf(stderr, "사전 점검: 세션 기록 %d개 (Claude Code %d, Codex %d), %.0fMB, 예상 %.0f초\n",
-				len(files), agents["claude"], agents["codex"], float64(total)/1e6, est)
+			fmt.Fprintf(stderr, "사전 점검: 세션 기록 %d개 (Claude Code %d, Codex %d, mcode %d), %.0fMB, 예상 %.0f초\n",
+				len(files), agents["claude"], agents["codex"], agents["mcode"], float64(total)/1e6, est)
 			if len(files) == 0 {
-				fmt.Fprintf(stderr, "분석할 세션 기록이 없다. 확인한 경로: %s, %s\n", claudeDir(), codexDir())
+				fmt.Fprintf(stderr, "분석할 세션 기록이 없다. 확인한 경로: %s, %s, %s\n", claudeDir(), codexDir(), sources.MinimaxDir())
 				return nil
 			}
 			var todo []sources.File
@@ -232,6 +233,7 @@ func auditCmd() *cobra.Command {
 			go func() { wg.Wait(); close(results) }()
 			failed := 0
 			var firstErr error
+			var done []res
 			for x := range results {
 				if x.err != nil {
 					failed++
@@ -243,6 +245,16 @@ func auditCmd() *cobra.Command {
 				if err := analyze.CheckInvariant(x.r.Session, x.r.Totals); err != nil {
 					return fmt.Errorf("%s: %w", x.f.Path, err)
 				}
+				done = append(done, x)
+			}
+			// heavy test runs of different sessions that overlapped in one
+			// project folder are visible only across the audited sessions
+			all := make([]*analyze.Result, len(done))
+			for i, x := range done {
+				all[i] = x.r
+			}
+			analyze.Overlaps(all, time.Duration(cfg.Detectors.S1.ExpensiveCheckSec)*time.Second)
+			for _, x := range done {
 				if db.Mode(x.r.Session.ID) == "live" {
 					continue // the live record (with checkpoints and interventions) is kept
 				}
@@ -274,7 +286,7 @@ func auditCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&since, "since", "30d", "분석 기간 (30d, 12h, 2026-10-01, all)")
-	c.Flags().StringVar(&agent, "agent", "all", "claude | codex | all")
+	c.Flags().StringVar(&agent, "agent", "all", "claude | codex | mcode | all")
 	c.Flags().StringVar(&project, "project", "", "특정 프로젝트 경로만")
 	c.Flags().StringVar(&format, "format", "text", "text | md | json")
 	c.Flags().StringVarP(&out, "output", "o", "", "출력 파일")
@@ -605,7 +617,7 @@ func sessionsCmd() *cobra.Command {
 		},
 	}
 	c.Flags().StringVar(&since, "since", "7d", "기간")
-	c.Flags().StringVar(&agent, "agent", "all", "에이전트 필터: claude | codex | all")
+	c.Flags().StringVar(&agent, "agent", "all", "에이전트 필터: claude | codex | mcode | all")
 	return c
 }
 

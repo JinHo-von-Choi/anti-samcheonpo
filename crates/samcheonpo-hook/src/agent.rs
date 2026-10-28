@@ -26,6 +26,17 @@ pub fn timeout_for(event: &str, agent: &str) -> Duration {
             _ => {}
         }
     }
+    if agent == "mcode" {
+        // MiniMax Code runs each hook as a process and waits for it up to the
+        // timeoutSeconds the hooks file states, so a pre tool answer can take
+        // the time a first verdict needs; a post tool answer carries advice
+        // that a 50ms limit dropped in a real session (60ms measured).
+        match event {
+            "PreToolUse" => return Duration::from_millis(250),
+            "PostToolUse" => return Duration::from_millis(500),
+            _ => {}
+        }
+    }
     if agent == "cursor" {
         match event {
             "preToolUse" | "beforeShellExecution" | "beforeReadFile" | "beforeMCPExecution" => {
@@ -133,6 +144,23 @@ mod tests {
         assert_eq!(
             timeout_for("beforeShellExecution", "cursor"),
             Duration::from_millis(15)
+        );
+    }
+
+    #[test]
+    fn mcode_waits_for_its_tool_answers() {
+        assert_eq!(
+            timeout_for("PreToolUse", "mcode"),
+            Duration::from_millis(250)
+        );
+        assert_eq!(
+            timeout_for("PostToolUse", "mcode"),
+            Duration::from_millis(500)
+        );
+        assert_eq!(timeout_for("Stop", "mcode"), Duration::from_secs(150));
+        assert_eq!(
+            timeout_for("SessionEnd", "mcode"),
+            Duration::from_millis(2500)
         );
     }
 

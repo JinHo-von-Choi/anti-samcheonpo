@@ -1,0 +1,10 @@
+{
+  "prompt": "Delegate one subtask to a subagent: the subagent runs the shell command `echo from-child` and reports its output. Then reply DONE. Do nothing else.",
+  "hook_event_name": "UserPromptSubmit",
+  "session_id": "mcode-session-3",
+  "turn-1": "turn-4",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

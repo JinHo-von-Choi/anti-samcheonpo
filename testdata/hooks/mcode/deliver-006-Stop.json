@@ -1,0 +1,11 @@
+{
+  "stop_hook_active": true,
+  "last_assistant_message": "Holding. No commands run, no tools called, and nothing changed from the state left at the end of the previous turn (both probe commands already executed and reported; no files created or modified).\n\nReady when you want the next step — say the word if \"hold\" was meant to be something else, like re-running the probe pair, checking a scheduled task, or picking the work back up.",
+  "hook_event_name": "Stop",
+  "session_id": "mcode-session-5",
+  "turn-1": "turn-6",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

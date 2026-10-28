@@ -1,0 +1,10 @@
+{
+  "prompt": "Run these steps in order and nothing else, then reply DONE. 1) run the shell command `echo probe-ok`. 2) run the shell command `sh -c 'echo probe-fail >&2; exit 7'`. 3) write a file named note.txt containing the single line alpha. 4) replace alpha with beta in note.txt using the edit tool. 5) read note.txt.",
+  "hook_event_name": "UserPromptSubmit",
+  "session_id": "mcode-session-1",
+  "turn-1": "turn-2",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

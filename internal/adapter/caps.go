@@ -73,6 +73,13 @@ var Profiles = map[string]Profile{
 	// agentStop carries stop_hook_active, all verified with the real CLI.
 	"copilot": {Agent: "copilot", Tested: Tested{Min: "1.0.101", Max: "1.0.104"}, Caps: Caps{
 		BlockPre: true, InjectPost: true, BlockStop: true, PromptInject: true, PostFailure: true, ExitInHook: true, SessionEndBudget: 5 * time.Second}},
+	// MiniMax Code 0.6.13: payloads captured in testdata/hooks/mcode through
+	// ~/.minimax/hooks.json. The shell result states its exit code; a call
+	// moved to the background answers with a placeholder and its result
+	// arrives through task_output. A pre-tool block, a post-tool
+	// additionalContext and a held stop were delivered by the real CLI.
+	"mcode": {Agent: "mcode", Tested: Tested{Min: "0.6.13", Max: "0.6.13"}, Caps: Caps{
+		BlockPre: true, InjectPost: true, BlockStop: true, PostFailure: true, ExitInHook: true, SessionEndBudget: 5 * time.Second}},
 	"cursor": {Agent: "cursor", Tested: Tested{Min: "2026.10.19-6bbf2c4", Max: "2026.10.19-6bbf2c4"}, Caps: Caps{FailClosed: true, SessionEndBudget: 5 * time.Second}},
 	// agy 1.3.0: payloads captured in testdata/hooks/agy. Pre-tool deny and
 	// stop continuation verified with the real CLI; advice reaches the model

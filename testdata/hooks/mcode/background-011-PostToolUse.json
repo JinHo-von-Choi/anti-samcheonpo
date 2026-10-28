@@ -1,0 +1,35 @@
+{
+  "tool_name": "task_output",
+  "tool_input": {
+    "task_id": "bg_task-4",
+    "wait_ms": 30000
+  },
+  "tool_response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "<task_output status=\"running\">\n<task_output_cursor next_offset=\"0\" truncated=\"false\" timed_out=\"true\" />\n(no output yet)\n</task_output>"
+      }
+    ],
+    "details": {
+      "task_id": "bg_task-4",
+      "status": "running",
+      "timing": {
+        "commandTimeoutSeconds": 180
+      },
+      "effective_wait_ms": 30000,
+      "wait_ms_clamped": false,
+      "timed_out": true,
+      "next_offset": 0,
+      "truncated": false
+    }
+  },
+  "tool_use_id": "call_function_642l19je4uia_1",
+  "hook_event_name": "PostToolUse",
+  "session_id": "mcode-session-2",
+  "turn-1": "turn-3",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

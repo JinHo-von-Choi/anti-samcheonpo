@@ -1,0 +1,9 @@
+{
+  "source": "startup",
+  "hook_event_name": "SessionStart",
+  "session_id": "mcode-session-5",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

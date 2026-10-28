@@ -1,0 +1,17 @@
+{
+  "tool_name": "task",
+  "tool_input": {
+    "description": "Run echo command",
+    "prompt": "Run the shell command `echo from-child` in the workspace and report its exact output verbatim.\n\nScope: this is the only action needed. Run the command once, capture stdout, and report the result. Do not create, modify, or delete any files, and do not run any other commands.\n\nDeliverable: a short plain-text report of the command's output. If the command fails, report the error message instead.",
+    "agent_name": "worker",
+    "run_in_background": false
+  },
+  "tool_use_id": "call_51c2460b568d4dbea1f5e04a",
+  "hook_event_name": "PreToolUse",
+  "session_id": "mcode-session-3",
+  "turn-1": "turn-4",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

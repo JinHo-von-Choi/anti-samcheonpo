@@ -151,6 +151,14 @@ type Detectors struct {
 		// lower them but not raise or remove them.
 		CeilingHours  float64 `yaml:"ceiling_hours" json:"ceiling_hours"`
 		CeilingTokens int64   `yaml:"ceiling_tokens" json:"ceiling_tokens"`
+		// Host resources at which the agent is told: build artifacts grown
+		// by HostArtifactGB since the session began, the disk below
+		// HostFreePct or HostFreeGB free, HostVerifyMinutes of checks. 0
+		// turns one off.
+		HostArtifactGB    int `yaml:"host_artifact_gb" json:"host_artifact_gb"`
+		HostFreePct       int `yaml:"host_free_pct" json:"host_free_pct"`
+		HostFreeGB        int `yaml:"host_free_gb" json:"host_free_gb"`
+		HostVerifyMinutes int `yaml:"host_verify_minutes" json:"host_verify_minutes"`
 	} `yaml:"s8_cost" json:"s8"`
 	// Overrides raises per-rule thresholds after confirmed false positives.
 	Overrides map[string]int `yaml:"overrides" json:"overrides"`
@@ -240,6 +248,7 @@ func Default() Config {
 	c.Detectors.S4.MaxMinutes = 10
 	c.Detectors.S4.RereadCount = 3
 	c.Detectors.S7.Compactions = 2
+	c.Detectors.S8.HostArtifactGB, c.Detectors.S8.HostFreePct, c.Detectors.S8.HostFreeGB, c.Detectors.S8.HostVerifyMinutes = 10, 10, 20, 60
 	c.Detectors.S8.VelocityMultiplier = 3
 	c.Detectors.S8.VelocityFloorKRWPerMin = 300
 	c.Detectors.S8.IdleSpendFloorKRW = 5000
@@ -463,6 +472,30 @@ func loosenOnly(d *Detectors, l *Levels, ud Detectors, ul Levels) {
 	atLeast(&d.S4.MaxMinutes, ud.S4.MaxMinutes)
 	atLeast(&d.S4.RereadCount, ud.S4.RereadCount)
 	atLeast(&d.S7.Compactions, ud.S7.Compactions)
+	// growth and time limits fire later when larger; free-space floors fire
+	// later when smaller. A project may loosen or turn one off, never tighten
+	atLeastOrOff := func(v *int, u int) {
+		switch {
+		case *v == 0:
+		case u == 0:
+			*v = 0
+		case *v < u:
+			*v = u
+		}
+	}
+	atMostOrOff := func(v *int, u int) {
+		switch {
+		case *v == 0:
+		case u == 0:
+			*v = 0
+		case *v > u:
+			*v = u
+		}
+	}
+	atLeastOrOff(&d.S8.HostArtifactGB, ud.S8.HostArtifactGB)
+	atLeastOrOff(&d.S8.HostVerifyMinutes, ud.S8.HostVerifyMinutes)
+	atMostOrOff(&d.S8.HostFreePct, ud.S8.HostFreePct)
+	atMostOrOff(&d.S8.HostFreeGB, ud.S8.HostFreeGB)
 	atLeastF(&d.S8.VelocityMultiplier, ud.S8.VelocityMultiplier)
 	atLeast64(&d.S8.VelocityFloorKRWPerMin, ud.S8.VelocityFloorKRWPerMin)
 	atLeast64(&d.S8.IdleSpendFloorKRW, ud.S8.IdleSpendFloorKRW)

@@ -1,0 +1,15 @@
+{
+  "tool_name": "bash",
+  "tool_input": {
+    "command": "echo second",
+    "description": "Run second echo command"
+  },
+  "tool_use_id": "call-e0e1d427-0ea0-42b5-aae3-3926f48f566a",
+  "hook_event_name": "PreToolUse",
+  "session_id": "mcode-session-5",
+  "turn-1": "turn-6",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

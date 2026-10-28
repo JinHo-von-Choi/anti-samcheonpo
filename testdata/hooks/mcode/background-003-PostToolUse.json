@@ -1,0 +1,63 @@
+{
+  "tool_name": "bash",
+  "tool_input": {
+    "command": "sleep 75; echo bg-done; exit 3",
+    "timeout": 40
+  },
+  "tool_response": {
+    "content": [
+      {
+        "type": "text",
+        "text": "Command timed out after 40 seconds"
+      }
+    ],
+    "details": {
+      "execution": {
+        "status": "failed",
+        "reason": "command_timeout",
+        "exitCode": null,
+        "message": "Command timed out after 40 seconds",
+        "signal": "SIGTERM"
+      },
+      "timing": {
+        "commandTimeoutSeconds": 40,
+        "commandTimerStartedAt": 1793191686444,
+        "commandDeadlineAt": 1793191726444
+      },
+      "output": {
+        "rawBytes": 0,
+        "persistence": "complete",
+        "omittedBytes": 0
+      },
+      "processOutput": {
+        "stdout": "",
+        "stderr": "",
+        "exitCode": null,
+        "interrupted": true,
+        "stdoutTruncated": false,
+        "stderrTruncated": false,
+        "rawOutputPath": "/home/u/.minimax/background-tasks/bg_task-3/output.log"
+      },
+      "description": "sleep 75; echo bg-done; exit 3",
+      "fullOutputPath": "/home/u/.minimax/background-tasks/bg_task-3/output.log",
+      "envSanitized": [
+        "MAVIS_BUILD_ENV",
+        "MAVIS_DATA_DIR",
+        "MAVIS_REGION",
+        "MINIMAX_DATA_DIR",
+        "__MAVIS_RUNTIME_MANAGED"
+      ],
+      "status": "failed",
+      "task_id": "bg_task-3",
+      "is_error": true
+    }
+  },
+  "tool_use_id": "call_01a1828dad447177988628e1",
+  "hook_event_name": "PostToolUse",
+  "session_id": "mcode-session-2",
+  "turn-1": "turn-3",
+  "transcript_path": "/tmp/minimax-plugin-hooks/transcripts/T.compatible.jsonl",
+  "cwd": "/w/proj",
+  "model": "MiniMax-M3.1-Flash",
+  "permission_mode": "bypassPermissions"
+}

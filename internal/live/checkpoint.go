@@ -53,6 +53,12 @@ type Runner struct {
 	Timeout time.Duration
 	// Busy reports whether the agent's shell tool is running.
 	Busy func() bool
+	// Contended reports a heavy test run of another session in the same
+	// workspace; a check started then competes with it for the machine.
+	Contended func() bool
+	// Hold takes a place among the workspace's heavy runs while a check
+	// runs, so other sessions see it; the returned function gives it back.
+	Hold func(command string) func()
 	// authority is the accepted contract's authority hash keys are bound to.
 	authority atomic.Pointer[string]
 }
@@ -93,6 +99,8 @@ func (r *Runner) RunTaskRevision(checks []contract.Check, mid bool, sideEffect m
 			res.Skipped = "작업 중 실행은 격리되거나 부작용 없는 검사만 한다"
 		case r.Busy != nil && r.Busy():
 			res.Skipped = "에이전트 셸 실행 중이라 다음 기회로 미뤘다"
+		case r.Contended != nil && r.Contended():
+			res.Skipped = "같은 작업 폴더에서 다른 세션의 무거운 시험이 실행 중이라 다음 기회로 미뤘다"
 		default:
 			res = r.reusable(c, taskID, revision, sessionID)
 		}
@@ -202,6 +210,9 @@ func (r *Runner) one(c contract.Check) CheckResult {
 		ctx, cancel := withTimeout(30 * time.Second)
 		before, _ = r.WS.Compute(ctx)
 		cancel()
+	}
+	if r.Hold != nil && c.Isolation != "worktree" {
+		defer r.Hold(c.Check)()
 	}
 	start := time.Now()
 	code, outText, timedOut, truncated := runGroup(dir, c.Check, timeout)

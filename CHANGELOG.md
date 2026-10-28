@@ -1,5 +1,31 @@
 # 변경 이력
 
+## 0.10.0 — 미출시
+
+### 추가
+
+- MiniMax Code(mcode) 0.6.13 연결: `samcheonpo install --agent mcode`가 `~/.minimax/hooks.json`에 훅을 넣는다. mcode는 파일 최상위가 `"enabled": true`일 때만 훅을 실행하므로, 파일이 없으면 만들어 켜고 제거할 때 다시 끈다. 사용자가 꺼 둔 파일이나 `enabled` 없이 다른 훅이 있는 파일은 켜지 않고 거부한다. 실행 전 차단, 도구 뒤 안내, 종료 보류를 실제 CLI로 확인했다.
+- `samcheonpo doctor --agent mcode`: 설치 기록, `enabled`, 필수 이벤트, 실행 파일, 마지막 수신 기록을 확인한다.
+- `samcheonpo audit --agent mcode`와 `--mcode-dir`: `~/.minimax/v2/sessions`의 세션 기록을 분석한다. 기록에 결과가 없는 백그라운드 셸은 mcode 작업 기록(SQLite)을 읽기 전용으로 열어 채운다.
+- 백그라운드 셸의 최종 결과 연결: 시작 사건은 결과 없는 실행으로 두고, 최종 결과가 오면 시작 시점의 작업 폴더를 기준으로 판정하는 완료 사건을 새로 더한다. 끝까지 결과가 없으면 시작 사건에 `background_result_missing`을 남긴다. 데몬이 재시작해도 결과를 기다리던 실행을 원장에서 되살린다.
+- `scripts/probe_mcode_hooks.py`: mcode 훅 입력 수집과 응답 전달 확인.
+- `s1.concurrent_heavy_check`: 같은 작업 폴더(같은 git 작업 트리)에서 다른 세션의 무거운 시험(전체 시험이거나 지난번에 `expensive_check_sec` 이상 걸린 시험)이 실행 중인데 무거운 시험을 하나 더 시작하면 안내한다. 같은 세션의 백그라운드 실행이 결과를 기다리는 중일 때도 같다. 안내를 무시하고 반복하면 막는다. 결과가 오지 않은 실행은 지난 소요의 2배(최소 30분)가 지나면 판정에 쓰지 않는다. 데몬이 직접 돌리는 계약 검사도 다른 세션의 무거운 시험 중에는 다음 기회로 미루고, 실행하는 동안 자리를 차지한다.
+- `s5.deploy_without_preflight`: 운영 배포(`scripts/deploy*.sh`, `make deploy`, `kubectl apply`, `helm upgrade`, `terraform apply`, `fly deploy`, `vercel --prod`, 계약 `production.deploy_commands`, 계약 `production.services` 유닛의 `systemctl start|stop|restart`)를 원격 CI 실패를 재현하지 않은 채, 화면 시험이 타이밍 실패로 남은 채, 또는 마지막 코드 변경 뒤 통과한 검사 없이 시작하면 안내한다. 첫 배포에도 적용하고, 시간당 배포 상한은 적용하지 않는다. `--dry-run`·`plan`·`diff`·`template`과 다른 서비스 제어는 배포로 보지 않는다.
+- `s3.production_write`·`s3.production_guard`: 운영 설정 파일을 읽은 명령이나 계약의 운영 호스트를 적은 명령이 데이터베이스에 쓰면(psql·mysql·sqlite3의 쓰기 문장, redis-cli 쓰기 명령, mongosh 쓰기 호출, 마이그레이션 되돌리기·초기화) 안내한다. 계약에 `production`을 수락했으면 처음부터 막는다(`production.allow_write: true`로 허용).
+- `s3.migration_history_write`: 마이그레이션 이력 테이블을 손으로 바꾸는 문장을 안내한다. 이 컴퓨터만 접속 대상으로 적은 명령은 제외한다.
+- `s5.flake_masking`: 시험 파일, 시험 설정(`playwright.config.*` 등), 시험을 돌리는 스크립트에 재시도 설정(`retries`, `--retries`, `retryTimes`, `--reruns`, flaky 표시)을 넣거나, 시간 한도를 늘리거나, 횟수를 정한 재시도 반복문을 넣으면 판정한다. 같은 세션에서 그 시험 파일이 실패했거나(설정·스크립트는 시간 초과 실패가 있었으면) 안내하고, 아니면 기록만 한다. 이 세션에서 새로 만든 파일, 표 기반 반복문, 제품 코드의 시간 한도, 계약 `simplify_tests`는 판정하지 않는다. 안내만 하고 막지 않는다.
+- `s1.revert_reverify`: 같은 작업 폴더 상태에서 검사 → 더 이전 상태(수정을 되돌린 상태)에서 검사 → 처음 상태로 돌아와 검사, 이 순서를 한 번으로 센다. 첫 번째는 기록만 하고 두 번째부터 안내한다. 실행 전에 막지 않는다. `git bisect`와, 요청에 실패를 먼저 확인하라는 말(red-green 등)이 있으면 판정하지 않는다.
+- `s8.leftover_process`(Linux): 턴이 끝날 때, 이 세션의 셸 실행 중에 작업 폴더 안에서 시작되어 아직 실행 중인 프로세스(같은 사용자, systemd 서비스 제외)를 pid·명령·수신 포트와 함께 알린다. 같은 묶음은 한 번만 알리고 프로세스를 끄지 않는다. 세션이 직접 띄웠다는 증거가 아니라 시간·위치로 본 추정이다.
+- `s8.host_resource`: 빌드 산출물(`target`, `.next`, `node_modules/.cache`, `.turbo`, `.gradle`, `build`)이 세션 중 10GB 늘 때마다, 디스크 여유 공간이 10% 또는 20GB 아래로 내려가면(이후 5%포인트마다), 검사 실행 시간이 60분을 넘으면(이후 30분마다) 수치와 경로로 안내한다. 산출물은 무거운 시험이 끝난 뒤 작업 폴더당 5분에 한 번, 2초·20만 항목 안에서 잰다. 다 재지 못한 측정은 판정에 쓰지 않는다. 안내만 하고 막지 않으며 삭제를 제안하지 않는다. 기준값은 `detectors.s8_cost.host_*`로 바꾸거나 0으로 끈다. 프로젝트 설정은 기준을 느슨하게만 바꿀 수 있다.
+- `s8.host_budget`: 계약 `budget.artifact_gb`·`budget.verify_minutes`를 수락했고 그 값을 넘었으면 무거운 시험을 실행 전에 막는다. 가벼운 시험은 막지 않는다.
+- 계약 `production` 항목: `env_files`, `hosts`, `services`, `deploy_commands`, `allow_write`. 이 항목이 없는 계약의 수락 서명은 바뀌지 않는다.
+- 원격 CI 상태를 GitLab(`/api/v4/.../pipelines`, `/jobs`)·GitHub(`actions/runs`, `check-runs`, 커밋 상태) REST API 조회에서도 읽는다. curl 응답 JSON뿐 아니라 스크립트가 다듬은 줄 출력(`web failed`, `FAILED JOB`)도 읽는다. 실패한 작업이 하나라도 있으면 실패, 모든 작업이 성공하고 진행 중인 작업이 없을 때만 성공으로 본다.
+- `samcheonpo audit`가 함께 분석한 세션들에서 같은 프로젝트 폴더의 무거운 시험이 시간상 겹친 것을 찾아 나중에 시작한 실행에 `s1.concurrent_heavy_check`를 남긴다. 실행 시간이 기록되지 않은 실행과, 이전 감사에서 이미 분석한 세션은 비교하지 않는다.
+
+### 수정
+
+- `<background-task-finished>`로 시작하는 프롬프트를 사용자 요청으로 세지 않는다. 하네스 알림은 턴 경계가 아니므로 실행 중인 호출을 닫지 않는다.
+
 ## 0.9.13 — 2026-10-28
 
 ### 추가

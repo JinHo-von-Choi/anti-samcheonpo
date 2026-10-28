@@ -12,6 +12,7 @@ import (
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/claude"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/codex"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/mcode"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/otel"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 )
@@ -40,6 +41,22 @@ func CodexDir() string {
 	}
 	h, _ := os.UserHomeDir()
 	return filepath.Join(h, ".codex", "sessions")
+}
+
+// McodeDir overrides the MiniMax Code sessions directory (--mcode-dir).
+var McodeDir string
+
+// MinimaxDir returns the MiniMax Code sessions directory. The CLI keeps its
+// data in ~/.minimax unless MINIMAX_DATA_DIR moves it.
+func MinimaxDir() string {
+	if McodeDir != "" {
+		return McodeDir
+	}
+	if d := os.Getenv("MINIMAX_DATA_DIR"); d != "" {
+		return filepath.Join(d, "v2", "sessions")
+	}
+	h, _ := os.UserHomeDir()
+	return filepath.Join(h, ".minimax", "v2", "sessions")
 }
 
 // Find lists transcript files modified since `since` for an agent filter
@@ -86,6 +103,20 @@ func Find(agent string, since time.Time, claudeDir, codexDir string) []File {
 			return nil
 		})
 	}
+	if agent == "" || agent == "all" || agent == "mcode" {
+		// one folder per session, subagents included: <dir>/YYYY/MM/DD/<session>/messages.jsonl
+		_ = filepath.WalkDir(MinimaxDir(), func(p string, d fs.DirEntry, err error) error {
+			if err != nil || d.IsDir() || d.Name() != "messages.jsonl" {
+				return nil
+			}
+			st, err := d.Info()
+			if err != nil || st.ModTime().Before(since) || st.Size() == 0 {
+				return nil
+			}
+			out = append(out, File{Path: p, Agent: "mcode", Size: st.Size(), MTime: st.ModTime().UnixNano()})
+			return nil
+		})
+	}
 	sort.Slice(out, func(i, j int) bool { return out[i].Path < out[j].Path })
 	return out
 }
@@ -96,6 +127,8 @@ func Parse(f File) (*event.Session, error) {
 	switch f.Agent {
 	case "codex":
 		return codex.ParseFile(f.Path)
+	case "mcode":
+		return mcode.ParseFile(f.Path)
 	case "otel":
 		ss, err := otel.ParseFile(f.Path)
 		if err != nil {
@@ -113,6 +146,9 @@ func Parse(f File) (*event.Session, error) {
 func DetectAgent(p string) string {
 	if strings.Contains(p, "/.codex/") || strings.HasPrefix(filepath.Base(p), "rollout-") {
 		return "codex"
+	}
+	if strings.Contains(filepath.ToSlash(p), "/.minimax/") || filepath.Base(p) == "messages.jsonl" {
+		return "mcode"
 	}
 	return "claude"
 }

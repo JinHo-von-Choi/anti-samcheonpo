@@ -96,6 +96,21 @@ samcheonpo install --agent copilot --hooks-file "$HOME/.copilot/hooks/samcheonpo
 
 Copilot은 도구 호출 ID를 보내지 않습니다. 시작과 결과는 도구 이름과 도착 순서로 이어지며, 셸 종료 코드는 결과 본문에만 있습니다. 사용량·비용은 Copilot 훅이 알려 주지 않아 비어 있습니다. 실행 전 차단, 도구 뒤 안내, 종료 보류, 프롬프트 안내를 실제 CLI로 확인했습니다. 종료를 보류하면 Copilot이 보류 사유를 다음 프롬프트로 다시 보내며, 삼천포는 이것을 사용자 요청으로 세지 않습니다. [확인한 범위](support-matrix.md#github-copilot-cli)
 
+### MiniMax Code(mcode)에 연결하기
+
+다음 명령으로 연결합니다.
+
+```sh
+samcheonpo install --agent mcode
+samcheonpo doctor --agent mcode
+```
+
+설치는 `~/.minimax/hooks.json`에 훅을 넣고 파일 최상위에 `"enabled": true`를 둡니다. mcode는 이 값이 없으면 어떤 훅도 실행하지 않습니다. 이미 `"enabled": false`로 꺼 둔 파일이나, `enabled` 없이 다른 훅이 들어 있는 파일은 그 훅까지 켜게 되므로 설치를 거부합니다. 그 훅을 켜도 된다면 직접 `"enabled": true`를 넣은 뒤 다시 설치하세요.
+
+mcode는 세션을 시작할 때 훅 파일을 읽습니다. 설치 뒤 **새 mcode 세션**에서 작업하고 `doctor --agent mcode`의 마지막 수신 기록을 확인하세요.
+
+실행 전 차단, 도구 뒤 안내, 종료 보류를 실제 CLI로 확인했습니다. 백그라운드로 넘어간 셸은 `task_output`으로 최종 결과가 들어올 때 판정합니다. mcode 훅은 토큰 사용량을 주지 않아 실시간 비용은 비어 있습니다. 지난 세션은 `samcheonpo audit --agent mcode`로 분석합니다. 연결 해제는 `samcheonpo uninstall --agent mcode`입니다. [확인한 범위](support-matrix.md#minimax-code)
+
 ### Cursor CLI에서 관찰하기
 
 다음 명령으로 연결합니다.

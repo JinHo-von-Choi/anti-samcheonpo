@@ -106,6 +106,9 @@ type Session struct {
 	copilotPre      []copilotPending
 	copilotPosted   map[string]int
 	copilotSeq      int
+	background      map[string]*backgroundRun // background shell calls by task id, until their result
+	host            hostSeen                  // check time and host advice given
+	leftoverSeen    string                    // the leftover process set already told
 	codexPosted     map[string]bool
 	msgEvents       map[string]*event.Event // message id -> event holding tool-less usage
 	caps            adapter.Caps
@@ -214,8 +217,11 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 	s.parser.SetRoot(root)
 	if transcript != "" {
 		switch agent {
-		case "cursor":
-			// Cursor transcripts do not carry the Claude usage schema.
+		case "cursor", "mcode":
+			// Cursor transcripts do not carry the Claude usage schema. The
+			// mcode transcript path names a file outside the session store
+			// that was gone when its hooks were captured, so its usage stays
+			// unknown instead of being read from a transcript that may not exist.
 		case "codex":
 			s.cx = codex.NewTracker(transcript)
 			s.parser.Session.Model = s.cx.Model
@@ -228,7 +234,7 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 		}
 	}
 	s.ws = NewWorkspace(root)
-	s.runner = &Runner{Root: root, WS: s.ws, Timeout: time.Duration(cfg.Checkpoint.TimeoutSec) * time.Second, Busy: s.shellBusy}
+	s.runner = &Runner{Root: root, WS: s.ws, Timeout: time.Duration(cfg.Checkpoint.TimeoutSec) * time.Second, Busy: s.shellBusy, Contended: s.heavyBusy, Hold: s.holdCheckpoint}
 	s.loadContract()
 	if err := s.restoreIntent(); err != nil {
 		s.ws.Close()
@@ -1211,6 +1217,9 @@ func (s *Session) finalize(reason string) (string, error) {
 	s.opMu.Lock()
 	defer s.opMu.Unlock()
 	s.preWrites.Wait() // pre-tool verdicts answered before they were stored
+	if s.daemon != nil {
+		s.daemon.heavy.releaseSession(s.heavyKey(), s.ID)
+	}
 	s.finalizeMu.Lock()
 	defer s.finalizeMu.Unlock()
 	s.mu.Lock()
