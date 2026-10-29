@@ -660,17 +660,18 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	if s.Cfg.Experiment.Enabled && detect.ExperimentEligible(v) {
 		v.Arm = detect.Arm(s.ID, s.Cfg.Experiment.Arms)
 	}
-	if v.Arm == "none" {
-		// control arm of the intervention experiment: record, do not block
-		s.storeAfterAnswer(func() {
-			s.persistVerdict(v)
-			s.record(v, "none")
-		})
-		return nil
-	}
+	// The arm says how much is told, never whether a detected violation is
+	// stopped. A session in the control arm runs the same pipeline as any
+	// other: the finding is judged, and the call is refused or the advice is
+	// delivered as the rollout stage requires.
 	reason := intervene.Agent(v, ctx, v.Arm)
 	if reason == "" {
 		reason = receipt.Describe(v)
+	}
+	if detect.IsHardBlock(v.Rule) {
+		// a core malicious pattern is refused before it runs: the agent
+		// reads the refusal as a failed call and corrects the work
+		reason = hardBlockReason(v, reason)
 	}
 	s.mu.Lock()
 	lp := v

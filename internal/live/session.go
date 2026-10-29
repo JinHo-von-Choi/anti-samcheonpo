@@ -713,6 +713,12 @@ func (s *Session) adviceKey(v detect.Signal) string {
 // escalates advice the agent already received for the same key when the rule
 // may block in the current contract state.
 func (s *Session) routeFor(v detect.Signal) (route string, escalated bool) {
+	if detect.IsHardBlock(v.Rule) {
+		// A core malicious pattern stops the call whatever the rollout stage
+		// says. These rules are not under evaluation: the change they judge
+		// is the work itself, and the next step builds on it unnoticed.
+		return "block", false
+	}
 	base := policy.RolloutRoute(s.Cfg.Rollout.Mode, v.Rule, s.Cfg.Rollout.ValidatedRules)
 	if slices.Contains(s.Cfg.Rollout.ShadowRules, v.Rule) && !policy.ExplicitGuardrail(v.Rule) {
 		return "observe", false

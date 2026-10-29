@@ -120,12 +120,16 @@ type State struct {
 	Wasted     map[int64]string // seq -> symptom
 	Estimated  map[int64]bool
 
-	toolWin        []*event.Event
-	verify         map[string]*vcEntry
-	errStreak      map[string]*streak
-	failSeries     []failPoint
-	fileHist       map[string][]hist
-	editHist       map[string][]editHist
+	toolWin    []*event.Event
+	verify     map[string]*vcEntry
+	errStreak  map[string]*streak
+	failSeries []failPoint
+	fileHist   map[string][]hist
+	editHist   map[string][]editHist
+	// oscEnded is the sequence number of the last passing verification. A
+	// state written before it ended the sequence of attempts at that file,
+	// so it is no longer a state a rollback counts as an oscillation.
+	oscEnded       int64
 	lineCount      map[string]int // estimated current lines per file
 	highWater      map[string]int
 	created        map[string]bool
@@ -602,6 +606,9 @@ func (e *Engine) verification(ev *event.Event, sigs *[]Signal) {
 		st.attemptFiles = map[string]bool{}
 		st.semOsc.Clear()
 		st.churn.Clear()
+		// a check that passed ends the sequence of attempts: the states
+		// written before it are no longer rollbacks that count
+		st.oscEnded = ev.Seq
 	}
 }
 
@@ -1646,6 +1653,12 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 			}
 		}
 	}
+	// S5: running a check whose failure is swallowed. The command is judged
+	// while it is still a command, so the next step never reads a hidden
+	// error as a passing result.
+	if s := e.hidingPre(ev); s != nil {
+		return true, s
+	}
 	if e.Contract != nil && e.Accepted {
 		for _, p := range ev.Paths {
 			if e.Contract.Protected(p) || (classify.IsTestPath(p) && e.Contract.ForbidsTestChanges() && (ev.Category == event.CatProduce)) {
@@ -1656,6 +1669,12 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 				return true, &s
 			}
 		}
+	}
+	// S3: a write outside the scope the user accepted is stopped before it
+	// lands. The scope is the user's own boundary, so this is a decision
+	// already made, not an estimate about what the request meant.
+	if s := e.scopePre(ev); s != nil {
+		return true, s
 	}
 	// S9: writing an instruction that would deceive the monitor into the
 	// repository. The text is the agent's own new text, seen before it
@@ -1681,6 +1700,11 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 		if s := e.churnRepeat(ev); s != nil {
 			return true, s
 		}
+	}
+	// S2: a write that would put a file back into a state this session
+	// already wrote is the oscillation. It is stopped before it lands.
+	if s := e.oscillationPre(ev); s != nil {
+		return true, s
 	}
 	// S5: a test write about to delete assertions, replace them with
 	// literals, or silence the file with a skip marker is stopped before it
