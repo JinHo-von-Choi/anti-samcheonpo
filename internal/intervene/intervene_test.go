@@ -57,8 +57,12 @@ func TestAgentStructureAndArms(t *testing.T) {
 	if len(strings.Split(rx, "\n")) != 5 {
 		t.Errorf("prescription adds one line:\n%s", rx)
 	}
-	if Agent(v, c, "none") != "" {
-		t.Error("the no-intervention arm sends nothing")
+	none := Agent(v, c, "none")
+	if none == "" {
+		t.Error("the control arm sends no message")
+	}
+	if none != fact {
+		t.Errorf("the control arm message is not the observation:\n%s", none)
 	}
 }
 

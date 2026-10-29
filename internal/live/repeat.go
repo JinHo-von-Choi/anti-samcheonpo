@@ -18,9 +18,12 @@ const (
 
 // repeatedAcrossSessions reports whether a verdict is recorded only because
 // earlier sessions already delivered it on the same path. Guardrails the
-// user set are never muted. Called with s.mu held.
+// user set are never muted, and neither is a core malicious pattern: a
+// repeated warning is exactly what a silent rule would have cost, and the
+// pattern it names is the one the agent must not break twice. Called with
+// s.mu held.
 func (s *Session) repeatedAcrossSessions(v detect.Signal) bool {
-	if s.db == nil || policy.ExplicitGuardrail(v.Rule) {
+	if s.db == nil || policy.ExplicitGuardrail(v.Rule) || detect.IsHardBlock(v.Rule) {
 		return false
 	}
 	path, _ := v.Facts["path"].(string)

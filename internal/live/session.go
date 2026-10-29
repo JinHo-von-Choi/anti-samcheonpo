@@ -138,6 +138,10 @@ type Session struct {
 	advised     map[string]bool
 	released    map[string]bool
 	escalations int
+	// noisyRules are the rules whose reviewed warnings were mostly false
+	// positives. They are still delivered: the list marks the verdicts
+	// that need the user's attention, it never silences a rule.
+	noisyRules  []string
 	pendingRule map[string]string // queued agent message -> escalation key
 	// pendingEdits are edits since the last verification; failedEdits are
 	// edits that already failed in the current task revision (any session).
@@ -340,28 +344,34 @@ func (s *Session) applyOverrides() {
 		s.recordStorageError(err)
 		return
 	}
-	for _, rule := range OverBudget(judged) {
-		if !slices.Contains(s.Cfg.Rollout.ShadowRules, rule) {
-			s.Cfg.Rollout.ShadowRules = append(s.Cfg.Rollout.ShadowRules, rule)
-		}
-	}
+	// A rule whose reviewed warnings were mostly false positives is not
+	// muted. Muting a rule is how an agent gets to break it unheard: the
+	// judgments describe one project's wording, not the rule itself, and a
+	// muted core pattern is a pattern the agent may break with nothing
+	// said. The list is kept so the verdicts that need the user's attention
+	// stay visible.
+	s.noisyRules = OverBudget(judged)
 }
 
-// A rule whose reviewed warnings were mostly false positives is recorded
-// only: at least judgedMin judgments in judgedWindow, fewer than half
-// confirmed.
+// A rule whose reviewed warnings were mostly false positives is reported:
+// at least judgedMin judgments in judgedWindow, fewer than half confirmed.
 const (
 	judgedWindow = 90 * 24 * time.Hour
 	judgedMin    = 5
 )
 
 // OverBudget lists the rules whose judged precision is under one half.
-// Explicit guardrails the user accepted are never silenced.
+//
+// The list is a report, not a mute. The rules it names are still delivered:
+// a rule the user judged false too often is still a rule the agent may
+// break, and a rule that stops being heard is a rule that stops being
+// checked. A rule that must never be silenced is never in the list: an
+// accepted guardrail, and a core malicious pattern.
 func OverBudget(judged map[string][2]int) []string {
 	var out []string
 	for rule, n := range judged {
 		tp, fp := n[0], n[1]
-		if tp+fp >= judgedMin && tp < fp && !policy.ExplicitGuardrail(rule) {
+		if tp+fp >= judgedMin && tp < fp && !policy.ExplicitGuardrail(rule) && !detect.IsHardBlock(rule) {
 			out = append(out, rule)
 		}
 	}
@@ -617,6 +627,12 @@ func (s *Session) deliver(sigs []detect.Signal) {
 		}
 		if !v.Primary || v.Level == detect.L0 || v.Suppressed {
 			continue
+		}
+		if slices.Contains(s.noisyRules, v.Rule) {
+			// the user judged this rule's warnings mostly false. The rule is
+			// still delivered: the judgment is kept visible next to the
+			// verdict instead of being used to mute the rule.
+			s.recordDecision(v, "low_judged_precision")
 		}
 		cp := v
 		if (s.Cfg.Rollout.Mode == "shadow" || slices.Contains(s.Cfg.Rollout.ShadowRules, v.Rule) || rulepack.IsLearned(v.Rule) && !slices.Contains(s.Cfg.Rollout.RecommendRules, v.Rule)) && !policy.ExplicitGuardrail(v.Rule) {

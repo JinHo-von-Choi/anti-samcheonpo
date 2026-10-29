@@ -210,22 +210,26 @@ func render(name string, d map[string]any) string {
 }
 
 // Agent renders the agent-facing nudge. arm selects the experiment arm:
-// "none" returns "" (logged only), "fact" omits the prescription line.
+// "fact" omits the prescription line, "none" is the control arm and gets
+// the same observation without a prescription.
+//
+// The control arm used to render nothing at all, so a finding that reached
+// the agent carried no message: the pipeline that judges a violation runs
+// the same way in every arm, and a message that says nothing is not a
+// message. The arms differ by the prescription, not by whether the finding
+// is stated.
 func Agent(v detect.Signal, c Context, arm string) string {
-	if arm == "none" {
-		return ""
-	}
 	d := data(v, c)
 	msg := render(v.Rule+".agent.tmpl", d)
 	if msg == "" {
 		return ""
 	}
-	if arm != "fact" {
+	if arm != "fact" && arm != "none" {
 		if rx := render(v.Rule+".rx.tmpl", d); rx != "" {
 			msg += "\n" + rx
 		}
 	}
-	if hint, ok := v.Facts["verification_hint"].(string); ok && arm != "fact" && hint != "" && strings.HasPrefix(v.Rule, "s1.") {
+	if hint, ok := v.Facts["verification_hint"].(string); ok && arm != "fact" && arm != "none" && hint != "" && strings.HasPrefix(v.Rule, "s1.") {
 		msg += "\n" + hint
 	}
 	return msg

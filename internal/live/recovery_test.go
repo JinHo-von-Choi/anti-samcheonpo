@@ -5,6 +5,8 @@ import (
 	"encoding/json"
 	"fmt"
 	"net"
+	"slices"
+	"strconv"
 	"strings"
 	"testing"
 	"time"
@@ -13,6 +15,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/recovery"
 )
 
@@ -295,14 +298,53 @@ func TestRecoveryFactArmOmitsPrescription(t *testing.T) {
 	}
 }
 
-func TestOverBudgetSilencesMostlyFalseRules(t *testing.T) {
+// OverBudget reports the rules whose judged precision is under one half.
+//
+// The list is a report, not a mute: the rules it names are still delivered.
+// A rule the user judged false too often is still a rule the agent may
+// break, and a rule that stops being heard stops being checked. A rule
+// that must never be silenced is never in it: an accepted guardrail, and a
+// core malicious pattern.
+func TestOverBudgetReportsMostlyFalseRules(t *testing.T) {
 	got := OverBudget(map[string][2]int{
 		"s9.instruction_smuggling": {1, 4}, // mostly false
 		"s1.identical_rerun":       {3, 2}, // mostly right
 		"s3.out_of_scope":          {0, 4}, // too few judgments
 		"s3.protected_path":        {0, 9}, // an accepted guardrail
+		"s5.error_hiding":          {0, 9}, // a core malicious pattern
 	})
 	if strings.Join(got, ",") != "s9.instruction_smuggling" {
 		t.Fatalf("%v", got)
+	}
+}
+
+// A rule whose reviewed warnings were mostly false positives is reported,
+// not muted. Muting it is how an agent gets to break it unheard: the
+// judgment describes one project's wording, not the rule itself.
+func TestMostlyFalseRuleIsReportedAndStillDelivered(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	for i := 0; i < 6; i++ {
+		if err := s.db.AddFeedback("v"+strconv.Itoa(i), s.ID, "s2.stuck_error", ledger.LabelFalsePositive, "", "", s.Root); err != nil {
+			t.Fatal(err)
+		}
+	}
+	s.mu.Lock()
+	s.applyOverrides()
+	shadowed := append([]string(nil), s.Cfg.Rollout.ShadowRules...)
+	noisy := append([]string(nil), s.noisyRules...)
+	s.mu.Unlock()
+	if slices.Contains(shadowed, "s2.stuck_error") {
+		t.Fatal("a rule the user judged false was muted")
+	}
+	if !slices.Contains(noisy, "s2.stuck_error") {
+		t.Fatal("the judgment was not reported")
+	}
+	s.mu.Lock()
+	s.deliver([]detect.Signal{{ID: "noisy", Seq: 1, Rule: "s2.stuck_error", Detector: "S2", Level: detect.L1, Primary: true,
+		Facts: map[string]any{"count": 4, "cmd": "test"}}})
+	pending := len(s.pending)
+	s.mu.Unlock()
+	if pending == 0 {
+		t.Fatal("the verdict of a rule the user judged false was not delivered")
 	}
 }
