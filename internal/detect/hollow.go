@@ -230,7 +230,7 @@ func (e *Engine) hollowCompletion(msg *event.Event) *Signal {
 		if named {
 			level = L2
 		}
-		return &Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.7, Level: level, Evidence: append(evidence, msg.Seq),
+		return &Signal{Detector: "S5", Rule: RuleFalseDone, Confidence: 0.7, Level: level, Evidence: append(evidence, msg.Seq),
 			Facts: map[string]any{"kind": KindHollow, "paths": strings.Join(paths, ", "), "count": len(st.hollow)}}
 	}
 	var missing []string
@@ -243,7 +243,7 @@ func (e *Engine) hollowCompletion(msg *event.Event) *Signal {
 		}
 	}
 	if covered > 0 && len(missing) > 0 {
-		return &Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.6, Level: L1, Evidence: []int64{msg.Seq},
+		return &Signal{Detector: "S5", Rule: RuleFalseDone, Confidence: 0.6, Level: L1, Evidence: []int64{msg.Seq},
 			Facts: map[string]any{"kind": KindNoEvidence, "missing": strings.Join(missing, ", "), "covered": covered}}
 	}
 	if lv := st.lastVerify; lv != nil && len(st.createdTests) > 0 {
@@ -264,7 +264,7 @@ func (e *Engine) hollowCompletion(msg *event.Event) *Signal {
 				return nil
 			}
 		}
-		return &Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.6, Level: L1, Evidence: []int64{lv.Seq, msg.Seq},
+		return &Signal{Detector: "S5", Rule: RuleFalseDone, Confidence: 0.6, Level: L1, Evidence: []int64{lv.Seq, msg.Seq},
 			Facts: map[string]any{"kind": KindNarrowCheck, "cmd": verifyCommand(lv)}}
 	}
 	return nil

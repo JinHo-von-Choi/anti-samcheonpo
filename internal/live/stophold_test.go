@@ -21,9 +21,21 @@ func feedWrite(t *testing.T, s *Session, id, path string) {
 	s.enqueue(ev, time.Second)
 }
 
-// A turn that ends on an unverified change is held once with the next
-// step, then released on the same evidence so the agent never loops.
-func TestStopHoldsAbandonedVerificationOnce(t *testing.T) {
+// feedCheck runs a check in the session and records its exit status.
+func feedCheck(t *testing.T, s *Session, id, cmd string, exit int) {
+	t.Helper()
+	ev := &event.Event{Kind: event.KindTool, Tool: event.ToolShell, Category: event.CatVerify, Cmd: cmd, CmdNorm: cmd, ExitCode: &exit, CallID: id, TS: time.Now(), Basis: "live"}
+	s.mu.Lock()
+	s.parser.AddEvent(ev)
+	s.mu.Unlock()
+	s.enqueue(ev, time.Second)
+}
+
+// A turn that ends on an unverified change is held with the next step, and
+// it stays held until a check passes. The hold is a gate, not a warning:
+// neither the host asking again nor the same evidence coming back releases
+// it, because the state the hold names is still true.
+func TestStopHoldsUnverifiedTurnEndUntilACheckPasses(t *testing.T) {
 	s, _ := reliabilitySession(t)
 	s.onPrompt(HookInput{Prompt: "로그인 기능 만들어 줘"})
 	feedWrite(t, s, "w1", "auth/login.go")
@@ -33,15 +45,52 @@ func TestStopHoldsAbandonedVerificationOnce(t *testing.T) {
 	if !strings.Contains(out, `"decision":"block"`) || !strings.Contains(out, "마지막 코드 변경 뒤에 실행한 검사가 없다") || !strings.Contains(out, "가장 작은 검사") {
 		t.Fatalf("stop not held with the next step: %s", out)
 	}
-	if out := string(s.onStop(HookInput{LastMessage: last, StopHookActive: true})); strings.Contains(out, `"decision":"block"`) {
-		t.Fatalf("held a continued turn again: %s", out)
+	if out := string(s.onStop(HookInput{LastMessage: last, StopHookActive: true})); !strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("the host asking again released the gate: %s", out)
 	}
-	if out := string(s.onStop(HookInput{LastMessage: last})); strings.Contains(out, `"decision":"block"`) {
-		t.Fatalf("held twice on the same evidence: %s", out)
+	if out := string(s.onStop(HookInput{LastMessage: last})); !strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("the same evidence released the gate: %s", out)
 	}
+	// one intervention for the evidence, however often the agent asks to end
 	var blocked int
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM intervention WHERE session_id=? AND rule=? AND blocked=1`, s.ID, detect.RuleAbandonedVerification).Scan(&blocked); err != nil || blocked != 1 {
 		t.Fatalf("hold not recorded once: %d %v", blocked, err)
+	}
+	// a check that fails keeps the gate shut
+	feedCheck(t, s, "t1", "go test ./...", 1)
+	if out := string(s.onStop(HookInput{LastMessage: last})); !strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("a failing check released the gate: %s", out)
+	}
+	// a check that passes opens it
+	feedCheck(t, s, "t2", "go test ./...", 0)
+	if out := string(s.onStop(HookInput{LastMessage: last, StopHookActive: true})); strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("held after the check passed: %s", out)
+	}
+}
+
+// A false completion is the same gate seen from the claim: the turn ends
+// while the check that failed is still failing.
+func TestStopHoldsAFalseCompletionUntilACheckPasses(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	s.onPrompt(HookInput{Prompt: "로그인 기능 만들어 줘"})
+	feedWrite(t, s, "w1", "auth/login.go")
+	feedCheck(t, s, "t1", "go test ./...", 1)
+	claim := "모든 작업이 완료되었습니다."
+
+	out := string(s.onStop(HookInput{LastMessage: claim}))
+	if !strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("a false completion was not held: %s", out)
+	}
+	if !strings.Contains(out, "go test ./...") {
+		t.Fatalf("the hold does not name the failing check: %s", out)
+	}
+	if out := string(s.onStop(HookInput{LastMessage: claim, StopHookActive: true})); !strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("the host asking again released the gate: %s", out)
+	}
+	// a check that passes opens the gate
+	feedCheck(t, s, "t2", "go test ./...", 0)
+	if out := string(s.onStop(HookInput{LastMessage: claim})); strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("held after the check passed: %s", out)
 	}
 }
 

@@ -75,7 +75,7 @@ flowchart LR
 | 행동 반복·조사 반복·요청 제약 위반 후보 | 실사용 원장: Codex·Hermes의 같은 파일 반복 읽기·같은 검색 반복(`s4.research_repeat`), opencode의 같은 시험 명령 반복(`s2.behavior_loop`), Hermes의 실제 연동→목업 대체 후보 2건(`s3.requirement_substitution`, 원문을 저장하지 않아 내용은 미검토). 인계 반복(`s1.delegation_loop`)은 실사용 기록 없음. 기본은 기록만 | Claude Code·Codex 훅 형식 적합성 사례 |
 | 채점기 접촉 차단(S10) | Claude Code, Codex (보호 경로 읽기를 실행 전에 거부. 셸 명령의 상대 경로 포함) | 회피 시나리오 9개·잡음 시나리오 4개 |
 | 지시 밀수(S9) | Claude Code (에이전트가 파일에 쓰는 감시 우회 지시에 귀띔 전달. 같은 파일에 반복하면 실행 전에 거부한다. 읽은 텍스트의 지시는 기록만) | 회피 시나리오·자기 경고 문장 제외 시험 |
-| 검사 없이 끝내기 (`s5.abandoned_verification`) | Claude Code, Copilot, Codex, agy 1.4.8, opencode(서버·TUI 실행), Hermes (종료를 1회 보류, 에이전트가 검사를 실행, 효과를 원장에 기록). opencode의 `opencode run` 단발 실행은 첫 턴이 끝나면 프로세스가 끝나 후속 프롬프트에 답하지 못한다 | 함정·정상 대조 시나리오 |
+| 검사 없이 끝내기 (`s5.abandoned_verification`) | Claude Code, Copilot, Codex, agy 1.4.8, opencode(서버·TUI 실행), Hermes (검사가 통과할 때까지 종료를 계속 보류, 에이전트가 검사를 실행, 효과를 원장에 기록). opencode의 `opencode run` 단발 실행은 첫 턴이 끝나면 프로세스가 끝나 후속 프롬프트에 답하지 못한다 | 함정·정상 대조 시나리오 |
 | 껍데기 완료 (`s5.false_done`의 `hollow`·`no_evidence`·`narrow_check`) | Claude Code (미구현 본문, 요청한 함수 일부만 구현, 새 시험 파일만 실행한 뒤 완료 선언에서 판정) | 함정·정상 대조 시나리오 |
 | 주제 매몰 (`s3.fixation`) | Claude Code (같은 오류에 행동 10/12개가 몰리고 요청한 다른 함수가 남은 상태에서 귀띔 전달) | 함정·정상 대조 시나리오 |
 | 파일 감시 인스턴스 상한·회수, 감시 실패 표시 | | 회귀·경쟁 조건 시험 |

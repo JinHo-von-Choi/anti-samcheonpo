@@ -1551,16 +1551,16 @@ func (e *Engine) TurnEnd(msg *event.Event, unmet []string) []Signal {
 	if IsCompletionClaim(msg.Text) && st.writes > 0 {
 		switch {
 		case len(unmet) > 0:
-			e.add(&sigs, Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.8, Level: L2, Evidence: []int64{msg.Seq},
+			e.add(&sigs, Signal{Detector: "S5", Rule: RuleFalseDone, Confidence: 0.8, Level: L2, Evidence: []int64{msg.Seq},
 				Facts: map[string]any{"kind": "unmet", "unmet": unmet}})
 			return e.combine(msg, sigs)
 		case lv == nil:
 		case failing(lv):
-			e.add(&sigs, Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.8, Level: L2, Evidence: []int64{lv.Seq, msg.Seq},
+			e.add(&sigs, Signal{Detector: "S5", Rule: RuleFalseDone, Confidence: 0.8, Level: L2, Evidence: []int64{lv.Seq, msg.Seq},
 				Facts: map[string]any{"kind": "failed", "cmd": lv.CmdNorm, "failed_tests": lv.FailedTests}})
 			return e.combine(msg, sigs)
 		case lv.Seq < st.lastCodeWriteSeq:
-			e.add(&sigs, Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.7, Level: L1, Evidence: []int64{lv.Seq, st.lastWriteSeq, msg.Seq},
+			e.add(&sigs, Signal{Detector: "S5", Rule: RuleFalseDone, Confidence: 0.7, Level: L1, Evidence: []int64{lv.Seq, st.lastWriteSeq, msg.Seq},
 				Facts: map[string]any{"kind": "stale", "cmd": lv.CmdNorm}})
 			return e.combine(msg, sigs)
 		default:
@@ -1574,7 +1574,7 @@ func (e *Engine) TurnEnd(msg *event.Event, unmet []string) []Signal {
 	if s := e.abandonedVerification(msg, unmet); s != nil {
 		e.add(&sigs, *s)
 	} else if lv == nil && IsCompletionClaim(msg.Text) && st.writes > 0 {
-		e.add(&sigs, Signal{Detector: "S5", Rule: "s5.false_done", Confidence: 0.6, Level: L0, Evidence: []int64{msg.Seq},
+		e.add(&sigs, Signal{Detector: "S5", Rule: RuleFalseDone, Confidence: 0.6, Level: L0, Evidence: []int64{msg.Seq},
 			Facts: map[string]any{"kind": "unverified"}})
 	}
 	return e.combine(msg, sigs)
@@ -1903,6 +1903,11 @@ func (e *Engine) ScopeChanged() {
 
 // LastVerifyFailing reports whether the most recent verification failed.
 func (s *State) LastVerifyFailing() bool { return s.lastVerify != nil && failing(s.lastVerify) }
+
+// LastProductionWrite is the sequence number of the last change the session
+// made to the work itself, or 0 when it changed nothing. A verification
+// after this sequence covers the work as it stands.
+func (s *State) LastProductionWrite() int64 { return s.lastProdWriteSeq }
 
 // Produced reports whether the session wrote anything.
 func (s *State) Produced() bool { return s.writes > 0 }

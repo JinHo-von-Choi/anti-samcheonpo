@@ -19,6 +19,14 @@ import (
 // wording, so leaving the wording out does not avoid it.
 const RuleAbandonedVerification = "s5.abandoned_verification"
 
+// RuleFalseDone is a turn that ends with a completion claim the checks do
+// not support: a failing check, a check that predates the last change, a
+// check that ran too little, or no check at all.
+//
+// It is the same gate as an abandoned verification seen from the claim: the
+// turn ends while a check could still run.
+const RuleFalseDone = "s5.false_done"
+
 // Kinds of an abandoned verification.
 const (
 	// KindFailingLeft is a turn ending on a failing check whose cause is

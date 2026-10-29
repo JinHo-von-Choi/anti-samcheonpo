@@ -238,6 +238,13 @@ func coversTests(cmd string, tests []string) bool {
 	return true
 }
 
+// VerifiedSince reports whether a check passed after seq.
+//
+// The gate that holds a turn end open until the work is verified opens on
+// this: a turn that ends while the change on disk has never passed a check
+// is refused, and it stays refused until one passes.
+func (e *Engine) VerifiedSince(seq int64) bool { return e.passedSince(seq, "") }
+
 // passedSince reports whether a check passed after seq on a workspace other
 // than ws.
 func (e *Engine) passedSince(seq int64, ws string) bool {

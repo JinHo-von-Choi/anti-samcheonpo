@@ -1009,7 +1009,7 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 	s.mu.Lock()
 	sigs := s.eng.TurnEnd(msg, unmet)
 	s.settleCompletion(sigs)
-	hold := s.stopHold(sigs, unmet, in.StopHookActive, shadow)
+	hold := s.stopHold(sigs, unmet, shadow)
 	if hold != nil {
 		sigs = slices.DeleteFunc(sigs, func(v detect.Signal) bool { return v.Rule == hold.Rule && v.Seq == hold.Seq })
 	}
