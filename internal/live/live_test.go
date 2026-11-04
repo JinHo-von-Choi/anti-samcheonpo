@@ -64,7 +64,9 @@ func startDaemon(t *testing.T) *harness {
 		t.Fatal(err)
 	}
 	_ = os.WriteFile(filepath.Join(h.proj, "src", "a.py"), []byte("x = 1\n"), 0o644)
-	_ = os.WriteFile(filepath.Join(h.proj, ".samcheonpo.yml"), []byte("notify: {desktop: false}\nexperiment: {enabled: false}\n"), 0o644)
+	// Hook-flow assertions concern the submitted tool calls. Keep the runner's
+	// changing free disk space from injecting unrelated advice into those flows.
+	_ = os.WriteFile(filepath.Join(h.proj, ".samcheonpo.yml"), []byte("notify: {desktop: false}\nexperiment: {enabled: false}\ndetectors:\n  s8_cost: {host_free_pct: 0, host_free_gb: 0}\n"), 0o644)
 	git(t, h.proj, "init", "-q")
 	git(t, h.proj, "add", "-A")
 	git(t, h.proj, "commit", "-qm", "init")
