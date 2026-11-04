@@ -33,6 +33,12 @@ func TestCheckTargetRelevance(t *testing.T) {
 }
 
 func TestCheckWorkingDirectory(t *testing.T) {
+	if !CoversPathAt("go test ./auth", "/w/auth/login.go", "/w", "/w") {
+		t.Fatal("absolute transcript path rejected")
+	}
+	if CoversPathAt("go test ./unrelated", "/w/auth/login.go", "/w", "/w") {
+		t.Fatal("absolute transcript path matched an unrelated package")
+	}
 	if CoversPathAt("go test ./...", "auth/login.go", "/w", "/w/unrelated") {
 		t.Fatal("unrelated cwd passed")
 	}

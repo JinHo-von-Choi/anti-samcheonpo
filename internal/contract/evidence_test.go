@@ -12,7 +12,7 @@ func TestTypedAcceptanceDeclaration(t *testing.T) {
 		if len(errs) != 0 || c.Done[0].Evidence.Kind != kind {
 			t.Fatalf("%s: %v", kind, errs)
 		}
-		for _, bad := range []string{"../outside", "/tmp/outside", "*.png"} {
+		for _, bad := range []string{"../outside", "/tmp/outside", "C:/outside", "C:outside", "//server/share/file", "*.png"} {
 			if _, errs := Parse([]byte(strings.Replace(raw, "[result.json]", "["+bad+"]", 1))); len(errs) == 0 {
 				t.Fatalf("accepted invalid artifact %s", bad)
 			}

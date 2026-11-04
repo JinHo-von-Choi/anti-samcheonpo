@@ -4,6 +4,8 @@ import (
 	"path"
 	"path/filepath"
 	"strings"
+
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 )
 
 // CoversPathAt resolves the target in the command's actual working directory.
@@ -12,12 +14,12 @@ func CoversPathAt(command, changed, root, dir string) bool {
 	if root == "" {
 		root = "."
 	}
-	if !filepath.IsAbs(changed) {
+	if !pathnorm.IsAbs(changed) {
 		changed = filepath.Join(root, changed)
 	}
 	if dir == "" {
 		dir = root
-	} else if !filepath.IsAbs(dir) {
+	} else if !pathnorm.IsAbs(dir) {
 		dir = filepath.Join(root, dir)
 	}
 	rel, err := filepath.Rel(dir, changed)
