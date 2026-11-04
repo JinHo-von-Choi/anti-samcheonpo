@@ -15,7 +15,7 @@
 
 ```yaml
 rollout:
-  mode: recommend          # 기본값. shadow는 기록만
+  mode: recommend          # 기본값. shadow는 일반 경고를 기록만
   escalate_max_blocks: 3   # 반복 경고의 차단 상한. 0이면 이 상승 차단을 끔
 contract:
   draft: off               # 기본값. on이면 계약 초안 요청
@@ -47,7 +47,7 @@ samcheonpo cmd check
 
 예산과 보호 경로는 수락 뒤 적용됩니다. 계약을 수정하면 다시 수락해야 합니다.
 
-`budget`에는 `artifact_gb`(세션 중 빌드 산출물 증가 한도)와 `verify_minutes`(검사 실행 시간 합계 한도)도 적을 수 있습니다. `minutes`는 세션이 활동한 시간입니다. 이 두 한도를 넘으면 전체 시험처럼 무거운 검사만 막고 바뀐 범위의 시험은 그대로 둡니다.
+`budget`에는 `artifact_gb`(세션 중 빌드 산출물 증가 한도)와 `verify_minutes`(검사 실행 시간 합계 한도)도 적을 수 있습니다. `minutes`는 세션이 활동한 시간입니다. 이 두 한도를 넘으면 전체 시험처럼 무거운 검사만 막고 바뀐 범위의 시험은 그대로 둡니다. 문서·화면 등 결과물 파일을 검사에 연결하려면 [완료 조건 예시](agent-failure-controls.md#문서화면데이터를-완료-조건에-연결하기)를 참고하세요.
 
 운영 환경이 있는 프로젝트는 `production`에 운영 쪽을 적습니다. 모든 항목은 선택입니다.
 
@@ -55,14 +55,14 @@ samcheonpo cmd check
 production:
   env_files: [".env.production"]    # 운영 접속 설정 파일 (없으면 .env.production, .env.prod)
   hosts: ["db.internal"]            # 운영 데이터베이스 호스트
-  services: ["vellum.service"]      # 운영 systemd 유닛. 재시작·중지를 배포로 본다
+  services: ["myapp.service"]      # 운영 systemd 유닛. 재시작·중지를 배포로 본다
   deploy_commands: ["bash scripts/deploy.sh"]
   allow_write: false                # true면 운영 데이터 쓰기를 허용한다
 ```
 
 이 항목을 수락하면 운영 데이터베이스 쓰기(`s3.production_guard`)는 처음부터 막습니다. 계약이 없거나 `production`이 없으면 같은 쓰기를 안내(`s3.production_write`)로 시작하고, 안내 뒤에도 반복하면 막습니다.
 
-운영으로 보는 쓰기는 두 가지입니다. 하나는 같은 명령이 운영 설정 파일을 읽고 별도 접속 대상을 적지 않은 쓰기이고, 다른 하나는 계약의 운영 호스트를 적은 쓰기입니다. `psql -f 파일`처럼 파일 안에 든 문장은 읽지 않습니다. 마이그레이션 이력 테이블(`_sqlx_migrations`, `schema_migrations` 등)을 손으로 바꾸는 문장은 운영 여부와 관계없이 안내합니다(`s3.migration_history_write`). 다만 접속 대상으로 이 컴퓨터만 적은 명령은 제외합니다. `check`는 지정된 명령을 실제로 실행합니다. 사람이 판단해야 하는 완료 조건까지 자동으로 확정하지 않습니다.
+운영으로 보는 쓰기는 두 가지입니다. 하나는 같은 명령이 운영 설정 파일을 읽고 별도 접속 대상을 적지 않은 쓰기이고, 다른 하나는 계약의 운영 호스트를 적은 쓰기입니다. `psql -f 파일`처럼 파일 안에 든 문장은 읽지 않습니다. 마이그레이션 이력 테이블(`_sqlx_migrations`, `schema_migrations` 등)을 손으로 바꾸는 문장은 운영 여부와 관계없이 안내합니다(`s3.migration_history_write`). 다만 접속 대상으로 이 컴퓨터만 적은 명령은 제외합니다. `check`는 지정된 명령을 실제로 실행합니다. 사람의 검토가 필요한 조건은 수동 인수 항목으로 지정합니다.
 
 ## 귀띔에서 차단까지
 
@@ -78,12 +78,12 @@ flowchart LR
     B -->|keep now| O[이번만 통과]
 ```
 
-- 기본은 안내 모드(`rollout.mode: recommend`)다. 기록 전용 모드(`shadow`)에서는 판정만 저장한다. 안내·복구 권고·자동 검사 실행은 하지 않는다.
+- 기본은 안내 모드(`rollout.mode: recommend`)다. `shadow`에서는 일반 판정을 기록하고 안내·복구 권고·자동 종료 검사를 생략한다. 수락한 보호 경로·예산과 오류 은폐·시험 약화·수락 범위 밖 수정·반복 되돌리기의 핵심 사전 차단은 유지한다.
 - 기록만 하는 규칙도 있다. 기본 목록은 `s1.verify_after_docs`, `s1.review_repeat`, `s1.explicit_waiting`, `s8.progress_stall`이다. 대기·정체 두 규칙은 사용자가 안내를 켜야 메시지를 보내며, 반복돼도 작업을 차단하지 않는다.
-- 차단은 같은 세션, 같은 목표 안에서 귀띔을 받은 에이전트가 같은 규칙을 같은 대상(파일 또는 명령)에 다시 어길 때만 건다.
+- 반복 경고에 따른 차단은 같은 세션·목표 안에서 안내를 받은 뒤 같은 대상(파일 또는 명령)에 같은 행동을 반복할 때 적용한다.
 - 같은 검사 재실행, 실패 반복, 오류 숨기기, 시험 약화, 작은 변경 뒤 전체 시험 재실행, CI 실패 뒤 재배포, 배포 연타, 프로브 없는 장시간 실행, 거부당한 명령의 재실행, 같은 작업 폴더의 무거운 시험 겹침, 검사 없는 운영 배포(`s5.deploy_without_preflight`), 운영 데이터 쓰기, 마이그레이션 이력 수동 변경은 계약 없이도 차단까지 간다. 범위, 완료 조건, 검증 비율처럼 계약에 기대는 규칙은 수락한 계약이 있을 때만 차단한다.
 - 세션당 차단 상한은 `rollout.escalate_max_blocks`(기본 3, 0이면 끔)다.
-- `samcheonpo review`에서 최근 90일 동안 5건 이상 판정한 규칙 가운데 오탐이 맞음보다 많은 규칙은 삼천포가 알아서 끄지 않는다. 그런 규칙의 판정은 그대로 전달하고 오탐이 많다는 사실만 원장에 함께 남긴다. 보호 경로와 예산, 그리고 핵심 악성 패턴(오류 은폐·시험 약화·범위 밖 수정·같은 상태 되돌리기)은 예외다.
+- `samcheonpo review`로 경고가 맞았는지 기록할 수 있다. 이 결과는 `accuracy`에서 규칙별로 확인한다.
 - 사용자가 수락한 보호 경로와 명시한 예산은 어느 단계에서도 지킨다.
 - `keep normal`은 현재 목표 안의 같은 규칙·같은 대상에만 적용된다. 다른 대상과 새 목표, 보호 경로와 예산에는 영향이 없다. `keep now`는 이번 한 번만 넘기고, 같은 일이 다시 생기면 막기 전에 먼저 안내한다.
 
@@ -128,19 +128,23 @@ rollout:
 
 기다리는 이유를 모르거나 파일 감시에 실패하면 판단을 보류한다. 사람이 확인할 완료 조건이 포함된 계약은 대기 안내를 보류한다. 두 규칙은 가벼운 안내만 하며 작업을 차단하거나 예산 상한을 늘리지 않는다. 상세 조건과 기록 평가 방법은 [대기 반복·진행 정체 안내](spec/agenttime-reliability.md)에 있다.
 
-### 완료 근거가 미확인일 때
+### 검사와 경고 기록 보기
 
-프로젝트에서 `samcheonpo contract show`로 조건을 확인하고, 필요하면 `.samcheonpo/contract.yml`의 완료 조건을 작성한다. 검토·조사 작업은 파일 변경 대신 결과물을 조건으로 삼을 수 있다. 사용자가 조건을 수락한 뒤 `samcheonpo contract accept`, `samcheonpo cmd check` 순서로 실제 검사를 확인한다. 수락만으로 통과가 되지는 않으며 사람이 확인할 조건은 별도로 남는다. 진단 명령은 수락이나 검사를 대신 실행하지 않는다.
+프로젝트에서 `samcheonpo contract show`로 완료 조건을 확인합니다. 조건을 수정했다면 사용자 터미널에서 `samcheonpo contract accept`로 수락한 뒤 `samcheonpo cmd check`로 검사합니다. 조사·문서 작업은 결과물을 검사 대상으로 지정할 수 있습니다.
 
-`samcheonpo interventions --since 30d --by-agent`는 에이전트·규칙별 전달 단계와 미관측 사유를 보여 준다. 안내와 같은 실행의 후속 완료 결과 또는 관련 생산 행동을 확인해야 ‘재발 없음’으로 기록한다. 관련 행동이 없거나 외부 검사가 아직 확인되지 않으면 미관측이다. 재발이 없다는 기록은 해결이나 비용 절감의 증거가 아니다.
+| 명령 | 조회 내용 |
+| --- | --- |
+| `samcheonpo evidence --session SESSION_ID` | 요구사항 상태와 실행한 검사 |
+| `samcheonpo interventions --session SESSION_ID --json` | 경고·실행 전 차단·종료 보류의 상세 기록 |
+| `samcheonpo interventions --since 30d --by-agent` | 에이전트·규칙별 안내와 차단 집계 |
+| `samcheonpo outcomes --since 30d` | 경고 뒤 검사 통과·재실행·재발 등 후속 행동 |
+| `samcheonpo review` | 경고가 맞았는지 사용자 판단 기록 |
+| `samcheonpo accuracy --since 30d` | 규칙별 후속 관측과 사용자 판단 집계 |
+| `samcheonpo provenance RULE_ID` | 규칙에 연결된 원장 근거의 해시 요약 |
 
-`samcheonpo outcomes --since 30d`는 경고마다 그 뒤 도구 호출 20번 안의 행동을 원장에서 다시 계산한다. 검사 통과, 같은 명령 재실행, 같은 규칙 재발, 시험 파일 수정, git 되돌림(`checkout --`, `restore`, `reset --hard`)이 나온 경고의 비율을 규칙별로 보여 준다. `--window`로 호출 수를 바꾸고, `--by-arm`으로 실험 군별로 나눈다. 경고를 보내지 않은 군(`none`)과 비교할 때만 차이를 경고의 효과로 읽을 수 있다.
+`outcomes`는 경고 뒤 도구 호출 20번을 기본 관측 구간으로 사용합니다. `--window`로 구간을 바꾸고 `--by-arm`으로 안내 문구별 결과를 비교합니다.
 
-`samcheonpo review`는 아직 판정하지 않은 경고를 규칙마다 돌아가며 기본 5건 보여 준다. 경고가 많은 규칙 하나가 판정을 독차지하지 않는다.
-
-`samcheonpo accuracy --since 30d`는 원장에게 남은 기록만으로 규칙별 신뢰도를 실측한다. 제안·전달·‘재발 없음’·재발의 수와 사용자가 반박한 위양성을 한 표로 본다. 정밀도 추정은 ‘재발 없음’÷(‘재발 없음’+재발)이며 사용자 라벨이 없는 규칙에는 유의미한 수치가 없다. 이 명령은 처방을 스스로 평가하지 않고, 더 자세한 전달 단계는 `samcheonpo interventions`를 본다.
-
-`samcheonpo provenance <규칙>`은 그 규칙의 원장 근거(차단·처방·피드백)를 정렬해 SHA256 다이제스트로 요약한다. 같은 원장에서 다시 실행하면 같은 값이 나오고, 원장에 한 건이라도 새 근거가 쌓이면 값이 바뀐다. 규칙 신뢰도를 발표·공유할 때는 이 다이제스트를 함께 적어 어느 원장의 기록인지 특정한다.
+`accuracy`의 판정정밀도는 사용자가 맞다고 확인한 건수를 전체 사용자 판단 건수로 나눈 값입니다. 재발 여부는 별도 열에서 볼 수 있습니다. `provenance`의 해시는 같은 원장 근거를 대조할 때 사용합니다.
 
 ## 되돌리기
 
@@ -187,16 +191,16 @@ rollout:
 ```yaml
 experiment:
   enabled: true
-  arms: [none, prescription]   # 기본값. fact를 더하면 처방 없이 관측 사실만 보내는 군이 생긴다
+  arms: [none, prescription]   # none: 상황 안내, prescription: 다음 행동을 포함한 안내
 ```
 
-켜면 세션마다 `arms` 가운데 하나가 같은 확률로 정해진다. `none` 군은 안내를 보내지 않고 기록만 하며, 다른 군과 같은 방식으로 그 뒤 행동을 관측한다. 사용자가 수락한 보호 경로와 예산은 실험에서 빠진다. 상태줄에 실험 중이라는 사실을 표시한다. 프로젝트 설정은 실험을 끌 수만 있고 군은 바꿀 수 없다.
+켜면 세션마다 안내 문구 유형을 같은 확률로 배정합니다. `none`과 `fact`는 상황을 설명하고, `prescription`은 다음 행동을 함께 안내합니다. 보호 경로와 예산은 어느 유형에서도 동일하게 적용됩니다. 프로젝트 설정에서는 실험을 끌 수 있습니다.
 
-`samcheonpo outcomes --by-arm`은 규칙별 표 아래에 군 비교를 붙인다. 세션마다 경고 뒤 검증·재실행·재발·되돌림이 나온 비율을 구해 군별로 평균하고, 대조군과의 차이를 95% 신뢰열로 보여 준다. 신뢰열은 표본이 쌓이는 동안 몇 번을 다시 봐도 유효하다. 구간이 0을 포함하면 차이를 주장하지 않는다. 자세한 평가 절차는 [보고서 양식](benchmarks/report-template.md)에 있다.
+`samcheonpo outcomes --by-arm`으로 문구 유형별 후속 행동을 비교합니다. 평가 절차와 통계 출력은 [실험 보고서 양식](benchmarks/report-template.md)에 있습니다.
 
 ## 사용자 전용 명령
 
-`accept`, `edit`, `skip`, `keep`, `extend`, `rollback apply`와 세션 밖의 `contract accept`는 사용자의 판단을 바꾸는 명령이다. 슬래시 명령이나 사용자 터미널에서만 동작하고, 에이전트가 셸 도구로 실행하면 실행 전에 거부한다. 스크립트 안에서 부르는 것도 거부하지만, 파일에 쓰는 문서 안에 명령 이름이 있는 것은 실행으로 보지 않는다. 같은 OS 사용자로 도는 프로세스가 데몬 소켓에 직접 접속하는 것까지 막지는 않는다.
+`accept`, `edit`, `skip`, `keep`, `extend`, `rollback apply`와 세션 밖의 `contract accept`는 사용자의 판단을 바꾸는 명령이다. 슬래시 명령이나 사용자 터미널에서만 동작하고, 에이전트가 셸 도구로 실행하면 실행 전에 거부한다. 스크립트에서 호출할 때도 같은 규칙을 적용한다. 문서에 사용 예시를 적는 것은 허용한다.
 
 ## 제거와 복구
 
@@ -212,6 +216,6 @@ samcheonpo uninstall --agent claude   # 설치한 에이전트마다 같은 --ag
 
 ## 인수인계와 개인정보
 
-`samcheonpo handoff <세션> --format json`과 `handoff inspect`로 다른 에이전트나 새 세션에 일을 넘긴다. 이 JSON은 원문을 담은 로컬 자료이므로 공개 공유용이 아니다.
+`samcheonpo handoff <세션> --format json`과 `handoff inspect`로 다른 에이전트나 새 세션에 일을 넘긴다. 이 JSON에는 작업 내용을 담아 전달한다. 공유 전 목표·파일 경로·후속 요청을 확인한다.
 
-작업 카드의 목표, 후속 요청, 출처는 재시작과 인수인계를 위해 로컬 원장에 남는다. `store_raw_text: false`도 작업 카드와 짧은 이벤트 요약까지 비식별화하지는 않는다. 계약, 원장, 인수인계 자료는 비공개로 다루고, 공유가 필요하면 `receipt --share`나 `export --redact` 결과를 검토한 뒤 공유한다.
+작업 목표와 후속 요청은 재시작·인수인계를 위해 로컬 원장에 저장한다. `store_raw_text: false`는 원문 저장을 줄이는 설정이며 작업 카드와 이벤트 요약은 유지한다. 외부에 공유할 때는 `receipt --share` 또는 `export --redact`로 공유본을 만들고 내용을 확인한다.

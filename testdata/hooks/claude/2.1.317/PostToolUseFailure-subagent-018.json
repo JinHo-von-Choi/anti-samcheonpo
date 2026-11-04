@@ -1,0 +1,19 @@
+{
+  "session_id": "session_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "prompt_id-2",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PostToolUseFailure",
+  "tool_name": "Read",
+  "tool_input": {
+    "file_path": "/w/proj/forbidden.txt"
+  },
+  "tool_use_id": "tool_use_id-11",
+  "error": "File does not exist. Note: your current working directory is /w/proj.",
+  "is_interrupt": false,
+  "duration_ms": 3
+}

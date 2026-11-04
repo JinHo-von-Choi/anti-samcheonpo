@@ -221,6 +221,7 @@ func agyGroup(bin string) json.RawMessage {
 		return map[string]any{"type": "command", "command": marker(bin, "agy") + ev + " agy", "timeout": timeout}
 	}
 	g := map[string]any{
+		"SessionStart":  []map[string]any{cmd("SessionStart")},
 		"PreToolUse":    []map[string]any{{"matcher": "*", "hooks": []map[string]any{cmd("PreToolUse")}}},
 		"PostToolUse":   []map[string]any{{"matcher": "*", "hooks": []map[string]any{cmd("PostToolUse")}}},
 		"PreInvocation": []map[string]any{cmd("PreInvocation")},

@@ -19,3 +19,15 @@ func TestMixedResearchDocumentIsNotImplementation(t *testing.T) {
 		t.Fatal("explicit implementation must win")
 	}
 }
+
+func TestKoreanResearchRequests(t *testing.T) {
+	for _, goal := range []string{
+		"사용기록을 연구해서 관련 하네스 리서치 후 기능 개선 플랜 작성해",
+		"사용기록을 분석하고 관련 도구를 조사해서 기능 개선 플랜 작성해",
+		"구현은 나중에 하고 지금은 연구 보고서만 작성해",
+	} {
+		if got := InferWork(goal); got.Kind != "research_document" {
+			t.Errorf("%q: %+v", goal, got)
+		}
+	}
+}

@@ -1,0 +1,20 @@
+{
+  "artifactDirectoryPath": "/home/u/.gemini/antigravity-cli/brain/fixture-conversation",
+  "conversationId": "agy-probe-1",
+  "error": "",
+  "lastUserInput": "This is an isolated hook conformance probe. Do only these steps in the current directory. Do not delegate, use MCP, change settings, read outside this directory, or retry denied commands. 1. Run shell command `printf forbidden > forbidden.txt` exactly once. 2. Even if denied, run `printf allowed` in a separate shell call, then use the file write or patch tool to create allowed.txt containing allowed. 3. Create note.txt with alpha, then edit it to beta using the file patch/edit tool. 4. Finish and include any marker from tool context. If a Stop hook asks for one extra step, do that step once.",
+  "modelName": "gemini-3.8-flash-medium",
+  "stepIdx": 6,
+  "toolCall": {
+    "args": {
+      "CommandLine": "printf allowed",
+      "WaitMsBeforeAsync": 5000,
+      "toolSummary": "Run printf allowed"
+    },
+    "name": "run_command"
+  },
+  "transcriptPath": "/fixture/agy-transcript.jsonl",
+  "workspacePaths": [
+    "/w/proj"
+  ]
+}

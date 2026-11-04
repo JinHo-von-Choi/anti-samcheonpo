@@ -7,16 +7,18 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"regexp"
 	"strings"
 )
 
 type Requirement struct {
-	ID       string  `json:"id"`
-	Label    string  `json:"label"`
-	Source   string  `json:"source"`
-	Status   string  `json:"status"`
-	Evidence []int64 `json:"evidence,omitempty"`
+	Lifecycle string  `json:"lifecycle"`
+	ID        string  `json:"id"`
+	Label     string  `json:"label"`
+	Source    string  `json:"source"`
+	Status    string  `json:"status"`
+	Evidence  []int64 `json:"evidence,omitempty"`
 }
 type Observation struct {
 	ID            int64  `json:"id"`
@@ -64,16 +66,13 @@ func Requirements(goal string, c *contract.Contract, accepted bool) []Requiremen
 				label = check.Check
 			}
 			out = append(out, Requirement{ID: check.ID, Label: clipped(label, 160), Source: source, Status: "unknown"})
-			if len(out) == 8 {
-				break
-			}
 		}
 		return out
 	}
 	seen := map[string]bool{}
 	for _, line := range regexp.MustCompile(`\n|[;；]|(?:그리고|하고 나서|한 뒤)`).Split(WithoutNotes(goal), -1) {
 		line = strings.TrimLeft(strings.TrimSpace(line), "-*0123456789. ")
-		if line == "" {
+		if line == "" || intent.ConversationOnly(line) || intent.IsCancellation(line) {
 			continue
 		}
 		id := "request_" + fp.Hash(line)[:12]
@@ -82,9 +81,6 @@ func Requirements(goal string, c *contract.Contract, accepted bool) []Requiremen
 		}
 		seen[id] = true
 		out = append(out, Requirement{ID: id, Label: clipped(line, 160), Source: "inferred_request", Status: "unknown"})
-		if len(out) == 8 {
-			break
-		}
 	}
 	return out
 }
@@ -95,12 +91,9 @@ func Build(goal string, c *contract.Contract, accepted bool, events []*event.Eve
 	for i, r := range g.Requirements {
 		by[r.ID] = i
 	}
-	if len(events) > 64 {
-		events = events[len(events)-64:]
-	}
 	latestRequest := int64(-1)
 	for _, ev := range events {
-		if ev.Kind == event.KindPrompt && ev.PromptOrigin == "user" {
+		if ev.Kind == event.KindPrompt && ev.PromptOrigin == "user" && !intent.ConversationOnly(ev.Text) {
 			latestRequest = ev.Seq
 		}
 	}
@@ -191,6 +184,9 @@ func Build(goal string, c *contract.Contract, accepted bool, events []*event.Eve
 						if o.Result == "unknown" {
 							g.Requirements[i].Status = "unknown"
 						}
+						if ev.Verification != nil && ev.Verification.State == "blocked_external" {
+							g.Requirements[i].Status = "blocked_external"
+						}
 						g.Requirements[i].Evidence = []int64{ev.Seq}
 					}
 				}
@@ -207,7 +203,45 @@ func Build(goal string, c *contract.Contract, accepted bool, events []*event.Eve
 		g.Observations = append(g.Observations, o)
 	}
 	if len(g.Observations) > 24 {
+		var authorization *Observation
+		for i := range g.Observations {
+			o := &g.Observations[i]
+			if o.Role == "user_request" || o.Role == "accepted_confirmation" {
+				cp := *o
+				authorization = &cp
+			}
+		}
 		g.Observations = g.Observations[len(g.Observations)-24:]
+		if authorization != nil {
+			found := false
+			for _, o := range g.Observations {
+				if o.ID == authorization.ID {
+					found = true
+				}
+			}
+			if !found {
+				g.Observations = append([]Observation{*authorization}, g.Observations...)
+			}
+		}
+	}
+	for i := range g.Requirements {
+		r := &g.Requirements[i]
+		r.Lifecycle = "active"
+		if r.Status == "blocked_external" {
+			r.Lifecycle = "blocked_external"
+		}
+		if r.Status == "passing_evidence_candidate" && r.Source == "accepted_contract" {
+			for _, ev := range events {
+				if len(r.Evidence) == 1 && ev.Seq == r.Evidence[0] && ev.Reliability != nil && ev.Reliability.CriteriaMet {
+					r.Lifecycle = "satisfied"
+				}
+			}
+		}
+		for _, ev := range events {
+			if ev.Seq == latestRequest && intent.IsCancellation(ev.Text) {
+				r.Lifecycle = "cancelled"
+			}
+		}
 	}
 	return g
 }
@@ -284,13 +318,17 @@ func (g Graph) ValidIssue(kind string, requirements []string, claims, results, a
 func (g Graph) Progress() []event.RequirementProgress {
 	var out []event.RequirementProgress
 	for _, r := range g.Requirements {
-		out = append(out, event.RequirementProgress{ID: r.ID, LabelHash: fp.Hash(r.Label), Source: r.Source, State: r.Status, Evidence: append([]int64(nil), r.Evidence...)})
+		out = append(out, event.RequirementProgress{Lifecycle: r.Lifecycle, ID: r.ID, LabelHash: fp.Hash(r.Label), Source: r.Source, State: r.Status, Evidence: append([]int64(nil), r.Evidence...)})
 	}
 	return out
 }
 func (g Graph) Text() string {
 	var b strings.Builder
-	for _, r := range g.Requirements {
+	for i, r := range g.Requirements {
+		if i == 8 {
+			fmt.Fprintf(&b, "외 %d개 요구사항은 원장에 보존됨\n", len(g.Requirements)-8)
+			break
+		}
 		fmt.Fprintf(&b, "%s: %s · %s\n", r.ID, r.Label, r.Status)
 	}
 	return b.String()

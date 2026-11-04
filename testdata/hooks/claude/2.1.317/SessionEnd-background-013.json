@@ -1,0 +1,8 @@
+{
+  "session_id": "session_id-background-1",
+  "transcript_path": "/fixture/background-transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "4c30776e-19c3-4de5-99df-0fcd0d623d7f",
+  "hook_event_name": "SessionEnd",
+  "reason": "other"
+}

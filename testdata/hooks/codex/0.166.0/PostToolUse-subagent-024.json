@@ -1,0 +1,13 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "PostToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "collaborationlist_agents",
+  "tool_input": {},
+  "tool_response": "{\"agents\":[{\"agent_name\":\"/root\",\"agent_status\":\"running\"},{\"agent_name\":\"/root/native_child\",\"agent_status\":{\"completed\":\"- 명령은 PreToolUse 훅의 `PROBE_DENIED`로 차단됐으며 재시도하지 않았습니다.\\n- `apply_patch`로 `child.txt`에 `child`를 기록했습니다.\\n- 자식 세션 ID는 제공된 세션·훅 문맥에서 관찰되지 않았습니다.\\n- RECEIVED_fixture\"}}]}",
+  "tool_use_id": "tool_use_id-13"
+}

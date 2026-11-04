@@ -1,0 +1,19 @@
+{
+  "artifactDirectoryPath": "/home/u/.gemini/antigravity-cli/brain/fixture-conversation",
+  "conversationId": "conversationId-1",
+  "lastUserInput": "Isolated background hook probe. Do not delegate, use MCP, change settings, or read outside this workspace. Run `sleep 4; printf late-done` exactly once with run_command WaitMsBeforeAsync=1. Wait for that task using manage_task status until its completed output is available. Use write_file to create late-result.txt containing its exact final output. Finish and include the received marker. Follow a Stop hook instruction once, if any.",
+  "modelName": "gemini-3.8-flash-medium",
+  "stepIdx": 16,
+  "toolCall": {
+    "args": {
+      "Content": "held",
+      "Overwrite": true,
+      "Path": "/w/proj/held.txt"
+    },
+    "name": "write_file"
+  },
+  "transcriptPath": "/fixture/transcript.jsonl",
+  "workspacePaths": [
+    "/w/proj"
+  ]
+}

@@ -67,7 +67,7 @@ func Escalable(rule, kind string, contractAccepted bool) bool {
 	}
 	switch rule {
 	case "s1.identical_rerun", "s2.stuck_error", "s2.oscillation", "s2.semantic_oscillation", "s2.environment", "s5.error_hiding", "s5.test_weakening",
-		"s1.full_suite_local_change", "s5.release_without_preflight", "s5.release_rate", "s1.concurrent_heavy_check",
+		"s1.full_suite_local_change", "s5.release_without_preflight", "s5.release_rate", "s1.concurrent_heavy_check", "s1.concurrent_shared_resource",
 		"s5.deploy_without_preflight", "s3.production_write", "s3.migration_history_write":
 		return true
 	case "s1.unprobed_long_run":

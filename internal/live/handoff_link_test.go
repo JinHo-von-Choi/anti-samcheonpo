@@ -26,7 +26,7 @@ func TestLinkedAgentRestoresIntentWithoutInheritingPassOrGrantingDraftAuthority(
 	}
 	next.onPrompt(HookInput{Prompt: "추가 설명"})
 	_, r, restored, err := s.db.SessionIntent(link.Agent, link.SessionID)
-	if err != nil || r.Number != 2 || r.Goal != "원래 작업의 목표" || r.Source.SessionID != link.SessionID || restored != link {
+	if err != nil || r.Number != 2 || r.Goal != "원래 작업의 목표" || r.Source.SessionID != link.SessionID || !restored.Equal(link) {
 		t.Fatalf("%+v %+v %v", r, restored, err)
 	}
 	if _, err := d.session(s.ID, "codex", s.Root, ""); err == nil {

@@ -1,0 +1,28 @@
+{
+  "session_id": "session_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "prompt_id-2",
+  "permission_mode": "default",
+  "agent_id": "agent_id-4",
+  "agent_type": "general-purpose",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/w/proj/child.txt",
+    "content": "child"
+  },
+  "tool_response": {
+    "type": "create",
+    "filePath": "/w/proj/child.txt",
+    "content": "child",
+    "structuredPatch": [],
+    "originalFile": null,
+    "userModified": false
+  },
+  "tool_use_id": "tool_use_id-6",
+  "duration_ms": 35
+}

@@ -45,14 +45,15 @@ type ReuseScope struct {
 
 // Check is one completion criterion.
 type Check struct {
-	Reuse      *ReuseScope `yaml:"reuse,omitempty" json:"reuse,omitempty"`
-	ID         string      `yaml:"id,omitempty" json:"id"`
-	Check      string      `yaml:"check,omitempty" json:"check,omitempty"`         // machine-verifiable shell command
-	Expect     string      `yaml:"expect,omitempty" json:"expect,omitempty"`       // exit0 (default)
-	Manual     string      `yaml:"manual,omitempty" json:"manual,omitempty"`       // human-confirmed criterion
-	Isolation  string      `yaml:"isolation,omitempty" json:"isolation,omitempty"` // "" | worktree
-	Pure       bool        `yaml:"pure,omitempty" json:"pure,omitempty"`
-	TimeoutSec int         `yaml:"timeout_sec,omitempty" json:"timeout_sec,omitempty"`
+	Evidence   *EvidenceSpec `yaml:"evidence,omitempty" json:"evidence,omitempty"`
+	Reuse      *ReuseScope   `yaml:"reuse,omitempty" json:"reuse,omitempty"`
+	ID         string        `yaml:"id,omitempty" json:"id"`
+	Check      string        `yaml:"check,omitempty" json:"check,omitempty"`         // machine-verifiable shell command
+	Expect     string        `yaml:"expect,omitempty" json:"expect,omitempty"`       // exit0 (default)
+	Manual     string        `yaml:"manual,omitempty" json:"manual,omitempty"`       // human-confirmed criterion
+	Isolation  string        `yaml:"isolation,omitempty" json:"isolation,omitempty"` // "" | worktree
+	Pure       bool          `yaml:"pure,omitempty" json:"pure,omitempty"`
+	TimeoutSec int           `yaml:"timeout_sec,omitempty" json:"timeout_sec,omitempty"`
 }
 
 // Contract is .samcheonpo/contract.yml.
@@ -178,6 +179,9 @@ func Parse(b []byte) (*Contract, []ValidationError) {
 	for i := range c.Done {
 		d := &c.Done[i]
 		f := fmt.Sprintf("done[%d]", i)
+		if d.Evidence != nil {
+			errs = append(errs, validateEvidenceSpec(c.Spec, *d, f)...)
+		}
 		if d.Reuse != nil {
 			if c.Spec != SpecVersion2 || d.Check == "" || !d.Pure || !d.Reuse.Deterministic || len(d.Reuse.Inputs) == 0 || len(d.Reuse.EnvironmentFiles) == 0 || d.Reuse.MaxAgeSec < 1 || d.Reuse.MaxAgeSec > 3600 {
 				errs = append(errs, ValidationError{f + ".reuse", "v2의 pure·deterministic 검사에 입력·환경 파일과 1~3600초 유효기간이 필요하다"})

@@ -43,12 +43,25 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	// prose without a failed run is not evidence: exit 0 reads no cause from it
 	res, cause := recovery.DiagnoseExecution(v.Rule, exit, errorText)
 	behaviorTarget, _ := v.Facts["target_hash"].(string)
-	key := fp.Hash(string(cause), v.Rule, strings.Join(signatures, "|"), behaviorTarget)
+	input, environment, command := "", "", ""
+	if target != nil {
+		input, command = target.WSBefore, target.ExecFP
+		if r := target.Reliability; r != nil {
+			if r.InputHash != "" {
+				input = r.InputHash
+			}
+			environment = r.EnvironmentHash
+		}
+	}
+	key := fp.Hash(string(cause), v.Rule, strings.Join(signatures, "|"), behaviorTarget, input, environment, command)
 	p, ok := recovery.Select(cause, key, s.contractRevision, s.recoveries)
 	if !ok {
 		return recovery.Attempt{}, "", false
 	}
 	switch v.Rule {
+	case "s1.concurrent_shared_resource":
+		p.Action = "같은 빌드 출력·DB·브라우저 자원의 선행 작업이 끝났는지 확인한다. 독립 읽기는 계속하고 쓰기는 별도 자원을 쓰거나 직렬 실행한다."
+		p.StopCondition = "같은 공유 자원의 실행이 끝나거나 독립 자원이 확인되면 계속한다."
 	case "s1.linked_loop":
 		p.Action = "연결된 세션의 동일 대상·결과 근거를 합치고, 새 입력·환경·결과를 확인할 다음 행동을 선택한다."
 		p.StopCondition = "새 근거가 없으면 같은 재시도를 멈추고 남은 질문이나 실패 원인을 정리한다."
@@ -71,15 +84,18 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	if res.Category == recovery.CategoryExternalEnvironment {
 		p.Shell = res.PrescribedAction
 	}
-	if v.Arm == "fact" {
+	if policy.FactOnly(v.Arm) {
 		p.Action = "관측 사실만 전달한다(처방 없는 비교군)."
 		p.StopCondition = "자동 복구 처방을 추가하지 않는다."
 		p.MaxAttempts = 0
 		p.Handoff = false
 	}
 	decision := policy.Decide("advice", policy.Capabilities{Inject: s.caps.InjectPre || s.caps.InjectPost || s.caps.PromptInject, UserMessage: s.caps.UserMessage})
+	if v.Rule == "s8.leftover_process" && s.caps.UserMessage {
+		decision.Route = "user"
+	}
 	now := time.Now().UTC()
-	a := recovery.Attempt{Version: "recovery/1", ID: fp.Hash(s.Agent, s.ID, v.ID, key, now.Format(time.RFC3339Nano)), Agent: s.Agent, SessionID: s.ID, Revision: s.contractRevision, CauseKey: key, VerdictID: v.ID, Rule: v.Rule, Seq: v.Seq, Prescription: p, Stage: recovery.Proposed, CreatedAt: now, Route: decision.Route, Arm: v.Arm}
+	a := recovery.Attempt{PolicyVersion: policy.Version, Experiment: policy.Experiment, Version: "recovery/1", ID: fp.Hash(s.Agent, s.ID, v.ID, key, now.Format(time.RFC3339Nano)), Agent: s.Agent, SessionID: s.ID, Revision: s.contractRevision, CauseKey: key, VerdictID: v.ID, Rule: v.Rule, Seq: v.Seq, Prescription: p, Stage: recovery.Proposed, CreatedAt: now, Route: decision.Route, Arm: v.Arm}
 	if completionRule(v.Rule) {
 		// judged at turn end, so its effect is settled at the next turn end
 		a.ObservationBasis = "repair_after_completion"
@@ -109,6 +125,11 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 		return a, "", false
 	}
 	message := intervene.Recovery(a)
+	if !policy.FactOnly(v.Arm) {
+		if kind, ok := v.Facts["kind"].(string); ok && kind != "" {
+			message += "\n관측 유형: " + kind + ". 새 입력·환경이 확인되면 좁은 재검사를 하고, 같으면 기존 결과와 남은 조건을 사용한다."
+		}
+	}
 	return a, message, true
 }
 
@@ -215,13 +236,15 @@ func completionRule(rule string) bool {
 
 // exposed reports whether an attempt's outcome is observed: delivered, or
 // withheld as the control arm.
-func exposed(a recovery.Attempt) bool { return a.DeliveredAt != nil || a.Arm == "none" }
+func exposed(a recovery.Attempt) bool {
+	return a.DeliveredAt != nil || a.PolicyVersion == "" && a.Arm == "none"
+}
 
 // armMessage is the agent message of a verdict with its recovery. The fact
 // arm gets the observation and the recovery marker only, so the arms differ
 // by the prescription alone.
 func armMessage(v detect.Signal, observation string, a recovery.Attempt, prescription string) string {
-	if v.Arm == "fact" {
+	if policy.FactOnly(v.Arm) {
 		return strings.TrimSpace(recoveryMarker(a.ID) + "\n" + observation)
 	}
 	return strings.TrimSpace(observation + "\n" + prescription)

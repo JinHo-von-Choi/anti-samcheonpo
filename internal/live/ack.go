@@ -7,13 +7,14 @@ package live
 // because it arrived after the client's deadline or the output failed, leaves
 // no advice history and spends no block.
 type ackSlot struct {
-	s           *Session
-	keys        []string
-	escalations int
+	s             *Session
+	keys          []string
+	interventions []string
+	escalations   int
 }
 
 func (a *ackSlot) pending() bool {
-	return a != nil && a.s != nil && (len(a.keys) > 0 || a.escalations > 0)
+	return a != nil && a.s != nil && (len(a.keys) > 0 || a.escalations > 0 || len(a.interventions) > 0)
 }
 
 // noteAdvice is called with s.mu held. Without a transport slot (direct calls
@@ -49,4 +50,5 @@ func (a *ackSlot) confirm() {
 		s.advised[k] = true
 	}
 	s.escalations += a.escalations
+	s.markActionDelivery(a.interventions, true)
 }

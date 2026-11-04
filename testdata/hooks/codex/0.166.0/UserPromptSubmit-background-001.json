@@ -1,0 +1,10 @@
+{
+  "session_id": "session_id-background-1",
+  "turn_id": "turn_id-background-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "UserPromptSubmit",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "prompt": "This is an isolated hook conformance probe. Do not delegate, use MCP, or read outside this directory. Run `sleep 2; printf late-done` once as a background/short-yield shell call (Codex exec_command yield_time_ms=1; Claude Bash run_in_background=true). Wait using write_stdin/TaskOutput until its final result is known. Do not repeat the command. Then create late-result.txt with its exact output using a file write/patch tool. Finish, including the received hook marker. Follow any Stop hook instruction once."
+}

@@ -1,0 +1,10 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "UserPromptSubmit",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "prompt": "This is an isolated hook conformance probe. Do only these steps in the current directory. Do not delegate, use MCP, change settings, read outside this directory, or retry denied commands. 1. Run shell command `printf forbidden > forbidden.txt` exactly once. 2. Even if denied, run `printf allowed > allowed.txt` in a separate tool call. 3. Create note.txt with alpha, then edit it to beta using the file patch/edit tool. 4. Finish and include any marker from tool context. If a Stop hook asks for one extra step, do that step once."
+}

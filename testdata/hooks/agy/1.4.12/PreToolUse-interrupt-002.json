@@ -1,0 +1,19 @@
+{
+  "artifactDirectoryPath": "/home/u/.gemini/antigravity-cli/brain/fixture-conversation",
+  "conversationId": "conversationId-1",
+  "lastUserInput": "This is an isolated interruption probe. Do not delegate, use MCP, or read outside this directory. Run `printf before-interrupt; sleep 30; printf unexpected-end` once in the foreground. Do not restart it if interrupted. Finish only after it returns. Use run_command with WaitMsBeforeAsync=30000.",
+  "modelName": "gemini-3.8-flash-medium",
+  "stepIdx": 3,
+  "toolCall": {
+    "args": {
+      "CommandLine": "printf before-interrupt; sleep 30; printf unexpected-end",
+      "WaitMsBeforeAsync": 30000,
+      "toolSummary": "Interruption probe command"
+    },
+    "name": "run_command"
+  },
+  "transcriptPath": "/fixture/transcript.jsonl",
+  "workspacePaths": [
+    "/w/proj"
+  ]
+}

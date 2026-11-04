@@ -144,13 +144,14 @@ const (
 )
 
 type Attempt struct {
+	PolicyVersion         string `json:"policy_version,omitempty"`
+	Experiment            string `json:"experiment,omitempty"`
 	ObservationBasis      string `json:"observation_basis,omitempty"`
 	TargetHash            string `json:"target_hash,omitempty"`
 	RelevantOpportunities int    `json:"relevant_opportunities,omitempty"`
 	DeliveryReason        string `json:"delivery_reason,omitempty"`
-	// Arm is the intervention experiment arm of the verdict. In the control
-	// arm ("none") the prescription is proposed but not sent, and its outcome
-	// is observed from the verdict on, like a delivered one.
+	// Arm is versioned by Experiment. Legacy none was withheld; wording/2
+	// none is a fact-only alias and requires an actual delivery receipt.
 	Arm string `json:"arm,omitempty"`
 
 	Version         string       `json:"version"`
@@ -253,7 +254,7 @@ func Select(cause Cause, key string, revision uint64, history []Attempt) (Prescr
 			same++
 			handoff = handoff || a.Prescription.Handoff
 		}
-		if a.Stage == Proposed || a.Stage == Emitted || a.Stage == Delivered || a.Stage == Acknowledged {
+		if a.CauseKey == key && (a.Stage == Proposed || a.Stage == Emitted || a.Stage == Delivered || a.Stage == Acknowledged) {
 			return Prescription{}, false
 		}
 	}

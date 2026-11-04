@@ -39,7 +39,7 @@ func AggregateUsage(taskID string, links []intent.SessionLink, samples []Usage) 
 			return unknown("작업·세션 연결 미확인")
 		}
 		if old, ok := byID[id]; ok {
-			if old != link {
+			if !old.Equal(link) {
 				return unknown("동일 세션의 연결이 충돌함")
 			}
 			continue

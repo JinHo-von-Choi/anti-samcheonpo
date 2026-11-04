@@ -15,13 +15,14 @@ type Work struct {
 	Basis     string   `json:"basis"`
 }
 
-var researchWords = regexp.MustCompile(`(?i)(검토|리뷰|분석|조사|파악|설명|웹서치|비교|진단|research|review|analy[sz]|investigate|explain|summari[sz])`)
+var researchWords = regexp.MustCompile(`(?i)(검토|리뷰|분석|조사|연구|리서치|파악|설명|웹서치|비교|진단|research|review|analy[sz]|investigate|explain|summari[sz])`)
 var documentWords = regexp.MustCompile(`(?i)(플랜|계획|보고서|문서|리포트|설계안|report|document|plan|proposal)`)
 var implementationWords = regexp.MustCompile(`(?i)(구현|코딩|코드.*(?:고쳐|수정)|버그.*(?:고쳐|수정)|리팩터|implement|refactor|fix.*(?:bug|code))`)
+var deferredImplementation = regexp.MustCompile(`(?i)(구현(?:은|을)?\s*(?:나중에|하지\s*마|하지\s*말)|(?:do not|don't)\s+implement|research only)`)
 
 func InferWork(goal string) Work {
 	w := Work{Kind: "implementation", Phase: "discovery", Basis: "inferred_user_request", Remaining: []string{"변경과 검증 근거 확인"}}
-	if implementationWords.MatchString(goal) {
+	if implementationWords.MatchString(goal) && !deferredImplementation.MatchString(goal) {
 		return w
 	}
 	if researchWords.MatchString(goal) {

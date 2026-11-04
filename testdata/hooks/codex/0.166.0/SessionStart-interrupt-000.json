@@ -1,0 +1,9 @@
+{
+  "session_id": "session_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "hook_event_name": "SessionStart",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "source": "startup"
+}

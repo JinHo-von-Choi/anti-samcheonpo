@@ -17,6 +17,7 @@ type WorkProgress struct {
 }
 
 type RequirementProgress struct {
+	Lifecycle string  `json:"lifecycle,omitempty"`
 	ID        string  `json:"id"`
 	LabelHash string  `json:"label_hash"`
 	Source    string  `json:"source"`

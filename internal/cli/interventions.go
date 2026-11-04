@@ -1,6 +1,7 @@
 package cli
 
 import (
+	"encoding/json"
 	"fmt"
 	"sort"
 	"time"
@@ -15,7 +16,8 @@ import (
 // Reaching a stage is not evidence that the prescription helped.
 func interventionsCmd() *cobra.Command {
 	var since, agent string
-	var byAgent, byArm bool
+	var byAgent, byArm, asJSON bool
+	var session, verdict string
 	c := &cobra.Command{
 		Use:   "interventions",
 		Short: "규칙별 처방이 제안·전달·인지·효과 관측 중 어디까지 갔는지 센다",
@@ -29,6 +31,18 @@ func interventionsCmd() *cobra.Command {
 				return err
 			}
 			defer db.Close()
+			if session != "" {
+				traces, err := db.InterventionTraces(session, verdict)
+				if err != nil {
+					return err
+				}
+				enc := json.NewEncoder(cmd.OutOrStdout())
+				enc.SetIndent("", "  ")
+				return enc.Encode(traces)
+			}
+			if asJSON || verdict != "" {
+				return fmt.Errorf("--json/--verdict에는 --session이 필요합니다")
+			}
 			as, err := db.RecoveryAttemptsSince(t)
 			if err != nil {
 				return err
@@ -47,6 +61,9 @@ func interventionsCmd() *cobra.Command {
 				key := b.Rule
 				if byAgent {
 					key = b.Agent + "/" + b.Rule
+				}
+				if byArm {
+					key = "unattributed/" + key
 				}
 				r := by[key]
 				if r == nil {
@@ -68,7 +85,11 @@ func interventionsCmd() *cobra.Command {
 					if arm == "" {
 						arm = "-"
 					}
-					key = arm + "/" + key
+					version := a.Experiment
+					if version == "" {
+						version = "legacy"
+					}
+					key = version + "/" + arm + "/" + key
 				}
 				if a.Stage == recovery.Censored {
 					reasons[a.Agent+"/"+a.Observation]++
@@ -124,13 +145,16 @@ func interventionsCmd() *cobra.Command {
 				fmt.Fprintf(w, "미관측 사유 %s: %d\n", k, reasons[k])
 			}
 			if byArm {
-				fmt.Fprintln(w, "군은 세션마다 none·fact·prescription 중 하나로 같은 확률(1/3)로 배정된다. none은 처방을 보내지 않고 같은 방식으로 결과만 관측한다. -는 실험 밖 판정이다.")
+				fmt.Fprintln(w, "군은 설정된 목록에서 세션별 동일 확률로 배정된다. wording/2의 none·fact는 사실만 전달한다. legacy는 이전 의미를 보존한다. unattributed 차단은 군별 효과에 합산하지 않는다.")
 			}
 			fmt.Fprintln(w, "재발 없음은 관찰 창에서 같은 판정이 다시 나오지 않았다는 뜻이며 처방의 인과 효과가 아니다.")
-			fmt.Fprintln(w, "차단은 처방이 아니라 실행 전에 막은 횟수다. 막은 도구 호출은 종료 코드 -1로 기록되며, 막았다고 비용이 줄었다는 뜻은 아니다.")
+			fmt.Fprintln(w, "차단 집계에는 실행 전 거부와 종료 보류가 포함된다. 정확한 단계는 --session 상세 기록으로 확인한다. 출력 확인은 호스트 수신이나 비용 절감의 증거가 아니다.")
 			return nil
 		},
 	}
+	c.Flags().StringVar(&session, "session", "", "개입 추적 세션 ID")
+	c.Flags().StringVar(&verdict, "verdict", "", "판정 ID 필터")
+	c.Flags().BoolVar(&asJSON, "json", false, "구조화된 개입 추적")
 	c.Flags().StringVar(&since, "since", "30d", "기간")
 	c.Flags().StringVar(&agent, "agent", "all", "에이전트 또는 all")
 	c.Flags().BoolVar(&byAgent, "by-agent", false, "에이전트·규칙별 집계")

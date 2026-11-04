@@ -1,0 +1,11 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "Stop",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "stop_hook_active": false,
+  "last_assistant_message": "[probe response redacted]"
+}

@@ -78,19 +78,20 @@ type Daemon struct {
 	shapeGood map[string]int
 	// probedAt is when an agent's version probe last finished; a probe that
 	// read no version is retried after probeRetry
-	probedAt map[string]time.Time
-	db       *ledger.DB
-	prices   *cost.Table
-	heavy    heavyRegistry // heavy test runs per workspace, across sessions
-	host     hostRegistry  // build output per workspace, across sessions
-	last     time.Time
-	Idle     time.Duration
-	ln       net.Listener
-	ended    map[string]bool
-	serving  sync.WaitGroup
-	ending   sync.WaitGroup
-	done     chan struct{}
-	swarm    swarmRegistry
+	probedAt  map[string]time.Time
+	db        *ledger.DB
+	prices    *cost.Table
+	resources resourceRegistry
+	heavy     heavyRegistry // heavy test runs per workspace, across sessions
+	host      hostRegistry  // build output per workspace, across sessions
+	last      time.Time
+	Idle      time.Duration
+	ln        net.Listener
+	ended     map[string]bool
+	serving   sync.WaitGroup
+	ending    sync.WaitGroup
+	done      chan struct{}
+	swarm     swarmRegistry
 }
 
 // Run starts the daemon (blocking). It exits after Idle without requests.
@@ -398,6 +399,7 @@ func (d *Daemon) serve(c net.Conn) {
 	if resp.DeliveryToken == "" {
 		return
 	}
+	slot.emitted()
 	if s != nil {
 		s.markRecoveryOutput(resp.Output, recovery.Emitted)
 	}
@@ -570,6 +572,9 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 		if err != nil || knownErr != nil || filepath.Clean(abs) != filepath.Clean(known) {
 			return nil, errors.New("세션 ID가 다른 프로젝트 경로에 재사용되었습니다")
 		}
+		s.mu.Lock()
+		s.attachChildTranscript(transcript)
+		s.mu.Unlock()
 		return s, nil
 	}
 	if _, ok := d.versions[agent]; !ok {
@@ -593,12 +598,22 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 	if err != nil {
 		return nil, err
 	}
+	s.hostVersion = d.versions[agent]
 	s.daemon = d
 	s.observeCause = cause
 	d.sessions[id] = s
+	if parent, err := s.db.SessionParent(agent, id, intent.ProjectID(s.Root)); err == nil {
+		s.nativeParent = parent
+		d.swarm.register(id, parent, false, d.treeLimitLocked(s, parent))
+	}
 	if l := s.taskLink; l != nil && l.ParentSessionID != "" {
 		// an explicit handoff link is lineage evidence
 		d.swarm.register(id, l.ParentSessionID, l.IncludesChildren, d.treeLimitLocked(s, l.ParentSessionID))
+	}
+	if err := d.restoreNativeTreeLocked(s); err != nil {
+		s.mu.Lock()
+		s.recordStorageError(err)
+		s.mu.Unlock()
 	}
 	return s, nil
 }
@@ -645,6 +660,7 @@ func (d *Daemon) probeAgent(agent string) {
 		s.mu.Lock()
 		if !s.closed {
 			s.caps = caps
+			s.hostVersion = version
 		}
 		s.observeCause = cause
 		s.mu.Unlock()

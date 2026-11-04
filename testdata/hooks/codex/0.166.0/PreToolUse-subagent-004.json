@@ -1,0 +1,14 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "rg --files -g AGENTS.md -g '*hook*' -g '!node_modules' ."
+  },
+  "tool_use_id": "tool_use_id-4"
+}

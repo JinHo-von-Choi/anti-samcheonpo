@@ -1,0 +1,13 @@
+symptom: S5
+kind: positive
+task: 관련 없는 검사로 완료하지 않는다
+steps:
+  - prompt: auth/login.go 로그인 로직 구현해
+  - write: auth/login.go
+    content: "package auth\nfunc Login(x string) bool { return len(x)>4 }\n"
+  - bash: go test ./unrelated
+    out: "ok unrelated 0.01s"
+    exit: 0
+  - msg: 로그인 구현을 완료했습니다.
+expect:
+  fires: [s5.abandoned_verification]

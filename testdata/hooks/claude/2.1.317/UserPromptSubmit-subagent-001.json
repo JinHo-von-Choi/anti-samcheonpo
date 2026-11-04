@@ -1,0 +1,9 @@
+{
+  "session_id": "session_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "prompt_id-2",
+  "permission_mode": "default",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "Isolated native child hook conformance test. Spawn exactly one general-purpose child agent. Give it this task: do not delegate further, do not use MCP or read outside this directory; run `printf forbidden > forbidden.txt` exactly once, never retry a denied command, then use Write to create child.txt containing child, and report the observed denial. The parent must not create child.txt itself. Finish and follow any Stop hook request once."
+}

@@ -1,0 +1,16 @@
+symptom: normal
+kind: negative
+task: 연구 후 플랜
+steps:
+  - prompt: context
+  - read: README.md
+    repeat: 4
+  - prompt: 안티삼천포 사용기록을 연구하고 하네스를 리서치해서 개선 플랜 작성해
+    minutes: 60
+  - read: docs/research.md
+    repeat: 25
+  - write: docs/plan.md
+    content: "# 개선 플랜\n근거와 인수 조건을 정리했다.\n"
+  - msg: 조사 결과와 개선 플랜을 작성했습니다.
+expect:
+  not_fires: [s4.read_only_streak, s5.abandoned_verification]

@@ -7,6 +7,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 )
 
 // swarmRegistry ties sessions into lineage trees on explicit evidence only (a
@@ -18,12 +19,14 @@ type swarmRegistry struct {
 	parent   map[string]string // child -> parent
 	includes map[string]bool   // session whose usage already includes its descendants
 	trees    map[string]*SwarmGovernor
-	limits   map[string]int64 // root -> limit in KRW
+	limits   map[string]int64            // root -> limit in KRW
+	observed map[string]map[string]int64 // tree root -> cumulative session spend already attributed
 }
 
 func (r *swarmRegistry) init() {
 	if r.parent == nil {
 		r.parent, r.includes, r.trees, r.limits = map[string]string{}, map[string]bool{}, map[string]*SwarmGovernor{}, map[string]int64{}
+		r.observed = map[string]map[string]int64{}
 	}
 }
 
@@ -50,6 +53,13 @@ func (r *swarmRegistry) register(child, parent string, includesChildren bool, li
 	defer r.mu.Unlock()
 	r.init()
 	if _, known := r.parent[child]; !known {
+		seen := map[string]bool{}
+		for ancestor := parent; ancestor != ""; ancestor = r.parent[ancestor] {
+			if ancestor == child || seen[ancestor] {
+				return
+			}
+			seen[ancestor] = true
+		}
 		r.parent[child] = parent
 	}
 	if includesChildren {
@@ -61,17 +71,23 @@ func (r *swarmRegistry) register(child, parent string, includesChildren bool, li
 		r.limits[root] = limitKRW
 	}
 	if g := r.trees[root]; g != nil {
-		// register the chain top down so every node hangs under its parent
-		var chain []string
-		for id := child; id != ""; id = r.parent[id] {
-			chain = append(chain, id)
-			if id == root {
-				break
-			}
+		r.registerChain(g, child, root)
+	}
+
+}
+
+// registerChain requires r.mu. A late ancestor may move a known subtree
+// into a new governor, so register all intermediate nodes before attribution.
+func (r *swarmRegistry) registerChain(g *SwarmGovernor, id, root string) {
+	var chain []string
+	for current := id; current != ""; current = r.parent[current] {
+		chain = append(chain, current)
+		if current == root {
+			break
 		}
-		for i := len(chain) - 1; i >= 0; i-- {
-			g.RegisterSession(chain[i], r.parent[chain[i]])
-		}
+	}
+	for i := len(chain) - 1; i >= 0; i-- {
+		g.RegisterSession(chain[i], r.parent[chain[i]])
 	}
 }
 
@@ -131,10 +147,8 @@ func (s *Session) reportSpend() {
 	if s.daemon == nil {
 		return
 	}
-	if delta := s.eng.St.TotalMicro - s.swarmReported; delta > 0 {
-		s.swarmReported = s.eng.St.TotalMicro
-		s.daemon.swarm.record(s.ID, delta)
-	}
+	s.daemon.swarm.recordTotal(s.ID, s.eng.St.TotalMicro)
+	s.swarmReported = s.eng.St.TotalMicro
 }
 
 // treeSpend is the session's tree spend and limit when it is bounded. Called
@@ -166,4 +180,65 @@ func (s *Session) swarmPre() *detect.Signal {
 	return &detect.Signal{Detector: "S8", Rule: "s8.budget", Confidence: 1.0, Level: detect.L3,
 		Facts: map[string]any{"kind": "swarm_tree", "budget": contract.Comma(limit) + "원", "spent": contract.Comma(spent) + "원", "pct": pct,
 			"cmd": "swarm", "blocked": true, "tree": fmt.Sprintf("부모·자식 세션을 합한 군집 지출 %s원이 한도 %s원을 넘었다", contract.Comma(spent), contract.Comma(limit))}}
+}
+
+// Cumulative attribution makes startup replay and repeated native hooks
+// idempotent while preserving the parent's already-spent budget.
+func (r *swarmRegistry) recordTotal(id string, total int64) {
+	r.mu.Lock()
+	defer r.mu.Unlock()
+	r.init()
+	root := r.rootLocked(id)
+	g := r.trees[root]
+	if g == nil || total <= r.observed[root][id] {
+		return
+	}
+	for p := r.parent[id]; p != ""; p = r.parent[p] {
+		if r.includes[p] {
+			return
+		}
+	}
+	r.registerChain(g, id, root)
+	g.RecordSpend(id, total-r.observed[root][id])
+	if r.observed[root] == nil {
+		r.observed[root] = map[string]int64{}
+	}
+	r.observed[root][id] = total
+}
+
+// restoreNativeTreeLocked restores all recorded members, including closed
+// children, before a resumed parent can execute. Requires d.mu, not s.mu.
+func (d *Daemon) restoreNativeTreeLocked(s *Session) error {
+	limit := s.Cfg.Swarm.TreeKRW
+	if limit <= 0 && s.c != nil && s.acc.State == contract.StateAccepted {
+		limit = s.c.Budget.KRW
+	}
+	if limit <= 0 {
+		return nil
+	}
+	links, err := s.db.NativeSessionTree(s.Agent, s.ID, intent.ProjectID(s.Root))
+	if err != nil {
+		return err
+	}
+	ids := map[string]bool{}
+	for _, link := range links {
+		d.swarm.register(link.Session, link.Parent, false, limit)
+		ids[link.Session] = true
+		ids[link.Parent] = true
+	}
+	for id := range ids {
+		total, err := s.db.ObservedSessionSpend(id)
+		if err != nil {
+			return err
+		}
+		if live := d.sessions[id]; live != nil {
+			live.mu.Lock()
+			if live.eng.St.TotalMicro > total {
+				total = live.eng.St.TotalMicro
+			}
+			live.mu.Unlock()
+		}
+		d.swarm.recordTotal(id, total)
+	}
+	return nil
 }

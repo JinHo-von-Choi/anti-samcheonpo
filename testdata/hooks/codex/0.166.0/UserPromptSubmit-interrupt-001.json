@@ -1,0 +1,10 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "hook_event_name": "UserPromptSubmit",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "prompt": "This is an isolated interruption probe. Do not delegate, use MCP, or read outside this directory. Run `printf before-interrupt; sleep 30; printf unexpected-end` once in the foreground. Do not restart it if interrupted. Finish only after it returns."
+}

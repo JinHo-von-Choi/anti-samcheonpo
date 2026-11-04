@@ -229,7 +229,7 @@ func TestLinkedWorkerRetainsMultipleCheckArrivalsWithinThrottle(t *testing.T) {
 	recoveries := append([]recovery.Attempt(nil), child.recoveries...)
 	verdicts := append([]detect.Signal(nil), child.eng.Verdicts...)
 	child.mu.Unlock()
-	if count != 2 || delivered != 2 || pending != 1 {
+	if count != 2 || delivered != 2 || pending != 2 {
 		t.Fatalf("lost distinct target: count=%d primary=%d pending=%d recoveries=%+v verdicts=%+v", count, delivered, pending, recoveries, verdicts)
 	}
 }

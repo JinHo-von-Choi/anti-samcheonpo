@@ -9,6 +9,13 @@ import (
 // handlers use. It returns the Claude event name, or "" to ignore the event.
 func translateIn(agent, event string, raw json.RawMessage) ([]string, []HookInput, error) {
 	switch agent {
+	case "claude":
+		return claudeIn(event, raw)
+	case "codex":
+		if event == "SubagentStart" || event == "SubagentStop" {
+			return nil, nil, nil
+		}
+		return claudeIn(event, raw)
 	case "copilot":
 		return copilotIn(event, raw)
 	case "cursor":
@@ -34,7 +41,7 @@ func agyTool(name string) string {
 		return "Bash"
 	case "view_file", "read_file":
 		return "Read"
-	case "write_to_file", "create_file":
+	case "write_to_file", "create_file", "write_file":
 		return "Write"
 	case "replace_file_content", "edit_file", "multi_replace_file_content":
 		return "Edit"

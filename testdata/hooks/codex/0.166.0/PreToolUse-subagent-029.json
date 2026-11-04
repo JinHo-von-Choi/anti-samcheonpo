@@ -1,0 +1,14 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "python - <<'PY'\nimport json,pathlib\np=next(pathlib.Path('/fixture/probe').glob('179*.json'))\nd=json.loads(p.read_text())\ndef walk(x,path=''):\n if isinstance(x,dict):\n  for k,v in x.items():\n   q=path+'.'+k\n   if isinstance(v,(dict,list)): walk(v,q)\n   elif any(s in k.lower() for s in ['session','hook','agent','event']): print(q,repr(v)[:300])\n elif isinstance(x,list):\n  for v in x[:2]:walk(v,path+'[]')\nprint(list(d.keys()))\nfor p in sorted(pathlib.Path('/fixture/probe').glob('179*.json')):\n print(p.name);walk(json.loads(p.read_text()))\nPY"
+  },
+  "tool_use_id": "tool_use_id-16"
+}

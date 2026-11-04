@@ -54,7 +54,7 @@ func (s *Session) recordIntent(change intent.Change, source intent.Source) error
 		task = *s.task
 	}
 	goal := change.Goal
-	if change.Kind == intent.Followup {
+	if change.Kind == intent.Followup || change.Kind == intent.Cancelled {
 		if s.intentRevision != nil {
 			goal = s.intentRevision.Goal
 		} else if s.c != nil {
@@ -75,6 +75,13 @@ func (s *Session) recordIntent(change intent.Change, source intent.Source) error
 	}
 	if err = s.db.SaveTaskRevision(task, r, link); err != nil {
 		return err
+	}
+	if s.task != nil && (change.Kind == intent.Redirect || change.Kind == intent.NewRequest) {
+		state := "superseded"
+		if s.intentRevision != nil && s.intentRevision.Kind == intent.Cancelled {
+			state = "cancelled"
+		}
+		s.archiveRequirements(state)
 	}
 	same := s.task != nil && s.intentRevision != nil && s.task.ID == task.ID && s.intentRevision.Number == r.Number
 	s.task, s.intentRevision, s.taskLink = &task, &r, &link
@@ -97,9 +104,12 @@ func (s *Session) recordIntent(change intent.Change, source intent.Source) error
 	}
 	s.checks = map[string]CheckResult{}
 	s.parser.Session.TaskID, s.parser.Session.TaskRevision = task.ID, r.Number
-	if change.Kind != intent.Followup {
+	if change.Kind != intent.Followup && change.Kind != intent.Cancelled {
 		s.firstPrompt = r.Goal
 		if s.eng != nil {
+			if change.Kind == intent.NewRequest || change.Kind == intent.Redirect {
+				s.eng.VerificationStart = source.At
+			}
 			s.eng.Retarget(r.Goal)
 		}
 	} else if s.eng != nil {
@@ -126,7 +136,57 @@ func (s *Session) goalCard(requested string) intent.Card {
 		card.LatestMessage = r.Message
 	}
 	if s.eng != nil {
-		card.Work = intent.DescribeWork(card.Goal, s.eng.St.Events)
+		events := s.eng.St.Events
+		if s.intentRevision != nil {
+			for i, ev := range events {
+				if !ev.TS.Before(s.intentRevision.Source.At) {
+					events = events[i:]
+					break
+				}
+				if i == len(events)-1 {
+					events = nil
+				}
+			}
+		}
+		card.Work = intent.DescribeWork(s.eng.LatestRequest(), events)
 	}
 	return card
+}
+
+// Rebuild all still-active requests from their durable revisions. A redirect
+// starts a new goal; ordinary followups never erase earlier requirements.
+func (s *Session) restoreRequests() error {
+	if s.db == nil || s.task == nil {
+		return nil
+	}
+	revisions, err := s.db.TaskRevisions(s.task.ID)
+	if err != nil {
+		return err
+	}
+	s.eng.FirstPrompt = ""
+	s.eng.Requests = nil
+	s.archivedRequirements = nil
+	previousCancelled := false
+	for _, r := range revisions {
+		if s.intentRevision != nil && r.Number > s.intentRevision.Number {
+			break
+		}
+		if r.Kind == intent.Followup || r.Kind == intent.Cancelled {
+			s.eng.AddRequest(r.Message)
+		} else {
+			if r.Kind == intent.NewRequest || r.Kind == intent.Redirect {
+				s.eng.VerificationStart = r.Source.At
+			}
+			if s.eng.FirstPrompt != r.Goal {
+				state := "superseded"
+				if previousCancelled {
+					state = "cancelled"
+				}
+				s.archiveRequirements(state)
+			}
+			s.eng.Retarget(r.Goal)
+		}
+		previousCancelled = r.Kind == intent.Cancelled
+	}
+	return nil
 }

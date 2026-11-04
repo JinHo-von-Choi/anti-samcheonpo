@@ -124,18 +124,23 @@ func (s *Session) reliabilityCriteria(now time.Time) bool {
 }
 
 func (s *Session) recordReliabilityCheck(result CheckResult) {
-	if result.Reused || result.Skipped != "" || result.Evidence == nil {
+	if result.Reused || result.Skipped != "" || result.Evidence == nil && result.Observation == nil {
 		return
 	}
 	proof := result.Evidence
 	r := s.reliabilityBoundary()
-	r.CheckID, r.CommandHash, r.InputHash, r.EnvironmentHash = proof.Key.CheckID, proof.Key.CommandHash, proof.Key.InputHash, proof.Key.EnvironmentHash
-	r.Complete = proof.Complete && !result.Truncated && !proof.TimedOut && !proof.SideEffect && s.queueRejected.Load() == 0 && s.storageErr == nil && (s.ws == nil || !s.ws.WatchUnavailable()) && !(proof.Pass && len(result.Failed) > 0)
-	r.Flaky, r.FailureComparable = proof.Flaky, proof.Complete && !result.Truncated
+	at, source := time.Now().UTC(), ""
+	r.Complete = false
+	if proof != nil {
+		at, source = proof.ObservedAt, proof.SourceEventID
+		r.CheckID, r.CommandHash, r.InputHash, r.EnvironmentHash = proof.Key.CheckID, proof.Key.CommandHash, proof.Key.InputHash, proof.Key.EnvironmentHash
+		r.Complete = proof.Complete && !result.Truncated && !proof.TimedOut && !proof.SideEffect && s.queueRejected.Load() == 0 && s.storageErr == nil && (s.ws == nil || !s.ws.WatchUnavailable()) && !(proof.Pass && len(result.Failed) > 0)
+		r.Flaky, r.FailureComparable = proof.Flaky, proof.Complete && !result.Truncated
+	}
 	r.Phase, r.DurationSource = "checkpoint", "harness_monotonic"
 	r.Observation = s.observationObligation(time.Now())
 	exit := result.ExitCode
-	ev := &event.Event{Kind: event.KindTool, Tool: "checkpoint_check", Category: event.CatVerify, TS: proof.ObservedAt, SourceRef: proof.SourceEventID,
+	ev := &event.Event{Kind: event.KindTool, Tool: "checkpoint_check", Category: event.CatVerify, TS: at, SourceRef: source, Verification: result.Observation,
 		ExitCode: &exit, FailedTests: append([]string(nil), result.Failed...), ResultFP: result.ResultFP, DurationMS: result.Duration.Milliseconds(), Reliability: r, Priced: true, Basis: "live"}
 	ev.ErrFPs = append([]string(nil), result.ErrorFPs...)
 	s.parser.AddEvent(ev)

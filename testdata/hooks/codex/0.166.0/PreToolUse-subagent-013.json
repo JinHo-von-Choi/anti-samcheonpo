@@ -1,0 +1,16 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-7",
+  "agent_id": "agent_id-8",
+  "agent_type": "default",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "printf forbidden > forbidden.txt"
+  },
+  "tool_use_id": "tool_use_id-9"
+}

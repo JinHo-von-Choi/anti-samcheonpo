@@ -1,0 +1,26 @@
+{
+  "session_id": "session_id-background-1",
+  "transcript_path": "/fixture/background-transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "4c30776e-19c3-4de5-99df-0fcd0d623d7f",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/w/proj/late-result.txt",
+    "content": "late-done"
+  },
+  "tool_response": {
+    "type": "create",
+    "filePath": "/w/proj/late-result.txt",
+    "content": "late-done",
+    "structuredPatch": [],
+    "originalFile": null,
+    "userModified": false
+  },
+  "tool_use_id": "tool_use_id-background-5",
+  "duration_ms": 30
+}

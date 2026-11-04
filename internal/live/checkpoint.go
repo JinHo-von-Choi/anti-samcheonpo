@@ -25,23 +25,24 @@ import (
 
 // CheckResult is the outcome of one contract check.
 type CheckResult struct {
-	StopReason  string                 `json:"stop_reason,omitempty"`
-	Reused      bool                   `json:"reused,omitempty"`
-	Evidence    *verification.Evidence `json:"evidence,omitempty"`
-	Truncated   bool                   `json:"truncated,omitempty"`
-	ReuseReason string                 `json:"reuse_reason,omitempty"`
-	ID          string                 `json:"id"`
-	Command     string                 `json:"command"`
-	Pass        bool                   `json:"pass"`
-	ExitCode    int                    `json:"exit_code"`
-	TimedOut    bool                   `json:"timed_out"`
-	SideEffect  bool                   `json:"side_effect"`
-	Skipped     string                 `json:"skipped,omitempty"`
-	Failed      []string               `json:"failed_tests,omitempty"`
-	ErrorFPs    []string               `json:"error_fps,omitempty"`
-	Errors      int                    `json:"errors"`
-	ResultFP    string                 `json:"result_fp"`
-	Duration    time.Duration          `json:"duration"`
+	Observation *verification.Observation `json:"observation,omitempty"`
+	StopReason  string                    `json:"stop_reason,omitempty"`
+	Reused      bool                      `json:"reused,omitempty"`
+	Evidence    *verification.Evidence    `json:"evidence,omitempty"`
+	Truncated   bool                      `json:"truncated,omitempty"`
+	ReuseReason string                    `json:"reuse_reason,omitempty"`
+	ID          string                    `json:"id"`
+	Command     string                    `json:"command"`
+	Pass        bool                      `json:"pass"`
+	ExitCode    int                       `json:"exit_code"`
+	TimedOut    bool                      `json:"timed_out"`
+	SideEffect  bool                      `json:"side_effect"`
+	Skipped     string                    `json:"skipped,omitempty"`
+	Failed      []string                  `json:"failed_tests,omitempty"`
+	ErrorFPs    []string                  `json:"error_fps,omitempty"`
+	Errors      int                       `json:"errors"`
+	ResultFP    string                    `json:"result_fp"`
+	Duration    time.Duration             `json:"duration"`
 }
 
 // Runner executes accepted contract checks.
@@ -126,6 +127,14 @@ func (r *Runner) proofKeyContext(ctx context.Context, c contract.Check, taskID s
 	key.InputHash, err = verification.Fingerprint(ctx, r.Root, c.Reuse.Inputs)
 	if err != nil {
 		return key, err
+	}
+	if c.Evidence != nil && len(c.Evidence.Artifacts) > 0 {
+		artifacts, err := verification.CaptureArtifacts(ctx, r.Root, c.Evidence.Artifacts)
+		if err != nil {
+			return key, err
+		}
+		b, _ := json.Marshal(artifacts)
+		key.InputHash = fp.Hash(key.InputHash, string(b))
 	}
 	environmentFiles, err := verification.Fingerprint(ctx, r.Root, c.Reuse.EnvironmentFiles)
 	if err != nil {
@@ -224,6 +233,25 @@ func (r *Runner) one(c contract.Check) CheckResult {
 	res.Failed = testout.FailedTests(outText)
 	res.ErrorFPs = fp.ErrorFPs(outText)
 	res.Errors = len(res.ErrorFPs)
+	if len(res.Failed) > 0 || verification.EmptyTestRun(outText) {
+		res.Pass = false
+	}
+	if c.Evidence != nil {
+		o := &verification.Observation{Version: "observed-check/1", Kind: c.Evidence.Kind, Source: "accepted_contract_check", CheckID: c.ID, CommandHash: fp.Hash(c.Check), State: "failed"}
+		ctx, cancel := context.WithTimeout(context.Background(), 2*time.Second)
+		artifacts, err := verification.CaptureArtifacts(ctx, dir, c.Evidence.Artifacts)
+		cancel()
+		if err != nil {
+			res.Pass = false
+			o.State, o.MissingReason = "missing_evidence", err.Error()
+		} else {
+			o.Artifacts = artifacts
+			if res.Pass {
+				o.State = "passed"
+			}
+		}
+		res.Observation = o
+	}
 	ec := code
 	res.ResultFP = fp.ResultFP(&ec, fp.ErrorFPs(outText), res.Failed)
 	if c.Isolation != "worktree" && r.WS != nil && before != "" {

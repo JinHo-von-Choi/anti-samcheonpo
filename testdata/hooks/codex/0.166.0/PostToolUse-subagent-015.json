@@ -1,0 +1,17 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-7",
+  "agent_id": "agent_id-8",
+  "agent_type": "default",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "PostToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "apply_patch",
+  "tool_input": {
+    "command": "*** Begin Patch\n*** Add File: /w/proj/child.txt\n+child\n*** End Patch"
+  },
+  "tool_response": "Exit code: 0\nWall time: 0 seconds\nOutput:\nSuccess. Updated the following files:\nA /w/proj/child.txt\n",
+  "tool_use_id": "tool_use_id-10"
+}

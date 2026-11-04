@@ -13,7 +13,29 @@ func (s *Session) requirementGraph() alignment.Graph {
 	if accepted {
 		goal = s.c.Goal
 	}
-	return alignment.Build(goal, s.c, accepted, s.eng.St.Events, s.reliabilityBoundary())
+	g := alignment.Build(goal, s.c, accepted, s.eng.St.Events, s.reliabilityBoundary())
+	seen := map[string]bool{}
+	for _, r := range g.Requirements {
+		seen[r.ID] = true
+	}
+	for _, r := range s.archivedRequirements {
+		if !seen[r.ID] {
+			g.Requirements = append(g.Requirements, r)
+			seen[r.ID] = true
+		}
+	}
+	return g
+}
+
+func (s *Session) archiveRequirements(state string) {
+	if s.eng == nil || s.eng.RequestText() == "" {
+		return
+	}
+	for _, r := range alignment.Requirements(s.eng.RequestText(), nil, false) {
+		r.Lifecycle = state
+		r.Status = "archived"
+		s.archivedRequirements = append(s.archivedRequirements, r)
+	}
 }
 
 // A current failed accepted check and a later full completion claim form a
@@ -38,7 +60,7 @@ func (s *Session) groundedClaimSignals(ev *event.Event) []detect.Signal {
 	return s.eng.Emit(ev, []detect.Signal{{Detector: "S5", Rule: "s5.partial_done", Level: detect.L1, Confidence: .7, Estimate: true, Evidence: evidence, Facts: map[string]any{"requirements": requirements, "claims": []int64{ev.Seq}, "results": results, "source": "requirement_graph"}}})
 }
 func (s *Session) annotateRequirements(ev *event.Event) {
-	if ev.Kind == event.KindMessage || ev.Category == event.CatProduce || ev.Category == event.CatVerify {
+	if ev.Kind == event.KindMessage || ev.Kind == event.KindPrompt || ev.Category == event.CatProduce || ev.Category == event.CatVerify {
 		g := s.requirementGraph()
 		ev.Requirements = g.Progress()
 		s.alignmentGraph = &g

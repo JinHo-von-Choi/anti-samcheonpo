@@ -45,6 +45,10 @@ import (
 
 // Session is the live state of one agent session.
 type Session struct {
+	nativeParent                  string
+	archivedRequirements          []alignment.Requirement
+	hostVersion                   string
+	actionDelivery                map[string]actionDelivery
 	alignmentGraph                *alignment.Graph
 	ledgerPath                    string
 	linkedSummary                 *assessment.LinkedSummary
@@ -270,9 +274,9 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 	s.eng = detect.NewEngine(cfg, s.engineContract(), s.acc.State == contract.StateAccepted, "live", root, id, "")
 	s.loadCandidatePack()
 	s.eng.FirstPrompt = s.firstPrompt
-	if r := s.intentRevision; r != nil && r.Kind == intent.Followup {
-		// a restart keeps the latest followup; earlier ones are in the ledger
-		s.eng.AddRequest(r.Message)
+	if err := s.restoreRequests(); err != nil {
+		s.ws.Close()
+		return nil, err
 	}
 	if err := s.restoreHistory(); err != nil {
 		s.ws.Close()
@@ -549,6 +553,7 @@ func (s *Session) observe(ev *event.Event) []detect.Signal {
 	}
 	lastProgress := s.eng.St.LastProgress
 	sigs := s.eng.Observe(ev)
+	s.observeVerification(ev)
 	s.annotateRequirements(ev)
 	sigs = append(sigs, s.groundedClaimSignals(ev)...)
 	if s.eng.St.LastProgress != lastProgress && s.eng.St.LastProgress == ev.Seq && detect.ExecutedVerify(ev) && ev.ExitCode != nil && *ev.ExitCode == 0 {
@@ -650,13 +655,6 @@ func (s *Session) deliver(sigs []detect.Signal) {
 		}
 		s.lastPrimary = &cp
 		ctx := s.msgContext()
-		if v.Arm == "none" {
-			// control arm of the intervention experiment: the recovery is
-			// proposed and withheld, so its outcome is observed like a sent one
-			s.proposeRecovery(v)
-			s.record(v, "none")
-			continue
-		}
 		if v.Level >= detect.L2 {
 			s.unresolved = &cp
 		}
@@ -665,7 +663,7 @@ func (s *Session) deliver(sigs []detect.Signal) {
 			s.recordDecision(v, "recovery_unavailable")
 			continue
 		}
-		if v.Arm != "fact" {
+		if !policy.FactOnly(v.Arm) {
 			if hint, ok := v.Facts["verification_hint"].(string); ok && hint != "" {
 				prescription += "\n" + hint
 			}
@@ -691,8 +689,8 @@ func (s *Session) deliver(sigs []detect.Signal) {
 				s.pendingRule[m] = s.adviceKey(v)
 			}
 			um := intervene.User(v, ctx)
-			if attempt.Route == "user" && v.Arm != "fact" {
-				um += "\n" + prescription
+			if attempt.Route == "user" {
+				um = armMessage(v, um, attempt, prescription)
 			}
 			s.userMsg = append(s.userMsg, um)
 			s.notifier.Send("삼천포", firstLine(um))
@@ -729,7 +727,13 @@ func (s *Session) adviceKey(v detect.Signal) string {
 // escalates advice the agent already received for the same key when the rule
 // may block in the current contract state.
 func (s *Session) routeFor(v detect.Signal) (route string, escalated bool) {
-	if detect.IsHardBlock(v.Rule) {
+	if v.Estimate && !policy.ExplicitGuardrail(v.Rule) {
+		if s.Cfg.Rollout.Mode == "shadow" || slices.Contains(s.Cfg.Rollout.ShadowRules, v.Rule) {
+			return "observe", false
+		}
+		return "advice", false
+	}
+	if detect.IsHardBlock(v.Rule) && !v.Estimate {
 		// A core malicious pattern stops the call whatever the rollout stage
 		// says. These rules are not under evaluation: the change they judge
 		// is the work itself, and the next step builds on it unnoticed.
@@ -795,19 +799,32 @@ func trunc(s string, n int) string {
 }
 
 func (s *Session) record(v detect.Signal, channel string) {
-	s.recordAction(v, channel, false)
+	phase := "tool_result"
+	if completionRule(v.Rule) || v.Rule == "s8.leftover_process" {
+		phase = "stop"
+	}
+	s.recordActionPhase(v, channel, false, phase)
 }
 
 // recordBlock records an intervention that stopped the tool call before it
 // ran. The action is recorded explicitly, because the agent channel also
 // carries a delivered advice.
 func (s *Session) recordBlock(v detect.Signal) {
-	s.recordAction(v, "agent", true)
+	s.recordActionPhase(v, "agent", true, "before_tool")
 }
 
 func (s *Session) recordAction(v detect.Signal, channel string, blocked bool) {
+	s.recordActionPhase(v, channel, blocked, "tool_result")
+}
+func (s *Session) recordActionPhase(v detect.Signal, channel string, blocked bool, phase string) {
 	if s.db != nil {
-		s.recordStorageError(s.db.RecordIntervention(v, s.ID, channel, blocked))
+		s.recordStorageError(s.db.RecordInterventionDetailed(v, s.ID, channel, blocked, s.interventionMetadata(v, channel, blocked, phase)))
+		if receipt, ok := s.actionDelivery[v.ID]; ok {
+			s.recordStorageError(s.db.MarkInterventionOutput(s.ID, v.ID, false, receipt.emittedAt))
+			if !receipt.printedAt.IsZero() {
+				s.recordStorageError(s.db.MarkInterventionOutput(s.ID, v.ID, true, receipt.printedAt))
+			}
+		}
 	}
 }
 
@@ -1241,6 +1258,7 @@ func (s *Session) finalize(reason string) (string, error) {
 	s.preWrites.Wait() // pre-tool verdicts answered before they were stored
 	if s.daemon != nil {
 		s.daemon.heavy.releaseSession(s.heavyKey(), s.ID)
+		s.daemon.resources.release(s.ID, "")
 	}
 	s.finalizeMu.Lock()
 	defer s.finalizeMu.Unlock()

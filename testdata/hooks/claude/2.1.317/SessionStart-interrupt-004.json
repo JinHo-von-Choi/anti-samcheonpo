@@ -1,0 +1,11 @@
+{
+  "session_id": "session_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "hook_event_name": "SessionStart",
+  "source": "resume",
+  "seconds_since_last_response": 5,
+  "context_tokens": 6298,
+  "prompt_cache_likely_expired": false,
+  "estimated_cache_write_usd": 0.0504
+}

@@ -1,0 +1,15 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "PostToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "collaborationwait_agent",
+  "tool_input": {
+    "timeout_ms": 60000
+  },
+  "tool_response": "{\"message\":\"Wait completed.\",\"timed_out\":false}",
+  "tool_use_id": "tool_use_id-6"
+}

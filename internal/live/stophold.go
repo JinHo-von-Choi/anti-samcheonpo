@@ -4,7 +4,9 @@ import (
 	"encoding/json"
 	"fmt"
 	"strings"
+	"time"
 
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intervene"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
@@ -36,7 +38,7 @@ func stopGateRule(rule string) bool {
 // still refused.
 //
 // Unmet accepted checks have their own stop path. Called with s.mu held.
-func (s *Session) stopHold(sigs []detect.Signal, unmet []string, shadow bool) *detect.Signal {
+func (s *Session) stopHold(sigs []detect.Signal, unmet []string, shadow bool, fresh []CheckResult) *detect.Signal {
 	if shadow || len(unmet) > 0 {
 		return nil
 	}
@@ -52,7 +54,7 @@ func (s *Session) stopHold(sigs []detect.Signal, unmet []string, shadow bool) *d
 			s.recordDecision(v, "block_unsupported_by_host")
 			return nil
 		}
-		if s.verified() {
+		if s.verified() || s.freshTypedAcceptance(fresh) {
 			// a check passed after the last change: the gate is open
 			return nil
 		}
@@ -60,6 +62,31 @@ func (s *Session) stopHold(sigs []detect.Signal, unmet []string, shadow bool) *d
 		return &held
 	}
 	return nil
+}
+
+// Only the checks executed by this Stop may release a typed, non-reusable
+// criterion. A mutation/intent change clears s.checks; a later checkpoint has
+// different observation identities. No manual criterion is auto-confirmed.
+func (s *Session) freshTypedAcceptance(fresh []CheckResult) bool {
+	if s.c == nil || s.acc.State != contract.StateAccepted || len(s.c.Done) == 0 || len(fresh) != len(s.c.Done) || s.storageErr != nil || s.queueRejected.Load() > 0 {
+		return false
+	}
+	for _, check := range s.c.Done {
+		if check.Manual != "" {
+			return false
+		}
+		found := false
+		for _, r := range fresh {
+			current, ok := s.checks[r.ID]
+			if r.ID == check.ID && ok && r.Pass && !r.Reused && !r.SideEffect && !r.TimedOut && !r.Truncated && r.Skipped == "" && len(r.Failed) == 0 && r.Observation != nil && r.Observation.State == "passed" && current.Observation == r.Observation {
+				found = true
+			}
+		}
+		if !found {
+			return false
+		}
+	}
+	return true
 }
 
 // verified reports whether a check passed after the last change the session
@@ -70,7 +97,9 @@ func (s *Session) stopHold(sigs []detect.Signal, unmet []string, shadow bool) *d
 // A session that changed no work of its own is covered by any check that
 // passed, so the gate opens on it as well.
 func (s *Session) verified() bool {
-	return s.eng.VerifiedSince(s.eng.St.LastProductionWrite())
+	// An accepted contract can define custom checks the command classifier
+	// cannot understand. Require fresh evidence for every accepted criterion.
+	return s.eng.VerifiedSince(s.eng.St.LastProductionWrite()) || s.reliabilityCriteria(time.Now())
 }
 
 // stopHoldKey names the evidence a hold answers.
@@ -97,8 +126,9 @@ func (s *Session) holdStop(v detect.Signal, in HookInput) json.RawMessage {
 		// is not a second prescription: the outcome of one delivery is
 		// what the ledger measures.
 		s.persistVerdict(v)
-		s.recordBlock(v)
+		s.recordActionPhase(v, "agent", true, "stop")
 	}
+	s.noteIntervention(in.Ack, v.ID)
 	arm := v.Arm
 	if arm == "" {
 		arm = "prescription"

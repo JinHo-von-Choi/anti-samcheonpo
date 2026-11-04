@@ -1,0 +1,19 @@
+{
+  "artifactDirectoryPath": "/home/u/.gemini/antigravity-cli/brain/fixture-conversation",
+  "conversationId": "conversationId-1",
+  "lastUserInput": "Continue this probe after interruption. Do not repeat the interrupted shell. Use the file write/patch tool to create resumed.txt containing resumed, then finish. Follow any Stop hook instruction once.",
+  "modelName": "gemini-3.8-flash-medium",
+  "stepIdx": 20,
+  "toolCall": {
+    "args": {
+      "CommandLine": "source /home/u/.claude/anchor_curl.sh && anchor_reflect '[\"격리 인터럽트 프로브 테스트 수행 및 resumed.txt, held.txt 파일 생성\"]' '[\"인터럽트 후 재실행 없이 지정 파일 생성 및 프로브 완료\"]' '[]' '[]' '[]' \"격리 인터럽트 프로브 테스트를 수행하고 세션을 정리함.\"",
+      "WaitMsBeforeAsync": 5000,
+      "toolSummary": "Run anchor_reflect via curl"
+    },
+    "name": "run_command"
+  },
+  "transcriptPath": "/fixture/transcript.jsonl",
+  "workspacePaths": [
+    "/w/proj"
+  ]
+}

@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"time"
 
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/spf13/cobra"
 )
@@ -15,17 +16,40 @@ import (
 // goal moves from one agent to another, and this is what says which
 // judgment belongs to which session's work.
 func lineageCmd() *cobra.Command {
-	var format string
+	var format, session, agent string
 	c := &cobra.Command{
-		Use:   "lineage <taskID>",
+		Use:   "lineage [taskID]",
 		Short: "목표의 세션 간 계보와 최초 판정 시점을 보여 준다",
-		Args:  cobra.ExactArgs(1),
+		Args:  cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := ledger.OpenReadOnly(dbPath())
 			if err != nil {
 				return err
 			}
 			defer db.Close()
+			if session != "" {
+				if len(args) > 0 {
+					return fmt.Errorf("taskID와 --session은 함께 지정할 수 없다")
+				}
+				var root string
+				if err := db.QueryRow(`SELECT project_path FROM session WHERE agent=? AND id=?`, agent, session).Scan(&root); err != nil {
+					return err
+				}
+				links, err := db.NativeSessionTree(agent, session, intent.ProjectID(root))
+				if err != nil {
+					return err
+				}
+				if format == "json" {
+					return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{"agent": agent, "session_id": session, "native_lineage": links, "completion": "not_inferred"})
+				}
+				for _, link := range links {
+					fmt.Fprintf(cmd.OutOrStdout(), "%s/%s ← %s (호스트 연결; 완료·승인 상속 아님)\n", agent, link.Session, link.Parent)
+				}
+				return nil
+			}
+			if len(args) != 1 {
+				return fmt.Errorf("taskID 또는 --session이 필요하다")
+			}
 			lineage, err := db.Lineage(args[0])
 			if err != nil {
 				return err
@@ -81,6 +105,8 @@ func lineageCmd() *cobra.Command {
 			return nil
 		},
 	}
+	c.Flags().StringVar(&session, "session", "", "호스트가 연결한 세션 계보 조회")
+	c.Flags().StringVar(&agent, "agent", "claude", "세션의 에이전트")
 	c.Flags().StringVar(&format, "format", "text", "text | json")
 	return c
 }

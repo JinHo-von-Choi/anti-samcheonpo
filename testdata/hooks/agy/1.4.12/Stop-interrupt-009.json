@@ -1,0 +1,14 @@
+{
+  "artifactDirectoryPath": "/home/u/.gemini/antigravity-cli/brain/fixture-conversation",
+  "conversationId": "conversationId-1",
+  "error": "",
+  "executionNum": 0,
+  "fullyIdle": true,
+  "lastUserInput": "Continue this probe after interruption. Do not repeat the interrupted shell. Use the file write/patch tool to create resumed.txt containing resumed, then finish. Follow any Stop hook instruction once.",
+  "modelName": "gemini-3.8-flash-medium",
+  "terminationReason": "NO_TOOL_CALL",
+  "transcriptPath": "/fixture/transcript.jsonl",
+  "workspacePaths": [
+    "/w/proj"
+  ]
+}

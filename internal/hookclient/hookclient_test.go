@@ -128,3 +128,41 @@ func TestSessionEndWaitMatchesHostBudget(t *testing.T) {
 		}
 	}
 }
+
+// SDK hosts are allowed to wait for a decision; a normal 50ms storage delay
+// must not turn the deny into the CLI family's 15ms pass-on-timeout path.
+func TestDeepAgentsReceivesDelayedDenial(t *testing.T) {
+	t.Setenv("SAMCHEONPO_HOME", t.TempDir())
+	t.Setenv("XDG_RUNTIME_DIR", t.TempDir())
+	t.Setenv("SAMCHEONPO_NO_SPAWN", "1")
+	path := socketPath()
+	if err := os.MkdirAll(filepath.Dir(path), 0700); err != nil {
+		t.Fatal(err)
+	}
+	listener, err := net.Listen("unix", path)
+	if err != nil {
+		t.Fatal(err)
+	}
+	defer listener.Close()
+	done := make(chan struct{})
+	go func() {
+		defer close(done)
+		c, err := listener.Accept()
+		if err != nil {
+			return
+		}
+		defer c.Close()
+		bufio.NewReader(c).ReadBytes('\n')
+		time.Sleep(50 * time.Millisecond)
+		io.WriteString(c, `{"output":{"hookSpecificOutput":{"hookEventName":"PreToolUse","permissionDecision":"deny","permissionDecisionReason":"protected"}}}`+"\n")
+	}()
+	var out bytes.Buffer
+	MainAgent("PreToolUse", "deepagents", strings.NewReader(`{"session_id":"sdk"}`), &out)
+	<-done
+	if !strings.Contains(out.String(), `"permissionDecision":"deny"`) {
+		t.Fatalf("SDK lost denial: %q", out.String())
+	}
+	if timeoutFor("SubagentStop", "claude") != timeoutFor("Stop", "claude") {
+		t.Fatal("child verification cannot finish within stop budget")
+	}
+}

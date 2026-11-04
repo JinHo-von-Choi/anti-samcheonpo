@@ -1,0 +1,17 @@
+{
+  "session_id": "session_id-background-1",
+  "transcript_path": "/fixture/background-transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "4c30776e-19c3-4de5-99df-0fcd0d623d7f",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Write",
+  "tool_input": {
+    "file_path": "/w/proj/held.txt",
+    "content": "held"
+  },
+  "tool_use_id": "tool_use_id-background-6"
+}

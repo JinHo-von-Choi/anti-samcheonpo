@@ -26,13 +26,17 @@ func TestLeftoverProcessIsToldAtStop(t *testing.T) {
 	heavyCall(t, d, s, "PostToolUse", "c1", "bash scripts/e2e.sh", passed("ok"))
 	s.mu.Lock()
 	s.leftoverAtStop(s.eng.St.Events[len(s.eng.St.Events)-1])
-	first := strings.Join(s.pending, "\n")
-	n := len(s.pending)
+	first := strings.Join(s.userMsg, "\n")
+	n := len(s.userMsg)
 	s.leftoverAtStop(s.eng.St.Events[len(s.eng.St.Events)-1])
-	again := len(s.pending)
+	again := len(s.userMsg)
 	s.mu.Unlock()
 	if !strings.Contains(first, "sleep 60") || !strings.Contains(first, "아직 실행 중") {
 		t.Fatalf("advice: %q", first)
+	}
+	_, user := s.takePendingFor("Stop", nil)
+	if !strings.Contains(user, "sleep 60") {
+		t.Fatal("notice did not reach ordinary Stop output")
 	}
 	if again != n {
 		t.Fatal("the same processes are told once")

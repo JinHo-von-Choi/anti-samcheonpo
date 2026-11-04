@@ -24,18 +24,19 @@ type ReviewItem struct {
 	LabelStatus string `json:"label_status"`
 }
 type ReviewQueue struct {
-	Version             string         `json:"version"`
-	CreatedAt           time.Time      `json:"created_at"`
-	RequestedCandidates int            `json:"requested_candidates"`
-	RequestedControls   int            `json:"requested_controls"`
-	Candidates          int            `json:"candidate_intervals"`
-	Controls            int            `json:"unreviewed_control_intervals"`
-	Platforms           map[string]int `json:"platforms"`
-	Items               []ReviewItem   `json:"items"`
-	LabelsCreated       bool           `json:"labels_created"`
-	PromotionEligible   bool           `json:"promotion_eligible"`
-	Limitation          string         `json:"limitation"`
-	Digest              string         `json:"digest"`
+	NativeSourceRequired bool           `json:"native_source_required,omitempty"`
+	Version              string         `json:"version"`
+	CreatedAt            time.Time      `json:"created_at"`
+	RequestedCandidates  int            `json:"requested_candidates"`
+	RequestedControls    int            `json:"requested_controls"`
+	Candidates           int            `json:"candidate_intervals"`
+	Controls             int            `json:"unreviewed_control_intervals"`
+	Platforms            map[string]int `json:"platforms"`
+	Items                []ReviewItem   `json:"items"`
+	LabelsCreated        bool           `json:"labels_created"`
+	PromotionEligible    bool           `json:"promotion_eligible"`
+	Limitation           string         `json:"limitation"`
+	Digest               string         `json:"digest"`
 }
 
 func ReviewSourceDigest(events []*event.Event) string { return rulepack.Digest(events) }
@@ -61,6 +62,9 @@ func LoadReviewQueue(path string) (ReviewQueue, error) {
 	seen := map[string]bool{}
 	c, n := 0, 0
 	for _, x := range q.Items {
+		if q.NativeSourceRequired && (!x.NativeSourceAvailable || x.NativeSourceSHA256 == "") {
+			return q, errors.New("review queue requires readable native sources")
+		}
 		if x.Session == "" || seen[x.Session] || x.Start < 0 || x.End < x.Start || x.SourceDigest == "" {
 			return q, errors.New("invalid or duplicate review interval")
 		}

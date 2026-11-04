@@ -39,3 +39,27 @@ func TestSwarmRegistryTreesAndDoubleCounting(t *testing.T) {
 		t.Fatal("lineage is a fact: the first registration stands")
 	}
 }
+
+func TestSwarmCumulativeReplayAndLateAncestorAreSafe(t *testing.T) {
+	var r swarmRegistry
+	r.register("child", "old-root", false, 10)
+	r.recordTotal("child", 3_000_000)
+	r.recordTotal("child", 3_000_000)
+	if spent, _, _, _ := r.state("old-root"); spent != 3 {
+		t.Fatal("cumulative replay charged twice", spent)
+	}
+	r.register("old-root", "new-root", false, 10)
+	r.recordTotal("child", 3_000_000)
+	r.recordTotal("old-root", 1_000_000)
+	if spent, _, _, _ := r.state("new-root"); spent != 4 {
+		t.Fatal("late lineage lost subtree spend", spent)
+	}
+	r.register("new-root", "child", false, 10)
+	if r.parent["new-root"] != "" {
+		t.Fatal("cycle changed known root")
+	}
+	r.recordTotal("new-root", 1_000_000)
+	if spent, _, _, _ := r.state("child"); spent != 5 {
+		t.Fatal("cycle attempt corrupted accounting", spent)
+	}
+}

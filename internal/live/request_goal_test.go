@@ -29,6 +29,24 @@ func TestLaterRequestBecomesTheGoalOfWarnings(t *testing.T) {
 	}
 }
 
+func TestConversationBeforeAndDuringWorkDoesNotCreateRequirements(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	s.onPrompt(HookInput{Prompt: "context"})
+	s.onPrompt(HookInput{Prompt: "뭐해"})
+	if s.task != nil || s.firstPrompt != "" {
+		t.Fatal("conversation created a task")
+	}
+	s.onPrompt(HookInput{Prompt: "플랜 구현해"})
+	if s.intentRevision == nil {
+		t.Fatal("work did not create an intent revision")
+	}
+	revision := s.intentRevision.Number
+	s.onPrompt(HookInput{Prompt: "진행 상황?"})
+	if s.intentRevision.Number != revision || len(s.eng.Requests) != 0 {
+		t.Fatal("status question invalidated work or evidence")
+	}
+}
+
 // A redirect starts a new task, so the earlier followups are dropped.
 func TestRedirectDropsEarlierRequests(t *testing.T) {
 	s, _ := reliabilitySession(t)

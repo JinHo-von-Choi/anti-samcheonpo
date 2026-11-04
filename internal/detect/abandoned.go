@@ -1,12 +1,13 @@
 package detect
 
 import (
-	"path"
 	"strings"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lazyre"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/verification"
 )
 
 // RuleAbandonedVerification is a turn that ends with its own code change
@@ -52,7 +53,10 @@ var userStopRe = lazyre.New(`(?i)(여기까지|멈춰|그만\s*(?:해|하)|중�
 // abandonedVerification judges the end of a turn.
 func (e *Engine) abandonedVerification(msg *event.Event, unmet []string) *Signal {
 	st := e.St
-	if st.lastProdPath == "" || userStopRe.MatchString(e.LatestRequest()) {
+	if st.lastProdPath == "" || userStopRe.MatchString(e.LatestRequest()) || intent.IsCancellation(e.LatestRequest()) {
+		return nil
+	}
+	if intent.ResearchRequest(e.LatestRequest()) && st.lastProdWriteSeq < st.lastPromptSeq {
 		return nil
 	}
 	if e.Contract != nil && e.Contract.Explore {
@@ -93,7 +97,7 @@ func (e *Engine) abandonedVerification(msg *event.Event, unmet []string) *Signal
 			facts["failed_tests"] = lv.FailedTests
 		}
 		evidence = []int64{lv.Seq, msg.Seq}
-	case lv == nil || lv.Seq < st.lastProdWriteSeq:
+	case !e.VerifiedSince(st.lastProdWriteSeq):
 		facts["kind"] = KindNoCheckAfterChange
 		facts["path"] = st.lastProdPath
 	default:
@@ -128,7 +132,7 @@ func (e *Engine) noteExercise(ev *event.Event) {
 		cmd = ev.Cmd
 	}
 	for p := range e.St.prodPaths {
-		if base := path.Base(p); len(base) >= 3 && strings.Contains(cmd, base) {
+		if verification.CoversPathAt(cmd, p, e.Root, ev.Dir) {
 			e.St.lastExercise = ev
 			return
 		}

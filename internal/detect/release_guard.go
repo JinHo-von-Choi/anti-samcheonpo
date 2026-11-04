@@ -8,6 +8,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/classify"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/testout"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/verification"
 )
 
 // ciMark is the latest remote CI result the agent read that failed.
@@ -243,7 +244,62 @@ func coversTests(cmd string, tests []string) bool {
 // The gate that holds a turn end open until the work is verified opens on
 // this: a turn that ends while the change on disk has never passed a check
 // is refused, and it stays refused until one passes.
-func (e *Engine) VerifiedSince(seq int64) bool { return e.passedSince(seq, "") }
+func (e *Engine) VerifiedSince(seq int64) bool {
+	if len(e.St.prodPaths) == 0 {
+		// A positive change boundary without its paths is missing evidence.
+		return seq <= 0 && e.passedSince(seq, "")
+	}
+	for p := range e.St.prodPaths {
+		write := int64(-1)
+		var lastWrite *event.Event
+		for _, ev := range e.St.Events {
+			if ev.Category == event.CatProduce && !ev.IsError {
+				for _, changed := range ev.Paths {
+					if changed == p {
+						write = ev.Seq
+						lastWrite = ev
+					}
+				}
+			}
+		}
+		if lastWrite != nil && !lastWrite.TS.IsZero() && lastWrite.TS.Before(e.VerificationStart) {
+			continue
+		}
+		if write < 0 {
+			write = seq
+		}
+		covered := false
+		for i := len(e.St.Events) - 1; i >= 0; i-- {
+			ev := e.St.Events[i]
+			if ev.Seq <= write {
+				break
+			}
+			related := verification.CoversPathAt(cmdOf(ev), p, e.Root, ev.Dir)
+			if o := ev.Verification; o != nil && o.Version == "observed-check/1" && o.Source == "host_tool_result" {
+				for _, observedPath := range o.RelatedPaths {
+					if observedPath == p {
+						related = true
+					}
+				}
+			}
+			if !related {
+				continue
+			}
+			if ev.ExitCode == nil || *ev.ExitCode < 0 || ev.Background || ev.Tool != event.ToolShell {
+				continue
+			}
+			covered = !failing(ev) && !ev.IsError && len(ev.FailedTests) == 0 && !verification.EmptyTestRun(ev.Text)
+			if ev.Verification != nil && ev.Verification.State != "passed" {
+				covered = false
+			}
+			break
+		}
+		if !covered {
+			return false
+		}
+	}
+	return true
+}
 
 // passedSince reports whether a check passed after seq on a workspace other
 // than ws.
@@ -251,7 +307,7 @@ func (e *Engine) passedSince(seq int64, ws string) bool {
 	evs := e.St.Events
 	for i := len(evs) - 1; i >= 0 && evs[i].Seq > seq; i-- {
 		ev := evs[i]
-		if ExecutedVerify(ev) && !failing(ev) && (ws == "" || ev.WSBefore != ws) {
+		if ExecutedVerify(ev) && !failing(ev) && !verification.EmptyTestRun(ev.Text) && (ws == "" || ev.WSBefore != ws) {
 			return true
 		}
 	}

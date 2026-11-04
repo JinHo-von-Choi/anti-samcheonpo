@@ -33,25 +33,28 @@ func bootTime() (time.Time, bool) {
 }
 
 // stat reads a process's start time in clock ticks after boot.
-func startTicks(pid string) (int64, bool) {
+func processIdentity(pid string) (int64, int, bool) {
 	b, err := os.ReadFile("/proc/" + pid + "/stat")
 	if err != nil {
-		return 0, false
+		return 0, 0, false
 	}
 	s := string(b)
 	i := strings.LastIndexByte(s, ')')
 	if i < 0 {
-		return 0, false
+		return 0, 0, false
 	}
 	f := strings.Fields(s[i+1:])
 	// fields after the command: state is f[0]; starttime is field 22 of the
 	// whole line, f[19] here
 	if len(f) < 20 {
-		return 0, false
+		return 0, 0, false
 	}
 	n, err := strconv.ParseInt(f[19], 10, 64)
-	return n, err == nil
+	parent, parentErr := strconv.Atoi(f[1])
+	return n, parent, err == nil && parentErr == nil
 }
+
+func startTicks(pid string) (int64, bool) { ticks, _, ok := processIdentity(pid); return ticks, ok }
 
 func within(p, root string) bool {
 	if p == "" {
@@ -115,6 +118,7 @@ func Leftover(root string, windows []Window, exclude map[int]bool, deadline time
 		return nil
 	}
 	uid := os.Getuid()
+	monitorExe, _ := os.Executable()
 	own := cgroupOf("self")
 	var out []Proc
 	var ports map[string]int
@@ -131,11 +135,14 @@ func Leftover(root string, windows []Window, exclude map[int]bool, deadline time
 			continue
 		}
 		exe, _ := os.Readlink(dir + "/exe")
+		if InfrastructureRole(exe, monitorExe) != "" {
+			continue
+		}
 		cwd, _ := os.Readlink(dir + "/cwd")
 		if !within(exe, root) && !within(cwd, root) {
 			continue
 		}
-		ticks, ok := startTicks(e.Name())
+		ticks, parentPID, ok := processIdentity(e.Name())
 		if !ok {
 			continue
 		}
@@ -143,7 +150,7 @@ func Leftover(root string, windows []Window, exclude map[int]bool, deadline time
 		if !inWindows(started, windows) || systemService(e.Name(), own) {
 			continue
 		}
-		p := Proc{PID: pid, Started: started, Exe: exe}
+		p := Proc{PID: pid, ParentPID: parentPID, Started: started, Exe: exe}
 		if b, err := os.ReadFile(dir + "/cmdline"); err == nil {
 			p.Cmd = strings.TrimSpace(strings.ReplaceAll(string(b), "\x00", " "))
 			if len(p.Cmd) > 120 {
@@ -164,6 +171,10 @@ func Leftover(root string, windows []Window, exclude map[int]bool, deadline time
 			}
 		}
 		sort.Ints(p.Ports)
+		// Recheck birth identity after fd/cmdline reads; a reused PID is not this candidate.
+		if after, ok := startTicks(e.Name()); !ok || after != ticks {
+			continue
+		}
 		out = append(out, p)
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].PID < out[j].PID })

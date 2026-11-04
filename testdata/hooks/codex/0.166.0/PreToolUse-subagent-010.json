@@ -1,0 +1,16 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "collaborationspawn_agent",
+  "tool_input": {
+    "task_name": "native_child",
+    "fork_turns": "none",
+    "message": "gAAAAABq6jzm3Sz0p2eAzZ7u24enL-BeqGoNJIqech0OGte_cYccd7Kr9zoYCHYOqzGRhchnLBW3TnC5WBv15QW7TwdAK3MCnmo2cNIy4PL0r1anUw4rjXC6_x8ONaaOu8k4W5yqS5h9ulIg2Hk1SCGf7gAL8fdhRyZf5Rxk8AY6i2xyGAmikgIvOtra6oIcDpgF88QPJOk_nCXUOzbe4zKIb06b00LsLQG8SxynZF4CU_qOmnC6xQA_NNF8BXcEu5awvkkq6P4zDk-3bzNs7ZX597FiFu9sa0o--gwEpoyeYM6Xk7n7QK_vhTNtjrHXJ5tDnLjhFIxp84M-ec6jfQT25dFt5a6RPU-yaGgIqEC0KNUd6tVsCA9Vs1gzHUfNPI7QXdcLCqqNt8_SlSJN0maEYIzUo4jE4I3-7r3jRMpww36W7Wxo3hoOcvP-UZbRNbxZmMx5emV_S6Acw2q9tEzJb3WBkoyBB4y8J7XCgrQ8M7EkPbfCgdbaWnfZ7JXxyOsVFV1EPO9SIcYfNqpb3tQ-2D03QMbpvi5qW7i0vQ7b8x6JB5Naphr2xXXzUyGZSO9yH5cczUsRw7uwR7aVEZKfiLxTcyGhW9FjoXNu0bSr72r4H5ncLaYbqOqfn-IGwBKH8P7e60X4-hQk7PNWJ41vqXUTqS56k0zI6DIW7YgauES7caskYUZHTlk9PXzeK7t4U5t29qmWIo-lc6EXZSpJ3E6edDsyeJZlRED6M4VesiPFnn48eCvsqOBcDEm2Wutej85fGfDopPvKOTjDjCJTyZdKJNku-MUgqmQR5zkJJxV_gvRnTuWo7Bqydho_oAi79ZHvnN_vci95NO75F32mk9ULrq6WHI29-Nc5qFxdGt9ljG3vRjA3keIyddWbWVI_liyVri2ekoBMpuXO4X6P9maUTczTBA=="
+  },
+  "tool_use_id": "tool_use_id-5"
+}

@@ -1,0 +1,374 @@
+{
+  "agent_version": "0.166.0",
+  "scope": "real CLI lifecycle/tools; public fixtures are sanitized",
+  "redactions": [
+    "workspace/home/session/call identifiers",
+    "MCP calls excluded",
+    "final prose replaced"
+  ],
+  "host_probe": {
+    "agent": "codex",
+    "version": "codex-cli 0.166.0",
+    "scope": "real_cli_host_not_monitor_bridge",
+    "exit_code": 0,
+    "timed_out": false,
+    "duration_seconds": 153.534,
+    "denial_observed": true,
+    "denied_effect_absent": true,
+    "allowed_effect_present": true,
+    "stop_followup_effect_present": true,
+    "post_context_in_response": true,
+    "patch_result": "beta\n"
+  },
+  "unverified": [],
+  "captures": [
+    {
+      "file": "Interrupt-interrupt-007.json",
+      "sha256": "afa35837e2c2c726858e7dfe357044280e79adb551e593c3ac01bded6a23dd39"
+    },
+    {
+      "file": "PostToolUse-004.json",
+      "sha256": "bed5ee6a80d8f6bf86fd1f9194833741fd2a07ff65da5ff264426a3e86c6fab8"
+    },
+    {
+      "file": "PostToolUse-006.json",
+      "sha256": "9a8114d46b3b8ed8ba6d45d23c52ee9bdc295793a996a4c6c5d4f1db7ad0ea4a"
+    },
+    {
+      "file": "PostToolUse-008.json",
+      "sha256": "b803cb8570eeb00121a032a3df248124a89d5753794e1d97b9c632f4655e0e3e"
+    },
+    {
+      "file": "PostToolUse-011.json",
+      "sha256": "7af6a4c00fc3e8b64fca6b830755a28ede25e3a8ebe3f2d75fadae14266f2501"
+    },
+    {
+      "file": "PostToolUse-background-003.json",
+      "sha256": "6b247933db99e58f055bbe5a44d5547ac73d29d183f34e9a966aeebfdd3fd490"
+    },
+    {
+      "file": "PostToolUse-background-005.json",
+      "sha256": "50436e86643ce8c57241f8a936cfae84a14dd5772bfa27a4dfca81b533852726"
+    },
+    {
+      "file": "PostToolUse-background-007.json",
+      "sha256": "96aa1e8cef4ac40e42674b84f96719f0debf5d120ed5cbff51a71dde547c865c"
+    },
+    {
+      "file": "PostToolUse-background-010.json",
+      "sha256": "2a248c5f43972e0453e45036e754ede1aa5fd232449055fa71c09b605ad811af"
+    },
+    {
+      "file": "PostToolUse-interrupt-012.json",
+      "sha256": "8e06f6ae054632f976cdfb3f749034b09ec1da95a5553f707de6a8e3192e3251"
+    },
+    {
+      "file": "PostToolUse-interrupt-015.json",
+      "sha256": "d2d37771205bc95ee2d9c88471674aa04380a2a976993c1a662ed0ef6c5d5d85"
+    },
+    {
+      "file": "PostToolUse-subagent-003.json",
+      "sha256": "ac74eb1a59aa01e6936b94f4d2d9244924968ecb70eddcfade5d5dfaab6215d0"
+    },
+    {
+      "file": "PostToolUse-subagent-005.json",
+      "sha256": "79e960651068c68f99af15b65ad72d2d93072681afea938595795d89b73bb755"
+    },
+    {
+      "file": "PostToolUse-subagent-011.json",
+      "sha256": "3fc9eceb7f44c195a5e88620d0b9f95a949f8cafaf49d775987250829a688831"
+    },
+    {
+      "file": "PostToolUse-subagent-015.json",
+      "sha256": "2cc31e2dc2b9c5cd5ab0476c30c3933ff79ae0e87bc14bdcbfe555e3c46855a9"
+    },
+    {
+      "file": "PostToolUse-subagent-016.json",
+      "sha256": "48d9dd085217477ad5e8d83ab5e5ec737778e3643d9b958a56999003a026d734"
+    },
+    {
+      "file": "PostToolUse-subagent-018.json",
+      "sha256": "c9dfe0beaf0e2a035738c7020fba2848073b6039670ea65161217e9b8a6ecaf0"
+    },
+    {
+      "file": "PostToolUse-subagent-020.json",
+      "sha256": "08fbe177c91aa57e5351b110508c0b219574bba155b173f779c6c7e96e827609"
+    },
+    {
+      "file": "PostToolUse-subagent-024.json",
+      "sha256": "b01ada2083c43317682f3b183f40063c0b95e93e2b3358cd85e43d736ef04e4f"
+    },
+    {
+      "file": "PostToolUse-subagent-026.json",
+      "sha256": "d7b99ceaf1f90f9182bb1cd316b8ce5b54492891ac719f8884bd1761ec6b92ee"
+    },
+    {
+      "file": "PostToolUse-subagent-028.json",
+      "sha256": "5f138974b75544c2a72a6d2a1749d36b381a1506cd5e24af8b9e4a0b5274c42f"
+    },
+    {
+      "file": "PostToolUse-subagent-030.json",
+      "sha256": "8408c2ef3cb6c476a43b9e84f77c4afd970139bc583e9db08371f9262d25f2d3"
+    },
+    {
+      "file": "PostToolUse-subagent-033.json",
+      "sha256": "9c5b01487ceab10a270d16c993dcb8d1df14d4fdd56d7ffd5b6b57364d17c8f2"
+    },
+    {
+      "file": "PreToolUse-002.json",
+      "sha256": "200d6d37c579d9521f204133b9375c6b134e6e608d4933d06587c1f0c4433b9b"
+    },
+    {
+      "file": "PreToolUse-003.json",
+      "sha256": "2988ebe515e7404defd0350267f87a138fa7078edc846b5c04875d5a02cc925f"
+    },
+    {
+      "file": "PreToolUse-005.json",
+      "sha256": "bc3eda2423e71a1a3235039a4ea038809e72ee417c5434c5bd97dc90d61369cb"
+    },
+    {
+      "file": "PreToolUse-007.json",
+      "sha256": "f7b4a32fdb6af0cc21fe9a200a5919c2f86e22a2e296e43bfb9b1d71d08cb2e6"
+    },
+    {
+      "file": "PreToolUse-010.json",
+      "sha256": "44395a1b8ac400c4b2b7b67e27baa76e5d76c4b2c50c4e7332659efeeeff0731"
+    },
+    {
+      "file": "PreToolUse-background-002.json",
+      "sha256": "f76caa252b403200ab787a19ae79d20d006be79023163cdbed21c2544909a8ca"
+    },
+    {
+      "file": "PreToolUse-background-004.json",
+      "sha256": "42287f3cfd4d746a088d640312d7750b3c20c35864ff9e669c1a5e42755278ff"
+    },
+    {
+      "file": "PreToolUse-background-006.json",
+      "sha256": "d36307f92134759c250e9068ca8bd3e1063897ccffa2b3aa75b8319a41e2c8df"
+    },
+    {
+      "file": "PreToolUse-background-009.json",
+      "sha256": "4b7bdfd56ca1f0ac2322517f46d8b07f916cbfbfec6a08324a8a28980c10db4f"
+    },
+    {
+      "file": "PreToolUse-interrupt-006.json",
+      "sha256": "805034b058a574fba9be9f96969e0499925203ab6c823616bf52e693f0c08be0"
+    },
+    {
+      "file": "PreToolUse-interrupt-011.json",
+      "sha256": "da3e8c0ab9b558b6bffec045c835edbd95381c55dd92cfc5d4bede0c664d492c"
+    },
+    {
+      "file": "PreToolUse-interrupt-014.json",
+      "sha256": "e704454321a33f7bacd85c5d050ff436105800d796911ed53d98a1fc5e96b37b"
+    },
+    {
+      "file": "PreToolUse-subagent-002.json",
+      "sha256": "79db1a6f01402cfc5870b15a845130409449b372217f895449eb19ad428103bb"
+    },
+    {
+      "file": "PreToolUse-subagent-004.json",
+      "sha256": "b4366a5deb7cd9bae87d1239b771565f89da7cd38259ffb6539b638eaa410c56"
+    },
+    {
+      "file": "PreToolUse-subagent-010.json",
+      "sha256": "7076b58ad4e5e49a2ab37b1a78a181f988bd15da9d531d3534d37813f6ef9854"
+    },
+    {
+      "file": "PreToolUse-subagent-012.json",
+      "sha256": "755d548887ac8d465a4dcf4fba835373ff4a5c52fbc6193f3d48bed553b8ea69"
+    },
+    {
+      "file": "PreToolUse-subagent-013.json",
+      "sha256": "24f9fdbd1d1e04d73c6f56cf4a426399d45b97e796c90d91c35f34ba8ed2cae6"
+    },
+    {
+      "file": "PreToolUse-subagent-014.json",
+      "sha256": "847fcf393e5b8a6efd4f4c1939e08828ad59d22a3caa0c508187a7fe0be6a07a"
+    },
+    {
+      "file": "PreToolUse-subagent-017.json",
+      "sha256": "a3eefd8df1ece9ba3314ddb88b9b12ba006f613a04ab332afadb86651c3f8d39"
+    },
+    {
+      "file": "PreToolUse-subagent-019.json",
+      "sha256": "6754aebc3d79ba7c962f8002f0970dd8dd17abee2e8b019c555c6770f3bda8e2"
+    },
+    {
+      "file": "PreToolUse-subagent-023.json",
+      "sha256": "135ae2ce01934c41ec1edc502180f8f476141bd09c4e5947a079620a43ff3d47"
+    },
+    {
+      "file": "PreToolUse-subagent-025.json",
+      "sha256": "59a4eba87444eeaf465f8f1df95bdba156cae0ea71b01b67f70faa01dc382376"
+    },
+    {
+      "file": "PreToolUse-subagent-027.json",
+      "sha256": "76e5bcc84191a00c20e58fd4641976b98a50f036d978f806a0b0b7ba841cef76"
+    },
+    {
+      "file": "PreToolUse-subagent-029.json",
+      "sha256": "67c33578c5fb6555c62425eb4d0a53d57c45b7bae22b99453233dc64eae78a25"
+    },
+    {
+      "file": "PreToolUse-subagent-032.json",
+      "sha256": "aab5ad0fe5584ad737cf7b307528cbe7c0a147d95d51986551a7afcb7e36741f"
+    },
+    {
+      "file": "SessionEnd-013.json",
+      "sha256": "e7d61d8487e6adc851fcb7b1e46fc1b5f3208dbd6e5c6f280eb11765463cca83"
+    },
+    {
+      "file": "SessionEnd-background-012.json",
+      "sha256": "a4657d3e591399c59e8021bcb6a373ae4d98b95c92998012ec3c797cc19c2577"
+    },
+    {
+      "file": "SessionEnd-interrupt-008.json",
+      "sha256": "8a0b9b7b151768634e83fb23c69dd8673f825aa0531a7b862bc5f13db5ebcfb9"
+    },
+    {
+      "file": "SessionEnd-interrupt-017.json",
+      "sha256": "8a0b9b7b151768634e83fb23c69dd8673f825aa0531a7b862bc5f13db5ebcfb9"
+    },
+    {
+      "file": "SessionEnd-subagent-035.json",
+      "sha256": "e7d61d8487e6adc851fcb7b1e46fc1b5f3208dbd6e5c6f280eb11765463cca83"
+    },
+    {
+      "file": "SessionStart-000.json",
+      "sha256": "7e95586117942a4278f9847b93134baddb9862dd081a0b1e3fbc0b09aacf85de"
+    },
+    {
+      "file": "SessionStart-background-000.json",
+      "sha256": "f473ea515999cde6ff121645d929637a581d677c26ab3688ab4ddb59c46235eb"
+    },
+    {
+      "file": "SessionStart-interrupt-000.json",
+      "sha256": "27a430dbe9297e3b045a312989a3398fbb4fca58b5551d7b99b83590c48d7a24"
+    },
+    {
+      "file": "SessionStart-interrupt-009.json",
+      "sha256": "836ca52658167a9e6b09fc2eb09ace4cdf72c8a5e2e4953c1f58688bbddc6d73"
+    },
+    {
+      "file": "SessionStart-subagent-000.json",
+      "sha256": "4066de07947980a8c848ebb718c07d1ea32244a8da764eb12460b6067a61cb02"
+    },
+    {
+      "file": "Stop-009.json",
+      "sha256": "7d094b826b6d558bc6ed4d60f04010344d58af528babdd950fce83be62f3689a"
+    },
+    {
+      "file": "Stop-012.json",
+      "sha256": "b461132709fa52ad81b18a00ea15dee58ad191623e00009d03b651bfacc5a238"
+    },
+    {
+      "file": "Stop-background-008.json",
+      "sha256": "7300ef0ff596a10ff154d1a89b51b66b4f8c46b07604fc40c6d76a214421b39e"
+    },
+    {
+      "file": "Stop-background-011.json",
+      "sha256": "dfe0ba0c3f643770f094160ab427fcfecced0bf02797cda2b6633a7c6cc31cfe"
+    },
+    {
+      "file": "Stop-interrupt-013.json",
+      "sha256": "376eb48c080a3278835c3486235c3d1b74a0cdb5f5f2716f3efbb5878598e117"
+    },
+    {
+      "file": "Stop-interrupt-016.json",
+      "sha256": "42f4c02cd4795b3978d03ea4486893af433ca0bbca65c38d4ee7133f62db810b"
+    },
+    {
+      "file": "Stop-subagent-031.json",
+      "sha256": "fbcbcfcb93560630777148b2fbb300130c782889b33e51c35a3d68f4d2e2a238"
+    },
+    {
+      "file": "Stop-subagent-034.json",
+      "sha256": "6cfaeab890375b9286a552820412ffe4d3e5565d0162417ee9dd7d2d216759a7"
+    },
+    {
+      "file": "UserPromptSubmit-001.json",
+      "sha256": "859d67698c08d0cd6b5c80095f10e669f6d57c4ebdc0510e5c7bdb833e406824"
+    },
+    {
+      "file": "UserPromptSubmit-background-001.json",
+      "sha256": "0d47a34dc733c205ec34e361b1999c68615aebb2d16154d61f138caa2581672d"
+    },
+    {
+      "file": "UserPromptSubmit-interrupt-001.json",
+      "sha256": "cc9a51157db7b5fc64c783af07bc7bcfd79bafa8cb09ad72c733c25b0f27cf4e"
+    },
+    {
+      "file": "UserPromptSubmit-interrupt-010.json",
+      "sha256": "0155718707bf90bf3915e93f9acf46f67115429a97518c7193e955f588636de5"
+    },
+    {
+      "file": "UserPromptSubmit-subagent-001.json",
+      "sha256": "136d8e0f317dbccf5b840ac76007a9864a70c7c1936035a41309f6bbb22de245"
+    }
+  ],
+  "background_probe": {
+    "agent": "codex",
+    "version": "codex-cli 0.166.0",
+    "scope": "real_cli_host_not_monitor_bridge",
+    "exit_code": 0,
+    "timed_out": false,
+    "duration_seconds": 93.698,
+    "denial_observed": false,
+    "denied_effect_absent": true,
+    "allowed_effect_present": false,
+    "stop_followup_effect_present": true,
+    "post_context_in_response": true,
+    "patch_result": null,
+    "scenario": "background",
+    "late_result": "late-done"
+  },
+  "interrupt_probe": {
+    "agent": "codex",
+    "version": "codex-cli 0.166.0",
+    "scope": "real_cli_host_not_monitor_bridge",
+    "exit_code": 1,
+    "timed_out": false,
+    "duration_seconds": 234.928,
+    "denial_observed": false,
+    "denied_effect_absent": true,
+    "allowed_effect_present": false,
+    "stop_followup_effect_present": true,
+    "post_context_in_response": false,
+    "patch_result": null,
+    "scenario": "interrupt",
+    "interrupt_sent": true,
+    "resume_exit_code": 0,
+    "resumed_effect_present": true,
+    "late_result": null
+  },
+  "subagent_probe": {
+    "agent": "codex",
+    "version": "codex-cli 0.166.0",
+    "scope": "real_cli_host_not_monitor_bridge",
+    "exit_code": 0,
+    "timed_out": false,
+    "duration_seconds": 90.412,
+    "denial_observed": true,
+    "denied_effect_absent": true,
+    "allowed_effect_present": false,
+    "stop_followup_effect_present": true,
+    "post_context_in_response": true,
+    "patch_result": null,
+    "scenario": "subagent",
+    "child_effect_present": true,
+    "child_stop_followup_present": false,
+    "child_lineage_observed": false,
+    "interrupt_sent": false,
+    "resume_exit_code": null,
+    "resume_timed_out": false,
+    "resumed_effect_present": false,
+    "late_result": null,
+    "resume_same_session": false,
+    "passed": false,
+    "child_tool_control_passed": true
+  },
+  "unsupported": [
+    "subagent_stop_hook"
+  ]
+}

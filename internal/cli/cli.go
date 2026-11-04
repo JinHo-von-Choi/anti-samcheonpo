@@ -38,7 +38,7 @@ import (
 )
 
 // Version is set at build time.
-var Version = "0.10.2"
+var Version = "0.11.0"
 
 var (
 	flagDB        string
@@ -59,7 +59,7 @@ func Root() *cobra.Command {
 	root.PersistentFlags().StringVar(&flagClaudeDir, "claude-dir", "", "Claude Code projects 경로")
 	root.PersistentFlags().StringVar(&flagCodexDir, "codex-dir", "", "Codex sessions 경로")
 	root.PersistentFlags().StringVar(&sources.McodeDir, "mcode-dir", "", "MiniMax Code sessions 경로 (기본 ~/.minimax/v2/sessions)")
-	root.AddCommand(auditCmd(), gapsCmd(), interventionsCmd(), outcomesCmd(), accuracyCmd(), reviewCmd(), provenanceCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(), forkCmd(),
+	root.AddCommand(auditCmd(), evidenceCmd(), gapsCmd(), interventionsCmd(), outcomesCmd(), accuracyCmd(), reviewCmd(), provenanceCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(), forkCmd(),
 		labelCmd(), evalCmd(), benchCmd(), evasionCmd(), lineageCmd(), detectionTimingCmd(), surfaceCmd(), debugCmd(), contractCmd(), specCmd(), importOtelCmd(), rulesCmd(), handoffCmd(), reportCmd(), taskCoverageCmd(), diagnosticCmd("why"), diagnosticCmd("coverage"), compactCmd())
 	root.AddCommand(liveCommands()...)
 	root.AddCommand(dashboardCmd())
@@ -598,7 +598,7 @@ func sessionsCmd() *cobra.Command {
 				return err
 			}
 			w := cmd.OutOrStdout()
-			fmt.Fprintf(w, "%-8s  %-6s  %-11s  %12s  %6s  %s\n", "세션", "에이전트", "시작", "총 지출", "헛짓", "첫 요청")
+			fmt.Fprintf(w, "%-8s  %-6s  %-11s  %12s  %6s  %s\n", "세션", "에이전트", "시작", "총 지출", "헛짓", "관측 상태 / 첫 요청")
 			for _, r := range rows {
 				tot := contract.Comma(cost.Won(r.Micro)) + "원"
 				pct := 0.0
@@ -611,7 +611,11 @@ func sessionsCmd() *cobra.Command {
 				if r.Started.IsZero() {
 					started = "기록 없음"
 				}
-				fmt.Fprintf(w, "%-8s  %-6s  %-11s  %12s  %5.0f%%  %s\n", short8(r.ID), r.Agent, started, tot, pct, trunc(r.Prompt, 40))
+				state := "unknown"
+				if observation, err := db.Observation(r.ID); err == nil {
+					state = observation.CloseReason
+				}
+				fmt.Fprintf(w, "%-8s  %-6s  %-11s  %12s  %5.0f%%  %s / %s\n", short8(r.ID), r.Agent, started, tot, pct, state, trunc(r.Prompt, 40))
 			}
 			return nil
 		},

@@ -1,0 +1,10 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-2",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "hook_event_name": "UserPromptSubmit",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "prompt": "Continue this probe after interruption. Do not repeat the interrupted shell. Use the file write/patch tool to create resumed.txt containing resumed, then finish. Follow any Stop hook instruction once."
+}

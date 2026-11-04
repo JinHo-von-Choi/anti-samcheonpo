@@ -1,0 +1,14 @@
+{
+  "session_id": "session_id-background-1",
+  "turn_id": "turn_id-background-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "sleep 2; printf late-done"
+  },
+  "tool_use_id": "tool_use_id-background-3"
+}

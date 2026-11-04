@@ -21,23 +21,27 @@ import (
 
 // HookInput is the common Claude Code hook payload.
 type HookInput struct {
-	Cursor         *cursorEvidence  `json:"-"`
-	Copilot        *copilotEvidence `json:"-"`
-	Mcode          *mcodeEvidence   `json:"-"`
-	SessionID      string           `json:"session_id"`
-	TranscriptPath string           `json:"transcript_path"`
-	Cwd            string           `json:"cwd"`
-	HookEventName  string           `json:"hook_event_name"`
-	ToolName       string           `json:"tool_name"`
-	ToolInput      json.RawMessage  `json:"tool_input"`
-	ToolResponse   json.RawMessage  `json:"tool_response"`
-	ToolUseID      string           `json:"tool_use_id"`
-	Error          string           `json:"error"`
-	Prompt         string           `json:"prompt"`
-	StopHookActive bool             `json:"stop_hook_active"`
-	LastMessage    string           `json:"last_assistant_message"`
-	Source         string           `json:"source"`
-	Trigger        string           `json:"trigger"`
+	AgentTranscriptPath string           `json:"agent_transcript_path,omitempty"`
+	AgentID             string           `json:"agent_id,omitempty"`
+	ChildStop           bool             `json:"-"`
+	Resources           []ResourceClaim  `json:"resources,omitempty"`
+	Cursor              *cursorEvidence  `json:"-"`
+	Copilot             *copilotEvidence `json:"-"`
+	Mcode               *mcodeEvidence   `json:"-"`
+	SessionID           string           `json:"session_id"`
+	TranscriptPath      string           `json:"transcript_path"`
+	Cwd                 string           `json:"cwd"`
+	HookEventName       string           `json:"hook_event_name"`
+	ToolName            string           `json:"tool_name"`
+	ToolInput           json.RawMessage  `json:"tool_input"`
+	ToolResponse        json.RawMessage  `json:"tool_response"`
+	ToolUseID           string           `json:"tool_use_id"`
+	Error               string           `json:"error"`
+	Prompt              string           `json:"prompt"`
+	StopHookActive      bool             `json:"stop_hook_active"`
+	LastMessage         string           `json:"last_assistant_message"`
+	Source              string           `json:"source"`
+	Trigger             string           `json:"trigger"`
 	// ParentSessionID is lineage a plugin states when it spawned this session
 	// for another one; it is evidence only when the plugin sends it.
 	ParentSessionID string `json:"parent_session_id"`
@@ -88,7 +92,17 @@ func (d *Daemon) handleHook(agent, name string, in HookInput) (json.RawMessage, 
 	s.mu.Lock()
 	caps := s.caps
 	s.mu.Unlock()
-	return FilterOutput(name, out, caps), nil
+	filtered := FilterOutput(name, out, caps)
+	if in.Ack != nil {
+		var result map[string]any
+		_ = json.Unmarshal(filtered, &result)
+		hs, _ := result["hookSpecificOutput"].(map[string]any)
+		carried := name == "PreToolUse" && (hs["permissionDecision"] == "deny" || hs["additionalContext"] != nil) || name == "Stop" && result["decision"] == "block"
+		if !carried {
+			in.Ack.interventions = nil
+		}
+	}
+	return filtered, nil
 }
 
 // FilterOutput drops hook output fields the agent cannot act on.
@@ -156,15 +170,55 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 		delete(d.ended, in.SessionID)
 		d.mu.Unlock()
 	}
-	s, err := d.session(in.SessionID, agent, root, in.TranscriptPath)
+	transcript := in.TranscriptPath
+	if in.ParentSessionID != "" {
+		transcript = ""
+	}
+	s, err := d.session(in.SessionID, agent, root, transcript)
 	if err != nil {
 		return nil, nil, err
+	}
+	if in.ParentSessionID != "" && in.ParentSessionID != in.SessionID {
+		s.mu.Lock()
+		old := s.nativeParent
+		if old != "" && old != in.ParentSessionID {
+			s.recordStorageError(fmt.Errorf("host parent identity conflict"))
+		} else if old == "" {
+			if err := s.db.BindSessionParent(agent, in.SessionID, in.ParentSessionID, intent.ProjectID(s.Root), "host_hook"); err != nil {
+				s.recordStorageError(err)
+			} else {
+				s.nativeParent = in.ParentSessionID
+			}
+		}
+		linked := s.nativeParent == in.ParentSessionID
+		s.mu.Unlock()
+		if old == "" && linked {
+			d.mu.Lock()
+			limit := d.treeLimitLocked(s, in.ParentSessionID)
+			d.mu.Unlock()
+			d.swarm.register(in.SessionID, in.ParentSessionID, false, limit)
+			d.mu.Lock()
+			err := d.restoreNativeTreeLocked(s)
+			d.mu.Unlock()
+			if err != nil {
+				s.mu.Lock()
+				s.recordStorageError(err)
+				s.mu.Unlock()
+			}
+		}
+	}
+
+	if in.ParentSessionID != "" && in.TranscriptPath != "" {
+		s.mu.Lock()
+		s.attachChildTranscript(in.TranscriptPath)
+		s.mu.Unlock()
 	}
 	if agent == "cursor" && name == "PostToolUseFailure" && (len(in.ToolInput) == 0 || string(in.ToolInput) == "null") {
 		s.mu.Lock()
 		in.ToolInput = s.cursorInputs[in.ToolUseID]
 		s.mu.Unlock()
 	}
+
 	if agent == "copilot" {
 		// Copilot states no tool call id, so the session joins a start event
 		// to its result by tool name and arrival order.
@@ -179,7 +233,7 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 	} else {
 		d.noteShapeGood(agent, name)
 	}
-	if name != "SessionEnd" {
+	if name != "SessionEnd" && !in.ChildStop {
 		s.opMu.RLock()
 		defer s.opMu.RUnlock()
 		s.mu.Lock()
@@ -202,12 +256,7 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 			s.markCompaction()
 			s.mu.Unlock()
 		}
-		if in.ParentSessionID != "" && in.ParentSessionID != in.SessionID {
-			d.mu.Lock()
-			limit := d.treeLimitLocked(s, in.ParentSessionID)
-			d.mu.Unlock()
-			d.swarm.register(in.SessionID, in.ParentSessionID, false, limit)
-		}
+
 		return nil, s, nil
 	case "Usage":
 		s.onUsage(in)
@@ -240,7 +289,18 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 		if in.Cursor != nil && (in.Cursor.EndStatus != "completed" || in.Cursor.LoopCount > 0) {
 			return nil, s, nil
 		}
-		return s.onStop(in), s, nil
+		out := s.onStop(in)
+		if in.ChildStop {
+			var decision map[string]any
+			_ = json.Unmarshal(out, &decision)
+			if decision["decision"] != "block" {
+				if _, err := s.Finalize(); err != nil {
+					return out, s, err
+				}
+				d.drop(in.SessionID)
+			}
+		}
+		return out, s, nil
 	case "PreCompact":
 		ev := &event.Event{Kind: event.KindCompact, TS: time.Now(), Summary: "compact", Basis: "live"}
 		s.mu.Lock()
@@ -355,15 +415,16 @@ func (s *Session) onPrompt(in HookInput) json.RawMessage {
 	}
 	s.parser.AddEvent(ev)
 	s.prompts++
-	newTask := s.prompts == 1 || s.acc.State == contract.StateDone
-	if s.firstPrompt == "" && !strings.HasPrefix(strings.TrimSpace(in.Prompt), "/") {
+	cancelled := s.intentRevision != nil && s.intentRevision.Kind == intent.Cancelled
+	newTask := s.task == nil || s.acc.State == contract.StateDone || cancelled
+	if s.firstPrompt == "" && !intent.ConversationOnly(in.Prompt) && !strings.HasPrefix(strings.TrimSpace(in.Prompt), "/") {
 		s.firstPrompt = in.Prompt
 		s.eng.FirstPrompt = in.Prompt
 	}
 	s.stopBlocks = 0
 	s.loadContract()
 	needDraft := newTask && (s.c == nil || s.acc.State == contract.StateDone) && s.acc.State != contract.StateSkipped
-	hasIntent := !needDraft || s.intentRevision != nil && s.acc.State != contract.StateDone
+	hasIntent := (!needDraft || s.intentRevision != nil && s.acc.State != contract.StateDone) && !cancelled
 	change := intent.ClassifyChange(intent.User, in.Prompt, hasIntent)
 	if change.Kind == intent.Redirect {
 		acc, err := contract.RequestChange(s.Root, change.Goal)
@@ -603,6 +664,11 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 		}
 	}
 	if !deny {
+		if pre := s.resourcePre(in, ev.Seq); pre != nil {
+			deny, sig = true, pre
+		}
+	}
+	if !deny {
 		if pre := s.heavyPre(ev); pre != nil {
 			deny, sig = true, pre
 		}
@@ -684,6 +750,7 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 		}
 		if route == "advice" && s.caps.InjectPre {
 			s.noteAdvice(in.Ack, s.adviceKey(v))
+			s.noteIntervention(in.Ack, v.ID)
 		}
 		s.holdHeavy(ev) // the call runs
 		s.mu.Unlock()
@@ -692,8 +759,8 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 			if downgraded {
 				s.recordDecision(v, "block_unsupported_by_host")
 			}
-			s.persistVerdict(v)
-			s.record(v, recorded)
+			s.persistPreVerdict(v)
+			s.recordActionPhase(v, recorded, false, "before_tool")
 			s.broadcastHUD()
 		})
 		if route == "observe" {
@@ -710,13 +777,17 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	}
 	delete(s.shell, ev.CallID)
 	ev.ExitCode = intPtr(-1) // blocked, never executed
+	if s.daemon != nil {
+		s.daemon.resources.release(s.ID, ev.CallID)
+	}
+	s.noteIntervention(in.Ack, v.ID)
 	s.blocks++
 	if v.Level >= detect.L3 {
 		s.unresolved = &v
 	}
 	s.mu.Unlock()
 	s.storeAfterAnswer(func() {
-		s.persistVerdict(v)
+		s.persistPreVerdict(v)
 		s.recordBlock(v)
 		s.broadcastHUD()
 	})
@@ -821,6 +892,9 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 	delete(s.shell, ev.CallID)
 	delete(s.awaiting, ev.CallID)
 	s.lastResultAt = time.Now()
+	if s.daemon != nil {
+		s.daemon.resources.release(s.ID, ev.CallID)
+	}
 	resp := in.ToolResponse
 	errText := in.Error
 	if failure && errText == "" {
@@ -988,8 +1062,10 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 	canBlock := stopRoute == "block" && s.caps.BlockStop
 	s.mu.Unlock()
 	var unmet []string
+	var stopChecks []CheckResult
 	if !shadow {
 		results := s.checkpoint(false)
+		stopChecks = results
 		for _, r := range results {
 			if r.Skipped == "" && !r.Pass {
 				unmet = append(unmet, r.Command)
@@ -1009,7 +1085,7 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 	s.mu.Lock()
 	sigs := s.eng.TurnEnd(msg, unmet)
 	s.settleCompletion(sigs)
-	hold := s.stopHold(sigs, unmet, shadow)
+	hold := s.stopHold(sigs, unmet, shadow, stopChecks)
 	if hold != nil {
 		sigs = slices.DeleteFunc(sigs, func(v detect.Signal) bool { return v.Rule == hold.Rule && v.Seq == hold.Seq })
 	}
@@ -1034,7 +1110,8 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 		for _, v := range sigs {
 			s.blocks++
 			s.persistVerdict(v)
-			s.recordBlock(v)
+			s.recordActionPhase(v, "agent", true, "stop")
+			s.noteIntervention(in.Ack, v.ID)
 			reason = intervene.Agent(v, s.msgContext(), "prescription")
 		}
 		if stopEscalated {

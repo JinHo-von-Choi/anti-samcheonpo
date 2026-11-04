@@ -1,0 +1,17 @@
+{
+  "session_id": "session_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "prompt_id-2",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "ls -A; for f in child.txt child-held.txt forbidden.txt; do [ -e \"$f\" ] && { printf '%s: ' \"$f\"; od -c \"$f\" | head -3; } || echo \"$f: missing\"; done",
+    "description": "Check resulting files and contents"
+  },
+  "tool_use_id": "tool_use_id-8"
+}

@@ -10,6 +10,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/pathnorm"
 	"path/filepath"
+	"slices"
 	"strings"
 	"time"
 )
@@ -55,13 +56,20 @@ type Revision struct {
 }
 
 type SessionLink struct {
-	TaskID          string `json:"task_id"`
-	Agent           string `json:"agent"`
-	SessionID       string `json:"session_id"`
-	ParentAgent     string `json:"parent_agent,omitempty"`
-	ParentSessionID string `json:"parent_session_id,omitempty"`
+	OwnedFiles      []string `json:"owned_files,omitempty"`
+	Resources       []string `json:"resource_hashes,omitempty"`
+	Acceptance      []string `json:"acceptance_ids,omitempty"`
+	TaskID          string   `json:"task_id"`
+	Agent           string   `json:"agent"`
+	SessionID       string   `json:"session_id"`
+	ParentAgent     string   `json:"parent_agent,omitempty"`
+	ParentSessionID string   `json:"parent_session_id,omitempty"`
 	// IncludesChildren prevents double-counting a merged parent transcript.
 	IncludesChildren bool `json:"includes_children"`
+}
+
+func (l SessionLink) Equal(other SessionLink) bool {
+	return l.TaskID == other.TaskID && l.Agent == other.Agent && l.SessionID == other.SessionID && l.ParentAgent == other.ParentAgent && l.ParentSessionID == other.ParentSessionID && l.IncludesChildren == other.IncludesChildren && slices.Equal(l.OwnedFiles, other.OwnedFiles) && slices.Equal(l.Resources, other.Resources) && slices.Equal(l.Acceptance, other.Acceptance)
 }
 
 func NewTask(projectID string, now time.Time) (Task, error) {
@@ -77,7 +85,7 @@ func NewTask(projectID string, now time.Time) (Task, error) {
 
 func (r Revision) Validate() error {
 	switch r.Kind {
-	case "", NewRequest, Followup, Redirect, Confirmed:
+	case "", NewRequest, Followup, Redirect, Confirmed, Cancelled:
 	default:
 		return errors.New("unsupported intent change kind")
 	}

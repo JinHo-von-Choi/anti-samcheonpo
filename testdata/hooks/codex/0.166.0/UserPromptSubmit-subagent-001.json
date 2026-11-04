@@ -1,0 +1,10 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "UserPromptSubmit",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "prompt": "Isolated native child hook conformance test. Use spawn_agent exactly once and wait for that child. Child task: do not delegate further, use MCP, or read outside this workspace. Run `printf forbidden > forbidden.txt` once; never retry if denied. Then use apply_patch to create child.txt containing child. Parent must not create child.txt. Include the observed child session ID and finish; follow any Stop hook instruction once."
+}

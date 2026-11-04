@@ -9,6 +9,7 @@ import (
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procscan"
 )
 
@@ -58,7 +59,9 @@ func (s *Session) leftoverAtStop(ev *event.Event) {
 		return
 	}
 	var keys, lines []string
+	var identities []map[string]any
 	for _, p := range procs {
+		identities = append(identities, map[string]any{"pid": p.PID, "parent_pid": p.ParentPID, "executable_hash": fp.Hash(p.Exe), "command_summary_hash": fp.Hash(p.Cmd), "started_at": p.Started.UTC().Format(time.RFC3339Nano), "ports": p.Ports, "ownership": "workspace_time_candidate"})
 		keys = append(keys, fmt.Sprintf("%d@%d", p.PID, p.Started.Unix()))
 		line := fmt.Sprintf("pid %d %s", p.PID, p.Cmd)
 		if len(p.Ports) > 0 {
@@ -78,6 +81,6 @@ func (s *Session) leftoverAtStop(ev *event.Event) {
 	}
 	s.leftoverSeen = key
 	sig := detect.Signal{Detector: "S8", Rule: "s8.leftover_process", Confidence: 0.7, Level: detect.L1, Evidence: []int64{ev.Seq}, Estimate: true,
-		Facts: map[string]any{"count": len(procs), "procs": strings.Join(lines, "; "), "target": "leftover", "target_hash": key, "candidate_key": "leftover"}}
+		Facts: map[string]any{"count": len(procs), "procs": strings.Join(lines, "; "), "target": "leftover", "target_hash": key, "candidate_key": "leftover", "ownership": "workspace_time_candidate", "ownership_confirmed": false, "process_identities": identities, "cleanup_action": "manual_review"}}
 	s.deliver(s.eng.Emit(ev, []detect.Signal{sig}))
 }

@@ -11,7 +11,7 @@ import (
 )
 
 // Antigravity CLI (agy) hooks: named hook groups in ~/.gemini/config/hooks.json,
-// camelCase payloads, no session or prompt events. A turn starts with the
+// camelCase payloads and no prompt event. A turn starts with the
 // first PreInvocation; tool results and the user's request are read from the
 // conversation transcript, because PostToolUse carries no output or exit code.
 // agy appends a shell result to the transcript only after the PostToolUse
@@ -30,6 +30,7 @@ type agyPayload struct {
 	} `json:"toolCall"`
 	Error             string `json:"error"`
 	TerminationReason string `json:"terminationReason"`
+	FullyIdle         *bool  `json:"fullyIdle"`
 }
 
 func agyIn(event string, raw json.RawMessage) ([]string, []HookInput, error) {
@@ -47,6 +48,9 @@ func agyIn(event string, raw json.RawMessage) ([]string, []HookInput, error) {
 	}
 	id := "agy-" + a.ConversationID + "-" + strconv.Itoa(step)
 	switch event {
+	case "SessionStart":
+		base.Model = a.ModelName
+		return []string{"SessionStart"}, []HookInput{base}, nil
 	case "PreInvocation":
 		evs, ins := agyFlush(a.ConversationID, true)
 		if a.InvocationNum != nil && *a.InvocationNum == 0 {
@@ -85,6 +89,12 @@ func agyIn(event string, raw json.RawMessage) ([]string, []HookInput, error) {
 		agyHold(a.ConversationID, agyPost{in: b, transcript: a.TranscriptPath, step: step})
 		return nil, nil, nil
 	case "Stop":
+		// A Stop while background work is active is not a completion checkpoint.
+		// Preserve pending transcript results until a later event can resolve them.
+		if a.FullyIdle != nil && !*a.FullyIdle {
+			evs, ins := agyFlush(a.ConversationID, false)
+			return evs, ins, nil
+		}
 		evs, ins := agyFlush(a.ConversationID, true)
 		uevs, uins := agyUsage(base, a.TranscriptPath, a.ModelName)
 		return append(append(evs, uevs...), "Stop"), append(append(ins, uins...), base), nil
@@ -159,7 +169,7 @@ func agyInput(name string, args map[string]any) json.RawMessage {
 	switch strings.ToLower(name) {
 	case "run_command", "run_terminal_command":
 		m = map[string]any{"command": first("CommandLine", "Command"), "workdir": first("Cwd", "Workdir")}
-	case "write_to_file", "create_file":
+	case "write_to_file", "create_file", "write_file":
 		m = map[string]any{"file_path": first("TargetFile", "Path"), "content": first("CodeContent", "Content")}
 	case "view_file", "read_file":
 		m = map[string]any{"file_path": first("AbsolutePath", "TargetFile", "Path")}

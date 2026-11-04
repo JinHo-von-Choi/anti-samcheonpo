@@ -1,0 +1,9 @@
+{
+  "session_id": "session_id-background-1",
+  "transcript_path": "/fixture/background-transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "4c30776e-19c3-4de5-99df-0fcd0d623d7f",
+  "permission_mode": "default",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "<task-notification>\n<task-id>b3ezpxvqn</task-id>\n<tool-use-id>toolu_01QxJFPXs4KEFFAXwsEraoRc</tool-use-id>\n<output-file>/tmp/claude-1000/-tmp-anti-native-claude-background-20261104-work/d44e7f00-5bc5-41c8-a6de-44d51be6b512/tasks/b3ezpxvqn.output</output-file>\n<status>completed</status>\n<summary>Background command \"Sleep briefly then print a marker\" completed (exit code 0)</summary>\n</task-notification>"
+}

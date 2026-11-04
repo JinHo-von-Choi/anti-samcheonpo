@@ -137,7 +137,7 @@ func TestAgyHookGroup(t *testing.T) {
 		t.Fatal(err)
 	}
 	g := got[AgyGroup]
-	if got["mine"] == nil || g == nil || g["PreInvocation"][0]["command"] == nil || g["PreToolUse"][0]["matcher"] != "*" || g["Stop"][0]["timeout"] != float64(160) {
+	if got["mine"] == nil || g == nil || g["SessionStart"][0]["command"] == nil || g["PreInvocation"][0]["command"] == nil || g["PreToolUse"][0]["matcher"] != "*" || g["Stop"][0]["timeout"] != float64(160) {
 		t.Fatalf("adds a named group in agy's format and keeps the user's: %s", b)
 	}
 	if err := InstallAgy("/opt/samcheonpo", p, nil); err == nil {

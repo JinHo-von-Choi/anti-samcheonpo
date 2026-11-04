@@ -1,0 +1,14 @@
+symptom: S4
+kind: positive
+task: 연구 단계에서 구현 단계로 전환한 뒤 읽기 반복을 구별한다
+steps:
+  - prompt: 코드를 연구해서 수정 플랜 작성해
+  - read: src/a.go
+    repeat: 25
+  - write: docs/plan.md
+    content: "# 수정 계획\n관련 코드와 검증 방법을 정리했다.\n"
+  - prompt: 플랜 구현해
+  - read: src/a.go
+    repeat: 20
+expect:
+  fires: [s4.read_only_streak]

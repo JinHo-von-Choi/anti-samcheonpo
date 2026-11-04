@@ -3,6 +3,7 @@ package cli
 import (
 	"fmt"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"github.com/spf13/cobra"
 )
@@ -10,6 +11,7 @@ import (
 func handoffLinkCmd() *cobra.Command {
 	var from, to, session string
 	var includesChildren bool
+	var files, resources, acceptance []string
 	c := &cobra.Command{
 		Use: "link <parent-session>", Short: "새 세션을 기존 작업에 명시적으로 연결 (실행 승인 아님)", Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
@@ -29,6 +31,10 @@ func handoffLinkCmd() *cobra.Command {
 				return err
 			}
 			link := intent.SessionLink{TaskID: task.ID, Agent: to, SessionID: session, ParentAgent: from, ParentSessionID: args[0], IncludesChildren: includesChildren}
+			link.OwnedFiles, link.Acceptance = files, acceptance
+			for _, resource := range resources {
+				link.Resources = append(link.Resources, fp.Hash(resource))
+			}
 			if err := db.LinkTaskSession(link); err != nil {
 				return err
 			}
@@ -40,5 +46,8 @@ func handoffLinkCmd() *cobra.Command {
 	c.Flags().StringVar(&to, "agent", "codex", "자식 에이전트")
 	c.Flags().StringVar(&session, "session", "", "새 세션 ID; 기존 다른 작업의 ID를 재지정할 수 없음")
 	c.Flags().BoolVar(&includesChildren, "includes-children", false, "이 새 세션의 사용량이 자손 사용량을 포함한다는 명시적 선언")
+	c.Flags().StringSliceVar(&files, "owns", nil, "담당 파일 (권한 부여 아님)")
+	c.Flags().StringSliceVar(&resources, "resource", nil, "의존 자원 식별자 (해시로 보관)")
+	c.Flags().StringSliceVar(&acceptance, "acceptance", nil, "부모가 독립 확인할 인수 조건 ID")
 	return c
 }

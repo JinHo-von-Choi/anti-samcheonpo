@@ -26,6 +26,13 @@ pub fn timeout_for(event: &str, agent: &str) -> Duration {
             _ => {}
         }
     }
+    if agent == "deepagents" {
+        return match event {
+            "Stop" => Duration::from_secs(150),
+            "SessionStart" | "SessionEnd" => Duration::from_millis(2500),
+            _ => Duration::from_millis(500),
+        };
+    }
     if agent == "mcode" {
         // MiniMax Code runs each hook as a process and waits for it up to the
         // timeoutSeconds the hooks file states, so a pre tool answer can take
@@ -49,7 +56,7 @@ pub fn timeout_for(event: &str, agent: &str) -> Duration {
     }
     match event {
         "PreToolUse" => Duration::from_millis(15),
-        "Stop" => Duration::from_secs(150),
+        "Stop" | "SubagentStop" => Duration::from_secs(150),
         "SessionEnd" => {
             if agent == "claude" {
                 Duration::from_secs(30)

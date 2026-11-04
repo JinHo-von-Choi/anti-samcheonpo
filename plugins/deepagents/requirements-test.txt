@@ -1,0 +1,5 @@
+deepagents==0.7.32
+langchain==1.4.8
+langchain-core==1.7.4
+langgraph==1.2.19
+pytest==9.2.0

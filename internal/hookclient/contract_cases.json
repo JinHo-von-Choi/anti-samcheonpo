@@ -217,6 +217,36 @@
       "stdin": "{\"session_id\":\"contract\",\"note\":\"a<b>&c\",\"num\":1.50}",
       "expect": { "exit_code": 0, "stdout": "", "status": "ok", "response_received": true },
       "expect_request": "{\"agent\":\"claude\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"note\":\"a\\u003cb\\u003e\\u0026c\",\"num\":1.50},\"v\":1}"
+    },
+    {
+      "name": "claude-subagentstop-child-control",
+      "agent": "claude",
+      "event": "SubagentStop",
+      "daemon": "up",
+      "response": "{\"output\":{\"decision\":\"block\",\"reason\":\"child evidence missing\"}}",
+      "stdin": "{\"session_id\":\"contract\",\"parent_session_id\":\"parent\",\"agent_id\":\"child\"}",
+      "expect": {
+        "exit_code": 0,
+        "stdout": "{\"decision\":\"block\",\"reason\":\"child evidence missing\"}\n",
+        "status": "ok",
+        "response_received": true
+      },
+      "expect_request": "{\"agent\":\"claude\",\"deadline_unix_ms\":0,\"event\":\"SubagentStop\",\"payload\":{\"session_id\":\"contract\",\"parent_session_id\":\"parent\",\"agent_id\":\"child\"},\"v\":1}"
+    },
+    {
+      "name": "deepagents-pretooluse-child-control",
+      "agent": "deepagents",
+      "event": "PreToolUse",
+      "daemon": "up",
+      "response": "{\"output\":{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"child protected\"}}}",
+      "stdin": "{\"session_id\":\"contract\",\"parent_session_id\":\"parent\",\"agent_id\":\"child\"}",
+      "expect": {
+        "exit_code": 0,
+        "stdout": "{\"hookSpecificOutput\":{\"hookEventName\":\"PreToolUse\",\"permissionDecision\":\"deny\",\"permissionDecisionReason\":\"child protected\"}}\n",
+        "status": "ok",
+        "response_received": true
+      },
+      "expect_request": "{\"agent\":\"deepagents\",\"deadline_unix_ms\":0,\"event\":\"PreToolUse\",\"payload\":{\"session_id\":\"contract\",\"parent_session_id\":\"parent\",\"agent_id\":\"child\"},\"v\":1}"
     }
   ]
 }

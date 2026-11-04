@@ -256,30 +256,21 @@ func TestRecoveryRecurrenceMustMatchTarget(t *testing.T) {
 	}
 }
 
-// The control arm sends nothing but observes the outcome the same way, so
-// the arms are compared on the same measure.
-func TestRecoveryControlArmIsWithheldAndObserved(t *testing.T) {
+// New none is facts-only and must have delivery evidence before observation.
+func TestRecoveryControlArmIsFactOnlyAndRequiresReceipt(t *testing.T) {
 	s, _ := reliabilitySession(t)
 	s.mu.Lock()
 	defer s.mu.Unlock()
 	s.deliver([]detect.Signal{{ID: "control", Seq: 1, Rule: "s2.stuck_error", Detector: "S2", Level: detect.L1, Primary: true, Arm: "none", Facts: map[string]any{"cmd": "test"}}})
-	if len(s.recoveries) != 1 || len(s.pending) != 0 || len(s.userMsg) != 0 {
-		t.Fatalf("control arm proposes one withheld recovery and sends nothing: %d %d %d", len(s.recoveries), len(s.pending), len(s.userMsg))
+	if len(s.recoveries) != 1 || len(s.pending) != 1 {
+		t.Fatalf("missing fact delivery: %d %d", len(s.recoveries), len(s.pending))
 	}
 	a := s.recoveries[0]
-	if a.Arm != "none" || a.DeliveredAt != nil {
-		t.Fatalf("%+v", a)
+	if a.PolicyVersion == "" || exposed(a) || strings.Contains(s.pending[0], "다음 행동") {
+		t.Fatalf("incorrect new control: %+v %s", a, s.pending[0])
 	}
-	s.recoveries[0].ObservationBasis = "completed_command"
-	s.recoveries[0].TargetHash = fp.Hash("test-command")
-	zero := 0
-	s.trackOutcomes(&event.Event{Seq: 20, Kind: event.KindTool, Tool: event.ToolShell, ExecFP: "test-command", ExecCertain: true, ExitCode: &zero})
-	if got := s.recoveries[0]; got.Stage != recovery.EffectObserved || got.Observation != "no_recurrence_observed" {
-		t.Fatalf("control outcome not observed: %+v", got)
-	}
-	var outcome, channel string
-	if err := s.db.QueryRow(`SELECT outcome, channel FROM intervention WHERE verdict_id='control'`).Scan(&outcome, &channel); err != nil || outcome != "no_recurrence_observed" || channel != "none" {
-		t.Fatalf("control intervention row: %q %q %v", outcome, channel, err)
+	if !exposed(recovery.Attempt{Arm: "none"}) {
+		t.Fatal("legacy control semantics lost")
 	}
 }
 

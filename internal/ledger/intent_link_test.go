@@ -45,7 +45,7 @@ func TestRevisionAndLinkCommitTogetherAndRestore(t *testing.T) {
 	}
 	defer d.Close()
 	task2, r2, link2, err := d.SessionIntent("claude", "s")
-	if err != nil || task2 != task || r2.Goal != r.Goal || link2 != link {
+	if err != nil || task2 != task || r2.Goal != r.Goal || !link2.Equal(link) {
 		t.Fatalf("%+v %+v %+v %v", task2, r2, link2, err)
 	}
 	if _, _, _, err := d.SessionIntent("codex", "s"); !errors.Is(err, sql.ErrNoRows) {

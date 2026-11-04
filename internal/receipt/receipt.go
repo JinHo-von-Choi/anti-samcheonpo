@@ -416,6 +416,8 @@ func Describe(v detect.Signal) string {
 		return fmt.Sprintf("운영 데이터베이스 쓰기 (%s, %s)", str("where"), short(str("cmd"), 40))
 	case "s3.migration_history_write":
 		return fmt.Sprintf("마이그레이션 이력 테이블을 손으로 변경 (%s)", short(str("cmd"), 40))
+	case "s1.concurrent_shared_resource":
+		return "다른 실행이 같은 공유 자원을 사용 중이다. 쓰기는 직렬 실행하거나 독립 자원을 지정한다. 독립 읽기는 계속할 수 있다."
 	case "s1.concurrent_heavy_check":
 		return fmt.Sprintf("다른 무거운 시험이 %d분째 실행 중인데 무거운 시험 추가 시작 (%s)", num("since"), short(str("cmd"), 40))
 	case "s1.full_suite_local_change":

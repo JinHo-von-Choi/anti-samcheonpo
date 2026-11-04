@@ -16,7 +16,7 @@
 | Intel Mac / Apple Silicon | `darwin_amd64.tar.gz` / `darwin_arm64.tar.gz` |
 | Windows x64 / ARM64 | `windows_amd64.tar.gz` / `windows_arm64.tar.gz` |
 
-`SHA256SUMS`도 같은 폴더에 받으세요. Linux는 `sha256sum --ignore-missing -c SHA256SUMS`, macOS는 `shasum -a 256 -c SHA256SUMS --ignore-missing`으로 다운로드를 확인합니다. Windows PowerShell에서는 `Get-FileHash .\samcheonpo_0.10.2_windows_amd64.tar.gz -Algorithm SHA256`의 값을 `SHA256SUMS`의 해당 줄과 대조합니다.
+`SHA256SUMS`도 같은 폴더에 받으세요. Linux는 `sha256sum --ignore-missing -c SHA256SUMS`, macOS는 `shasum -a 256 -c SHA256SUMS --ignore-missing`으로 다운로드를 확인합니다. Windows PowerShell에서는 `Get-FileHash .\samcheonpo_0.11.0_windows_amd64.tar.gz -Algorithm SHA256`의 값을 `SHA256SUMS`의 해당 줄과 대조합니다.
 
 압축을 풀고 `samcheonpo`와 `samcheonpo-hook`을 PATH에 등록한 **같은 폴더**에 둡니다. Windows에서는 두 `.exe`를 함께 두고, 검사 명령용 Git for Windows도 설치합니다.
 
@@ -26,15 +26,15 @@ samcheonpo-hook --version
 samcheonpo doctor
 ```
 
-두 버전이 `0.10.2`인지 확인하세요. 첫 실행 전의 원장 없음·에이전트 연결 없음은 설치 실패를 뜻하지 않습니다.
+두 실행 파일의 버전이 같은지 확인하세요. 에이전트 연결은 아래 단계에서 설정합니다.
 
 ### 소스에서 설치
 
 Go 1.27 이상이 필요합니다. Go 실행 파일 설치 경로도 PATH에 있어야 합니다.
 
 ```sh
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.10.2
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.10.2
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.11.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.11.0
 ```
 
 ### 기존 버전에서 업그레이드
@@ -50,7 +50,7 @@ samcheonpo install --agent codex
 samcheonpo doctor --agent codex
 ```
 
-새 에이전트 세션에서 사용하세요. v0.10.2의 원장 스키마는 **14**입니다. 스키마 14 원장은 v0.10.1 이하에서 열 수 없습니다. 사용자 수정 때문에 제거 충돌이 나오면 해당 파일을 보존하고 메시지를 확인하세요.
+새 에이전트 세션에서 사용하세요. 원장은 처음 열 때 자동으로 갱신됩니다. 이전 버전으로 돌아갈 때는 업그레이드 전에 만든 백업을 사용하세요. 사용자 수정과 충돌하면 해당 파일을 보존하고 안내에 따라 정리합니다.
 
 ## 지난 작업 보기
 
@@ -73,7 +73,18 @@ samcheonpo install --agent codex
 samcheonpo doctor --agent codex
 ```
 
-이름은 `claude`, `codex`, `opencode`, `agy`, `hermes`, `openclaw`, `copilot`를 지원합니다. `cursor`는 관찰 전용입니다. Hermes·OpenClaw의 플러그인 활성화와 게이트웨이 재시작은 설치 명령이 출력하는 안내를 따르세요.
+이름은 `claude`, `codex`, `opencode`, `agy`, `hermes`, `openclaw`, `mcode`, `copilot`를 지원합니다. `cursor`는 관찰 전용입니다. Hermes·OpenClaw의 플러그인 활성화와 게이트웨이 재시작은 설치 명령이 출력하는 안내를 따르세요.
+
+### Antigravity CLI에 연결하기
+
+```sh
+samcheonpo install --agent agy
+samcheonpo doctor --agent agy
+```
+
+새 agy 세션에서 작업을 시작하세요. 실행 전 차단과 다음 모델 호출의 안내, 종료 검사가 적용됩니다. 백그라운드 명령은 최종 결과가 도착할 때 반영합니다.
+
+Python에서 에이전트를 구성한다면 [Deep Agents 연결 안내](../plugins/deepagents/README.md)를 참고하세요.
 
 ### GitHub Copilot CLI에 연결하기
 
@@ -90,11 +101,11 @@ samcheonpo doctor --agent copilot
 samcheonpo install --agent copilot --hooks-file "$HOME/.copilot/hooks/samcheonpo.json"
 ```
 
-같은 경로로 다시 실행하면 삼천포가 쓴 파일만 교체합니다. 이미 있는 파일은 덮어쓰지 않습니다. `samcheonpo install --agent copilot`을 경로 지정 없이 다시 실행하면 삼천포가 기록한 Copilot 연결 파일을 모두 지웁니다.
+기존 파일이 있으면 설치 전에 내용을 확인하세요. 연결을 제거할 때는 `samcheonpo uninstall --agent copilot`을 사용합니다. 경로를 지정하지 않으면 삼천포가 기록한 Copilot 연결 파일을 모두 제거합니다.
 
-새 Copilot 세션에서 작업한 뒤 `doctor --agent copilot`의 마지막 수신 기록을 확인하세요. 필수 훅이 맞아도 수신 기록이 없다면 실제 연결은 아직 확인되지 않은 상태입니다.
+새 Copilot 세션에서 작업한 뒤 `doctor --agent copilot`의 마지막 수신 기록을 확인하세요. 수신 기록이 비어 있으면 에이전트의 훅 신뢰 설정을 확인하고 새 세션에서 명령을 실행하세요.
 
-Copilot은 도구 호출 ID를 보내지 않습니다. 시작과 결과는 도구 이름과 도착 순서로 이어지며, 셸 종료 코드는 결과 본문에만 있습니다. 사용량·비용은 Copilot 훅이 알려 주지 않아 비어 있습니다. 실행 전 차단, 도구 뒤 안내, 종료 보류, 프롬프트 안내를 실제 CLI로 확인했습니다. 종료를 보류하면 Copilot이 보류 사유를 다음 프롬프트로 다시 보내며, 삼천포는 이것을 사용자 요청으로 세지 않습니다. [확인한 범위](support-matrix.md#github-copilot-cli)
+실행 전 차단, 도구 결과 안내와 종료 검사가 적용됩니다. 검사가 남아 종료를 보류하면 Copilot이 다음 요청에서 작업을 이어갑니다. [지원 기능](support-matrix.md#github-copilot-cli)
 
 ### MiniMax Code(mcode)에 연결하기
 
@@ -109,7 +120,7 @@ samcheonpo doctor --agent mcode
 
 mcode는 세션을 시작할 때 훅 파일을 읽습니다. 설치 뒤 **새 mcode 세션**에서 작업하고 `doctor --agent mcode`의 마지막 수신 기록을 확인하세요.
 
-실행 전 차단, 도구 뒤 안내, 종료 보류를 실제 CLI로 확인했습니다. 백그라운드로 넘어간 셸은 `task_output`으로 최종 결과가 들어올 때 판정합니다. mcode 훅은 토큰 사용량을 주지 않아 실시간 비용은 비어 있습니다. 지난 세션은 `samcheonpo audit --agent mcode`로 분석합니다. 연결 해제는 `samcheonpo uninstall --agent mcode`입니다. [확인한 범위](support-matrix.md#minimax-code)
+실행 전 차단, 도구 결과 안내와 종료 검사가 적용됩니다. 백그라운드 셸은 `task_output`으로 최종 결과가 들어올 때 반영합니다. 지난 세션은 `samcheonpo audit --agent mcode`로 분석합니다. [지원 기능](support-matrix.md#minimax-code)
 
 ### Cursor CLI에서 관찰하기
 
@@ -122,7 +133,7 @@ samcheonpo doctor --agent cursor
 
 설정은 기본적으로 `~/.cursor/hooks.json`에 들어갑니다. 다른 파일을 쓰려면 `--hooks-file /절대경로/hooks.json`을 지정합니다. 기존 연결을 갱신할 때도 같은 명령·같은 경로를 사용하세요. 삼천포가 기록한 기존 항목만 교체하며 다른 훅과 사용자 수정은 보존합니다.
 
-새 Cursor 세션에서 작업한 뒤 `doctor --agent cursor`의 마지막 수신 기록을 확인하세요. 필수 훅이 맞아도 수신 기록이 없다면 실제 연결은 아직 확인되지 않은 상태입니다. 사용량이 수집되지 않은 비용은 미확인으로 읽습니다. 현재는 실행을 차단하거나 안내를 전달하지 않습니다. [확인한 범위](support-matrix.md#cursor-cli)
+새 Cursor 세션에서 작업한 뒤 `doctor --agent cursor`의 마지막 수신 기록을 확인하세요. 수신 기록이 비어 있으면 에이전트의 훅 신뢰 설정을 확인하고 새 세션에서 명령을 실행하세요. Cursor 연결은 도구 호출과 결과를 기록하는 관찰용입니다. [지원 기능](support-matrix.md#cursor-cli)
 
 연결을 제거하려면 `samcheonpo uninstall --agent cursor`를 실행합니다.
 
@@ -133,7 +144,7 @@ samcheonpo cmd status
 samcheonpo cmd summary
 ```
 
-연결 성공은 감시가 동작한다는 뜻입니다. 작업 완료나 비용 절감을 뜻하지 않습니다.
+현재 목표와 최근 작업이 표시되면 연결된 상태입니다.
 
 ## 경고가 나오면
 
@@ -148,7 +159,7 @@ samcheonpo cmd summary
 
 Claude Code에서는 `samcheonpo cmd summary` 대신 `/samcheonpo:summary`처럼 사용할 수 있습니다. Codex에는 이 슬래시 명령을 쓰지 않습니다.
 
-`keep normal`의 해제는 현재 목표의 같은 규칙·대상에 적용됩니다. 보호 경로·예산은 해제하지 않습니다. 경고 없이 기록만 하려면 사용자 설정 `~/.samcheonpo/config.yml`의 `rollout.mode`를 `shadow`로 바꾸고 새 세션을 시작하세요. 기존에 수락한 보호 경로·예산은 계속 적용됩니다.
+`keep normal`의 해제는 현재 목표의 같은 규칙·대상에 적용됩니다. 보호 경로·예산은 해제하지 않습니다. 경고 없이 기록만 하려면 사용자 설정 `~/.samcheonpo/config.yml`의 `rollout.mode`를 `shadow`로 바꾸고 새 세션을 시작하세요. 수락한 보호 경로·예산과 오류 은폐·테스트 약화 등 핵심 사전 차단은 계속 적용됩니다.
 
 ## 결과와 비용 확인
 
@@ -157,12 +168,13 @@ Claude Code에서는 `samcheonpo cmd summary` 대신 `/samcheonpo:summary`처럼
 | `samcheonpo receipt <세션ID>` | 해당 세션의 사용량·판정 요약 |
 | `samcheonpo why <세션ID>` | 판단한 근거와 판단하지 못한 이유 |
 | `samcheonpo coverage <세션ID>` | 기록과 비용의 확인 범위 |
-| `samcheonpo interventions --since 7d --by-agent` | 안내 전달·차단 기록 |
+| `samcheonpo evidence --session <세션ID>` | 요구사항과 검사 결과 |
+| `samcheonpo interventions --since 7d --by-agent` | 안내·차단 기록 |
 | `samcheonpo accuracy --since 30d` | 규칙별 실측 신뢰도(제안·전달·재발·위양성) |
 | `samcheonpo provenance <규칙>` | 규칙별 원장 근거와 증거다이제스트 |
 | `samcheonpo dashboard` | 로컬 웹 화면. 출력된 주소와 접근 코드로 로그인 |
 
-0%는 관측된 비용 중 낭비로 분류한 몫이 없다는 뜻입니다. 정확한 작업·완료·절약을 보장하지 않습니다. 원화는 API 등가 추정이며 미확인 부분을 0원으로 읽으면 안 됩니다.
+영수증의 비율은 수집한 사용량 가운데 해당 항목으로 분류된 몫입니다. 원화는 토큰 사용량을 API 단가로 환산한 추정치이며, 수집되지 않은 사용량은 미확인으로 표시합니다.
 
 ## 문제가 생기면
 

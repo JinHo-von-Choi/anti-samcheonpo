@@ -1,0 +1,18 @@
+{
+  "session_id": "session_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "prompt_id-2",
+  "permission_mode": "default",
+  "agent_id": "agent_id-4",
+  "agent_type": "general-purpose",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "SubagentStop",
+  "stop_hook_active": true,
+  "agent_transcript_path": "/fixture/transcript.jsonl",
+  "last_assistant_message": "[probe response redacted]",
+  "background_tasks": [],
+  "session_crons": []
+}

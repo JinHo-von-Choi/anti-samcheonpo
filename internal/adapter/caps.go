@@ -13,16 +13,18 @@ import (
 
 // Caps is an adapter capability declaration.
 type Caps struct {
-	BlockPre     bool `json:"block_pre"`     // deny a tool call before it runs, with a reason
-	InjectPre    bool `json:"inject_pre"`    // add context before a tool call
-	InjectPost   bool `json:"inject_post"`   // add context next to a tool result
-	BlockStop    bool `json:"block_stop"`    // refuse a stop and continue
-	EndTurnPost  bool `json:"end_turn_post"` // end the turn from a post-tool hook, above other hooks
-	PromptInject bool `json:"prompt_inject"` // add context to a user prompt
-	StatusLine   bool `json:"status_line"`   // persistent status line
-	UserMessage  bool `json:"user_message"`  // show a message to the user (systemMessage)
-	PostFailure  bool `json:"post_failure"`  // separate hook for failed tools carrying the error
-	ExitInHook   bool `json:"exit_in_hook"`  // shell exit code is visible to hooks
+	ChildToolIdentity bool `json:"child_tool_identity"`
+	BlockChildStop    bool `json:"block_child_stop"`
+	BlockPre          bool `json:"block_pre"`     // deny a tool call before it runs, with a reason
+	InjectPre         bool `json:"inject_pre"`    // add context before a tool call
+	InjectPost        bool `json:"inject_post"`   // add context next to a tool result
+	BlockStop         bool `json:"block_stop"`    // refuse a stop and continue
+	EndTurnPost       bool `json:"end_turn_post"` // end the turn from a post-tool hook, above other hooks
+	PromptInject      bool `json:"prompt_inject"` // add context to a user prompt
+	StatusLine        bool `json:"status_line"`   // persistent status line
+	UserMessage       bool `json:"user_message"`  // show a message to the user (systemMessage)
+	PostFailure       bool `json:"post_failure"`  // separate hook for failed tools carrying the error
+	ExitInHook        bool `json:"exit_in_hook"`  // shell exit code is visible to hooks
 	// SessionEndBudget is the longest a SessionEnd hook may take.
 	SessionEndBudget time.Duration `json:"session_end_budget"`
 	// FailClosed means a hook that prints nothing blocks the call; the client
@@ -31,8 +33,8 @@ type Caps struct {
 }
 
 // Tested records the agent versions whose hook payloads were captured and
-// asserted (testdata/hooks/<agent>/). Outside this range the adapter falls
-// back to observation only.
+// asserted (testdata/hooks/<agent>/). Outside this range runtime shape validation still applies;
+// an absent tested range means observation-only.
 type Tested struct {
 	Min, Max string
 }
@@ -46,7 +48,11 @@ type Profile struct {
 
 // Profiles lists the agents with hook adapters.
 var Profiles = map[string]Profile{
-	"claude": {Agent: "claude", Tested: Tested{Min: "2.1.0", Max: "2.1.999"}, Caps: Caps{
+	// Deep Agents SDK 0.7.32: actual graph and isolated daemon tests cover
+	// sync/async pre denial, bounded Stop continuation, usage accounting,
+	// declarative child protection and explicit session close.
+	"deepagents": {Agent: "deepagents", Tested: Tested{Min: "0.7.32", Max: "0.7.32"}, Caps: Caps{ChildToolIdentity: true, BlockChildStop: true, BlockPre: true, InjectPost: true, BlockStop: true, PostFailure: true, SessionEndBudget: time.Second}},
+	"claude": {Agent: "claude", Tested: Tested{Min: "2.1.0", Max: "2.1.317"}, Caps: Caps{ChildToolIdentity: true, BlockChildStop: true,
 		BlockPre: true, InjectPre: true, InjectPost: true, BlockStop: true, EndTurnPost: true, PromptInject: true,
 		StatusLine: true, UserMessage: true, PostFailure: true, ExitInHook: true, SessionEndBudget: 30 * time.Second}},
 	// Codex 0.160.0: payloads captured in testdata/hooks/codex. PostToolUse
@@ -54,7 +60,9 @@ var Profiles = map[string]Profile{
 	// may have no PostToolUse; SessionEnd may take at most 3 seconds. Codex
 	// 0.162.0 sends the same fields, tool names and call IDs. Codex 0.163.0
 	// (testdata/hooks/codex/0.163.0) also sends a PostToolUse for apply_patch.
-	"codex": {Agent: "codex", Tested: Tested{Min: "0.160.0", Max: "0.163.0"}, Caps: Caps{
+	// 0.166.0 real CLI capture confirms pre denial, post context, held Stop
+	// continuation and apply_patch results (testdata/hooks/codex/0.166.0).
+	"codex": {Agent: "codex", Tested: Tested{Min: "0.160.0", Max: "0.166.0"}, Caps: Caps{ChildToolIdentity: true, BlockChildStop: false,
 		BlockPre: true, InjectPre: true, InjectPost: true, BlockStop: true, EndTurnPost: false, PromptInject: true,
 		StatusLine: false, UserMessage: true, PostFailure: false, ExitInHook: false, SessionEndBudget: 3 * time.Second}},
 	// opencode 1.18.34 through the forwarder plugin (plugins/opencode): a
@@ -87,7 +95,9 @@ var Profiles = map[string]Profile{
 	// agy 1.4.8 (testdata/hooks/agy/1.4.8) names paths Path, states an edit as
 	// Target and Replacement, and writes read and edit results to the
 	// transcript like shell results.
-	"agy": {Agent: "agy", Tested: Tested{Min: "1.3.0", Max: "1.4.8"}, Caps: Caps{
+	// 1.4.12 real host capture confirms SessionStart, pre deny, PreInvocation
+	// advice and held Stop continuation; write_file now maps to Write.
+	"agy": {Agent: "agy", Tested: Tested{Min: "1.3.0", Max: "1.4.12"}, Caps: Caps{
 		BlockPre: true, InjectPre: false, InjectPost: false, BlockStop: true, PromptInject: true,
 		StatusLine: false, UserMessage: false, PostFailure: true, ExitInHook: true, SessionEndBudget: 5 * time.Second}},
 	// Hermes 0.21 through the forwarder plugin (plugins/hermes): pre_tool_call

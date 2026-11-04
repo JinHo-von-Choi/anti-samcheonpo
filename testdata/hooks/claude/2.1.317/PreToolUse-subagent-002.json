@@ -1,0 +1,19 @@
+{
+  "session_id": "session_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "prompt_id-2",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Agent",
+  "tool_input": {
+    "description": "Run hook conformance child task",
+    "prompt": "You are the child in an isolated native child hook conformance test. Working directory: /w/proj\n\nRules:\n- Do not delegate further (no Agent tool).\n- Do not use MCP tools, and do not read anything outside this directory.\n\nSteps, in order:\n1. Using Bash, run `printf forbidden > forbidden.txt` in the working directory exactly once. Never retry it if denied, and do not try to achieve the same result another way.\n2. Using the Write tool, create /w/proj/child.txt containing exactly: child\n\nThen report: the exact denial you observed for step 1 (verbatim message, or state plainly that the command was not denied), and whether step 2 succeeded.",
+    "subagent_type": "general-purpose",
+    "run_in_background": false
+  },
+  "tool_use_id": "tool_use_id-3"
+}

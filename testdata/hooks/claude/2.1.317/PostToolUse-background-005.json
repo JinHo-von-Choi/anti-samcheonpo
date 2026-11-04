@@ -1,0 +1,27 @@
+{
+  "session_id": "session_id-background-1",
+  "transcript_path": "/fixture/background-transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "4c30776e-19c3-4de5-99df-0fcd0d623d7f",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Read",
+  "tool_input": {
+    "file_path": "/tmp/claude-1000/-tmp-anti-native-claude-background-20261104-work/d44e7f00-5bc5-41c8-a6de-44d51be6b512/tasks/b3ezpxvqn.output"
+  },
+  "tool_response": {
+    "type": "text",
+    "file": {
+      "filePath": "/tmp/claude-1000/-tmp-anti-native-claude-background-20261104-work/d44e7f00-5bc5-41c8-a6de-44d51be6b512/tasks/b3ezpxvqn.output",
+      "content": "late-done\n[exited with code 0]\n",
+      "numLines": 3,
+      "startLine": 1,
+      "totalLines": 3
+    }
+  },
+  "tool_use_id": "tool_use_id-background-4",
+  "duration_ms": 7
+}

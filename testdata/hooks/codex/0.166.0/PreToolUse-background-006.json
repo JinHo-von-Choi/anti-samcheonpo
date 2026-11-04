@@ -1,0 +1,14 @@
+{
+  "session_id": "session_id-background-1",
+  "turn_id": "turn_id-background-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "python3 - <<'PY'\nfrom pathlib import Path\np = Path('late-result.txt')\nassert p.read_bytes() == b'late-done\\n'\nwith p.open('r+b') as f:\n    f.truncate(9)\nassert p.read_bytes() == b'late-done'\nprint('verified: 9 bytes, no trailing newline')\nPY"
+  },
+  "tool_use_id": "tool_use_id-background-5"
+}

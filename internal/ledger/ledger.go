@@ -470,9 +470,7 @@ func (d *DB) RecordIntervention(v detect.Signal, session, channel string, blocke
 	//
 	// The blocked flag records the action, not the channel: the agent
 	// channel carries both a delivered advice and a stopped call.
-	_, err := d.Exec(`INSERT INTO intervention(verdict_id,session_id,seq,channel,level,arm,delivery_state,rule,blocked) VALUES (?,?,?,?,?,?,?,?,?)`,
-		v.ID, session, v.Seq, channel, int(v.Level), v.Arm, "proposed", v.Rule, b2i(blocked))
-	return err
+	return d.RecordInterventionDetailed(v, session, channel, blocked, InterventionMetadata{})
 }
 
 // EventsOf loads a session's ledger events (for labeling and eval).

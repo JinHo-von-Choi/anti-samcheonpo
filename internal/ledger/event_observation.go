@@ -2,12 +2,14 @@ package ledger
 
 import (
 	"encoding/json"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/verification"
 	"regexp"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 )
 
 type observationPayload struct {
+	Verification       *verification.Observation   `json:"verification,omitempty"`
 	Execution          *event.Execution            `json:"execution,omitempty"`
 	ActionFP           string                      `json:"action_fp,omitempty"`
 	ResearchLinks      []event.ResearchLink        `json:"research_links,omitempty"`
@@ -42,6 +44,7 @@ var safeIdentifier = regexp.MustCompile(`^[a-z][a-z0-9_.]{0,63}$`)
 
 func observationJSON(ev *event.Event) ([]byte, error) {
 	p := observationPayload{PromptOrigin: ev.PromptOrigin, ObservationFP: ev.ObservationFP, Selection: ev.BehaviorSelection, Requirements: ev.Requirements, IsError: ev.IsError, Unknown: ev.Unknown, Mutating: ev.Mutating, Estimated: ev.Estimated, DurationMS: ev.DurationMS, TimeoutMS: ev.TimeoutMS, Progress: ev.WorkProgress, Context: ev.BehaviorContext, Target: ev.BehaviorTarget, Result: ev.BehaviorResult, ExecFP: ev.ExecFP, ExecCertain: ev.ExecCertain, Background: ev.Background, OriginSeq: ev.OriginSeq, ErrFPs: ev.ErrFPs, FailedTests: ev.FailedTests, Reliability: ev.Reliability}
+	p.Verification = ev.Verification
 	p.RequirementChanges = ev.RequirementChanges
 	p.ResultObserved = ev.ResultObserved
 	p.Execution = ev.Execution
@@ -112,6 +115,7 @@ func OpenReadOnly(path string) (*DB, error) {
 }
 
 func applyObservation(ev *event.Event, p observationPayload) {
+	ev.Verification = p.Verification
 	ev.RequirementChanges = p.RequirementChanges
 	ev.ResultObserved = p.ResultObserved
 	ev.Execution = p.Execution

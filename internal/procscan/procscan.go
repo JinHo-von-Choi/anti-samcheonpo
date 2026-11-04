@@ -9,11 +9,12 @@ import "time"
 
 // Proc is one running process.
 type Proc struct {
-	PID     int
-	Started time.Time
-	Exe     string // executable path when readable
-	Cmd     string // command line, shortened
-	Ports   []int  // TCP ports it listens on
+	PID       int
+	ParentPID int
+	Started   time.Time
+	Exe       string // executable path when readable
+	Cmd       string // command line, shortened
+	Ports     []int  // TCP ports it listens on
 }
 
 // Window is a span of time a shell call of the session ran in.

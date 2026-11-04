@@ -1,0 +1,14 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "apply_patch",
+  "tool_input": {
+    "command": "*** Begin Patch\n*** Update File: /w/proj/note.txt\n@@\n-alpha\n+beta\n*** End Patch"
+  },
+  "tool_use_id": "tool_use_id-6"
+}

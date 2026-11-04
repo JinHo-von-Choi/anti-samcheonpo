@@ -1,0 +1,91 @@
+{
+  "session_id": "session_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "prompt_id-2",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PostToolUse",
+  "tool_name": "Agent",
+  "tool_input": {
+    "description": "Run hook conformance child task",
+    "prompt": "You are the child in an isolated native child hook conformance test. Working directory: /w/proj\n\nRules:\n- Do not delegate further (no Agent tool).\n- Do not use MCP tools, and do not read anything outside this directory.\n\nSteps, in order:\n1. Using Bash, run `printf forbidden > forbidden.txt` in the working directory exactly once. Never retry it if denied, and do not try to achieve the same result another way.\n2. Using the Write tool, create /w/proj/child.txt containing exactly: child\n\nThen report: the exact denial you observed for step 1 (verbatim message, or state plainly that the command was not denied), and whether step 2 succeeded.",
+    "subagent_type": "general-purpose",
+    "run_in_background": false
+  },
+  "tool_response": {
+    "status": "completed",
+    "prompt": "You are the child in an isolated native child hook conformance test. Working directory: /w/proj\n\nRules:\n- Do not delegate further (no Agent tool).\n- Do not use MCP tools, and do not read anything outside this directory.\n\nSteps, in order:\n1. Using Bash, run `printf forbidden > forbidden.txt` in the working directory exactly once. Never retry it if denied, and do not try to achieve the same result another way.\n2. Using the Write tool, create /w/proj/child.txt containing exactly: child\n\nThen report: the exact denial you observed for step 1 (verbatim message, or state plainly that the command was not denied), and whether step 2 succeeded.",
+    "agentId": "a6ef0a9373292b176",
+    "agentType": "general-purpose",
+    "toolsUsed": [
+      "Bash",
+      "Write"
+    ],
+    "harnessNoteCount": 1,
+    "harnessTailCount": 0,
+    "harnessSectionHash": "cf4664341028179b",
+    "content": [
+      {
+        "type": "text",
+        "text": "<tools-used-before-summary>Bash, Write</tools-used-before-summary>\n"
+      },
+      {
+        "type": "text",
+        "text": "Results for the conformance test:\n\n- **Step 1:** denied, and I did not retry it or try another way. The verbatim denial was `PreToolUse:Bash hook error: PROBE_DENIED`.\n- **Step 2:** succeeded. `/w/proj/child.txt` was created with the content `child`.\n- **SubagentStop hook:** it blocked my first attempt to finish and asked for one more file. I created `/w/proj/child-held.txt` with the content `held`.\n\nThe PostToolUse hook on Write asked me to include this marker: RECEIVED_fixture"
+      }
+    ],
+    "resolvedModel": "claude-opus-5-5",
+    "totalDurationMs": 8627,
+    "totalTokens": 8244,
+    "totalToolUseCount": 3,
+    "usage": {
+      "output_tokens_details": {
+        "thinking_tokens": 0
+      },
+      "input_tokens": 2,
+      "cache_creation_input_tokens": 218,
+      "cache_read_input_tokens": 7797,
+      "output_tokens": 227,
+      "server_tool_use": {
+        "web_search_requests": 0,
+        "web_fetch_requests": 0
+      },
+      "service_tier": "standard",
+      "cache_creation": {
+        "ephemeral_1h_input_tokens": 0,
+        "ephemeral_5m_input_tokens": 218
+      },
+      "inference_geo": "global",
+      "iterations": [
+        {
+          "input_tokens": 2,
+          "output_tokens": 227,
+          "cache_read_input_tokens": 7797,
+          "cache_creation_input_tokens": 218,
+          "cache_creation": {
+            "ephemeral_5m_input_tokens": 218,
+            "ephemeral_1h_input_tokens": 0
+          },
+          "type": "message"
+        }
+      ],
+      "speed": "standard",
+      "fallback_credit": null
+    },
+    "toolStats": {
+      "readCount": 0,
+      "searchCount": 0,
+      "bashCount": 1,
+      "editFileCount": 2,
+      "linesAdded": 2,
+      "linesRemoved": 0,
+      "otherToolCount": 0
+    },
+    "canContinueAgent": false
+  },
+  "tool_use_id": "tool_use_id-3",
+  "duration_ms": 8632
+}

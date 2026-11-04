@@ -1,0 +1,14 @@
+{
+  "session_id": "session_id-1",
+  "turn_id": "turn_id-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "PreToolUse",
+  "model": "gpt-6.1-sol",
+  "permission_mode": "bypassPermissions",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "python - <<'PY'\nimport json,pathlib\nfor p in sorted(pathlib.Path('/fixture/probe').glob('*.json')):\n d=json.loads(p.read_text())\n print(p.name, json.dumps({k:v for k,v in d.items() if k in ['session_id','sessionId','hook_event_name','agent_id','agent_type','tool_name','stop_hook_active']},ensure_ascii=False))\nPY"
+  },
+  "tool_use_id": "tool_use_id-15"
+}

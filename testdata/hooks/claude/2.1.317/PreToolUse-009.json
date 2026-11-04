@@ -1,0 +1,19 @@
+{
+  "session_id": "session_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "221856e3-85ba-4457-8fee-5b4344a8357f",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Edit",
+  "tool_input": {
+    "file_path": "/w/proj/note.txt",
+    "old_string": "alpha",
+    "new_string": "beta",
+    "replace_all": false
+  },
+  "tool_use_id": "tool_use_id-6"
+}

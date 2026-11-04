@@ -51,9 +51,9 @@ test "$("$release_stage/samcheonpo$release_exe" --version)" = "samcheonpo versio
 SAMCHEONPO_SMOKE_BIN="$release_stage/samcheonpo$release_exe" go test ./internal/install -run '^TestCleanEnvironmentBinarySmoke$' -count=1
 cp LICENSE README.md README.en.md docs/getting-started.md docs/support-matrix.md "$release_stage/"
 cp CHANGELOG.md "$release_stage/"
-# Preserve documented relative links. Only tracked docs are distributed;
-# ignored plans, local review logs and private work files stay on the host.
-git ls-files docs | while IFS= read -r release_doc; do
+# Include the SDK integration and preserve documented relative links. Only
+# tracked files are distributed; local plans and caches stay on the host.
+git ls-files docs plugins/deepagents | while IFS= read -r release_doc; do
   mkdir -p "$release_stage/$(dirname "$release_doc")"
   cp "$release_doc" "$release_stage/$release_doc"
 done
@@ -71,7 +71,7 @@ release_name="samcheonpo_${release_version}_${release_os}_${release_arch}.tar.gz
 # relative paths only: GNU tar reads "C:/..." as host:path
 (
   cd "$release_output"
-  tar -czf "$release_name" -C package "samcheonpo$release_exe" "samcheonpo-hook$release_exe" LICENSE README.md README.en.md CHANGELOG.md getting-started.md support-matrix.md docs BUILD.txt
+  tar -czf "$release_name" -C package "samcheonpo$release_exe" "samcheonpo-hook$release_exe" LICENSE README.md README.en.md CHANGELOG.md getting-started.md support-matrix.md docs plugins BUILD.txt
 )
 (
   cd "$release_output"

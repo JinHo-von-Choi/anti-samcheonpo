@@ -2,7 +2,10 @@
 // produces and every detector consumes.
 package event
 
-import "time"
+import (
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/verification"
+	"time"
+)
 
 // Kind is the coarse type of an event.
 type Kind string
@@ -74,21 +77,22 @@ func (u *Usage) Add(o Usage) {
 
 // Event is one normalized occurrence in an agent session.
 type Event struct {
-	Execution          *Execution            `json:"execution,omitempty"`
-	ResearchSources    []ResearchSource      `json:"research_sources,omitempty"`
-	ActionFP           string                `json:"action_fp,omitempty"`
-	ResearchLinks      []ResearchLink        `json:"research_links,omitempty"`
-	ResultObserved     bool                  `json:"result_observed,omitempty"`
-	RequirementChanges []RequirementChange   `json:"requirement_changes,omitempty"`
-	PromptOrigin       string                `json:"prompt_origin,omitempty"`
-	ObservationFP      string                `json:"observation_fp,omitempty"`
-	Requirements       []RequirementProgress `json:"requirements,omitempty"`
-	Decisions          []Decision            `json:"decisions,omitempty"`
-	WorkProgress       WorkProgress          `json:"work_progress,omitempty"`
-	BehaviorSelection  string                `json:"behavior_selection,omitempty"`
-	BehaviorContext    string                `json:"behavior_context,omitempty"`
-	BehaviorTarget     string                `json:"behavior_target,omitempty"`
-	BehaviorResult     string                `json:"behavior_result,omitempty"`
+	Verification       *verification.Observation `json:"verification,omitempty"`
+	Execution          *Execution                `json:"execution,omitempty"`
+	ResearchSources    []ResearchSource          `json:"research_sources,omitempty"`
+	ActionFP           string                    `json:"action_fp,omitempty"`
+	ResearchLinks      []ResearchLink            `json:"research_links,omitempty"`
+	ResultObserved     bool                      `json:"result_observed,omitempty"`
+	RequirementChanges []RequirementChange       `json:"requirement_changes,omitempty"`
+	PromptOrigin       string                    `json:"prompt_origin,omitempty"`
+	ObservationFP      string                    `json:"observation_fp,omitempty"`
+	Requirements       []RequirementProgress     `json:"requirements,omitempty"`
+	Decisions          []Decision                `json:"decisions,omitempty"`
+	WorkProgress       WorkProgress              `json:"work_progress,omitempty"`
+	BehaviorSelection  string                    `json:"behavior_selection,omitempty"`
+	BehaviorContext    string                    `json:"behavior_context,omitempty"`
+	BehaviorTarget     string                    `json:"behavior_target,omitempty"`
+	BehaviorResult     string                    `json:"behavior_result,omitempty"`
 	// Reliability contains harness observations, never model self-reports.
 	Reliability *Reliability `json:"reliability,omitempty"`
 	SessionID   string       `json:"session_id"`

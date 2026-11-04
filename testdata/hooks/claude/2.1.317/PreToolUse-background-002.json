@@ -1,0 +1,18 @@
+{
+  "session_id": "session_id-background-1",
+  "transcript_path": "/fixture/background-transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "4c30776e-19c3-4de5-99df-0fcd0d623d7f",
+  "permission_mode": "default",
+  "effort": {
+    "level": "medium"
+  },
+  "hook_event_name": "PreToolUse",
+  "tool_name": "Bash",
+  "tool_input": {
+    "command": "sleep 2; printf late-done",
+    "description": "Sleep briefly then print a marker",
+    "run_in_background": true
+  },
+  "tool_use_id": "tool_use_id-background-2"
+}

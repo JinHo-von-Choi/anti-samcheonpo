@@ -25,7 +25,7 @@ func (d *DB) SaveRecovery(a recovery.Attempt) error {
 		if err = json.Unmarshal([]byte(raw), &old); err != nil {
 			return err
 		}
-		if old.Agent != a.Agent || old.SessionID != a.SessionID || old.Revision != a.Revision || old.CauseKey != a.CauseKey || old.VerdictID != a.VerdictID || old.Seq != a.Seq || old.Rule != a.Rule || old.Prescription != a.Prescription || old.Route != a.Route || !old.CreatedAt.Equal(a.CreatedAt) {
+		if old.PolicyVersion != a.PolicyVersion || old.Experiment != a.Experiment || old.Agent != a.Agent || old.SessionID != a.SessionID || old.Revision != a.Revision || old.CauseKey != a.CauseKey || old.VerdictID != a.VerdictID || old.Seq != a.Seq || old.Rule != a.Rule || old.Prescription != a.Prescription || old.Route != a.Route || !old.CreatedAt.Equal(a.CreatedAt) {
 			return errors.New("recovery identity conflict")
 		}
 		for _, pair := range [][2]*time.Time{{old.EmittedAt, a.EmittedAt}, {old.DeliveredAt, a.DeliveredAt}, {old.AcknowledgedAt, a.AcknowledgedAt}} {

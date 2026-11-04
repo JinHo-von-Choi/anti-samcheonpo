@@ -58,9 +58,12 @@ type Signal struct {
 
 // Engine runs all detectors over a session's events.
 type Engine struct {
-	Research      *research.Tracker
-	learned       *rulepack.Matcher
-	learnedDigest string
+	// VerificationStart is the durable start of a replacement goal. Followups
+	// retain earlier obligations; cancelled/superseded goals do not hold it open.
+	VerificationStart time.Time
+	Research          *research.Tracker
+	learned           *rulepack.Matcher
+	learnedDigest     string
 	// learnedTier is the grade of evidence behind the learned rules.
 	learnedTier string
 	behavior    *behaviorState
@@ -134,6 +137,7 @@ type State struct {
 	highWater      map[string]int
 	created        map[string]bool
 	explore        []int64
+	exploreActive  time.Duration
 	lastProduceTS  time.Time
 	sessionStart   time.Time
 	readCount      map[string]int
@@ -358,10 +362,12 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 		if ev.Forced {
 			e.forcedTurn(ev, &sigs)
 		} else {
-			st.lastPromptSeq = ev.Seq
+			if !intent.ConversationOnly(ev.Text) {
+				st.lastPromptSeq = ev.Seq
+			}
 			// live sessions record later requests through the intent ledger;
 			// a replayed session has only its prompts
-			if e.Mode == "audit" && ev.PromptOrigin != "agent" && strings.TrimSpace(ev.Text) != strings.TrimSpace(e.FirstPrompt) && !strings.HasPrefix(strings.TrimSpace(ev.Text), "/") {
+			if e.Mode == "audit" && ev.PromptOrigin != "agent" && intent.ClassifyChange(intent.User, ev.Text, true).Kind != intent.Ignored && strings.TrimSpace(ev.Text) != strings.TrimSpace(e.FirstPrompt) && !strings.HasPrefix(strings.TrimSpace(ev.Text), "/") {
 				e.AddRequest(ev.Text)
 			}
 		}
@@ -441,7 +447,7 @@ func (e *Engine) nondeterministic(norm string) bool {
 // its end. One started in the background exits at launch, so its status is
 // not a result.
 func ExecutedVerify(ev *event.Event) bool {
-	return ev.Category == event.CatVerify && ev.ExitCode != nil && *ev.ExitCode != -1 && !ev.Background
+	return ev.Category == event.CatVerify && ev.ExitCode != nil && *ev.ExitCode >= 0 && !ev.Background
 }
 
 // failing reports a failed run. A check whose exit status a trailing read
@@ -1160,6 +1166,7 @@ func (e *Engine) InScope(rel string) (in, known bool) { return e.inScope(rel) }
 func (e *Engine) Retarget(goal string) {
 	e.FirstPrompt = goal
 	e.Requests = nil
+	e.resetExploration()
 	st := e.St
 	if st.scopeKnown {
 		return
@@ -1170,23 +1177,28 @@ func (e *Engine) Retarget(goal string) {
 	st.compacted = false
 }
 
-// maxRequests bounds the later requests one task keeps.
-const maxRequests = 20
-
 // AddRequest records a later user request for the current task.
 func (e *Engine) AddRequest(text string) {
 	text = strings.TrimSpace(text)
-	if text == "" {
+	if text == "" || intent.ConversationOnly(text) {
 		return
 	}
-	if len(e.Requests) >= maxRequests {
-		e.Requests = e.Requests[1:]
-	}
 	e.Requests = append(e.Requests, text)
+	e.resetExploration()
 	if !e.St.scopeKnown {
 		// a later request widens the guessed scope; it never narrows it
 		e.St.allowGuess = e.guessedScope(e.RequestText())
 	}
+}
+
+func (e *Engine) resetExploration() {
+	if e.St == nil {
+		return
+	}
+	e.St.explore = nil
+	e.St.exploreActive = 0
+	e.St.lastProduceTS = time.Time{}
+	e.Research = nil
 }
 
 // LatestRequest is the user's most recent request for the current task.
@@ -1335,7 +1347,13 @@ func (e *Engine) testBloat(ev *event.Event, sigs *[]Signal) {
 
 func (e *Engine) exploration(ev *event.Event, sigs *[]Signal) {
 	st := e.St
+	if len(st.explore) == 0 {
+		st.exploreActive = 0
+	}
 	st.explore = append(st.explore, ev.Seq)
+	if ev.DurationMS > 0 && !ev.Background {
+		st.exploreActive += time.Duration(ev.DurationMS) * time.Millisecond
+	}
 	for _, p := range ev.Paths {
 		if ev.Tool != event.ToolRead && !(ev.Tool == event.ToolShell && p != "") {
 			continue
@@ -1349,13 +1367,11 @@ func (e *Engine) exploration(ev *event.Event, sigs *[]Signal) {
 	if (e.Contract != nil && e.Contract.Explore) || (e.Contract == nil && IsExploreTask(e.LatestRequest())) {
 		return
 	}
-	long := false
-	if !ev.TS.IsZero() && !st.lastProduceTS.IsZero() && len(st.explore) >= 5 {
-		long = ev.TS.Sub(st.lastProduceTS) >= time.Duration(e.Cfg.Detectors.S4.MaxMinutes)*time.Minute
-	}
+	// Wall time between turns includes user idle time, not observed work.
+	long := len(st.explore) >= 5 && st.exploreActive >= time.Duration(e.Cfg.Detectors.S4.MaxMinutes)*time.Minute
 	if len(st.explore) >= e.threshold("s4.read_only_streak", e.Cfg.Detectors.S4.MaxReads) || long {
 		e.add(sigs, Signal{Detector: "S4", Rule: "s4.read_only_streak", Confidence: 0.75, Level: L1, Evidence: append([]int64(nil), st.explore...),
-			Facts: map[string]any{"count": len(st.explore), "minutes": minutesSince(st.lastProduceTS, ev.TS)}})
+			Facts: map[string]any{"count": len(st.explore), "minutes": int(st.exploreActive / time.Minute), "time_basis": "observed_tool_duration"}})
 		st.explore = nil
 		st.lastProduceTS = ev.TS
 	}
@@ -1737,6 +1753,12 @@ func (e *Engine) recoveryCheck(ev *event.Event) bool {
 	lf, ok := st.lastFail[runID(ev)]
 	if !ok || !(fp.External(lf.class) || lf.class == fp.FailTransient) {
 		return false
+	}
+	// The pre-hook anticipates the nudge threshold by one call. That initial
+	// observation must not spend the later environmental recovery probe before
+	// the warning has even been emitted.
+	if ent := st.verify[runID(ev)+"|"+ev.WSBefore]; ent != nil && ent.count < e.threshold("s1.identical_rerun", e.Cfg.Detectors.S1.RepeatNudgeAt) {
+		return true
 	}
 	key := lf.class + "|" + runID(ev)
 	if st.recoveryUsed[key] {

@@ -1,0 +1,46 @@
+{
+  "status": "sdk_and_daemon_bridge_verified",
+  "runtime_capture": true,
+  "sdk_execution_verified": true,
+  "sdk_versions": {
+    "deepagents": "0.7.32",
+    "langchain": "1.4.8",
+    "langchain_core": "1.7.4",
+    "langgraph": "1.2.19"
+  },
+  "model": "deterministic local ScriptedModel; no provider effectiveness claim",
+  "verified": [
+    "sync_pre_deny",
+    "async_pre_deny",
+    "real_filesystem_side_effect_prevention",
+    "post_context",
+    "exception_propagation",
+    "session_start",
+    "user_prompt",
+    "stop_observation",
+    "explicit_session_close",
+    "bounded_stop_continuation",
+    "usage_metadata_with_cache_breakdown",
+    "parallel_declarative_child_lineage",
+    "default_general_purpose_instrumentation",
+    "real_daemon_child_pre_deny",
+    "parent_budget_enforced_in_child",
+    "monitor_failure_prevents_execution",
+    "original_tool_error_preserved_if_reporting_fails"
+  ],
+  "model_or_permission_settings_changed": false,
+  "unsupported": [
+    "unconfigured_precompiled_graphs",
+    "uninstrumented_remote_graphs",
+    "provider_model_effectiveness"
+  ],
+  "reference": "https://docs.langchain.com/oss/python/langchain/middleware",
+  "sdk_test_cases": 26,
+  "capabilities": {
+    "block_pre": true,
+    "inject_post": true,
+    "block_stop": true,
+    "child_tool_identity": true,
+    "block_child_stop": true
+  }
+}

@@ -1,0 +1,9 @@
+{
+  "session_id": "session_id-1",
+  "transcript_path": "/fixture/transcript.jsonl",
+  "cwd": "/w/proj",
+  "prompt_id": "prompt_id-1",
+  "permission_mode": "default",
+  "hook_event_name": "UserPromptSubmit",
+  "prompt": "This is an isolated interruption probe. Do not delegate, use MCP, or read outside this directory. Run `printf before-interrupt; sleep 30; printf unexpected-end` once in the foreground. Do not restart it if interrupted. Finish only after it returns."
+}

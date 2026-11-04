@@ -1,0 +1,11 @@
+{
+  "session_id": "session_id-background-1",
+  "turn_id": "turn_id-background-2",
+  "transcript_path": null,
+  "cwd": "/w/proj",
+  "hook_event_name": "Stop",
+  "model": "gpt-6-astra",
+  "permission_mode": "bypassPermissions",
+  "stop_hook_active": false,
+  "last_assistant_message": "Background conformance probe finished."
+}

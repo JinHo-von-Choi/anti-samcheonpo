@@ -37,6 +37,18 @@ func timeoutFor(event, agent string) time.Duration {
 			return 2500 * time.Millisecond
 		}
 	}
+	if agent == "deepagents" {
+		// SDK middleware has no native 15ms CLI limit. Wait for an actual
+		// decision; its host raises on transport failure instead of approving.
+		switch event {
+		case "Stop":
+			return 150 * time.Second
+		case "SessionStart", "SessionEnd":
+			return 2500 * time.Millisecond
+		default:
+			return 500 * time.Millisecond
+		}
+	}
 	if agent == "mcode" {
 		// MiniMax Code runs each hook as a process and waits for it up to the
 		// timeoutSeconds the hooks file states, so a pre tool answer can take
@@ -62,7 +74,7 @@ func timeoutFor(event, agent string) time.Duration {
 	switch event {
 	case "PreToolUse":
 		return 15 * time.Millisecond
-	case "Stop":
+	case "Stop", "SubagentStop":
 		return 150 * time.Second
 	case "SessionEnd":
 		if agent == "claude" {

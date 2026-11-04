@@ -219,7 +219,7 @@ func (s *Session) ironLawsSignals(ev *event.Event, p string, fs []IronLawsFindin
 		if f.Severity != "HIGH" && f.Severity != "CRITICAL" {
 			level = detect.L0
 		}
-		sigs = append(sigs, detect.Signal{Detector: "S5", Rule: "s5.error_hiding", Confidence: conf, Level: level, Evidence: []int64{ev.Seq}, Facts: map[string]any{"kind": "iron_laws:" + f.RuleID, "path": p, "line": f.Line, "source": "iron-laws", "finding_key": key, "attribution": "changed_line"}})
+		sigs = append(sigs, detect.Signal{Detector: "S5", Rule: "s5.error_hiding", Estimate: true, Confidence: conf, Level: level, Evidence: []int64{ev.Seq}, Facts: map[string]any{"kind": "iron_laws:" + f.RuleID, "path": p, "line": f.Line, "source": "iron-laws", "finding_key": key, "attribution": "changed_line", "evidence_strength": "static_candidate"}})
 	}
 	for i := range sigs {
 		sigs[i].Facts["finding_count"] = len(sigs)
