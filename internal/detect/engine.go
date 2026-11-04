@@ -916,7 +916,7 @@ func (e *Engine) production(ev *event.Event, sigs *[]Signal) {
 	st.writes++
 	st.lastWriteSeq = ev.Seq
 	for _, p := range ev.Paths {
-		if !IsDocPath(p) && !IsDataPath(p) {
+		if !IsDocPath(p) && !IsDataPath(p) && !IsToolStatePath(p) {
 			st.lastCodeWriteSeq = ev.Seq
 			st.codeWritten = true
 			if !pathnorm.IsTempPath(p) {
@@ -1322,7 +1322,7 @@ func (e *Engine) bypass(ev *event.Event, sigs *[]Signal) {
 // createdCode reports whether the session, up to ev, created a code or
 // test file, which a feature added in the session brings.
 func (e *Engine) createdCode(ev *event.Event) bool {
-	code := func(p string) bool { return !IsDataPath(p) && !IsDocPath(p) }
+	code := func(p string) bool { return !IsDataPath(p) && !IsDocPath(p) && !IsToolStatePath(p) }
 	for p := range e.St.created {
 		if code(p) {
 			return true
@@ -1393,6 +1393,26 @@ var buildData = lazyre.New(`(?i)(^|/)(package|composer|deno|angular|project|app|
 // configure a build are not data in this sense.
 func IsDataPath(p string) bool {
 	return dataExt[strings.ToLower(path.Ext(p))] && !buildData.MatchString(p)
+}
+
+// toolStateDirs are directories an IDE, a package manager or a build tool
+// writes for itself. A change under one is not work a check can verify.
+var toolStateDirs = []string{".idea", ".vscode", ".gradle", "node_modules", "target", "dist", "__pycache__", ".pytest_cache"}
+
+// IsToolStatePath reports editor, tool and build-output state (.idea/*,
+// *.iml, node_modules/*, target/*): writing one changes no code a check
+// verifies, so it neither counts as progress nor holds a turn end.
+func IsToolStatePath(p string) bool {
+	p = strings.TrimPrefix(path.Clean(strings.ReplaceAll(p, "\\", "/")), "./")
+	if strings.EqualFold(path.Ext(p), ".iml") || strings.HasSuffix(p, ".pyc") {
+		return true
+	}
+	for _, seg := range strings.Split(path.Dir(p), "/") {
+		if slices.Contains(toolStateDirs, seg) {
+			return true
+		}
+	}
+	return false
 }
 
 // IsDocPath reports documentation files (writing them does not invalidate a verification).
@@ -1930,6 +1950,9 @@ func (s *State) LastVerifyFailing() bool { return s.lastVerify != nil && failing
 // made to the work itself, or 0 when it changed nothing. A verification
 // after this sequence covers the work as it stands.
 func (s *State) LastProductionWrite() int64 { return s.lastProdWriteSeq }
+
+// LastProductionPath is the production file the last such write changed.
+func (s *State) LastProductionPath() string { return s.lastProdPath }
 
 // Produced reports whether the session wrote anything.
 func (s *State) Produced() bool { return s.writes > 0 }

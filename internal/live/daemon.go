@@ -833,6 +833,12 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		} else {
 			delete(s.advised, s.adviceKey(*v)) // "just this once": advise again before blocking
 		}
+		gate := label != "false_positive" && stopGateRule(v.Rule)
+		if gate {
+			// a held turn end is not advice: "just this once" lets the next
+			// held end through, and the gate judges the one after afresh
+			s.stopPassOnce = true
+		}
 		s.mu.Unlock()
 		target, _ := v.Facts["path"].(string)
 		if target == "" {
@@ -844,6 +850,9 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		}
 		if label == "false_positive" {
 			return fmt.Sprintf("'%s' 판정을 오탐으로 기록했다. %s 같은 판정은 다시 막지 않는다. 다른 대상이나 새 목표에는 적용되지 않고, 보호 경로와 예산 제한은 그대로다. 같은 판정이 이 프로젝트에서 3번 오탐으로 기록되면 기준을 한 단계 올린다.", receipt.Describe(*v), scope), nil
+		}
+		if gate {
+			return "다음 종료 한 번은 보류하지 않는다. 그 뒤의 종료는 다시 판정한다.", nil
 		}
 		return "이번 한 번만 넘어간다. 같은 일이 다시 생기면 막기 전에 먼저 안내한다.", nil
 	case "steer":

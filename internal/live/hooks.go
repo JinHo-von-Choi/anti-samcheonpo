@@ -1135,6 +1135,12 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 		s.mu.Unlock()
 		user = strings.TrimSpace(user + fmt.Sprintf("\nAI가 끝났다고 했지만 완료 조건 %d개 중 %d개가 실패한 상태입니다.", total, total-met))
 	}
+	s.mu.Lock()
+	if s.stopNotice != "" {
+		user = strings.TrimSpace(user + "\n" + s.stopNotice)
+		s.stopNotice = ""
+	}
+	s.mu.Unlock()
 	if user != "" {
 		out["systemMessage"] = user
 	}

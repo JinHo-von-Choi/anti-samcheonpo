@@ -29,6 +29,23 @@ func CoversPathAt(command, changed, root, dir string) bool {
 	return CoversPath(command, filepath.ToSlash(rel))
 }
 
+// judgedPrograms are the programs CoversPath relates to changed paths.
+var judgedPrograms = map[string]bool{"go": true, "pytest": true, "pytest-3": true, "python": true, "python3": true, "node": true, "ruby": true, "cargo": true, "npm": true, "pnpm": true, "yarn": true, "bun": true}
+
+// Judges reports whether CoversPath can relate the command to a changed path
+// at all. When it cannot (a build tool it does not model, shell composition),
+// its "false" means "unknown", not "unrelated".
+func Judges(command string) bool {
+	if strings.ContainsAny(command, ";|&`\n<>") || strings.Contains(command, "$(") {
+		return false
+	}
+	f := strings.Fields(command)
+	for len(f) > 0 && strings.Contains(f[0], "=") {
+		f = f[1:]
+	}
+	return len(f) > 0 && judgedPrograms[path.Base(f[0])]
+}
+
 // CoversPath is a conservative relationship, not proof of test quality. Unknown
 // scripts, shell composition, package aliases and selectors require explicit
 // accepted checks. A path merely appearing in echo/cat is not verification.
