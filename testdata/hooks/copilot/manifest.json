@@ -35,7 +35,7 @@
       "sha256": "69a49ec5d7383951a9dd9a4a85e26435474aca70b4a1bb8d6396f560667dfe4c"
     },
     {
-      "file": "SessionStart.json",
+      "file": "vscode-SessionStart.json",
       "hook_event_name": "SessionStart",
       "sha256": "58f83dc19a96a3b05efd58107f4f3233a5fc7f0a36cc3322fd743c37e99e75a3"
     },
@@ -60,7 +60,7 @@
       "sha256": "1001511d6950b2498491abad9dac8217d30b9c427548414a635466be167f0669"
     },
     {
-      "file": "PreToolUse.json",
+      "file": "vscode-PreToolUse.json",
       "hook_event_name": "PreToolUse",
       "sha256": "8fcf7364afe7467310507ceaf7221380a610577d8fee4d186b113a69659a4380"
     },
@@ -90,7 +90,7 @@
       "sha256": "073ee90a0421ce8cbfffbff0b6e46483c4d3c6c54c9a3ac957cf97fe1f2a9f46"
     },
     {
-      "file": "PostToolUse.json",
+      "file": "vscode-PostToolUse.json",
       "hook_event_name": "PostToolUse",
       "sha256": "c9fdceded67de4935bb0b3069bcee1f3c233f248f4f066fa66f7233da4963e9f"
     },
@@ -120,7 +120,7 @@
       "sha256": "12c139804de3364fc98bcf56c31c44922bfbed88d105311f94265c071de23c18"
     },
     {
-      "file": "SessionEnd.json",
+      "file": "vscode-SessionEnd.json",
       "hook_event_name": "SessionEnd",
       "sha256": "39f214a011d958a5c851d3af565ef4b202e08e8d544e228f17ca3ca319e4524a"
     },

@@ -42,7 +42,9 @@ jobs:
         with:
           go-version-file: go.mod
       - name: gofmt
-        run: test -z "$(gofmt -l cmd internal plugins)"
+        run: |
+          python3 scripts/check-repository-paths.py
+          test -z "$(gofmt -l cmd internal plugins)"
       - name: vet
         run: go vet ./...
       - name: test

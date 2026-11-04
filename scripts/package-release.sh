@@ -7,6 +7,11 @@ if [ "$#" -ne 2 ]; then
 fi
 release_version=$1
 release_output=$2
+if ! git diff --quiet HEAD --; then
+  echo 'release source tree differs from HEAD' >&2
+  git diff --name-status HEAD -- >&2
+  exit 1
+fi
 case "$release_version" in ''|*[!A-Za-z0-9._-]*) echo 'invalid version' >&2; exit 2;; esac
 if [ "${#release_version}" -gt 64 ]; then echo 'version too long' >&2; exit 2; fi
 release_os=$(go env GOOS)
@@ -63,7 +68,13 @@ done
   printf 'toolchain=%s\n' "$(go version)"
   printf 'hook_transport=%s\n' "$hook_impl"
   if [ "$hook_impl" = "rust" ]; then printf 'hook_toolchain=%s\n' "$(cargo --version)"; fi
-  if git diff --quiet HEAD --; then printf 'tracked_worktree=clean\n'; else printf 'tracked_worktree=modified\n'; fi
+  if git diff --quiet HEAD --; then
+    printf 'tracked_worktree=clean\n'
+  else
+    echo 'release sources changed during verification' >&2
+    git diff --name-status HEAD -- >&2
+    exit 1
+  fi
   printf 'verification=native install/uninstall, offline audit, basic hook smoke\n'
   printf 'publication=not performed\n'
 } > "$release_stage/BUILD.txt"
