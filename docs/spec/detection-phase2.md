@@ -50,4 +50,4 @@ samcheonpo rules promote proposal.json --labels labels --split split.json --inst
 
 ## 효과 검증
 
-합성 라벨과 네이티브 로그 재생은 구현의 정확한 동작을 검사한다. 사람 독립 라벨 코퍼스의 실사용 오탐률·완료율·총비용 절감률을 입증하지 않는다. 검증 명령과 환경 제약은 [2차 검증 기록](../benchmarks/2026-10-12-phase2-validation.md)에 남긴다.
+합성 라벨과 네이티브 로그 재생은 구현의 정확한 동작을 검사한다. 사람 독립 라벨 코퍼스의 실사용 오탐률·완료율·총비용 절감률을 입증하지 않는다.

@@ -197,7 +197,7 @@ experiment:
 
 켜면 세션마다 안내 문구 유형을 같은 확률로 배정합니다. `none`과 `fact`는 상황을 설명하고, `prescription`은 다음 행동을 함께 안내합니다. 보호 경로와 예산은 어느 유형에서도 동일하게 적용됩니다. 프로젝트 설정에서는 실험을 끌 수 있습니다.
 
-`samcheonpo outcomes --by-arm`으로 문구 유형별 후속 행동을 비교합니다. 평가 절차와 통계 출력은 [실험 보고서 양식](benchmarks/report-template.md)에 있습니다.
+`samcheonpo outcomes --by-arm`으로 문구 유형별 후속 행동을 비교합니다. 기간과 관측 구간은 해당 명령의 `--help`에서 확인합니다.
 
 ## 사용자 전용 명령
 

@@ -12,7 +12,7 @@ import (
 )
 
 // Version is set alongside the main CLI version by release builds.
-var Version = "0.11.0"
+var Version = "0.11.1"
 
 type versionBytes struct{ bytes.Buffer }
 

@@ -74,7 +74,7 @@ python3 scripts/probe_native_hooks.py run \
 
 실행 인자는 각 명령의 `--help`로 확인합니다. 모델 비교 실행의 설정 예시는 [bench/ab.example.yml](../bench/ab.example.yml)에 있습니다. `bench ab`는 모델 사용량을 발생시킵니다.
 
-평가할 때는 같은 과제와 실행 조건으로 비교하고, 과제 채점·사용량·경고 뒤 행동을 함께 기록합니다. 과제와 표본 구성은 [실험 프로토콜](benchmarks/protocol-v1.md), 사용자 판단 수집은 [검토 절차](benchmarks/codex-human-review-protocol.md)를 따릅니다.
+평가할 때는 같은 과제와 실행 조건으로 비교하고, 과제 채점·사용량·경고 뒤 행동을 함께 기록합니다. 검토 자료는 `eval prepare-review`로 만들고, 답변을 모은 뒤 `eval compare`로 비교합니다. 세부 옵션은 각 명령의 `--help`를 확인하세요.
 
 ## 릴리즈 절차
 
@@ -87,7 +87,7 @@ python3 scripts/probe_native_hooks.py run \
 현재 플랫폼의 패키지만 만들 때는 버전과 새 출력 폴더를 지정합니다.
 
 ```sh
-sh scripts/package-release.sh 0.11.0 ./release-out
+sh scripts/package-release.sh 0.11.1 ./release-out
 ```
 
 패키지에는 실행 파일과 배포용 자료를 담습니다. 개인 원장과 인증 자료는 작업 환경에 보관합니다.
