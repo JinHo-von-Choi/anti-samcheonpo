@@ -471,3 +471,44 @@ def test_reporting_failure_does_not_replace_original_tool_exception(tmp_path,asy
         asyncio.run(agent.ainvoke(request)) if asynchronous else agent.invoke(request)
     assert any("MonitorUnavailable" in note for note in raised.value.__notes__)
     middleware.close()
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_unverified_completion_notice_is_returned_and_cleared(tmp_path, asynchronous):
+    stops = []
+
+    def probe_write(value: str) -> str:
+        """Return the probe value."""
+        return value
+
+    def transport(event, payload):
+        if event == "Stop":
+            stops.append(payload)
+            return {"completion_notice": "unverified end"} if len(stops) == 1 else {}
+        return {}
+
+    middleware = module.create_middleware("completion-notice", str(tmp_path), transport)
+    agent = create_deep_agent(model=ScriptedModel(), tools=[probe_write], middleware=[middleware])
+    request = {"messages": [{"role": "user", "content": "Run the probe."}]}
+    first = asyncio.run(agent.ainvoke(request)) if asynchronous else agent.invoke(request)
+    assert first["samcheonpo_completion_notice"] == "unverified end"
+    second = asyncio.run(agent.ainvoke(request)) if asynchronous else agent.invoke(request)
+    assert second["samcheonpo_completion_notice"] == ""
+    middleware.close()
+
+
+@pytest.mark.parametrize("asynchronous", [False, True])
+def test_real_daemon_bounded_stop_returns_unverified_notice(tmp_path, monkeypatch, asynchronous):
+    with running_real_monitor(tmp_path, monkeypatch):
+        agent = module.create_monitored_agent(
+            session_id="bounded-notice", root=str(tmp_path),
+            model=ScriptedModel(tool_name="write_file", tool_args={"file_path": "/calc.py", "content": "value = 1\n"}),
+            backend=FilesystemBackend(root_dir=str(tmp_path), virtual_mode=True),
+        )
+        try:
+            request = {"messages": [{"role": "user", "content": "Implement the calculation."}]}
+            result = asyncio.run(agent.ainvoke(request)) if asynchronous else agent.invoke(request)
+            assert "미검증" in result["samcheonpo_completion_notice"]
+            assert (tmp_path / "calc.py").read_text() == "value = 1\n"
+        finally:
+            agent.close()

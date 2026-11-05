@@ -1136,13 +1136,23 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 		user = strings.TrimSpace(user + fmt.Sprintf("\nAI가 끝났다고 했지만 완료 조건 %d개 중 %d개가 실패한 상태입니다.", total, total-met))
 	}
 	s.mu.Lock()
+	notice := s.stopNotice
 	if s.stopNotice != "" {
-		user = strings.TrimSpace(user + "\n" + s.stopNotice)
+		if s.caps.UserMessage {
+			user = strings.TrimSpace(user + "\n" + notice)
+		} else {
+			// These hosts have no user-message field in their Stop response.
+			// Use the existing user-configured notification channel instead.
+			s.notifier.Send("삼천포", notice)
+		}
 		s.stopNotice = ""
 	}
 	s.mu.Unlock()
 	if user != "" {
 		out["systemMessage"] = user
+	}
+	if notice != "" && s.Agent == "deepagents" {
+		out["completion_notice"] = notice
 	}
 	s.storeSnapshot()
 	return hookOut(out)

@@ -310,7 +310,14 @@ func (e *Engine) PassedUnjudgedSince(seq int64) bool {
 	evs := e.St.Events
 	for i := len(evs) - 1; i >= 0 && evs[i].Seq > seq; i-- {
 		ev := evs[i]
-		if ExecutedVerify(ev) && !failing(ev) && !ev.IsError && len(ev.FailedTests) == 0 && !verification.EmptyTestRun(ev.Text) && !verification.Judges(cmdOf(ev)) {
+		if !ExecutedVerify(ev) {
+			continue
+		}
+		// An older pass cannot release work whose later check failed.
+		if failing(ev) || ev.IsError || len(ev.FailedTests) > 0 || ev.Verification != nil && ev.Verification.State != "passed" {
+			return false
+		}
+		if !verification.EmptyTestRun(ev.Text) && !verification.Judges(cmdOf(ev)) {
 			return true
 		}
 	}

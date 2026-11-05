@@ -1397,7 +1397,7 @@ func IsDataPath(p string) bool {
 
 // toolStateDirs are directories an IDE, a package manager or a build tool
 // writes for itself. A change under one is not work a check can verify.
-var toolStateDirs = []string{".idea", ".vscode", ".gradle", "node_modules", "target", "dist", "__pycache__", ".pytest_cache"}
+var toolStateDirs = []string{".idea", ".vscode", ".gradle", "node_modules", "__pycache__", ".pytest_cache"}
 
 // IsToolStatePath reports editor, tool and build-output state (.idea/*,
 // *.iml, node_modules/*, target/*): writing one changes no code a check
@@ -1405,6 +1405,11 @@ var toolStateDirs = []string{".idea", ".vscode", ".gradle", "node_modules", "tar
 func IsToolStatePath(p string) bool {
 	p = strings.TrimPrefix(path.Clean(strings.ReplaceAll(p, "\\", "/")), "./")
 	if strings.EqualFold(path.Ext(p), ".iml") || strings.HasSuffix(p, ".pyc") {
+		return true
+	}
+	// Generic names are build outputs only at the workspace root. A source
+	// package such as src/target or internal/dist still needs verification.
+	if first, _, nested := strings.Cut(p, "/"); nested && (first == "target" || first == "dist") {
 		return true
 	}
 	for _, seg := range strings.Split(path.Dir(p), "/") {
