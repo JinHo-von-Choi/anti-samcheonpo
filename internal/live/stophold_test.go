@@ -32,9 +32,9 @@ func feedCheck(t *testing.T, s *Session, id, cmd string, exit int) {
 }
 
 // A turn that ends on an unverified change is held with the next step, and
-// it stays held until a check passes. The hold is a gate, not a warning:
-// neither the host asking again nor the same evidence coming back releases
-// it, because the state the hold names is still true.
+// it stays held until a check passes or the hold bound runs out. The host
+// asking again does not release it; the same work held MaxStopHolds times
+// with no change in between ends unverified, and the user is told so.
 func TestStopHoldsUnverifiedTurnEndUntilACheckPasses(t *testing.T) {
 	s, _ := reliabilitySession(t)
 	s.onPrompt(HookInput{Prompt: "로그인 기능 만들어 줘"})
@@ -48,13 +48,19 @@ func TestStopHoldsUnverifiedTurnEndUntilACheckPasses(t *testing.T) {
 	if out := string(s.onStop(HookInput{LastMessage: last, StopHookActive: true})); !strings.Contains(out, `"decision":"block"`) {
 		t.Fatalf("the host asking again released the gate: %s", out)
 	}
-	if out := string(s.onStop(HookInput{LastMessage: last})); !strings.Contains(out, `"decision":"block"`) {
-		t.Fatalf("the same evidence released the gate: %s", out)
+	out = string(s.onStop(HookInput{LastMessage: last}))
+	if strings.Contains(out, `"decision":"block"`) || !strings.Contains(out, "2번 보류") || !strings.Contains(out, "auth/login.go") {
+		t.Fatalf("the hold bound did not let the unchanged work end unverified: %s", out)
 	}
 	// one intervention for the evidence, however often the agent asks to end
 	var blocked int
 	if err := s.db.QueryRow(`SELECT COUNT(*) FROM intervention WHERE session_id=? AND rule=? AND blocked=1`, s.ID, detect.RuleAbandonedVerification).Scan(&blocked); err != nil || blocked != 1 {
 		t.Fatalf("hold not recorded once: %d %v", blocked, err)
+	}
+	// a new change is new work: the gate holds it afresh
+	feedWrite(t, s, "w2", "auth/login.go")
+	if out := string(s.onStop(HookInput{LastMessage: last})); !strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("a new change was not held: %s", out)
 	}
 	// a check that fails keeps the gate shut
 	feedCheck(t, s, "t1", "go test ./...", 1)
@@ -65,6 +71,85 @@ func TestStopHoldsUnverifiedTurnEndUntilACheckPasses(t *testing.T) {
 	feedCheck(t, s, "t2", "go test ./...", 0)
 	if out := string(s.onStop(HookInput{LastMessage: last, StopHookActive: true})); strings.Contains(out, `"decision":"block"`) {
 		t.Fatalf("held after the check passed: %s", out)
+	}
+}
+
+// MaxStopHolds 0 keeps the strict gate: no bound, held until a check passes.
+func TestStopHoldWithoutBoundStaysShut(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	s.mu.Lock()
+	s.Cfg.Levels.MaxStopHolds = 0
+	s.mu.Unlock()
+	s.onPrompt(HookInput{Prompt: "로그인 기능 만들어 줘"})
+	feedWrite(t, s, "w1", "auth/login.go")
+	for i := 0; i < 5; i++ {
+		if out := string(s.onStop(HookInput{LastMessage: "구현했습니다.", StopHookActive: i > 0})); !strings.Contains(out, `"decision":"block"`) {
+			t.Fatalf("stop %d released an unbounded gate: %s", i, out)
+		}
+	}
+}
+
+// A check the agent ran after the change, that samcheonpo cannot relate to
+// the changed file (a Gradle build), is not "no verification": the end is
+// let through as unverified instead of held.
+func TestStopHoldLetsAnUnrelatedPassingCheckEnd(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	s.onPrompt(HookInput{Prompt: "회원 서비스 고쳐 줘"})
+	feedWrite(t, s, "w1", "src/main/java/app/MemberService.java")
+	feedCheck(t, s, "t1", "./gradlew build", 0)
+	out := string(s.onStop(HookInput{LastMessage: "수정했고 빌드가 통과합니다."}))
+	if strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("a passing build the gate cannot relate held the turn: %s", out)
+	}
+	if !strings.Contains(out, "연결할 수 없었습니다") || !strings.Contains(out, "MemberService.java") {
+		t.Fatalf("the unverified end was not told to the user: %s", out)
+	}
+}
+
+// A piped run is the same: its exit status is not the check's, so the
+// coverage model cannot judge it, and a pass lets the end through unverified.
+func TestStopHoldLetsAPipedPassingCheckEnd(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	s.onPrompt(HookInput{Prompt: "계산 버그 고쳐 줘"})
+	feedWrite(t, s, "w1", "calc.py")
+	feedCheck(t, s, "t1", "pytest -q | tail -3", 0)
+	if out := string(s.onStop(HookInput{LastMessage: "고쳤습니다."})); strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("a passing piped run held the turn: %s", out)
+	}
+}
+
+// Editor and build-tool state is not work a check verifies: changing it
+// alone neither holds the turn end nor marks the work unverified.
+func TestStopDoesNotHoldOnToolState(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	s.onPrompt(HookInput{Prompt: "프로젝트 설정 정리해 줘"})
+	feedWrite(t, s, "w1", ".idea/modules.xml")
+	feedWrite(t, s, "w2", "app/app.iml")
+	feedWrite(t, s, "w3", "web/node_modules/x/index.js")
+	if out := string(s.onStop(HookInput{LastMessage: "정리했습니다."})); strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("tool state held the turn: %s", out)
+	}
+}
+
+// keep now lets the next held turn end through, once.
+func TestKeepNowReleasesTheNextHeldStopOnce(t *testing.T) {
+	s, d := reliabilitySession(t)
+	s.onPrompt(HookInput{Prompt: "로그인 기능 만들어 줘"})
+	feedWrite(t, s, "w1", "auth/login.go")
+	if out := string(s.onStop(HookInput{LastMessage: "구현했습니다."})); !strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("not held: %s", out)
+	}
+	text, err := d.command(CommandInput{Name: "keep", Arg: "now", Root: s.Root, Session: s.ID})
+	if err != nil || !strings.Contains(text, "다음 종료 한 번") {
+		t.Fatalf("keep now does not state what it releases: %q %v", text, err)
+	}
+	out := string(s.onStop(HookInput{LastMessage: "구현했습니다."}))
+	if strings.Contains(out, `"decision":"block"`) || !strings.Contains(out, "보류하지 않았습니다") {
+		t.Fatalf("keep now did not let the next end through: %s", out)
+	}
+	feedWrite(t, s, "w2", "auth/login.go")
+	if out := string(s.onStop(HookInput{LastMessage: "구현했습니다."})); !strings.Contains(out, `"decision":"block"`) {
+		t.Fatalf("keep now released more than one end: %s", out)
 	}
 }
 

@@ -303,6 +303,27 @@ func (e *Engine) VerifiedSince(seq int64) bool {
 
 // passedSince reports whether a check passed after seq on a workspace other
 // than ws.
+// PassedUnjudgedSince reports whether a check passed after seq that the
+// coverage model cannot relate to any path (a Gradle build, a piped run).
+// A check it can judge and found unrelated does not count.
+func (e *Engine) PassedUnjudgedSince(seq int64) bool {
+	evs := e.St.Events
+	for i := len(evs) - 1; i >= 0 && evs[i].Seq > seq; i-- {
+		ev := evs[i]
+		if !ExecutedVerify(ev) {
+			continue
+		}
+		// An older pass cannot release work whose later check failed.
+		if failing(ev) || ev.IsError || len(ev.FailedTests) > 0 || ev.Verification != nil && ev.Verification.State != "passed" {
+			return false
+		}
+		if !verification.EmptyTestRun(ev.Text) && !verification.Judges(cmdOf(ev)) {
+			return true
+		}
+	}
+	return false
+}
+
 func (e *Engine) passedSince(seq int64, ws string) bool {
 	evs := e.St.Events
 	for i := len(evs) - 1; i >= 0 && evs[i].Seq > seq; i-- {

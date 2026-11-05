@@ -133,6 +133,10 @@ type Session struct {
 	userMsg         []string                  // user messages waiting (systemMessage)
 	stopBlocks      int
 	heldStops       map[string]bool // evidence keys a stop hold already answered
+	stopHolds       int             // holds since the work last changed
+	stopHoldWrite   int64           // the production write those holds answered
+	stopPassOnce    bool            // the user let the next held turn end through
+	stopNotice      string          // why a held turn end was let through, for the user
 	holdReason      string          // the last stop hold reason, until a prompt echoes it
 	lastResultAt    time.Time       // the latest post-tool result
 	preWrites       sync.WaitGroup  // pre-tool verdicts stored after the answer

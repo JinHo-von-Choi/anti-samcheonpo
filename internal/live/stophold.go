@@ -58,10 +58,60 @@ func (s *Session) stopHold(sigs []detect.Signal, unmet []string, shadow bool, fr
 			// a check passed after the last change: the gate is open
 			return nil
 		}
+		if release := s.stopRelease(v); release != "" {
+			s.recordDecision(v, release)
+			return nil
+		}
+		s.stopHolds++
 		held := v // a copy: the caller removes it from sigs in place
 		return &held
 	}
 	return nil
+}
+
+// stopRelease names why a gate that would hold this turn end lets it
+// through, or "" to hold it.
+//
+// The gate cannot tell a check it does not understand from no check at
+// all. Without a way out, a check the agent ran but samcheonpo cannot relate
+// to the changed file holds every turn end of the session, and the agent
+// answers each hold by restating that it is done. So the gate is bounded:
+//
+//   - the user let the next turn end through (keep now);
+//   - the hold names no verification at all, yet a check passed after the
+//     last change that samcheonpo cannot judge (a Gradle build, a piped
+//     run): the agent verified something the coverage model does not know;
+//   - the same work was held MaxStopHolds times with no change in between.
+//
+// Each release is recorded as a decision and told to the user, so an
+// unverified end stays visible instead of being held forever.
+// Called with s.mu held.
+func (s *Session) stopRelease(v detect.Signal) string {
+	write := s.eng.St.LastProductionWrite()
+	if write != s.stopHoldWrite {
+		s.stopHolds, s.stopHoldWrite = 0, write
+	}
+	target, _ := v.Facts["path"].(string)
+	if target == "" {
+		target = s.eng.St.LastProductionPath()
+	}
+	where := ""
+	if target != "" {
+		where = " (`" + target + "`)"
+	}
+	switch {
+	case s.stopPassOnce:
+		s.stopPassOnce = false
+		s.stopNotice = "[삼천포] 요청하신 대로 이번 종료는 보류하지 않았습니다. 마지막 변경" + where + "은 아직 검증되지 않았습니다."
+		return "stop_hold_passed_once"
+	case v.Rule == detect.RuleAbandonedVerification && s.eng.PassedUnjudgedSince(write):
+		s.stopNotice = "[삼천포] 마지막 변경 뒤에 성공한 검사가 있지만 변경 파일" + where + "과 연결할 수 없었습니다. 미검증 상태로 종료를 허용했습니다."
+		return "stop_hold_unrelated_pass"
+	case s.Cfg.Levels.MaxStopHolds > 0 && s.stopHolds >= s.Cfg.Levels.MaxStopHolds:
+		s.stopNotice = fmt.Sprintf("[삼천포] 같은 변경%s으로 종료를 %d번 보류했지만 검사로 확인하지 못했습니다. 미검증 상태로 종료를 허용했습니다.", where, s.stopHolds)
+		return "stop_hold_exhausted"
+	}
+	return ""
 }
 
 // Only the checks executed by this Stop may release a typed, non-reusable

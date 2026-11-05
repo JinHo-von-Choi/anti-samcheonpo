@@ -126,7 +126,7 @@ func TestProjectCanOnlyLoosenThresholds(t *testing.T) {
 	home, project := t.TempDir(), t.TempDir()
 	t.Setenv("SAMCHEONPO_HOME", home)
 	if err := os.WriteFile(filepath.Join(project, ".samcheonpo.yml"), []byte(
-		"levels: {nudge_cooldown_events: 1, max_stop_blocks: 9, pause_on: [same_error_8, anything_new]}\n"+
+		"levels: {nudge_cooldown_events: 1, max_stop_blocks: 9, max_stop_holds: 0, pause_on: [same_error_8, anything_new]}\n"+
 			"detectors:\n  s1_verify_treadmill: {repeat_nudge_at: 1}\n  s2_failure_loop: {nudge: 1, notify: 2, pause: 3}\n  s4_idle_explore: {max_reads: 30}\n  overrides: {s1.identical_rerun: 0}\n"), 0600); err != nil {
 		t.Fatal(err)
 	}
@@ -138,7 +138,7 @@ func TestProjectCanOnlyLoosenThresholds(t *testing.T) {
 	if c.Detectors.S1.RepeatNudgeAt != d.Detectors.S1.RepeatNudgeAt || c.Detectors.S2.Nudge != d.Detectors.S2.Nudge || c.Detectors.S2.Pause != d.Detectors.S2.Pause {
 		t.Fatalf("a project made detection stricter: %+v %+v", c.Detectors.S1, c.Detectors.S2)
 	}
-	if c.Levels.NudgeCooldownEvents != d.Levels.NudgeCooldownEvents || c.Levels.MaxStopBlocks != d.Levels.MaxStopBlocks {
+	if c.Levels.NudgeCooldownEvents != d.Levels.NudgeCooldownEvents || c.Levels.MaxStopBlocks != d.Levels.MaxStopBlocks || c.Levels.MaxStopHolds != d.Levels.MaxStopHolds {
 		t.Fatalf("a project tightened the intervention ladder: %+v", c.Levels)
 	}
 	if len(c.Levels.PauseOn) != 1 || c.Levels.PauseOn[0] != "same_error_8" {

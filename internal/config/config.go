@@ -46,6 +46,10 @@ type Levels struct {
 	NudgeCooldownEvents int      `yaml:"nudge_cooldown_events" json:"nudge_cooldown_events"`
 	PauseOn             []string `yaml:"pause_on" json:"pause_on"`
 	MaxStopBlocks       int      `yaml:"max_stop_blocks" json:"max_stop_blocks"`
+	// MaxStopHolds bounds the verification gate: after this many holds of
+	// the same work with no change in between, the turn may end and the
+	// end is recorded as unverified. 0 holds until a check passes.
+	MaxStopHolds int `yaml:"max_stop_holds" json:"max_stop_holds"`
 }
 
 // Rollout is a user-controlled launch stage. Evidence hashes are declared by
@@ -219,7 +223,7 @@ func Default() Config {
 	c.Detectors.S1.ExplicitWaitingRepeats = 3
 	c.Detectors.S8.StallFailures = 3
 	c.Detectors.S8.StallToolEvents = 5
-	c.Levels = Levels{NudgeCooldownEvents: 5, PauseOn: []string{"same_error_8", "budget_100", "protect_path"}, MaxStopBlocks: 2}
+	c.Levels = Levels{NudgeCooldownEvents: 5, PauseOn: []string{"same_error_8", "budget_100", "protect_path"}, MaxStopBlocks: 2, MaxStopHolds: 2}
 	c.Detectors.S1.RepeatNudgeAt = 3
 	c.Detectors.S1.RatioWindow = 20
 	c.Detectors.S1.Ratio = 4
@@ -505,6 +509,11 @@ func loosenOnly(d *Detectors, l *Levels, ud Detectors, ul Levels) {
 	atLeast(&l.NudgeCooldownEvents, ul.NudgeCooldownEvents)
 	if l.MaxStopBlocks > ul.MaxStopBlocks {
 		l.MaxStopBlocks = ul.MaxStopBlocks
+	}
+	// The hold bound is the user's way out of a gate that cannot open: a
+	// project may lower it, never raise or remove one the user set.
+	if ul.MaxStopHolds > 0 && (l.MaxStopHolds <= 0 || l.MaxStopHolds > ul.MaxStopHolds) {
+		l.MaxStopHolds = ul.MaxStopHolds
 	}
 	var pause []string
 	for _, p := range l.PauseOn {

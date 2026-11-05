@@ -18,3 +18,28 @@ func TestGuessScopeWholeExtension(t *testing.T) {
 		}
 	}
 }
+
+func TestIsToolStatePath(t *testing.T) {
+	for p, want := range map[string]bool{
+		".idea/modules.xml":             true,
+		"./.vscode/settings.json":       true,
+		"app/app.iml":                   true,
+		"web/node_modules/x/index.js":   true,
+		"svc/target/classes/A.class":    false,
+		"target/classes/A.class":        true,
+		"dist/index.js":                 true,
+		"src/target/resolve.go":         false,
+		"internal/dist/package.go":      false,
+		".gradle/8.5/fileHashes.lock":   true,
+		"pkg/__pycache__/m.cpython.pyc": true,
+		`.idea\workspace.xml`:           true,
+		"src/main/java/app/A.java":      false,
+		"cmd/build/main.go":             false,
+		"distance.go":                   false,
+		"targets/list.py":               false,
+	} {
+		if got := IsToolStatePath(p); got != want {
+			t.Errorf("IsToolStatePath(%q) = %v, want %v", p, got, want)
+		}
+	}
+}

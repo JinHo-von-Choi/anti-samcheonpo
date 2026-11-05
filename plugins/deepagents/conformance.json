@@ -26,7 +26,8 @@
     "real_daemon_child_pre_deny",
     "parent_budget_enforced_in_child",
     "monitor_failure_prevents_execution",
-    "original_tool_error_preserved_if_reporting_fails"
+    "original_tool_error_preserved_if_reporting_fails",
+    "unverified_completion_notice_in_returned_state"
   ],
   "model_or_permission_settings_changed": false,
   "unsupported": [
@@ -35,7 +36,7 @@
     "provider_model_effectiveness"
   ],
   "reference": "https://docs.langchain.com/oss/python/langchain/middleware",
-  "sdk_test_cases": 26,
+  "sdk_test_cases": 30,
   "capabilities": {
     "block_pre": true,
     "inject_post": true,

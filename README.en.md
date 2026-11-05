@@ -71,7 +71,7 @@ Claude Code also supports slash commands such as `/samcheonpo:summary` and `/sam
 
 ## When does it block work?
 
-The default mode advises first. Selected rules can block a repeat involving the same goal and target, up to three escalated blocks per session. Other rules only record findings. Accepted protected paths and budgets are enforced separately.
+The default mode advises first. Selected rules can block a repeat involving the same goal and target, up to three escalated blocks per session. Separately, ending a turn after a code change with no check holds the turn end; the same change is held at most twice, then the turn ends as unverified and you are told. Other rules only record findings. Accepted protected paths and budgets are enforced separately.
 
 To record ordinary findings without advice, merge this into `~/.samcheonpo/config.yml` and start a new session:
 

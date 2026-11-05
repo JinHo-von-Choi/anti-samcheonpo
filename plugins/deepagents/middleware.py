@@ -55,6 +55,7 @@ def create_middleware(session_id, root, transport=hook, *, max_stop_continuation
 
     class MonitorState(AgentState):
         samcheonpo_stop_attempts: NotRequired[Annotated[int, PrivateStateAttr]]
+        samcheonpo_completion_notice: NotRequired[str]
 
     def base():
         return scope.get() or root_base
@@ -76,7 +77,7 @@ def create_middleware(session_id, root, transport=hook, *, max_stop_continuation
                 if isinstance(message, HumanMessage):
                     transport("UserPromptSubmit", dict(current, prompt=message.text))
                     break
-            return {"samcheonpo_stop_attempts": 0}
+            return {"samcheonpo_stop_attempts": 0, "samcheonpo_completion_notice": ""}
 
         def before_agent(self, state, runtime):
             return self._begin(state)
@@ -102,6 +103,7 @@ def create_middleware(session_id, root, transport=hook, *, max_stop_continuation
                     started = self._started.pop(current["session_id"], None)
                 if started:
                     transport("SessionEnd", current)
+            return {"samcheonpo_completion_notice": response.get("completion_notice", "")}
 
         @hook_config(can_jump_to=["model"])
         def after_agent(self, state, runtime):
