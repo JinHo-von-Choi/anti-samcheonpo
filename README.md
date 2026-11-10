@@ -102,4 +102,4 @@ samcheonpo interventions --session <세션ID> --json
 - [개발·평가 안내](docs/development.md): 빌드, 검사, 실험 도구, 릴리즈 절차
 - [변경 이력](CHANGELOG.md)
 
-[MIT License](LICENSE)
+Copyright (c) 2026 Jinho Von Choi (최진호). [GNU Affero General Public License v3.0](LICENSE)으로 배포합니다.

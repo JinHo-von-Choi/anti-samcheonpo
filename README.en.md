@@ -115,4 +115,4 @@ Detailed guides are currently in Korean:
 - [Development and evaluation](docs/development.md): builds, checks, experiments, releases
 - [Changelog](CHANGELOG.md)
 
-[MIT License](LICENSE)
+Copyright (c) 2026 Jinho Von Choi (최진호). Licensed under the [GNU Affero General Public License v3.0](LICENSE).

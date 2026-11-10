@@ -5,7 +5,7 @@ members = ["crates/samcheonpo-hook"]
 [workspace.package]
 version = "0.1.0"
 edition = "2021"
-license = "MIT"
+license = "AGPL-3.0-only"
 
 # The release profile lives at the workspace root: a member's own profile is
 # ignored, and the size target depends on it.
