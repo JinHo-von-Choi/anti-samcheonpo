@@ -426,6 +426,10 @@ func (s *Session) onPrompt(in HookInput) json.RawMessage {
 		return nil
 	}
 	s.parser.AddEvent(ev)
+	if !ev.Forced {
+		// the calls that follow may be judged before this prompt is observed
+		s.eng.BeginRequest(ev)
+	}
 	s.prompts++
 	cancelled := s.intentRevision != nil && s.intentRevision.Kind == intent.Cancelled
 	newTask := s.task == nil || s.acc.State == contract.StateDone || cancelled
@@ -712,6 +716,9 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	if !deny {
 		s.mu.Lock()
 		s.holdHeavy(ev)
+		// the result of this run may be observed after the next call is
+		// judged, so the request's whole-suite allowance is spent now
+		s.eng.NoteAllowed(ev)
 		s.mu.Unlock()
 		nudge, user := s.takePendingFor("PreToolUse", in.Ack)
 		out := map[string]any{}

@@ -373,7 +373,7 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 			e.forcedTurn(ev, &sigs)
 		} else {
 			if ev.PromptOrigin != "agent" && ev.PromptOrigin != "harness" {
-				e.newUserRequest(ev.Text)
+				e.BeginRequest(ev)
 			}
 			if !intent.ConversationOnly(ev.Text) {
 				st.lastPromptSeq = ev.Seq
@@ -386,6 +386,7 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 		}
 	case event.KindTool:
 		e.refine(ev)
+		e.auditPreGuard(ev, &sigs)
 		e.trackFullBudget(ev)
 		e.trackQuality(ev)
 		e.tool(ev, &sigs)

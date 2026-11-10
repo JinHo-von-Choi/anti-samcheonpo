@@ -11,12 +11,14 @@ steps:
   - edit: lib/calc.py
     old: "return a - b"
     new: "return a + b"
-  - bash: pytest
+  - bash: pytest tests/test_calc.py
     exit: 1
     out: "FAILED tests/test_calc.py::test_mul - assert 3 == 2\n1 failed, 1 passed"
   - edit: lib/calc.py
     old: "    return a + b\n"
     new: "    return a * b\n"
+  - bash: pytest tests/test_calc.py
+    out: "2 passed"
   - bash: pytest
     out: "2 passed"
   - msg: 두 시험 모두 통과했습니다. 완료했습니다.

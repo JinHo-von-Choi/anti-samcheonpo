@@ -128,13 +128,15 @@ func (e *Engine) QualityNext(text string, critique bool, minLines int) *Signal {
 }
 
 // noChangeRerunCheck refuses a check that already passed when nothing has
-// been written since: it can only repeat the same answer.
+// been written since: it can only repeat the same answer. A check that has
+// failed and passed on the same code is left alone, since running it again
+// is how its failure is reproduced.
 func (e *Engine) noChangeRerunCheck(ev *event.Event, live bool) *Signal {
 	if e.Cfg.Detectors.S1.FullChecksPerRequest <= 0 || ev.Tool != event.ToolShell || ev.Category != event.CatVerify {
 		return nil
 	}
 	at, ok := e.St.mar.budget.passed[ev.CmdNorm]
-	if !ok || at != e.St.lastWriteSeq || e.nondeterministic(ev.CmdNorm) {
+	if !ok || at != e.St.lastWriteSeq || e.St.mar.budget.unsteady[ev.CmdNorm] || e.nondeterministic(ev.CmdNorm) {
 		return nil
 	}
 	facts := map[string]any{"cmd": ev.CmdNorm, "target": "no_change_rerun"}

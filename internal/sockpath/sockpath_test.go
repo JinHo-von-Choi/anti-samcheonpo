@@ -62,6 +62,7 @@ func TestFallbackShortensItsNameWhenTheTempDirIsLong(t *testing.T) {
 func TestCandidatesReachAnotherEnvironmentsSocket(t *testing.T) {
 	home := t.TempDir()
 	t.Setenv("HOME", home)
+	t.Setenv("USERPROFILE", home) // the home directory on Windows
 	t.Setenv("SAMCHEONPO_HOME", "")
 	run := filepath.Join(home, ".samcheonpo", "run")
 	if err := os.MkdirAll(run, 0o700); err != nil {
@@ -69,8 +70,10 @@ func TestCandidatesReachAnotherEnvironmentsSocket(t *testing.T) {
 	}
 	xdg := t.TempDir()
 	t.Setenv("XDG_RUNTIME_DIR", xdg)
+	// a long temp directory (macOS, Windows) moves both sockets to short paths
+	short := func(p string) string { return shortPath(p, os.TempDir(), UserID()) }
 	got := Candidates()
-	if got[0] != Path() || got[0] != filepath.Join(xdg, "samcheonpo.sock") || !slices.Contains(got, filepath.Join(run, "samcheonpo.sock")) {
+	if got[0] != Path() || got[0] != short(filepath.Join(xdg, "samcheonpo.sock")) || !slices.Contains(got, short(filepath.Join(run, "samcheonpo.sock"))) {
 		t.Fatalf("a login session also looks in the home directory: %v", got)
 	}
 	t.Setenv("SAMCHEONPO_HOME", t.TempDir())

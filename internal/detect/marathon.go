@@ -15,7 +15,8 @@ type marathonState struct {
 	scope       scopeState
 	budget      fullBudget
 	quality     qualityState
-	promptText  string // the latest user message
+	promptText  string       // the latest user message
+	request     *event.Event // the prompt that started the current allowance
 	probes      map[string]probeMark
 	triage      map[string]*triageMark
 	lastRead    string // findings report read or queried most recently
@@ -75,19 +76,24 @@ func (e *Engine) trackActive(ev *event.Event) {
 	}
 }
 
-// marathon updates the long-session rules after a tool event. In audit mode
-// the rules that live mode applies before a call runs are raised here, from
-// the state before this event, so a receipt counts them as well.
-func (e *Engine) marathon(ev *event.Event, sigs *[]Signal) {
+// auditPreGuard raises, in audit mode, the rules that live mode applies
+// before a call runs, so a receipt counts them as well. It runs before the
+// event updates any state, as the live check does.
+func (e *Engine) auditPreGuard(ev *event.Event, sigs *[]Signal) {
 	// a call the live harness refused never ran and was judged then
-	if e.Mode != "live" && (ev.ExitCode == nil || *ev.ExitCode != -1) {
-		if s := e.preGuard(ev, false); s != nil {
-			e.add(sigs, *s)
-		}
-		if s := e.rejectedRerun(ev, false); s != nil {
-			e.add(sigs, *s)
-		}
+	if e.Mode == "live" || (ev.ExitCode != nil && *ev.ExitCode == -1) {
+		return
 	}
+	if s := e.preGuard(ev, false); s != nil {
+		e.add(sigs, *s)
+	}
+	if s := e.rejectedRerun(ev, false); s != nil {
+		e.add(sigs, *s)
+	}
+}
+
+// marathon updates the long-session rules after a tool event.
+func (e *Engine) marathon(ev *event.Event, sigs *[]Signal) {
 	e.wasteBeforeRun(ev)
 	e.trackScope(ev)
 	e.trackScripts(ev)

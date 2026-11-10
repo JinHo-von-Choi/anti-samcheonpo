@@ -508,7 +508,8 @@ def test_real_daemon_bounded_stop_returns_unverified_notice(tmp_path, monkeypatc
         try:
             request = {"messages": [{"role": "user", "content": "Implement the calculation."}]}
             result = asyncio.run(agent.ainvoke(request)) if asynchronous else agent.invoke(request)
-            assert "미검증" in result["samcheonpo_completion_notice"]
+            # an English request gets the notice in English
+            assert "unverified" in result["samcheonpo_completion_notice"]
             assert (tmp_path / "calc.py").read_text() == "value = 1\n"
         finally:
             agent.close()

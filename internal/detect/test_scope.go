@@ -29,11 +29,20 @@ type fullBudget struct {
 	targetedPass bool // a selected run passed since that failure
 	// passed holds, per command, the last write seen when it passed
 	passed map[string]int64
+	// failedAt holds, per command, the last write seen when it failed;
+	// unsteady marks a command that both failed and passed on one state of
+	// the code, whose result the code alone does not decide
+	failedAt map[string]int64
+	unsteady map[string]bool
+	// started holds the calls counted when live mode let them through
+	started map[string]bool
 }
 
 var (
-	fullRequestRe    = regexp.MustCompile(`(?i)(전체|풀)\s*(시험|테스트|검사)|\bfull[- ](test|suite|check)|\ball tests\b|\./\.\.\.`)
-	fullRequestNotRe = regexp.MustCompile(`(?i)((전체|풀)\s*(시험|테스트|검사)|full[- ](test|suite|check)|all tests)[^.\n]{0,16}(말|마$|지 ?마|금지|그만|안 ?돌|don'?t|stop|no more)|(don'?t|do not|stop|no more|never)[^.\n]{0,16}(full[- ](test|suite|check)|all tests)`)
+	fullRequestRe = regexp.MustCompile(`(?i)(전체|풀)\s*(시험|테스트|검사)|\bfull[- ](test|suite|check)|\ball tests\b|\./\.\.\.`)
+	// a request to test under several settings asks for one run per setting
+	multiRunRequestRe = regexp.MustCompile(`(?i)(경우|조건|환경|플래그|설정|옵션|버전)[^.\n]{0,24}(모두|각각|둘 ?다|별로|마다)[^.\n]{0,12}(시험|테스트|검사|돌려)|(시험|테스트|검사)[^.\n]{0,12}(경우|조건|환경|플래그|설정|옵션|버전)\s*(별로|마다)|\b(test|run)\b[^.\n]{0,40}\b(with|under|for) (both|each)\b|\b(both|each|every) (flag|setting|config(uration)?|environment|version|option)s?\b`)
+	fullRequestNotRe  = regexp.MustCompile(`(?i)((전체|풀)\s*(시험|테스트|검사)|full[- ](test|suite|check)|all tests)[^.\n]{0,16}(말|마$|지 ?마|금지|그만|안 ?돌|don'?t|stop|no more)|(don'?t|do not|stop|no more|never)[^.\n]{0,16}(full[- ](test|suite|check)|all tests)`)
 )
 
 // mentionOnly are programs that print or search text: naming a gate to them
@@ -75,7 +84,7 @@ func (e *Engine) fullBudgetCheck(ev *event.Event, live bool) *Signal {
 	if b.failed && b.targetedPass {
 		return nil
 	}
-	if text := e.St.mar.promptText; fullRequestRe.MatchString(text) && !fullRequestNotRe.MatchString(text) {
+	if text := e.St.mar.promptText; (fullRequestRe.MatchString(text) || multiRunRequestRe.MatchString(text)) && !fullRequestNotRe.MatchString(text) {
 		return nil
 	}
 	sc := &e.St.mar.scope
@@ -101,20 +110,63 @@ func (e *Engine) trackFullBudget(ev *event.Event) {
 		return
 	}
 	b := &e.St.mar.budget
-	if ev.Category == event.CatVerify && ev.ExitCode != nil && !failing(ev) {
+	if ev.Category == event.CatVerify && ev.ExitCode != nil {
 		if b.passed == nil {
-			b.passed = map[string]int64{}
+			b.passed, b.failedAt, b.unsteady = map[string]int64{}, map[string]int64{}, map[string]bool{}
 		}
-		b.passed[ev.CmdNorm] = e.St.lastWriteSeq
+		w := e.St.lastWriteSeq
+		if failing(ev) {
+			if at, ok := b.passed[ev.CmdNorm]; ok && at == w {
+				b.unsteady[ev.CmdNorm] = true
+			}
+			b.failedAt[ev.CmdNorm] = w
+		} else {
+			if at, ok := b.failedAt[ev.CmdNorm]; ok && at == w {
+				b.unsteady[ev.CmdNorm] = true
+			}
+			b.passed[ev.CmdNorm] = w
+		}
 	}
 	if e.fullCheck(ev) {
-		b.runs++
+		if !b.started[ev.CallID] {
+			b.runs++
+		}
 		b.failed, b.targetedPass = ev.ExitCode != nil && failing(ev), false
 		return
 	}
 	if b.failed && ExecutedVerify(ev) && !failing(ev) && e.checkOf(ev).scope == classify.ScopeTargeted {
 		b.targetedPass = true
 	}
+}
+
+// NoteAllowed counts a whole-suite run when the live harness lets it
+// through. Its result reaches the engine later, possibly after the next call
+// has been judged, and is then not counted again.
+func (e *Engine) NoteAllowed(ev *event.Event) {
+	if ev.CallID == "" || e.Cfg.Detectors.S1.FullChecksPerRequest <= 0 || !e.fullCheck(ev) {
+		return
+	}
+	b := &e.St.mar.budget
+	if b.started[ev.CallID] {
+		return
+	}
+	if b.started == nil {
+		b.started = map[string]bool{}
+	}
+	b.started[ev.CallID] = true
+	b.runs++
+	b.failed, b.targetedPass = false, false
+}
+
+// BeginRequest starts the allowance of a user request once per prompt. The
+// live harness calls it when the prompt arrives, because the calls that
+// follow can be judged before the prompt is observed.
+func (e *Engine) BeginRequest(ev *event.Event) {
+	if e.St.mar.request == ev {
+		return
+	}
+	e.St.mar.request = ev
+	e.newUserRequest(ev.Text)
 }
 
 // newUserRequest starts a new allowance.
