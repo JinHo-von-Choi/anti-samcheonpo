@@ -387,8 +387,10 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 	case event.KindTool:
 		e.refine(ev)
 		e.auditPreGuard(ev, &sigs)
-		e.trackFullBudget(ev)
-		e.trackQuality(ev)
+		if e.inCurrentRequest(ev) {
+			e.trackFullBudget(ev)
+			e.trackQuality(ev)
+		}
 		e.tool(ev, &sigs)
 		e.observeArtifactMeta(ev, &sigs)
 		e.observeUIActions(ev, &sigs)

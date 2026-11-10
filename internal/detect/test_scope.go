@@ -169,6 +169,14 @@ func (e *Engine) BeginRequest(ev *event.Event) {
 	e.newUserRequest(ev.Text)
 }
 
+// inCurrentRequest reports a call that started after the prompt of the
+// current request. The result of an earlier call can be observed after the
+// next prompt has opened a new allowance, and does not count against it.
+func (e *Engine) inCurrentRequest(ev *event.Event) bool {
+	r := e.St.mar.request
+	return r == nil || ev.Seq == 0 || ev.Seq > r.Seq
+}
+
 // newUserRequest starts a new allowance.
 func (e *Engine) newUserRequest(text string) {
 	m := e.St.mar
