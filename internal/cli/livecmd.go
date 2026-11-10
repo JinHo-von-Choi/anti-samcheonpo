@@ -5,6 +5,7 @@ import (
 	"context"
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io"
 	"os"
 	"os/exec"
@@ -32,12 +33,12 @@ func daemonCmd() *cobra.Command {
 	var idle time.Duration
 	c := &cobra.Command{
 		Use:   "daemon",
-		Short: "실시간 판정 데몬 (훅이 자동으로 띄운다)",
+		Short: lang.T("실시간 판정 데몬 (훅이 자동으로 띄운다)"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			return live.Run(dbPath(), idle)
 		},
 	}
-	c.Flags().DurationVar(&idle, "idle", 30*time.Minute, "요청이 없으면 종료할 시간")
+	c.Flags().DurationVar(&idle, "idle", 30*time.Minute, lang.T("요청이 없으면 종료할 시간"))
 	return c
 }
 
@@ -45,7 +46,7 @@ func daemonCmd() *cobra.Command {
 func hookCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:    "hook <event>",
-		Short:  "에이전트 훅 클라이언트",
+		Short:  lang.T("에이전트 훅 클라이언트"),
 		Hidden: true,
 		Args:   cobra.ExactArgs(1),
 		Run: func(cmd *cobra.Command, args []string) {
@@ -58,7 +59,7 @@ func statuslineCmd() *cobra.Command {
 	var wrap string
 	c := &cobra.Command{
 		Use:   "statusline",
-		Short: "Claude Code 상태줄 출력",
+		Short: lang.T("Claude Code 상태줄 출력"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			in, _ := io.ReadAll(io.LimitReader(cmd.InOrStdin(), 1<<20))
 			var p struct {
@@ -90,14 +91,14 @@ func statuslineCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().StringVar(&wrap, "wrap", "", "기존 상태줄 명령 (함께 출력)")
+	c.Flags().StringVar(&wrap, "wrap", "", lang.T("기존 상태줄 명령 (함께 출력)"))
 	return c
 }
 
 func slashCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "cmd <accept|edit|skip|keep|steer|summary|check|status|card|rollback|extend> [arg]",
-		Short: "플러그인 슬래시 명령 처리",
+		Short: lang.T("플러그인 슬래시 명령 처리"),
 		Args:  cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			wd, _ := os.Getwd()
@@ -105,7 +106,7 @@ func slashCmd() *cobra.Command {
 			arg := strings.Join(args[1:], " ")
 			text, errText, ok := hookclient.Query("Command", live.CommandInput{Name: args[0], Root: wd, Session: os.Getenv("CLAUDE_SESSION_ID"), Arg: arg}, 170*time.Second)
 			if !ok {
-				return fmt.Errorf("삼천포 데몬에 연결하지 못했다. 에이전트 세션이 시작되면 자동으로 뜬다")
+				return fmt.Errorf("%s", lang.T("삼천포 데몬에 연결하지 못했다. 에이전트 세션이 시작되면 자동으로 뜬다"))
 			}
 			if errText != "" {
 				return fmt.Errorf("%s", errText)
@@ -121,7 +122,7 @@ func installCmd() *cobra.Command {
 	var noCLI bool
 	c := &cobra.Command{
 		Use:   "install",
-		Short: "에이전트에 삼천포를 연결한다",
+		Short: lang.T("에이전트에 삼천포를 연결한다"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			exe, err := os.Executable()
 			if err != nil {
@@ -168,7 +169,7 @@ func installCmd() *cobra.Command {
 			case "openclaw":
 				return install.InstallOpenclaw(exe, func(s string) { fmt.Fprintln(cmd.OutOrStdout(), s) })
 			default:
-				return fmt.Errorf("지원하는 에이전트: claude, codex, mcode, opencode, agy, hermes, openclaw, copilot, cursor")
+				return fmt.Errorf("%s", lang.T("지원하는 에이전트: claude, codex, mcode, opencode, agy, hermes, openclaw, copilot, cursor"))
 			}
 			if settings == "" {
 				settings = install.DefaultSettings()
@@ -177,10 +178,10 @@ func installCmd() *cobra.Command {
 			return install.Install(install.Options{Binary: exe, SettingsPath: settings, UsePluginCLI: !noCLI, Out: func(s string) { fmt.Fprintln(w, s) }})
 		},
 	}
-	c.Flags().StringVar(&agent, "agent", "claude", "대상 에이전트 (claude, codex, mcode, opencode, agy, hermes, openclaw, copilot, cursor)")
-	c.Flags().StringVar(&settings, "settings", "", "Claude Code settings.json 경로")
-	c.Flags().StringVar(&hooksFile, "hooks-file", "", "Codex/mcode/Cursor hooks.json 경로 (기본 ~/.codex/hooks.json, ~/.minimax/hooks.json, ~/.cursor/hooks.json)")
-	c.Flags().BoolVar(&noCLI, "no-plugin-cli", false, "claude plugin 명령으로 등록하지 않는다")
+	c.Flags().StringVar(&agent, "agent", "claude", lang.T("대상 에이전트 (claude, codex, mcode, opencode, agy, hermes, openclaw, copilot, cursor)"))
+	c.Flags().StringVar(&settings, "settings", "", lang.T("Claude Code settings.json 경로"))
+	c.Flags().StringVar(&hooksFile, "hooks-file", "", lang.T("Codex/mcode/Cursor hooks.json 경로 (기본 ~/.codex/hooks.json, ~/.minimax/hooks.json, ~/.cursor/hooks.json)"))
+	c.Flags().BoolVar(&noCLI, "no-plugin-cli", false, lang.T("claude plugin 명령으로 등록하지 않는다"))
 	return c
 }
 
@@ -188,7 +189,7 @@ func uninstallCmd() *cobra.Command {
 	var agent string
 	c := &cobra.Command{
 		Use:   "uninstall",
-		Short: "설치한 연결을 되돌린다",
+		Short: lang.T("설치한 연결을 되돌린다"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := cmd.OutOrStdout()
 			say := func(s string) { fmt.Fprintln(w, s) }
@@ -212,10 +213,10 @@ func uninstallCmd() *cobra.Command {
 			case "openclaw":
 				return install.UninstallOpenclaw(say)
 			}
-			return fmt.Errorf("지원하는 에이전트: claude, codex, mcode, opencode, agy, hermes, openclaw, copilot, cursor")
+			return fmt.Errorf("%s", lang.T("지원하는 에이전트: claude, codex, mcode, opencode, agy, hermes, openclaw, copilot, cursor"))
 		},
 	}
-	c.Flags().StringVar(&agent, "agent", "claude", "대상 에이전트")
+	c.Flags().StringVar(&agent, "agent", "claude", lang.T("대상 에이전트"))
 	return c
 }
 
@@ -242,17 +243,17 @@ func benchHookCmd() *cobra.Command {
 	var n, maxTimeouts int
 	c := &cobra.Command{
 		Use:   "bench-hook",
-		Short: "PreToolUse 훅 왕복 시간 측정",
+		Short: lang.T("PreToolUse 훅 왕복 시간 측정"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if n < 1 || n > 10000 {
-				return fmt.Errorf("n은 1~10000이어야 한다")
+				return fmt.Errorf("%s", lang.T("n은 1~10000이어야 한다"))
 			}
 			exe, err := os.Executable()
 			if err != nil {
 				return err
 			}
 			hookExe := hookclient.Executable(exe)
-			fmt.Fprintf(cmd.OutOrStdout(), "훅 실행 파일: %s\n", hookExe)
+			fmt.Fprintf(cmd.OutOrStdout(), lang.T("훅 실행 파일: %s\n"), hookExe)
 			root, err := os.MkdirTemp("", "samcheonpo-bench-")
 			if err != nil {
 				return err
@@ -280,7 +281,7 @@ func benchHookCmd() *cobra.Command {
 						return
 					}
 				}
-				fmt.Fprintf(cmd.ErrOrStderr(), "시험 데몬 종료 미확인: 진단 디렉터리 보존 %s\n", root)
+				fmt.Fprintf(cmd.ErrOrStderr(), lang.T("시험 데몬 종료 미확인: 진단 디렉터리 보존 %s\n"), root)
 			}()
 			const session = "bench-hook-isolated"
 			run := func(event string, payload any, cold bool) (time.Duration, hookclient.Outcome, error) {
@@ -308,7 +309,7 @@ func benchHookCmd() *cobra.Command {
 					return elapsed, outcome, err
 				}
 				if err = json.Unmarshal(diagnostics.Bytes(), &outcome); err != nil {
-					return elapsed, outcome, fmt.Errorf("훅 진단 응답 누락/형식 오류: %w", err)
+					return elapsed, outcome, fmt.Errorf(lang.T("훅 진단 응답 누락/형식 오류: %w"), err)
 				}
 				return elapsed, outcome, nil
 			}
@@ -316,7 +317,7 @@ func benchHookCmd() *cobra.Command {
 			if err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "콜드 스타트: %v, 상태 %s, 타임아웃 %t\n", cold, first.Status, first.TimedOut)
+			fmt.Fprintf(cmd.OutOrStdout(), lang.T("콜드 스타트: %v, 상태 %s, 타임아웃 %t\n"), cold, first.Status, first.TimedOut)
 			// Warm measurements must not include the one-time version subprocess.
 			for deadline := time.Now().Add(time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
 				text, _, ok := hookclient.Query("AgentStatus", map[string]string{"agent": "claude"}, time.Second)
@@ -358,24 +359,24 @@ func benchHookCmd() *cobra.Command {
 				QueueRejected uint64 `json:"queue_rejected"`
 			}
 			if !ok || errText != "" || json.Unmarshal([]byte(text), &observed) != nil {
-				return fmt.Errorf("서버 수신 여부를 확인하지 못했다")
+				return fmt.Errorf("%s", lang.T("서버 수신 여부를 확인하지 못했다"))
 			}
 			sort.Slice(ds, func(i, j int) bool { return ds[i] < ds[j] })
 			pct := func(q float64) time.Duration { return ds[int(q*float64(len(ds)-1))] }
-			fmt.Fprintf(cmd.OutOrStdout(), "PreToolUse 훅 %d회 (프로세스 기동 포함): p50 %v, p95 %v, p99 %v, 최대 %v\n", n, pct(0.5), pct(0.95), pct(0.99), ds[len(ds)-1])
+			fmt.Fprintf(cmd.OutOrStdout(), lang.T("PreToolUse 훅 %d회 (프로세스 기동 포함): p50 %v, p95 %v, p99 %v, 최대 %v\n"), n, pct(0.5), pct(0.95), pct(0.99), ds[len(ds)-1])
 			if len(handling) == n {
 				sort.Slice(handling, func(i, j int) bool { return handling[i] < handling[j] })
 				sort.Slice(overhead, func(i, j int) bool { return overhead[i] < overhead[j] })
-				fmt.Fprintf(cmd.OutOrStdout(), "구간 진단: 입력/소켓/출력 처리 p95 %v, 프로세스 시작·종료/부모 대기 p95 %v (각각의 분포; 합산 불가)\n", handling[int(.95*float64(n-1))], overhead[int(.95*float64(n-1))])
+				fmt.Fprintf(cmd.OutOrStdout(), lang.T("구간 진단: 입력/소켓/출력 처리 p95 %v, 프로세스 시작·종료/부모 대기 p95 %v (각각의 분포; 합산 불가)\n"), handling[int(.95*float64(n-1))], overhead[int(.95*float64(n-1))])
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "응답 %d/%d, 타임아웃 %d, 실패 %d, 첫 요청 수신 %t, 도구 수신 %d/%d, 큐 누락 %d\n", responses, n, timeouts, failures, observed.Prompts == 1, observed.ToolCalls, n, observed.QueueRejected)
+			fmt.Fprintf(cmd.OutOrStdout(), lang.T("응답 %d/%d, 타임아웃 %d, 실패 %d, 첫 요청 수신 %t, 도구 수신 %d/%d, 큐 누락 %d\n"), responses, n, timeouts, failures, observed.Prompts == 1, observed.ToolCalls, n, observed.QueueRejected)
 			// A cold start that outran the first hook's deadline is the agent
 			// proceeding while the daemon boots, by design; it still counts
 			// when the daemon recorded that first prompt. Any other failure
 			// is not a latency pass.
 			coldLate := first.TimedOut && observed.Prompts == 1
 			if coldLate {
-				fmt.Fprintln(cmd.OutOrStdout(), "콜드 스타트가 첫 훅의 기한을 넘겼지만 데몬이 그 요청을 기록했다 (기동 중 통과는 설계된 동작)")
+				fmt.Fprintln(cmd.OutOrStdout(), lang.T("콜드 스타트가 첫 훅의 기한을 넘겼지만 데몬이 그 요청을 기록했다 (기동 중 통과는 설계된 동작)"))
 			}
 			// A fast failure is the hook that could not do its job; a
 			// timeout is the hook that was slow. The first never passes as a
@@ -390,7 +391,7 @@ func benchHookCmd() *cobra.Command {
 				QueueRejected: observed.QueueRejected,
 			}
 			if reason, note := checkBenchHook(verdict, maxTimeouts); reason != "" {
-				return fmt.Errorf("훅 전송/관측 검증 실패: %s", reason)
+				return fmt.Errorf(lang.T("훅 전송/관측 검증 실패: %s"), reason)
 			} else if note != "" {
 				fmt.Fprintln(cmd.OutOrStdout(), note)
 			}
@@ -400,30 +401,30 @@ func benchHookCmd() *cobra.Command {
 				// span, that span is the budget's subject; the remainder is
 				// process spawn on the host, which varies by machine and
 				// must not fail a bench whose own timings are fast.
-				checked, subject := pct(0.95), "전체 왕복(프로세스 기동 포함)"
+				checked, subject := pct(0.95), lang.T("전체 왕복(프로세스 기동 포함)")
 				if len(handling) == n {
-					checked, subject = handling[int(.95*float64(n-1))], "훅+데몬 처리 구간(기동 제외)"
+					checked, subject = handling[int(.95*float64(n-1))], lang.T("훅+데몬 처리 구간(기동 제외)")
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "p95 기준 대상: %s\n", subject)
+				fmt.Fprintf(cmd.OutOrStdout(), lang.T("p95 기준 대상: %s\n"), subject)
 				if checked > p95Max {
-					return fmt.Errorf("p95 %v가 %v를 넘는다 (%s)", checked, p95Max, subject)
+					return fmt.Errorf(lang.T("p95 %v가 %v를 넘는다 (%s)"), checked, p95Max, subject)
 				}
 			}
 			if handlingMax > 0 {
 				if len(handling) != n {
-					return fmt.Errorf("처리 구간 분포를 얻지 못해 처리 p95 기준을 검사할 수 없다")
+					return fmt.Errorf("%s", lang.T("처리 구간 분포를 얻지 못해 처리 p95 기준을 검사할 수 없다"))
 				}
 				if h := handling[int(.95*float64(n-1))]; h > handlingMax {
-					return fmt.Errorf("처리 구간 p95 %v가 %v를 넘는다", h, handlingMax)
+					return fmt.Errorf(lang.T("처리 구간 p95 %v가 %v를 넘는다"), h, handlingMax)
 				}
 			}
 			return nil
 		},
 	}
-	c.Flags().IntVar(&n, "n", 200, "반복 횟수")
-	c.Flags().IntVar(&maxTimeouts, "max-timeouts", -1, "허용할 타임아웃 횟수 (-1이면 반복 횟수의 1%, 최소 1회; 0이면 느린 기동도 한 번도 허용하지 않는다)")
-	c.Flags().DurationVar(&p95Max, "p95-max", 10*time.Millisecond, "p95 상한 (0이면 검사하지 않음; 처리 구간 분포가 있으면 그 p95에, 없으면 기동을 포함한 전체 왕복에 적용)")
-	c.Flags().DurationVar(&handlingMax, "handling-p95-max", 0, "입력/소켓/출력 처리 구간 p95 상한 (0이면 검사하지 않음; 러너 부하에 덜 흔들리는 회귀 기준)")
+	c.Flags().IntVar(&n, "n", 200, lang.T("반복 횟수"))
+	c.Flags().IntVar(&maxTimeouts, "max-timeouts", -1, lang.T("허용할 타임아웃 횟수 (-1이면 반복 횟수의 1%, 최소 1회; 0이면 느린 기동도 한 번도 허용하지 않는다)"))
+	c.Flags().DurationVar(&p95Max, "p95-max", 10*time.Millisecond, lang.T("p95 상한 (0이면 검사하지 않음; 처리 구간 분포가 있으면 그 p95에, 없으면 기동을 포함한 전체 왕복에 적용)"))
+	c.Flags().DurationVar(&handlingMax, "handling-p95-max", 0, lang.T("입력/소켓/출력 처리 구간 p95 상한 (0이면 검사하지 않음; 러너 부하에 덜 흔들리는 회귀 기준)"))
 	return c
 }
 
@@ -438,6 +439,7 @@ type InterventionArm struct {
 	NoRecurrence   int           `json:"no_recurrence_observed"`
 	NoRecurrenceCI eval.Interval `json:"no_recurrence_ci"`
 	Recurrence     int           `json:"recurrence_observed"`
+	Alternative    int           `json:"alternative_observed"`
 	// Unconfirmed delivery, censored by a goal change, still open, or legacy.
 	Unconfirmed        int           `json:"delivery_unconfirmed"`
 	Censored           int           `json:"censored"`
@@ -459,8 +461,8 @@ type InterventionsReport struct {
 // Text renders the report.
 func (r InterventionsReport) Text() string {
 	var b strings.Builder
-	b.WriteString("개입 실험 (L1 귀띔; 재발 미관측은 해결 확인이 아니다)\n")
-	fmt.Fprintf(&b, "%-13s %5s %18s %6s %8s %6s %6s %16s %14s %8s %14s\n", "군", "건수", "재발 미관측/관찰", "재발", "전달미확인", "중단됨", "진행중", "진척 회복률", "진척당 비용", "중단", "중단 피해율")
+	b.WriteString(lang.T("개입 실험 (L1 귀띔; 재발 미관측은 해결 확인이 아니다)\n"))
+	fmt.Fprintf(&b, "%-13s %5s %18s %6s %8s %6s %6s %16s %14s %8s %14s\n", lang.T("군"), lang.T("건수"), lang.T("재발 미관측/관찰"), lang.T("재발"), lang.T("전달미확인"), lang.T("중단됨"), lang.T("진행중"), lang.T("진척 회복률"), lang.T("진척당 비용"), lang.T("중단"), lang.T("중단 피해율"))
 	for _, a := range r.Arms {
 		pr := func(k, n int, ci eval.Interval) string {
 			if n == 0 {
@@ -468,7 +470,7 @@ func (r InterventionsReport) Text() string {
 			}
 			return fmt.Sprintf("%d/%d (%.0f-%.0f%%)", k, n, ci.Lo*100, ci.Hi*100)
 		}
-		fmt.Fprintf(&b, "%-13s %5d %18s %6d %8d %6d %6d %16s %13s원 %8d %14s\n", a.Arm, a.N, pr(a.NoRecurrence, a.Observed, a.NoRecurrenceCI), a.Recurrence, a.Unconfirmed, a.Censored+a.Legacy, a.Pending, pr(a.Progress, a.N, a.ProgressCI), commaInt(a.CostPerProgressKRW), a.Interrupted, pr(a.Harm, a.N, a.HarmCI))
+		fmt.Fprintf(&b, lang.T("%-13s %5d %18s %6d %8d %6d %6d %16s %13s원 %8d %14s\n"), a.Arm, a.N, pr(a.NoRecurrence, a.Observed, a.NoRecurrenceCI), a.Recurrence, a.Unconfirmed, a.Censored+a.Legacy, a.Pending, pr(a.Progress, a.N, a.ProgressCI), commaInt(a.CostPerProgressKRW), a.Interrupted, pr(a.Harm, a.N, a.HarmCI))
 	}
 	return b.String()
 }
@@ -516,6 +518,8 @@ func InterventionReport(db *ledger.DB) (InterventionsReport, error) {
 		case "recurrence_observed":
 			a.Observed++
 			a.Recurrence++
+		case "alternative_observed":
+			a.Alternative++
 		case "delivery_unconfirmed", "unsupported_delivery":
 			a.Unconfirmed++
 		case "":

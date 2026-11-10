@@ -66,7 +66,7 @@ func startDaemon(t *testing.T) *harness {
 	_ = os.WriteFile(filepath.Join(h.proj, "src", "a.py"), []byte("x = 1\n"), 0o644)
 	// Hook-flow assertions concern the submitted tool calls. Keep the runner's
 	// changing free disk space from injecting unrelated advice into those flows.
-	_ = os.WriteFile(filepath.Join(h.proj, ".samcheonpo.yml"), []byte("notify: {desktop: false}\nexperiment: {enabled: false}\ndetectors:\n  s8_cost: {host_free_pct: 0, host_free_gb: 0}\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(h.proj, ".samcheonpo.yml"), []byte("notify: {desktop: false}\nexperiment: {enabled: false}\ndetectors:\n  s1_verify_treadmill: {full_checks_per_request: 0}\n  s8_cost: {host_free_pct: 0, host_free_gb: 0}\n"), 0o644)
 	git(t, h.proj, "init", "-q")
 	git(t, h.proj, "add", "-A")
 	git(t, h.proj, "commit", "-qm", "init")
@@ -895,7 +895,7 @@ func (h *harness) sendAgent(agent, event string, payload map[string]any) map[str
 // TestCodexFixtures replays hook payloads captured from Codex 0.160.0.
 func TestCodexFixtures(t *testing.T) {
 	h := startDaemon(t)
-	_ = os.WriteFile(filepath.Join(h.proj, ".samcheonpo.yml"), []byte("notify: {desktop: false}\nexperiment: {enabled: false}\ncontract: {draft: on}\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(h.proj, ".samcheonpo.yml"), []byte("notify: {desktop: false}\ndetectors: {s1_verify_treadmill: {full_checks_per_request: 0}}\nexperiment: {enabled: false}\ncontract: {draft: on}\n"), 0o644)
 	rollout := filepath.Join(h.home, "rollout.jsonl")
 	_ = os.MkdirAll(h.home, 0o755)
 	_ = os.WriteFile(rollout, []byte(`{"type":"turn_context","payload":{"model":"gpt-5.5"}}`+"\n"), 0o644)

@@ -8,6 +8,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"regexp"
 	"strings"
 )
@@ -326,7 +327,7 @@ func (g Graph) Text() string {
 	var b strings.Builder
 	for i, r := range g.Requirements {
 		if i == 8 {
-			fmt.Fprintf(&b, "외 %d개 요구사항은 원장에 보존됨\n", len(g.Requirements)-8)
+			fmt.Fprintf(&b, lang.T("외 %d개 요구사항은 원장에 보존됨\n"), len(g.Requirements)-8)
 			break
 		}
 		fmt.Fprintf(&b, "%s: %s · %s\n", r.ID, r.Label, r.Status)

@@ -2,6 +2,7 @@ package live
 
 import (
 	"encoding/json"
+	"regexp"
 	"strings"
 	"time"
 
@@ -124,10 +125,10 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 		s.saveRecovery(a)
 		return a, "", false
 	}
-	message := intervene.Recovery(a)
+	message := intervene.Recovery(a, s.language())
 	if !policy.FactOnly(v.Arm) {
 		if kind, ok := v.Facts["kind"].(string); ok && kind != "" {
-			message += "\n관측 유형: " + kind + ". 새 입력·환경이 확인되면 좁은 재검사를 하고, 같으면 기존 결과와 남은 조건을 사용한다."
+			message += s.pick("\n관측 유형: "+kind+". 새 입력·환경이 확인되면 좁은 재검사를 하고, 같으면 기존 결과와 남은 조건을 사용한다.", "\nObservation type: "+kind+". If new input or environment is confirmed run a narrow recheck; otherwise use the existing result and remaining criteria.")
 		}
 	}
 	return a, message, true
@@ -223,6 +224,54 @@ func relevantRecoveryEvent(a recovery.Attempt, ev *event.Event) bool {
 	return false
 }
 
+var processCleanupRe = regexp.MustCompile(`(^|[\s;&|])(kill|pkill|killall|fuser\s+-k|docker\s+(stop|rm|kill)|docker\s+compose\s+down|systemctl\s+stop)\s`)
+
+// desiredNext reports whether the events after an advice show what the advice
+// asked for, for rules whose wished-for result is not the same behavior again:
+// a repeated check that stops, a leftover process that gets cleaned up. It
+// records what followed the advice and says nothing about why.
+func desiredNext(rule string, events []*event.Event, from, to int64) bool {
+	sawVerify, sawAnswer := false, false
+	repeat := strings.HasPrefix(rule, "s1.")
+	for _, ev := range events {
+		if ev.Seq <= from || ev.Seq > to {
+			continue
+		}
+		switch {
+		case rule == "s8.leftover_process":
+			if ev.Tool == event.ToolShell && processCleanupRe.MatchString(ev.Cmd) {
+				return true
+			}
+		case repeat:
+			if (ev.Tool == event.ToolWrite || ev.Tool == event.ToolEdit) && !ev.IsError && len(ev.Paths) > 0 {
+				return true
+			}
+			sawVerify = sawVerify || ev.Category == event.CatVerify
+			sawAnswer = sawAnswer || ev.Kind == event.KindMessage
+		}
+	}
+	return repeat && sawAnswer && !sawVerify
+}
+
+// censorUndelivered closes the advice of a run that has no next turn: it can
+// never reach the agent, so it is left out of every effect count.
+func (s *Session) censorUndelivered() {
+	for i := range s.recoveries {
+		a := &s.recoveries[i]
+		if a.DeliveredAt != nil || a.Stage == recovery.EffectObserved || a.Stage == recovery.Censored {
+			continue
+		}
+		a.Observation = "undeliverable"
+		_ = a.Advance(recovery.Censored, time.Now())
+		s.dropRecoveryMessage(a.ID)
+		s.saveRecovery(*a)
+		if s.db != nil {
+			_, err := s.db.Exec(`UPDATE intervention SET outcome=? WHERE session_id=? AND verdict_id=?`, a.Observation, s.ID, a.VerdictID)
+			s.recordStorageError(err)
+		}
+	}
+}
+
 // completionRule reports rules judged when the agent ends a turn. Their
 // effect is a repair after delivery, and a recurrence is the same verdict
 // at a later turn end.
@@ -277,6 +326,9 @@ func (s *Session) trackOutcomes(ev *event.Event) {
 			a.Observation = "no_relevant_observation"
 			if a.Revision != s.contractRevision {
 				a.Observation = "target_revision_changed"
+			} else if a.RelevantOpportunities == 0 && desiredNext(a.Rule, s.eng.St.Events, start, ev.Seq) {
+				a.Observation = "alternative_observed"
+				next = recovery.EffectObserved
 			}
 			if a.Revision == s.contractRevision && a.RelevantOpportunities > 0 {
 				// An asynchronous external audit cannot prove absence of a finding just

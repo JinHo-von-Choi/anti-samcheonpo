@@ -1,0 +1,22 @@
+name: docs
+
+on:
+  push:
+    branches: [main]
+    paths: ['docs/**', 'README*.md', 'CHANGELOG.md', 'LICENSE']
+  pull_request:
+    paths: ['docs/**', 'README*.md', 'CHANGELOG.md', 'LICENSE']
+
+permissions:
+  contents: read
+
+jobs:
+  links:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - name: file names and links
+        run: |
+          python3 scripts/check-repository-paths.py
+          python3 scripts/check-doc-links.py

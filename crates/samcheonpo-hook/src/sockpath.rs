@@ -43,6 +43,45 @@ pub fn path() -> String {
     short_path(&p, &temp_dir(), &user_id())
 }
 
+/// The sockets the daemon may be on, `path()` first.
+///
+/// The daemon listens where its own environment points, so a service started
+/// without `XDG_RUNTIME_DIR` resolves a different path from the login session
+/// that started the daemon. An explicit `SAMCHEONPO_HOME` has one socket.
+pub fn candidates() -> Vec<String> {
+    let mut out = vec![path()];
+    if !std::env::var("SAMCHEONPO_HOME")
+        .unwrap_or_default()
+        .is_empty()
+    {
+        return out;
+    }
+    let mut dirs = vec![join(&[&home(), "run"])];
+    let xdg = std::env::var("XDG_RUNTIME_DIR").unwrap_or_default();
+    if !xdg.is_empty() {
+        dirs.push(xdg);
+    }
+    if cfg!(target_os = "linux") {
+        dirs.push(format!("/run/user/{}", user_id()));
+    }
+    let (tmp, user) = (temp_dir(), user_id());
+    for dir in dirs {
+        if !is_dir(&dir) {
+            continue;
+        }
+        let p = short_path(&join(&[&dir, "samcheonpo.sock"]), &tmp, &user);
+        if !out.contains(&p) {
+            out.push(p);
+        }
+    }
+    out
+}
+
+/// Where a hook that reached no daemon leaves its record.
+pub fn miss_log_path() -> String {
+    join(&[&home(), "run", "hook-misses.jsonl"])
+}
+
 /// The socket path for an explicit home, without touching the environment.
 ///
 /// This mirrors the Go `sockpath.ForHome`, so a test or a caller can name

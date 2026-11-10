@@ -60,7 +60,7 @@ func TestVirtualenvAndScriptChecksAreVerification(t *testing.T) {
 		"/usr/bin/python3.13 -m pytest",
 		"node_modules/.bin/jest",
 		".venv/bin/python scripts/gates.py --gate G0-1",
-		"python3 -I /tmp/panopticon-final-gates-run.py 313",
+		"python3 -I /tmp/final-gates-run.py 313",
 		"bash ./scripts/check-conformance.sh",
 	} {
 		if c, _ := Shell(cmd, Options{}); c != ShellVerify {

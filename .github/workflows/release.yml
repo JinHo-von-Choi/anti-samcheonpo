@@ -12,7 +12,25 @@ permissions:
   contents: read
 
 jobs:
+  source-check:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@3d3c42e5aac5ba805825da76410c181273ba90b1 # v7
+        with:
+          persist-credentials: false
+      - uses: actions/setup-go@b7ad1dad31e06c5925ef5d2fc7ad053ef454303e # v7
+        with:
+          go-version-file: go.mod
+          cache-dependency-path: go.sum
+      - name: Tree state, file names and formatting
+        run: |
+          python3 scripts/check-repository-paths.py
+          git diff --exit-code --stat HEAD --
+          test -z "$(gofmt -l cmd internal plugins)"
+
   native-package:
+    needs: source-check
     # Configure required reviewers for this environment before remote execution.
     environment: release-candidate
     strategy:
@@ -54,11 +72,8 @@ jobs:
             py=$(command -v python)
             cp "$py" "$(dirname "$py")/python3.exe"
           fi
-      - name: Source checks (no paid model calls)
+      - name: Native checks (no paid model calls)
         run: |
-          python3 scripts/check-repository-paths.py
-          git diff --exit-code --stat HEAD --
-          test -z "$(gofmt -l cmd internal plugins)"
           go vet ./...
           go test ./...
       - name: Hook transport checks (no paid model calls)

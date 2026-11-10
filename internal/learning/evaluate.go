@@ -5,6 +5,7 @@ import (
 	"fmt"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/eval"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
 	"math"
 	"sort"
@@ -342,13 +343,13 @@ func Promote(p Proposal, r Evaluation) (rulepack.Pack, error) {
 			return pack, err
 		}
 		if r.Probe.Veto {
-			return pack, errors.New("생중 probe가 후보를 거부했다: 산출물 부재")
+			return pack, errors.New(lang.T("생중 probe가 후보를 거부했다: 산출물 부재"))
 		}
 		if r.Probe.Verdict == eval.VerdictHurt {
-			return pack, errors.New("생중 probe에서 후보가 해를 끼쳤다")
+			return pack, errors.New(lang.T("생중 probe에서 후보가 해를 끼쳤다"))
 		}
 		if r.Probe.Verdict == eval.VerdictConfounded {
-			return pack, errors.New("생중 probe 결과가 혼재되어 승격 근거가 아니다")
+			return pack, errors.New(lang.T("생중 probe 결과가 혼재되어 승격 근거가 아니다"))
 		}
 	}
 	pack.EvidenceTier = tier

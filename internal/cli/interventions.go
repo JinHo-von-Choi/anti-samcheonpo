@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"sort"
 	"time"
 
@@ -20,7 +21,7 @@ func interventionsCmd() *cobra.Command {
 	var session, verdict string
 	c := &cobra.Command{
 		Use:   "interventions",
-		Short: "규칙별 처방이 제안·전달·인지·효과 관측 중 어디까지 갔는지 센다",
+		Short: lang.T("규칙별 처방이 제안·전달·인지·효과 관측 중 어디까지 갔는지 센다"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := ParseSince(since, time.Now())
 			if err != nil {
@@ -41,7 +42,7 @@ func interventionsCmd() *cobra.Command {
 				return enc.Encode(traces)
 			}
 			if asJSON || verdict != "" {
-				return fmt.Errorf("--json/--verdict에는 --session이 필요합니다")
+				return fmt.Errorf("%s", lang.T("--json/--verdict에는 --session이 필요합니다"))
 			}
 			as, err := db.RecoveryAttemptsSince(t)
 			if err != nil {
@@ -127,10 +128,10 @@ func interventionsCmd() *cobra.Command {
 			sort.Strings(rules)
 			w := cmd.OutOrStdout()
 			if len(rules) == 0 {
-				fmt.Fprintln(w, "기록된 처방도 차단도 없다.")
+				fmt.Fprintln(w, lang.T("기록된 처방도 차단도 없다."))
 				return nil
 			}
-			fmt.Fprintf(w, "%-24s %5s %5s %5s %5s %6s %8s %8s %6s %6s\n", "규칙", "제안", "발신", "전달", "인지", "차단", "재발없음", "재발", "미관측", "진행")
+			fmt.Fprintf(w, "%-24s %5s %5s %5s %5s %6s %8s %8s %6s %6s\n", lang.T("규칙"), lang.T("제안"), lang.T("발신"), lang.T("전달"), lang.T("인지"), lang.T("차단"), lang.T("재발없음"), lang.T("재발"), lang.T("미관측"), lang.T("진행"))
 			for _, rule := range rules {
 				r := by[rule]
 				open := r.proposed - r.effect - r.recur - r.censored
@@ -142,22 +143,22 @@ func interventionsCmd() *cobra.Command {
 			}
 			sort.Strings(reasonKeys)
 			for _, k := range reasonKeys {
-				fmt.Fprintf(w, "미관측 사유 %s: %d\n", k, reasons[k])
+				fmt.Fprintf(w, lang.T("미관측 사유 %s: %d\n"), k, reasons[k])
 			}
 			if byArm {
-				fmt.Fprintln(w, "군은 설정된 목록에서 세션별 동일 확률로 배정된다. wording/2의 none·fact는 사실만 전달한다. legacy는 이전 의미를 보존한다. unattributed 차단은 군별 효과에 합산하지 않는다.")
+				fmt.Fprintln(w, lang.T("군은 설정된 목록에서 세션별 동일 확률로 배정된다. wording/2의 none·fact는 사실만 전달한다. legacy는 이전 의미를 보존한다. unattributed 차단은 군별 효과에 합산하지 않는다."))
 			}
-			fmt.Fprintln(w, "재발 없음은 관찰 창에서 같은 판정이 다시 나오지 않았다는 뜻이며 처방의 인과 효과가 아니다.")
-			fmt.Fprintln(w, "차단 집계에는 실행 전 거부와 종료 보류가 포함된다. 정확한 단계는 --session 상세 기록으로 확인한다. 출력 확인은 호스트 수신이나 비용 절감의 증거가 아니다.")
+			fmt.Fprintln(w, lang.T("재발 없음은 관찰 창에서 같은 판정이 다시 나오지 않았다는 뜻이며 처방의 인과 효과가 아니다."))
+			fmt.Fprintln(w, lang.T("차단 집계에는 실행 전 거부와 종료 보류가 포함된다. 정확한 단계는 --session 상세 기록으로 확인한다. 출력 확인은 호스트 수신이나 비용 절감의 증거가 아니다."))
 			return nil
 		},
 	}
-	c.Flags().StringVar(&session, "session", "", "개입 추적 세션 ID")
-	c.Flags().StringVar(&verdict, "verdict", "", "판정 ID 필터")
-	c.Flags().BoolVar(&asJSON, "json", false, "구조화된 개입 추적")
-	c.Flags().StringVar(&since, "since", "30d", "기간")
-	c.Flags().StringVar(&agent, "agent", "all", "에이전트 또는 all")
-	c.Flags().BoolVar(&byAgent, "by-agent", false, "에이전트·규칙별 집계")
-	c.Flags().BoolVar(&byArm, "by-arm", false, "실험 군별 집계")
+	c.Flags().StringVar(&session, "session", "", lang.T("개입 추적 세션 ID"))
+	c.Flags().StringVar(&verdict, "verdict", "", lang.T("판정 ID 필터"))
+	c.Flags().BoolVar(&asJSON, "json", false, lang.T("구조화된 개입 추적"))
+	c.Flags().StringVar(&since, "since", "30d", lang.T("기간"))
+	c.Flags().StringVar(&agent, "agent", "all", lang.T("에이전트 또는 all"))
+	c.Flags().BoolVar(&byAgent, "by-agent", false, lang.T("에이전트·규칙별 집계"))
+	c.Flags().BoolVar(&byArm, "by-arm", false, lang.T("실험 군별 집계"))
 	return c
 }

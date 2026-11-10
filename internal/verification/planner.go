@@ -1,6 +1,9 @@
 package verification
 
-import "time"
+import (
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
+	"time"
+)
 
 // Candidate is a historical observation, not authority to skip a command.
 // CurrentKey must come from a fresh input/environment fingerprint, not from
@@ -33,9 +36,9 @@ func PlanChecks(candidates []Candidate, now time.Time) Plan {
 	p := Plan{}
 	machines, reusable := 0, 0
 	for _, c := range candidates {
-		i := PlanItem{CheckID: c.CheckID, State: "unconfirmed", Reason: "재사용 가능한 통과 근거가 없다"}
+		i := PlanItem{CheckID: c.CheckID, State: "unconfirmed", Reason: lang.T("재사용 가능한 통과 근거가 없다")}
 		if c.Manual {
-			i.State, i.Reason = "manual", "수동 완료 조건은 별도 확인이 필요하다"
+			i.State, i.Reason = "manual", lang.T("수동 완료 조건은 별도 확인이 필요하다")
 			p.ManualPending++
 		} else {
 			machines++
@@ -44,13 +47,13 @@ func PlanChecks(candidates []Candidate, now time.Time) Plan {
 					i.EvidenceID, i.SourceEventID = e.ID, e.SourceEventID
 					expires := e.ExpiresAt
 					i.ExpiresAt = &expires
-					i.State, i.Reason = "candidate", "과거 통과 근거가 있으나 현재 입력·환경 일치는 아직 미확인이다"
+					i.State, i.Reason = "candidate", lang.T("과거 통과 근거가 있으나 현재 입력·환경 일치는 아직 미확인이다")
 					if c.CurrentKey != nil {
 						if ok, _ := Reusable(*e, *c.CurrentKey, now); ok {
-							i.State, i.Reason = "reusable", "현재 명령·입력·환경·개정과 일치하는 통과 근거가 있어 반복 실행이 필요하지 않다"
+							i.State, i.Reason = "reusable", lang.T("현재 명령·입력·환경·개정과 일치하는 통과 근거가 있어 반복 실행이 필요하지 않다")
 							reusable++
 						} else {
-							i.State, i.Reason = "invalidated", "현재 입력·환경·명령 또는 개정이 달라 이전 통과를 재사용할 수 없다"
+							i.State, i.Reason = "invalidated", lang.T("현재 입력·환경·명령 또는 개정이 달라 이전 통과를 재사용할 수 없다")
 						}
 					}
 				}

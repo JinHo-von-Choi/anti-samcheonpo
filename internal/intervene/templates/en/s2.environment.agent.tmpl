@@ -1,0 +1,7 @@
+{{if .frozen}}[samcheonpo] Observed: `{{.cmd}}` failed {{.count}} times from a cause outside the code ({{.kindname}}), and with the environment unchanged an edit to `{{.frozen_path}}` was attempted.
+Evidence: the output of failure events {{.evidence}} points to a cause outside the code. This edit cannot change that cause.
+{{if .remedy}}External fix (for a person to run): `{{.remedy}}`. {{end}}Edits are allowed again once the same command passes after the fix. Dependency declaration files can still be edited now.
+Contract: the goal is {{.goal}}.{{else}}[samcheonpo] Observed: `{{.cmd}}` failed {{.count}} times from a cause code cannot fix ({{.kindname}}).
+Evidence: the output of failure events {{.evidence}} points to the same cause, and the working folder did not change in between.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Code edits or rerunning the same command will not change this cause.{{if .remedy}} External fix (for a person to run): `{{.remedy}}`.{{end}}{{end}}

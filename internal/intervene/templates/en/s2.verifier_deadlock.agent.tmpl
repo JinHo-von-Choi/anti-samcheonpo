@@ -1,0 +1,4 @@
+[samcheonpo] Observed: `{{.cmd}}` rejected the work {{.count}} times with the same result (exit code {{.exit}}){{if eq .kind "repeat"}}. The edits in between did not change the result{{else if eq .kind "waiting"}}. The response stopped to wait for the user's choice{{else}}. The working folder is unchanged, so the same rejection will return{{end}}.
+Evidence: event {{.evidence}}.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. This rejection will not change with the same input.

@@ -18,6 +18,7 @@ import (
 	"strings"
 	"time"
 
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lazyre"
 
 	"github.com/bmatcuk/doublestar/v4"
@@ -167,13 +168,13 @@ func Parse(b []byte) (*Contract, []ValidationError) {
 	}
 	var errs []ValidationError
 	if c.Spec != "" && c.Spec != SpecVersion && c.Spec != SpecVersion2 {
-		errs = append(errs, ValidationError{"spec", "지원하지 않는 계약 버전이다"})
+		errs = append(errs, ValidationError{"spec", lang.T("지원하지 않는 계약 버전이다")})
 	}
 	if strings.TrimSpace(c.Goal) == "" {
-		errs = append(errs, ValidationError{"goal", "목표 한 문장이 필요하다"})
+		errs = append(errs, ValidationError{"goal", lang.T("목표 한 문장이 필요하다")})
 	}
 	if len(c.Done) == 0 {
-		errs = append(errs, ValidationError{"done", "완료 조건이 하나 이상 필요하다"})
+		errs = append(errs, ValidationError{"done", lang.T("완료 조건이 하나 이상 필요하다")})
 	}
 	ids := map[string]bool{}
 	for i := range c.Done {
@@ -184,60 +185,60 @@ func Parse(b []byte) (*Contract, []ValidationError) {
 		}
 		if d.Reuse != nil {
 			if c.Spec != SpecVersion2 || d.Check == "" || !d.Pure || !d.Reuse.Deterministic || len(d.Reuse.Inputs) == 0 || len(d.Reuse.EnvironmentFiles) == 0 || d.Reuse.MaxAgeSec < 1 || d.Reuse.MaxAgeSec > 3600 {
-				errs = append(errs, ValidationError{f + ".reuse", "v2의 pure·deterministic 검사에 입력·환경 파일과 1~3600초 유효기간이 필요하다"})
+				errs = append(errs, ValidationError{f + ".reuse", lang.T("v2의 pure·deterministic 검사에 입력·환경 파일과 1~3600초 유효기간이 필요하다")})
 			}
 			for _, p := range d.Reuse.Inputs {
 				if p == "" || filepath.IsAbs(p) || strings.HasPrefix(p, "/") || p == "." || strings.ContainsAny(p, "*?[\\") || p == ".." || strings.HasPrefix(filepath.ToSlash(filepath.Clean(p)), "../") {
-					errs = append(errs, ValidationError{f + ".reuse.inputs", "프로젝트 안의 구체적인 파일·폴더 경로가 필요하다"})
+					errs = append(errs, ValidationError{f + ".reuse.inputs", lang.T("프로젝트 안의 구체적인 파일·폴더 경로가 필요하다")})
 				}
 			}
 			for _, p := range d.Reuse.EnvironmentFiles {
 				if p == "" || strings.ContainsAny(p, "*?[\\") {
-					errs = append(errs, ValidationError{f + ".reuse.environment_files", "구체적인 환경 파일 경로가 필요하다"})
+					errs = append(errs, ValidationError{f + ".reuse.environment_files", lang.T("구체적인 환경 파일 경로가 필요하다")})
 				}
 			}
 		}
 		if (d.Check == "") == (d.Manual == "") {
-			errs = append(errs, ValidationError{f, "check 또는 manual 중 정확히 하나가 필요하다"})
+			errs = append(errs, ValidationError{f, lang.T("check 또는 manual 중 정확히 하나가 필요하다")})
 		}
 		if d.Expect != "" && d.Expect != "exit0" {
-			errs = append(errs, ValidationError{f + ".expect", "exit0만 지원한다"})
+			errs = append(errs, ValidationError{f + ".expect", lang.T("exit0만 지원한다")})
 		}
 		if d.Isolation != "" && d.Isolation != "worktree" {
-			errs = append(errs, ValidationError{f + ".isolation", "worktree만 지원한다"})
+			errs = append(errs, ValidationError{f + ".isolation", lang.T("worktree만 지원한다")})
 		}
 		if d.ID == "" {
 			d.ID = fmt.Sprintf("c%d", i+1)
 		}
 		if ids[d.ID] {
-			errs = append(errs, ValidationError{f + ".id", "중복 id"})
+			errs = append(errs, ValidationError{f + ".id", lang.T("중복 id")})
 		}
 		ids[d.ID] = true
 	}
 	for i, g := range append(append([]string{}, c.Scope.Allow...), c.Scope.Protect...) {
 		if !doublestar.ValidatePattern(g) {
-			errs = append(errs, ValidationError{fmt.Sprintf("scope[%d]", i), "잘못된 글롭: " + g})
+			errs = append(errs, ValidationError{fmt.Sprintf("scope[%d]", i), lang.T("잘못된 글롭: ") + g})
 		}
 	}
 	if c.Budget.KRW < 0 || c.Budget.Minutes < 0 || c.Budget.SameErrorRetries < 0 {
-		errs = append(errs, ValidationError{"budget", "음수는 허용하지 않는다"})
+		errs = append(errs, ValidationError{"budget", lang.T("음수는 허용하지 않는다")})
 	}
 	if t := c.TemporalRequirement; t != nil {
 		switch t.Kind {
 		case "completion":
 			if t.Seconds != 0 || t.CheckID != "" {
-				errs = append(errs, ValidationError{"temporal_requirement", "completion에는 seconds/check_id를 지정하지 않는다"})
+				errs = append(errs, ValidationError{"temporal_requirement", lang.T("completion에는 seconds/check_id를 지정하지 않는다")})
 			}
 		case "minimum_duration":
 			if t.Seconds <= 0 || t.CheckID != "" {
-				errs = append(errs, ValidationError{"temporal_requirement", "minimum_duration에는 양수 seconds만 필요하다"})
+				errs = append(errs, ValidationError{"temporal_requirement", lang.T("minimum_duration에는 양수 seconds만 필요하다")})
 			}
 		case "observe_until":
 			if !ids[t.CheckID] || t.Seconds != 0 {
-				errs = append(errs, ValidationError{"temporal_requirement", "observe_until에는 done의 check_id만 필요하다"})
+				errs = append(errs, ValidationError{"temporal_requirement", lang.T("observe_until에는 done의 check_id만 필요하다")})
 			}
 		default:
-			errs = append(errs, ValidationError{"temporal_requirement.kind", "completion, minimum_duration, observe_until 중 하나가 필요하다"})
+			errs = append(errs, ValidationError{"temporal_requirement.kind", lang.T("completion, minimum_duration, observe_until 중 하나가 필요하다")})
 		}
 	}
 	return &c, errs
@@ -386,7 +387,7 @@ func SaveAcceptance(project string, a Acceptance) error {
 	a.MAC = ""
 	mac, err := acceptanceMAC(project, a)
 	if err != nil && a.State == StateAccepted {
-		return fmt.Errorf("수락 기록 서명 실패: %w", err)
+		return fmt.Errorf(lang.T("수락 기록 서명 실패: %w"), err)
 	}
 	a.MAC = mac
 	b, _ := json.MarshalIndent(a, "", "  ")
@@ -467,7 +468,7 @@ func acceptanceKey() ([]byte, error) {
 	}
 	b, err := os.ReadFile(p)
 	if err != nil || len(b) < 32 {
-		return nil, fmt.Errorf("서명 키를 읽을 수 없다: %s", p)
+		return nil, fmt.Errorf(lang.T("서명 키를 읽을 수 없다: %s"), p)
 	}
 	return b, nil
 }
@@ -533,7 +534,7 @@ func fileHash(raw []byte) string {
 func Accept(project string, c *Contract, raw []byte, now time.Time) (Acceptance, error) {
 	previous := LoadAcceptance(project)
 	if previous.RequestedGoal != "" && previous.PreviousFileHash == fileHash(raw) {
-		return Acceptance{}, fmt.Errorf("목표 변경 요청이 아직 계약에 반영되지 않았다. 초안을 고친 뒤 수락해야 한다")
+		return Acceptance{}, fmt.Errorf("%s", lang.T("목표 변경 요청이 아직 계약에 반영되지 않았다. 초안을 고친 뒤 수락해야 한다"))
 	}
 	a := Acceptance{State: StateAccepted, ChecksHash: c.ChecksHash(), AuthorityHash: AuthorityDigest(c), FileHash: fileHash(raw), AcceptedAt: now}
 	return a, SaveAcceptance(project, a)
@@ -548,7 +549,7 @@ func RequestChange(project, goal string) (Acceptance, error) {
 	}
 	goal = strings.TrimSpace(goal)
 	if goal == "" {
-		goal = "사용자가 계약 수정을 요청했다. 수정 내용을 확인해야 한다."
+		goal = lang.T("사용자가 계약 수정을 요청했다. 수정 내용을 확인해야 한다.")
 	}
 	a := Acceptance{State: StateDraft, RequestedGoal: goal, PreviousFileHash: fileHash(raw)}
 	return a, SaveAcceptance(project, a)
@@ -674,6 +675,31 @@ func Candidates(project string) []Candidate {
 	return out
 }
 
+// DraftRequestIn renders DraftRequest in the given language.
+func DraftRequestIn(l string, cands []Candidate, firstPrompt string) string {
+	if l != lang.English {
+		return DraftRequest(cands, firstPrompt)
+	}
+	var b strings.Builder
+	b.WriteString("[samcheonpo] A .samcheonpo/contract.yml draft is needed to measure progress on this work. ")
+	b.WriteString("Before starting, write one file in the form below: one sentence for the goal, the paths that may change, and only the commands from the candidates that confirm this work is done.\n")
+	b.WriteString("```yaml\n")
+	b.WriteString("goal: <the user's request in one sentence>\n")
+	b.WriteString("done:\n")
+	if len(cands) == 0 {
+		b.WriteString("  - check: \"<command that confirms this work is done>\"\n")
+	}
+	for _, c := range cands {
+		fmt.Fprintf(&b, "  - check: %q   # %s (%s)\n", c.Command, c.Kind, c.Source)
+	}
+	b.WriteString("  - manual: <condition for a person to check; delete this line if none>\n")
+	b.WriteString("scope:\n  allow: [\"<glob of paths that may change>\"]\n  protect: []\n")
+	b.WriteString("budget: {krw: 5000, minutes: 40, same_error_retries: 5}\n")
+	b.WriteString("forbid: []\n```\n")
+	b.WriteString("Delete candidate lines unrelated to this work. The contract becomes the standard for progress once the user confirms it.")
+	return b.String()
+}
+
 // DraftRequest renders the context injected on a new task: the
 // template with prefilled check candidates; the agent only writes the goal,
 // scope and the choice among candidates.
@@ -701,28 +727,28 @@ func DraftRequest(cands []Candidate, firstPrompt string) string {
 // PlainSummary renders the contract for a non-developer user.
 func PlainSummary(c *Contract) string {
 	var b strings.Builder
-	b.WriteString("AI는 이렇게 이해했습니다.\n")
-	fmt.Fprintf(&b, "목표: %s\n", c.Goal)
+	b.WriteString(lang.T("AI는 이렇게 이해했습니다.\n"))
+	fmt.Fprintf(&b, lang.T("목표: %s\n"), c.Goal)
 	var crit []string
 	for _, d := range c.Done {
 		if d.Manual != "" {
-			crit = append(crit, d.Manual+"(직접 확인)")
+			crit = append(crit, d.Manual+lang.T("(직접 확인)"))
 		} else {
-			criterion := "`" + d.Check + "` 통과"
+			criterion := "`" + d.Check + lang.T("` 통과")
 			if d.Reuse != nil {
-				criterion += fmt.Sprintf(" (선언한 입력·환경이 같으면 %d초간 재사용; 외부 의존성·flaky 검사 제외)", d.Reuse.MaxAgeSec)
+				criterion += fmt.Sprintf(lang.T(" (선언한 입력·환경이 같으면 %d초간 재사용; 외부 의존성·flaky 검사 제외)"), d.Reuse.MaxAgeSec)
 			}
 			crit = append(crit, criterion)
 		}
 	}
-	fmt.Fprintf(&b, "끝났다고 볼 기준: %s\n", strings.Join(crit, ", "))
+	fmt.Fprintf(&b, lang.T("끝났다고 볼 기준: %s\n"), strings.Join(crit, ", "))
 	if len(c.Scope.Protect) > 0 || len(c.Forbid) > 0 {
-		fmt.Fprintf(&b, "건드리지 않을 것: %s\n", strings.Join(append(append([]string{}, c.Scope.Protect...), c.Forbid...), ", "))
+		fmt.Fprintf(&b, lang.T("건드리지 않을 것: %s\n"), strings.Join(append(append([]string{}, c.Scope.Protect...), c.Forbid...), ", "))
 	}
 	if c.Budget.KRW > 0 {
-		fmt.Fprintf(&b, "예산: %s원\n", Comma(c.Budget.KRW))
+		fmt.Fprintf(&b, lang.T("예산: %s원\n"), Comma(c.Budget.KRW))
 	}
-	b.WriteString("[/samcheonpo:accept 맞아요]  [/samcheonpo:edit 고칠래요]  [/samcheonpo:skip 계약 없이 진행]")
+	b.WriteString(lang.T("[/samcheonpo:accept 맞아요]  [/samcheonpo:edit 고칠래요]  [/samcheonpo:skip 계약 없이 진행]"))
 	return b.String()
 }
 

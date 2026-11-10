@@ -6,6 +6,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io"
 	"os"
 	"path/filepath"
@@ -28,17 +29,17 @@ func labelCmd() *cobra.Command {
 	var symptom, justified, outcome, note string
 	c := &cobra.Command{
 		Use:   "label <session-id>",
-		Short: "평가용 구간 표시",
-		Long: `세션 이벤트를 요약으로 보여 주고 헛짓 구간을 표시한다.
+		Short: lang.T("평가용 구간 표시"),
+		Long: lang.T(`세션 이벤트를 요약으로 보여 주고 헛짓 구간을 표시한다.
 명령: <시작> <끝> <증상 S1~S8|none> [메모] · x <번호> 원본 펼치기 · n 다음 쪽 · p 이전 쪽
-      goal <목표> · success yes|no|partial|unknown · reviewed yes|no 전체 확인 · q 저장 후 종료`,
+      goal <목표> · success yes|no|partial|unknown · reviewed yes|no 전체 확인 · q 저장 후 종료`),
 		Args: cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if page < 1 || page > 1000 {
-				return fmt.Errorf("page는 1~1000 범위여야 한다")
+				return fmt.Errorf("%s", lang.T("page는 1~1000 범위여야 한다"))
 			}
 			if labeler == "" || filepath.Base(labeler) != labeler || labeler == "." || labeler == ".." {
-				return fmt.Errorf("--labeler 이름이 필요하다")
+				return fmt.Errorf("%s", lang.T("--labeler 이름이 필요하다"))
 			}
 			db, err := ledger.OpenReadOnly(dbPath())
 			if err != nil {
@@ -47,7 +48,7 @@ func labelCmd() *cobra.Command {
 			defer db.Close()
 			full, _, _, err := db.SourceOf(args[0])
 			if err != nil {
-				return fmt.Errorf("세션을 찾지 못했다: %w", err)
+				return fmt.Errorf(lang.T("세션을 찾지 못했다: %w"), err)
 			}
 			evs, err := db.EventsOf(full)
 			if err != nil {
@@ -87,16 +88,16 @@ func labelCmd() *cobra.Command {
 			w := cmd.OutOrStdout()
 			if cmd.Flags().Changed("start") || cmd.Flags().Changed("end") || cmd.Flags().Changed("symptom") {
 				if !cmd.Flags().Changed("start") || !cmd.Flags().Changed("end") || symptom == "" || start < 0 || end < start {
-					return fmt.Errorf("--start --end --symptom을 함께 지정")
+					return fmt.Errorf("%s", lang.T("--start --end --symptom을 함께 지정"))
 				}
 				if symptom != "none" && (len(symptom) != 2 || symptom[0] != 'S' || symptom[1] < '1' || symptom[1] > '8') {
-					return fmt.Errorf("증상은 S1~S8 또는 none")
+					return fmt.Errorf("%s", lang.T("증상은 S1~S8 또는 none"))
 				}
 				if justified != "" && justified != "yes" && justified != "no" && justified != "unsure" {
-					return fmt.Errorf("justified는 yes|no|unsure")
+					return fmt.Errorf("%s", lang.T("justified는 yes|no|unsure"))
 				}
 				if outcome != "" && outcome != "resolved" && outcome != "unresolved" && outcome != "unknown" {
-					return fmt.Errorf("outcome은 resolved|unresolved|unknown")
+					return fmt.Errorf("%s", lang.T("outcome은 resolved|unresolved|unknown"))
 				}
 				foundStart, foundEnd := false, false
 				for _, ev := range evs {
@@ -104,7 +105,7 @@ func labelCmd() *cobra.Command {
 					foundEnd = foundEnd || ev.Seq == end
 				}
 				if !foundStart || !foundEnd {
-					return fmt.Errorf("원장에 없는 이벤트 구간")
+					return fmt.Errorf("%s", lang.T("원장에 없는 이벤트 구간"))
 				}
 				var reviewSource, reviewQueue string
 				if queuePath != "" {
@@ -124,34 +125,34 @@ func labelCmd() *cobra.Command {
 							}
 							sha, err := eval.NativeSourceDigest(source)
 							if err != nil || sha != item.NativeSourceSHA256 {
-								return fmt.Errorf("고정된 원본 자료가 변경되었거나 접근할 수 없습니다")
+								return fmt.Errorf("%s", lang.T("고정된 원본 자료가 변경되었거나 접근할 수 없습니다"))
 							}
 						}
 						reviewSource, reviewQueue, matched = item.SourceDigest, q.Digest, true
 						break
 					}
 					if !matched {
-						return fmt.Errorf("고정 검토 큐의 구간 또는 원장이 일치하지 않습니다")
+						return fmt.Errorf("%s", lang.T("고정 검토 큐의 구간 또는 원장이 일치하지 않습니다"))
 					}
 				}
 				meta.Reviewed = false
 				l := eval.Label{Session: full, Start: start, End: end, Symptom: symptom, Justified: justified, Outcome: outcome, Note: note, Labeler: labeler, ReviewSourceDigest: reviewSource, ReviewQueueDigest: reviewQueue}
 				for _, old := range labels {
 					if old.Start == l.Start && old.End == l.End && old.Symptom == l.Symptom {
-						return fmt.Errorf("같은 구간·증상 라벨이 이미 존재")
+						return fmt.Errorf("%s", lang.T("같은 구간·증상 라벨이 이미 존재"))
 					}
 				}
 				labels = append(labels, l)
 				return saveLabels(out, full, labeler, labels, meta, original, w)
 			}
 			if queuePath != "" {
-				return fmt.Errorf("고정 큐 신고는 --start --end --symptom으로 구간을 지정해야 합니다")
+				return fmt.Errorf("%s", lang.T("고정 큐 신고는 --start --end --symptom으로 구간을 지정해야 합니다"))
 			}
 			in := bufio.NewScanner(cmd.InOrStdin())
 			pg := 0
 			seenEvents := map[int64]bool{}
 			show := func() {
-				fmt.Fprintf(w, "\n세션 %s · 이벤트 %d개 · 쪽 %d/%d\n", short8(full), len(evs), pg+1, (len(evs)+page-1)/page)
+				fmt.Fprintf(w, lang.T("\n세션 %s · 이벤트 %d개 · 쪽 %d/%d\n"), short8(full), len(evs), pg+1, (len(evs)+page-1)/page)
 				for i := pg * page; i < len(evs) && i < (pg+1)*page; i++ {
 					ev := evs[i]
 					seenEvents[ev.Seq] = true
@@ -195,13 +196,13 @@ func labelCmd() *cobra.Command {
 					} else if f[1] == "yes" && len(seenEvents) == len(evs) {
 						meta.Reviewed = true
 					} else {
-						fmt.Fprintln(w, "모든 쪽을 확인한 뒤 reviewed yes로 전체 검토를 명시해야 합니다")
+						fmt.Fprintln(w, lang.T("모든 쪽을 확인한 뒤 reviewed yes로 전체 검토를 명시해야 합니다"))
 					}
 				case len(f) >= 3:
 					a, e1 := strconv.ParseInt(f[0], 10, 64)
 					b, e2 := strconv.ParseInt(f[1], 10, 64)
 					if e1 != nil || e2 != nil || b < a {
-						fmt.Fprintln(w, "형식: <시작> <끝> <증상> [메모]")
+						fmt.Fprintln(w, lang.T("형식: <시작> <끝> <증상> [메모]"))
 						break
 					}
 					l := eval.Label{Session: full, Start: a, End: b, Symptom: f[2]}
@@ -209,23 +210,23 @@ func labelCmd() *cobra.Command {
 						l.Note = strings.Join(f[3:], " ")
 					}
 					labels = append(labels, l)
-					fmt.Fprintf(w, "표시함: %d-%d %s\n", a, b, f[2])
+					fmt.Fprintf(w, lang.T("표시함: %d-%d %s\n"), a, b, f[2])
 				}
 				show()
 			}
 			return saveLabels(out, full, labeler, labels, meta, original, w)
 		},
 	}
-	c.Flags().Int64Var(&start, "start", 0, "한 번에 신고할 시작 이벤트")
-	c.Flags().Int64Var(&end, "end", 0, "한 번에 신고할 끝 이벤트")
-	c.Flags().StringVar(&symptom, "symptom", "", "S1~S8 또는 none")
-	c.Flags().StringVar(&justified, "justified", "", "개입 타당성 yes|no|unsure")
-	c.Flags().StringVar(&outcome, "outcome", "", "관련 후속 결과 resolved|unresolved|unknown")
-	c.Flags().StringVar(&note, "note", "", "사람 관측 메모")
-	c.Flags().StringVar(&labeler, "labeler", "", "표시자 이름")
-	c.Flags().StringVar(&dir, "dir", "labels", "표시 파일 디렉터리")
-	c.Flags().StringVar(&queuePath, "queue", "", "고정 검토 큐; 원장·원본·구간 검증 후 답변에 결속")
-	c.Flags().IntVar(&page, "page", 40, "한 쪽 이벤트 수")
+	c.Flags().Int64Var(&start, "start", 0, lang.T("한 번에 신고할 시작 이벤트"))
+	c.Flags().Int64Var(&end, "end", 0, lang.T("한 번에 신고할 끝 이벤트"))
+	c.Flags().StringVar(&symptom, "symptom", "", lang.T("S1~S8 또는 none"))
+	c.Flags().StringVar(&justified, "justified", "", lang.T("개입 타당성 yes|no|unsure"))
+	c.Flags().StringVar(&outcome, "outcome", "", lang.T("관련 후속 결과 resolved|unresolved|unknown"))
+	c.Flags().StringVar(&note, "note", "", lang.T("사람 관측 메모"))
+	c.Flags().StringVar(&labeler, "labeler", "", lang.T("표시자 이름"))
+	c.Flags().StringVar(&dir, "dir", "labels", lang.T("표시 파일 디렉터리"))
+	c.Flags().StringVar(&queuePath, "queue", "", lang.T("고정 검토 큐; 원장·원본·구간 검증 후 답변에 결속"))
+	c.Flags().IntVar(&page, "page", 40, lang.T("한 쪽 이벤트 수"))
 	return c
 }
 
@@ -241,7 +242,7 @@ func saveLabels(out, sid, labeler string, labels []eval.Label, meta *eval.Meta, 
 		return err
 	}
 	if !bytes.Equal(current, original) {
-		return fmt.Errorf("검토 중 다른 저장이 발생했습니다. 기존 답변을 덮지 않았습니다; 다시 열어 주세요")
+		return fmt.Errorf("%s", lang.T("검토 중 다른 저장이 발생했습니다. 기존 답변을 덮지 않았습니다; 다시 열어 주세요"))
 	}
 	// Existing votes loaded from this file may be preserved, but a new vote
 	// must not duplicate a web/legacy-file vote under the same reviewer ID.
@@ -252,7 +253,7 @@ func saveLabels(out, sid, labeler string, labels []eval.Label, meta *eval.Meta, 
 			continue
 		}
 		if err := json.Unmarshal([]byte(line), &l); err != nil {
-			return fmt.Errorf("기존 검토 파일 파싱 실패: %w", err)
+			return fmt.Errorf(lang.T("기존 검토 파일 파싱 실패: %w"), err)
 		}
 		if l.Meta == nil {
 			oldIntervals[[2]int64{l.Start, l.End}] = true
@@ -266,7 +267,7 @@ func saveLabels(out, sid, labeler string, labels []eval.Label, meta *eval.Meta, 
 	for _, l := range labels {
 		key := [2]int64{l.Start, l.End}
 		if seen[key] {
-			return fmt.Errorf("같은 검토자의 구간 답변이 중복됩니다")
+			return fmt.Errorf("%s", lang.T("같은 검토자의 구간 답변이 중복됩니다"))
 		}
 		seen[key] = true
 		if oldIntervals[key] {
@@ -274,7 +275,7 @@ func saveLabels(out, sid, labeler string, labels []eval.Label, meta *eval.Meta, 
 		}
 		for _, old := range all {
 			if old.Meta == nil && old.Session == sid && old.Labeler == labeler && old.Start == l.Start && old.End == l.End {
-				return fmt.Errorf("이 검토자는 같은 구간을 이미 제출했습니다")
+				return fmt.Errorf("%s", lang.T("이 검토자는 같은 구간을 이미 제출했습니다"))
 			}
 		}
 	}
@@ -291,7 +292,7 @@ func saveLabels(out, sid, labeler string, labels []eval.Label, meta *eval.Meta, 
 	if err := eval.WriteLabelFile(out, []byte(b.String())); err != nil {
 		return err
 	}
-	fmt.Fprintf(w, "\n%s에 구간 %d개 저장\n", out, len(labels))
+	fmt.Fprintf(w, lang.T("\n%s에 구간 %d개 저장\n"), out, len(labels))
 	return nil
 }
 
@@ -299,19 +300,19 @@ func saveLabels(out, sid, labeler string, labels []eval.Label, meta *eval.Meta, 
 func expandSource(ref string, n int) string {
 	i := strings.LastIndexByte(ref, '#')
 	if i < 0 {
-		return "(원본 위치 없음)"
+		return lang.T("(원본 위치 없음)")
 	}
 	off, err := strconv.ParseInt(ref[i+1:], 10, 64)
 	if err != nil {
-		return "(원본 위치 형식 오류)"
+		return lang.T("(원본 위치 형식 오류)")
 	}
 	f, err := os.Open(ref[:i])
 	if err != nil {
-		return "(이 장비에서 원본 기록을 열 수 없다)"
+		return lang.T("(이 장비에서 원본 기록을 열 수 없다)")
 	}
 	defer f.Close()
 	if _, err := f.Seek(off, io.SeekStart); err != nil {
-		return "(원본 위치를 찾지 못했다)"
+		return lang.T("(원본 위치를 찾지 못했다)")
 	}
 	rd := bufio.NewReaderSize(f, 1<<20)
 	line, _ := rd.ReadString('\n')
@@ -326,7 +327,7 @@ func evalCmd() *cobra.Command {
 	var interventions bool
 	c := &cobra.Command{
 		Use:   "eval",
-		Short: "표시 데이터로 정밀도·재현율 계산",
+		Short: lang.T("표시 데이터로 정밀도·재현율 계산"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := openDB()
 			if err != nil {
@@ -342,7 +343,7 @@ func evalCmd() *cobra.Command {
 				return printJSONOr(w, format, rep, rep.Text())
 			}
 			if labelsDir == "" || splitFile == "" {
-				return fmt.Errorf("--labels와 --split이 필요하다")
+				return fmt.Errorf("%s", lang.T("--labels와 --split이 필요하다"))
 			}
 			split, err := eval.LoadSplit(splitFile)
 			if err != nil {
@@ -367,7 +368,7 @@ func evalCmd() *cobra.Command {
 					return err
 				}
 				if len(evs) == 0 {
-					return fmt.Errorf("세션 %s가 원장에 없다", sid)
+					return fmt.Errorf(lang.T("세션 %s가 원장에 없다"), sid)
 				}
 				data[sid] = eval.SessionData{Events: evs, Verdicts: vs}
 			}
@@ -375,11 +376,11 @@ func evalCmd() *cobra.Command {
 			return printJSONOr(w, format, rep, evalText(rep))
 		},
 	}
-	c.Flags().StringVar(&labelsDir, "labels", "", "표시 디렉터리 (labels/<표시자>/*.jsonl)")
-	c.Flags().StringVar(&splitFile, "split", "", "보정·보류 세트 분할 JSON")
+	c.Flags().StringVar(&labelsDir, "labels", "", lang.T("표시 디렉터리 (labels/<표시자>/*.jsonl)"))
+	c.Flags().StringVar(&splitFile, "split", "", lang.T("보정·보류 세트 분할 JSON"))
 	c.Flags().StringVar(&set, "set", "holdout", "holdout | calibration")
 	c.Flags().StringVar(&format, "format", "text", "text | json")
-	c.Flags().BoolVar(&interventions, "interventions", false, "개입 실험 결과")
+	c.Flags().BoolVar(&interventions, "interventions", false, lang.T("개입 실험 결과"))
 	c.AddCommand(corpusCmd(), reviewQueueCmd(), compareCmd())
 	return c
 }
@@ -396,36 +397,36 @@ func printJSONOr(w io.Writer, format string, v any, text string) error {
 
 func evalText(r eval.Report) string {
 	var b strings.Builder
-	fmt.Fprintf(&b, "평가 세트 %s · 세션 %d개 · 이중 표시 비율 %.0f%%\n", r.Set, r.Sessions, r.DoubleLabeledShare*100)
-	fmt.Fprintf(&b, "%-14s %6s %18s %6s %18s %10s\n", "증상", "정밀도", "95% 구간", "재현율", "95% 구간", "지연 중앙값")
+	fmt.Fprintf(&b, lang.T("평가 세트 %s · 세션 %d개 · 이중 표시 비율 %.0f%%\n"), r.Set, r.Sessions, r.DoubleLabeledShare*100)
+	fmt.Fprintf(&b, "%-14s %6s %18s %6s %18s %10s\n", lang.T("증상"), lang.T("정밀도"), lang.T("95% 구간"), lang.T("재현율"), lang.T("95% 구간"), lang.T("지연 중앙값"))
 	row := func(s eval.SymptomScore) {
 		name := receipt.SymptomNameOr(s.Symptom)
 		flag := ""
 		if s.Insufficient && s.Symptom != "all" && s.Symptom != "deterministic" {
-			flag = "  표본 부족"
+			flag = lang.T("  표본 부족")
 		}
-		fmt.Fprintf(&b, "%s %5.0f%% %8.0f%%-%3.0f%% %5.0f%% %8.0f%%-%3.0f%% %9d원%s\n", padR(name, 14), s.Precision*100, s.PrecisionCI.Lo*100, s.PrecisionCI.Hi*100,
+		fmt.Fprintf(&b, lang.T("%s %5.0f%% %8.0f%%-%3.0f%% %5.0f%% %8.0f%%-%3.0f%% %9d원%s\n"), padR(name, 14), s.Precision*100, s.PrecisionCI.Lo*100, s.PrecisionCI.Hi*100,
 			s.Recall*100, s.RecallCI.Lo*100, s.RecallCI.Hi*100, s.LatencyMedianKRW, flag)
 	}
 	for _, s := range r.Symptoms {
 		row(s)
 	}
 	o := r.Overall
-	o.Symptom = "전체"
+	o.Symptom = lang.T("전체")
 	row(o)
 	d := r.Deterministic
-	d.Symptom = "결정적"
+	d.Symptom = lang.T("결정적")
 	row(d)
 	for _, k := range r.Kappa {
-		fmt.Fprintf(&b, "표시자 일치도 %s-%s kappa %.2f (이벤트 %d)\n", k.A, k.B, k.Kappa, k.Events)
+		fmt.Fprintf(&b, lang.T("표시자 일치도 %s-%s kappa %.2f (이벤트 %d)\n"), k.A, k.B, k.Kappa, k.Events)
 	}
-	fmt.Fprintf(&b, "합의 사건 %d개 · 표시자 간 이견으로 제외 %d개\n", r.Incidents, r.Disputed)
+	fmt.Fprintf(&b, lang.T("합의 사건 %d개 · 표시자 간 이견으로 제외 %d개\n"), r.Incidents, r.Disputed)
 	if len(r.Rules) > 0 {
-		fmt.Fprintf(&b, "%-28s %6s %6s %16s %16s %8s\n", "규칙", "탐지", "정밀도", "95% 구간", "개입 정당", "정상 구간")
+		fmt.Fprintf(&b, "%-28s %6s %6s %16s %16s %8s\n", lang.T("규칙"), lang.T("탐지"), lang.T("정밀도"), lang.T("95% 구간"), lang.T("개입 정당"), lang.T("정상 구간"))
 		for _, x := range r.Rules {
 			flag := ""
 			if x.Insufficient {
-				flag = "  표본 부족"
+				flag = lang.T("  표본 부족")
 			}
 			fmt.Fprintf(&b, "%-28s %6d %5.0f%% %7.0f%%-%3.0f%% %6d (%2.0f-%3.0f%%) %8d%s\n", x.Rule, x.Detections, x.Precision*100, x.PrecisionCI.Lo*100, x.PrecisionCI.Hi*100,
 				x.Justified, x.JustifiedCI.Lo*100, x.JustifiedCI.Hi*100, x.NormalHits, flag)
@@ -446,14 +447,14 @@ func benchCmd() *cobra.Command {
 	var runs int
 	c := &cobra.Command{
 		Use:   "bench",
-		Short: "ProgressBench 과제 실행",
+		Short: lang.T("ProgressBench 과제 실행"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sc, err := bench.Load(dir)
 			if err != nil {
 				return err
 			}
 			if len(sc) == 0 {
-				return fmt.Errorf("%s에 과제가 없다", dir)
+				return fmt.Errorf(lang.T("%s에 과제가 없다"), dir)
 			}
 			prices, err := loadPrices()
 			if err != nil {
@@ -478,7 +479,7 @@ func benchCmd() *cobra.Command {
 						first = o
 					} else if strings.Join(o.Fired, ",") != strings.Join(first.Fired, ",") || o.WasteKRW != first.WasteKRW {
 						first.Pass = false
-						first.Problems = append(first.Problems, "반복 실행 결과가 다르다")
+						first.Problems = append(first.Problems, lang.T("반복 실행 결과가 다르다"))
 					}
 				}
 				if !first.Pass {
@@ -491,26 +492,26 @@ func benchCmd() *cobra.Command {
 				fmt.Fprintln(w, string(b))
 			} else {
 				for _, o := range outs {
-					st := "통과"
+					st := lang.T("통과")
 					if !o.Pass {
-						st = "실패"
+						st = lang.T("실패")
 					}
-					fmt.Fprintf(w, "%-4s %-34s %-6s %-8s L%d 헛짓 %6s원  %s\n", st, o.Name, o.Symptom, o.Kind, o.MaxLevel, commaInt(o.WasteKRW), strings.Join(o.Fired, " "))
+					fmt.Fprintf(w, lang.T("%-4s %-34s %-6s %-8s L%d 헛짓 %6s원  %s\n"), st, o.Name, o.Symptom, o.Kind, o.MaxLevel, commaInt(o.WasteKRW), strings.Join(o.Fired, " "))
 					for _, p := range o.Problems {
 						fmt.Fprintf(w, "       %s\n", p)
 					}
 				}
-				fmt.Fprintf(w, "과제 %d개 중 %d개 통과\n", len(outs), len(outs)-fails)
+				fmt.Fprintf(w, lang.T("과제 %d개 중 %d개 통과\n"), len(outs), len(outs)-fails)
 			}
 			if fails > 0 {
-				return fmt.Errorf("과제 %d개 실패", fails)
+				return fmt.Errorf(lang.T("과제 %d개 실패"), fails)
 			}
 			return nil
 		},
 	}
-	c.Flags().StringVar(&dir, "dir", "bench/scenarios", "과제 디렉터리")
+	c.Flags().StringVar(&dir, "dir", "bench/scenarios", lang.T("과제 디렉터리"))
 	c.Flags().StringVar(&format, "format", "text", "text | json")
-	c.Flags().IntVar(&runs, "runs", 2, "같은 과제 반복 실행 횟수 (결정성 확인)")
+	c.Flags().IntVar(&runs, "runs", 2, lang.T("같은 과제 반복 실행 횟수 (결정성 확인)"))
 	c.AddCommand(benchABCmd(), benchReportCmd(), benchPlanCmd(), benchReplayCmd(), benchTasksCmd(), benchProbeCmd())
 	return c
 }

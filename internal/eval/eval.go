@@ -8,6 +8,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"math"
 	"os"
 	"path/filepath"
@@ -88,14 +89,14 @@ func (l Label) ValidateSource() error {
 	switch l.Tier() {
 	case LabelSourceHuman:
 		if l.Derivation != nil {
-			return errors.New("사람 라벨에 파생 기록이 붙어 있다")
+			return errors.New(lang.T("사람 라벨에 파생 기록이 붙어 있다"))
 		}
 	case LabelSourceDerived:
 		if l.Derivation == nil || l.Derivation.Method == "" {
-			return errors.New("파생 라벨에는 파생 방법이 필요하다")
+			return errors.New(lang.T("파생 라벨에는 파생 방법이 필요하다"))
 		}
 	default:
-		return fmt.Errorf("알 수 없는 라벨 출처 %q", l.Source)
+		return fmt.Errorf(lang.T("알 수 없는 라벨 출처 %q"), l.Source)
 	}
 	return nil
 }
@@ -149,18 +150,18 @@ func (s Split) Validate() error {
 	for partition, ids := range [][]string{s.Calibration, s.Holdout} {
 		for _, id := range ids {
 			if id == "" || seen[id] {
-				return fmt.Errorf("중복 또는 빈 세션: %s", id)
+				return fmt.Errorf(lang.T("중복 또는 빈 세션: %s"), id)
 			}
 			seen[id] = true
 			group, ok := s.Groups[id]
 			if s.Version == "split/2" && (!ok || group.Repository == "" || group.Family == "") {
-				return fmt.Errorf("세션 %s의 저장소/과제 계열 누락", id)
+				return fmt.Errorf(lang.T("세션 %s의 저장소/과제 계열 누락"), id)
 			}
 			for prefix, value := range map[string]string{"repo:": group.Repository, "family:": group.Family} {
 				if value != "" {
 					key := prefix + value
 					if previous, ok := owners[key]; ok && previous != partition {
-						return fmt.Errorf("보정/보류 간 저장소 또는 과제 계열 누출: %s", key)
+						return fmt.Errorf(lang.T("보정/보류 간 저장소 또는 과제 계열 누출: %s"), key)
 					}
 					owners[key] = partition
 				}
@@ -169,7 +170,7 @@ func (s Split) Validate() error {
 	}
 	for id := range s.Groups {
 		if !seen[id] {
-			return fmt.Errorf("분할되지 않은 세션 그룹: %s", id)
+			return fmt.Errorf(lang.T("분할되지 않은 세션 그룹: %s"), id)
 		}
 	}
 	return nil

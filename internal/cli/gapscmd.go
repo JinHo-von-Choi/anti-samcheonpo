@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"sort"
 	"time"
@@ -23,10 +24,10 @@ func gapsCmd() *cobra.Command {
 	var perPattern int
 	c := &cobra.Command{
 		Use:   "gaps",
-		Short: "헛짓으로 분류되지 않은 의심 구간을 사람 판정용으로 뽑는다 (원장에 쓰지 않음)",
+		Short: lang.T("헛짓으로 분류되지 않은 의심 구간을 사람 판정용으로 뽑는다 (원장에 쓰지 않음)"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if perPattern < 1 {
-				return fmt.Errorf("per-pattern은 1 이상")
+				return fmt.Errorf("%s", lang.T("per-pattern은 1 이상"))
 			}
 			t, err := ParseSince(since, time.Now())
 			if err != nil {
@@ -41,7 +42,7 @@ func gapsCmd() *cobra.Command {
 				return err
 			}
 			if source != "all" && source != "transcript" && source != "ledger" {
-				return fmt.Errorf("source는 all, transcript 또는 ledger")
+				return fmt.Errorf("%s", lang.T("source는 all, transcript 또는 ledger"))
 			}
 			var all []analyze.Gap
 			if source != "transcript" {
@@ -86,13 +87,13 @@ func gapsCmd() *cobra.Command {
 				for _, g := range gs {
 					tokens += g.Tokens
 				}
-				fmt.Fprintf(w, "%-28s 구간 %5d개  토큰 %s\n", p, len(gs), commaInt(tokens))
+				fmt.Fprintf(w, lang.T("%-28s 구간 %5d개  토큰 %s\n"), p, len(gs), commaInt(tokens))
 				// largest spans first: they are where a missed rule costs most
 				sort.SliceStable(gs, func(i, j int) bool { return gs[i].Tokens > gs[j].Tokens })
 				sample = append(sample, gs[:min(perPattern, len(gs))]...)
 			}
 			if failed > 0 {
-				fmt.Fprintf(w, "읽지 못한 기록 %d개\n", failed)
+				fmt.Fprintf(w, lang.T("읽지 못한 기록 %d개\n"), failed)
 			}
 			if out == "" {
 				return nil
@@ -113,14 +114,14 @@ func gapsCmd() *cobra.Command {
 			if err := fh.Close(); err != nil {
 				return err
 			}
-			fmt.Fprintf(w, "판정용 표본 %d개: %s (원문 프롬프트 일부가 들어 있어 공유하지 않는다)\n판정: samcheonpo label <session> 으로 해당 범위를 표시한다\n", len(sample), out)
+			fmt.Fprintf(w, lang.T("판정용 표본 %d개: %s (원문 프롬프트 일부가 들어 있어 공유하지 않는다)\n판정: samcheonpo label <session> 으로 해당 범위를 표시한다\n"), len(sample), out)
 			return nil
 		},
 	}
-	c.Flags().StringVar(&since, "since", "30d", "기간")
-	c.Flags().StringVar(&agent, "agent", "", "에이전트 (기본 전체)")
+	c.Flags().StringVar(&since, "since", "30d", lang.T("기간"))
+	c.Flags().StringVar(&agent, "agent", "", lang.T("에이전트 (기본 전체)"))
 	c.Flags().StringVar(&source, "source", "transcript", "transcript | ledger | all")
-	c.Flags().StringVar(&out, "out", "", "표본 JSONL 경로 (새 파일만)")
-	c.Flags().IntVar(&perPattern, "per-pattern", 20, "형태별 표본 수")
+	c.Flags().StringVar(&out, "out", "", lang.T("표본 JSONL 경로 (새 파일만)"))
+	c.Flags().IntVar(&perPattern, "per-pattern", 20, lang.T("형태별 표본 수"))
 	return c
 }

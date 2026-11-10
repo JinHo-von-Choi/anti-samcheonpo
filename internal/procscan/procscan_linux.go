@@ -103,9 +103,11 @@ func listening() map[string]int {
 }
 
 // Leftover lists processes left running in root: started inside one of
-// the windows, by this user, not a systemd service and not excluded. It
-// stops at the deadline and returns what it found.
-func Leftover(root string, windows []Window, exclude map[int]bool, deadline time.Time) []Proc {
+// the windows, by this user, not a systemd service, not excluded and not
+// still a descendant of the host, which manages those itself. It stops at the
+// deadline and returns what it found. A host of 0 is unknown and excludes
+// nothing.
+func Leftover(root string, windows []Window, exclude map[int]bool, host int, deadline time.Time) []Proc {
 	if len(windows) == 0 {
 		return nil
 	}
@@ -147,7 +149,7 @@ func Leftover(root string, windows []Window, exclude map[int]bool, deadline time
 			continue
 		}
 		started := boot.Add(time.Duration(ticks) * time.Second / clockTicks)
-		if !inWindows(started, windows) || systemService(e.Name(), own) {
+		if !inWindows(started, windows) || systemService(e.Name(), own) || descendsFrom(parentPID, host) {
 			continue
 		}
 		p := Proc{PID: pid, ParentPID: parentPID, Started: started, Exe: exe}
@@ -179,4 +181,55 @@ func Leftover(root string, windows []Window, exclude map[int]bool, deadline time
 	}
 	sort.Slice(out, func(i, j int) bool { return out[i].PID < out[j].PID })
 	return out
+}
+
+// maxProcessDepth bounds a walk up the process tree.
+const maxProcessDepth = 64
+
+// descendsFrom reports whether pid is host or runs under it.
+func descendsFrom(pid, host int) bool {
+	if host <= 1 {
+		return false
+	}
+	for depth := 0; depth < maxProcessDepth && pid > 1; depth++ {
+		if pid == host {
+			return true
+		}
+		_, parent, ok := processIdentity(strconv.Itoa(pid))
+		if !ok {
+			return false
+		}
+		pid = parent
+	}
+	return false
+}
+
+// hookRunners start a hook without being the agent: the shell the host
+// wraps a hook command in, and the hook itself.
+var hookRunners = map[string]bool{"sh": true, "bash": true, "dash": true, "zsh": true, "fish": true, "samcheonpo-hook": true, "samcheonpo": true}
+
+// HostPID finds the agent process a hook runs under: the first ancestor of
+// the hook that is not a shell. It returns 0 when that is not known or would
+// be the init system, which parents every orphan.
+func HostPID(hook int) int {
+	pid := hook
+	for depth := 0; depth < maxProcessDepth && pid > 1; depth++ {
+		_, parent, ok := processIdentity(strconv.Itoa(pid))
+		if !ok || parent <= 1 {
+			return 0
+		}
+		exe, err := os.Readlink("/proc/" + strconv.Itoa(parent) + "/exe")
+		if err != nil {
+			return 0
+		}
+		name := filepath.Base(exe)
+		if name == "systemd" || name == "init" {
+			return 0
+		}
+		if !hookRunners[name] {
+			return parent
+		}
+		pid = parent
+	}
+	return 0
 }

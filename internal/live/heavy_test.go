@@ -203,10 +203,10 @@ func TestCheckpointWaitsForAnotherSessionsHeavyRun(t *testing.T) {
 }
 
 // TestMigrationHistoryWriteIsAdvisedBeforeItRuns goes through the daemon:
-// the Vellum rollback statement reaches the agent before it runs.
+// the Billing rollback statement reaches the agent before it runs.
 func TestMigrationHistoryWriteIsAdvisedBeforeItRuns(t *testing.T) {
 	d, ss := heavyDaemon(t, t.TempDir())
-	cmd := "set -a && source .env && set +a && psql \"${DATABASE_URL%%\\?*}\" <<'SQL'\nDELETE FROM vellum._sqlx_migrations WHERE version = 22;\nSQL"
+	cmd := "set -a && source .env && set +a && psql \"${DATABASE_URL%%\\?*}\" <<'SQL'\nDELETE FROM billing._sqlx_migrations WHERE version = 22;\nSQL"
 	out := heavyCall(t, d, ss[0], "PreToolUse", "m1", cmd, nil)
 	if !strings.Contains(out, "마이그레이션 이력 테이블") {
 		t.Fatalf("advice before the run: %s", out)

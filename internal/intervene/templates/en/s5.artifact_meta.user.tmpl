@@ -1,0 +1,3 @@
+{{if eq .kind "filler"}}The AI put {{.count}} deletable sentences in a document. For example: {{.candidates}}
+If removing them changes nothing, they only cost the reader time.{{else}}The AI put {{.count}} sentences describing how the work was done in text to be published. For example: {{.candidates}}
+Pushing this leaves internal instructions and work process in the repository's record.{{end}}

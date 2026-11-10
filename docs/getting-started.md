@@ -16,7 +16,7 @@
 | Intel Mac / Apple Silicon | `darwin_amd64.tar.gz` / `darwin_arm64.tar.gz` |
 | Windows x64 / ARM64 | `windows_amd64.tar.gz` / `windows_arm64.tar.gz` |
 
-`SHA256SUMS`도 같은 폴더에 받으세요. Linux는 `sha256sum --ignore-missing -c SHA256SUMS`, macOS는 `shasum -a 256 -c SHA256SUMS --ignore-missing`으로 다운로드를 확인합니다. Windows PowerShell에서는 `Get-FileHash .\samcheonpo_0.11.1_windows_amd64.tar.gz -Algorithm SHA256`의 값을 `SHA256SUMS`의 해당 줄과 대조합니다.
+`SHA256SUMS`도 같은 폴더에 받으세요. Linux는 `sha256sum --ignore-missing -c SHA256SUMS`, macOS는 `shasum -a 256 -c SHA256SUMS --ignore-missing`으로 다운로드를 확인합니다. Windows PowerShell에서는 `Get-FileHash .\samcheonpo_0.12.0_windows_amd64.tar.gz -Algorithm SHA256`의 값을 `SHA256SUMS`의 해당 줄과 대조합니다.
 
 압축을 풀고 `samcheonpo`와 `samcheonpo-hook`을 PATH에 등록한 **같은 폴더**에 둡니다. Windows에서는 두 `.exe`를 함께 두고, 검사 명령용 Git for Windows도 설치합니다.
 
@@ -33,8 +33,8 @@ samcheonpo doctor
 Go 1.27 이상이 필요합니다. Go 실행 파일 설치 경로도 PATH에 있어야 합니다.
 
 ```sh
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.11.1
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.11.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.12.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.12.0
 ```
 
 ### 기존 버전에서 업그레이드

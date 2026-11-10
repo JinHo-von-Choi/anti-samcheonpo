@@ -1,0 +1,1 @@
+{{if eq .issue "filler_card"}}요청 안 한 안내 카드는 빼 줘.{{else if .issue}}눌러도 아무 일 없는 링크랑 같은 버튼 반복은 빼 줘.{{else}}{{if .element}}{{.element}} 수는 {{.requested}}개로 맞춰 줘.{{else}}요청 안 한 버튼이나 링크는 빼 줘. 남길 거면 각각 뭘 하는 건지 알려 줘.{{end}}{{end}}

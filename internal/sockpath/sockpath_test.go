@@ -3,6 +3,7 @@ package sockpath
 import (
 	"os"
 	"path/filepath"
+	"slices"
 	"strings"
 	"testing"
 )
@@ -55,5 +56,25 @@ func TestFallbackShortensItsNameWhenTheTempDirIsLong(t *testing.T) {
 	}
 	if len(p) > maxLen {
 		t.Fatalf("socket path of %d bytes exceeds %d: %s", len(p), maxLen, p)
+	}
+}
+
+func TestCandidatesReachAnotherEnvironmentsSocket(t *testing.T) {
+	home := t.TempDir()
+	t.Setenv("HOME", home)
+	t.Setenv("SAMCHEONPO_HOME", "")
+	run := filepath.Join(home, ".samcheonpo", "run")
+	if err := os.MkdirAll(run, 0o700); err != nil {
+		t.Fatal(err)
+	}
+	xdg := t.TempDir()
+	t.Setenv("XDG_RUNTIME_DIR", xdg)
+	got := Candidates()
+	if got[0] != Path() || got[0] != filepath.Join(xdg, "samcheonpo.sock") || !slices.Contains(got, filepath.Join(run, "samcheonpo.sock")) {
+		t.Fatalf("a login session also looks in the home directory: %v", got)
+	}
+	t.Setenv("SAMCHEONPO_HOME", t.TempDir())
+	if got := Candidates(); len(got) != 1 {
+		t.Fatalf("an explicit home never shares the default daemon: %v", got)
 	}
 }

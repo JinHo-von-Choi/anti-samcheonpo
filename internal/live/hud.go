@@ -3,11 +3,11 @@ package live
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"net"
 	"strings"
 	"time"
 
-	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intervene"
@@ -26,61 +26,61 @@ func (s *Session) hudState() notify.HUDState {
 	h := notify.HUDState{SessionID: s.ID}
 	var parts []string
 	if n := s.queueRejected.Load(); n > 0 {
-		parts = append(parts, fmt.Sprintf("[관측 큐 포화: %d건 미처리]", n))
+		parts = append(parts, fmt.Sprintf(s.pick("[관측 큐 포화: %d건 미처리]", "[observation queue full: %d unprocessed]"), n))
 	}
 	if s.storageErr != nil {
-		parts = append(parts, "[기록 저장 실패]")
+		parts = append(parts, s.pick("[기록 저장 실패]", "[record save failed]"))
 	}
 	if s.Cfg.Experiment.Enabled {
-		parts = append(parts, "[실험 모드: 일부 안내 보류]")
+		parts = append(parts, s.pick("[실험 모드: 일부 안내 보류]", "[experiment mode: some advice withheld]"))
 	}
 	if s.shapeNote != "" {
-		parts = append(parts, "[훅 형식 불일치: 관찰만 함 ("+s.shapeNote+")]")
+		parts = append(parts, s.pick("[훅 형식 불일치: 관찰만 함 (", "[hook format mismatch: observing only (")+s.shapeNote+")]")
 	}
 	if n := s.preLate.Load(); n > 0 {
-		parts = append(parts, fmt.Sprintf("[실행 전 판정 시간 초과 %d건: 그 판정은 전달되지 않았을 수 있음]", n))
+		parts = append(parts, fmt.Sprintf(s.pick("[실행 전 판정 시간 초과 %d건: 그 판정은 전달되지 않았을 수 있음]", "[%d pre-run verdicts timed out: they may not have been delivered]"), n))
 	}
 	met, total := s.criteria()
 	switch {
 	case total > 0:
-		h.Progress = fmt.Sprintf("진척 %d/%d", met, total)
+		h.Progress = fmt.Sprintf(s.pick("진척 %d/%d", "progress %d/%d"), met, total)
 	case len(st.ProgressSeqs) > 0:
-		h.Progress = "진척 추정"
+		h.Progress = s.pick("진척 추정", "progress estimated")
 	default:
-		h.Progress = "진척 측정 불가"
+		h.Progress = s.pick("진척 측정 불가", "progress unmeasurable")
 	}
 	parts = append(parts, h.Progress)
 	tokens, unpriced, waste, _ := s.measuredUsage()
 	h.UsageUnknown = tokens == 0 || unpriced > 0
 	if h.UsageUnknown {
-		parts = append(parts, "공회전 비용 미확인")
+		parts = append(parts, s.pick("공회전 비용 미확인", "idle cost unknown"))
 	} else {
 		h.IdleKRW = cost.Won(st.TotalMicro - st.ProgressMark)
-		parts = append(parts, "공회전 API환산 "+contract.Comma(h.IdleKRW)+"원")
+		parts = append(parts, s.pick("공회전 API환산 ", "idle API-equivalent ")+s.amountContext().Amount(h.IdleKRW))
 	}
 	pct := 0
 	if st.TotalMicro > 0 {
 		pct = int(float64(waste) * 100 / float64(st.TotalMicro))
 	}
 	if h.UsageUnknown || st.TotalMicro == 0 {
-		parts = append(parts, "헛짓 비율 미확인")
+		parts = append(parts, s.pick("헛짓 비율 미확인", "waste ratio unknown"))
 	} else {
 		h.WasteKRW = cost.Won(waste)
 		h.WastePercentage = pct
 		h.WasteRatioText, h.WasteRatioBasis = cost.RatioText(waste, st.TotalMicro), "money"
-		parts = append(parts, "낭비 분류율 "+h.WasteRatioText+" (계측 금액)")
+		parts = append(parts, s.pick("낭비 분류율 ", "classified waste ")+h.WasteRatioText+s.pick(" (계측 금액)", " (measured amount)"))
 	}
 	if active, tok, tier := s.eng.SessionLength(); tier > 0 {
 		h.SessionMinutes, h.SessionTokens, h.SessionTier = int(active.Minutes()), tok, tier
-		label := "세션"
+		label := s.pick("세션", "session")
 		if tier >= 3 {
-			label = "세션 상한 도달"
+			label = s.pick("세션 상한 도달", "session limit reached")
 		}
-		parts = append(parts, fmt.Sprintf("%s %s·%s 토큰", label, detect.HoursText(active.Hours()), detect.TokensText(tok)))
+		parts = append(parts, fmt.Sprintf(s.pick("%s %s·%s 토큰", "%s %s, %s tokens"), label, intervene.FactText(s.language(), detect.HoursText(active.Hours())), detect.TokensText(tok)))
 	}
 	if spent, limit, ok := s.treeSpend(); ok {
 		h.TreeKRW, h.TreeLimitKRW = spent, limit
-		parts = append(parts, fmt.Sprintf("군집 지출 %s원/%s원", contract.Comma(spent), contract.Comma(limit)))
+		parts = append(parts, fmt.Sprintf(s.pick("군집 지출 %s/%s", "swarm spend %s/%s"), s.amountContext().Amount(spent), s.amountContext().Amount(limit)))
 	}
 	assessment, work := s.currentAssessment(met, total)
 	h.Assessment = &assessment
@@ -96,11 +96,11 @@ func (s *Session) hudState() notify.HUDState {
 		for _, r := range h.Alignment.Requirements {
 			label := r.Label
 			if r.Status == "passing_evidence_candidate" {
-				label += " · 통과 근거의 현재성 확인"
+				label += s.pick(" · 통과 근거의 현재성 확인", " · check the passing evidence is current")
 			} else if changed, missing := s.eng.TargetStatus(r.Label); len(missing) > 0 {
-				label += " · 아직 변경 없음: " + strings.Join(missing, ", ")
+				label += s.pick(" · 아직 변경 없음: ", " · no change yet: ") + strings.Join(missing, ", ")
 			} else if len(changed) > 0 {
-				label += " · 변경 있음, 검증 전"
+				label += s.pick(" · 변경 있음, 검증 전", " · changed, not yet verified")
 			}
 			work.Remaining = append(work.Remaining, label)
 		}
@@ -137,10 +137,10 @@ func (s *Session) hudState() notify.HUDState {
 		h.WasteRatioText, h.WasteRatioBasis = assessment.WasteRatio, assessment.CostBasis
 	}
 	if assessment.CostAttribution == "unattributed_findings" {
-		parts = append(parts, "지적 비용 귀속 미확인")
+		parts = append(parts, s.pick("지적 비용 귀속 미확인", "finding cost attribution unknown"))
 	}
 	if assessment.Findings > 0 {
-		parts = append(parts, fmt.Sprintf("판정 %d", assessment.Findings))
+		parts = append(parts, fmt.Sprintf(s.pick("판정 %d", "verdicts %d"), assessment.Findings))
 	}
 	h.StatusText = s.stateLabel(met, total)
 	h.Summary = strings.Join(parts, " · ")
@@ -192,7 +192,7 @@ func (d *Daemon) streamHUD(c net.Conn, req Request) {
 	s := d.latest(in.Root, in.SessionID)
 	enc := json.NewEncoder(c)
 	if s == nil {
-		_ = enc.Encode(Response{V: ProtocolVersion, Error: "지켜볼 세션이 없다"})
+		_ = enc.Encode(Response{V: ProtocolVersion, Error: lang.T("지켜볼 세션이 없다")})
 		return
 	}
 	ch, cancel := s.hud.Subscribe()

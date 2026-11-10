@@ -2,6 +2,7 @@ package ledger
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
@@ -25,7 +26,7 @@ type BranchInfo struct {
 func (d *DB) LatestLiveSession() (id, agent, root string, err error) {
 	row := d.QueryRow(`SELECT id, agent, project_path FROM session WHERE mode='live' ORDER BY started_at DESC LIMIT 1`)
 	if err := row.Scan(&id, &agent, &root); err != nil {
-		return "", "", "", fmt.Errorf("이 프로젝트에 진행 중인 세션이 없다: %w", err)
+		return "", "", "", fmt.Errorf(lang.T("이 프로젝트에 진행 중인 세션이 없다: %w"), err)
 	}
 	return id, agent, root, nil
 }
@@ -34,7 +35,7 @@ func (d *DB) LatestLiveSession() (id, agent, root string, err error) {
 func (d *DB) SessionRoot(id string) (agent, root string, err error) {
 	row := d.QueryRow(`SELECT agent, project_path FROM session WHERE id=?`, id)
 	if err := row.Scan(&agent, &root); err != nil {
-		return "", "", fmt.Errorf("세션을 읽을 수 없음(%s): %w", id, err)
+		return "", "", fmt.Errorf(lang.T("세션을 읽을 수 없음(%s): %w"), id, err)
 	}
 	return agent, root, nil
 }
@@ -59,10 +60,10 @@ func (d *DB) BranchSession(oldID, newID, note string) (BranchInfo, error) {
 	err := d.QueryRow(`SELECT agent, project_path, model, source_path FROM session WHERE id=?`, oldID).
 		Scan(&agent, &root, &model, &transcript)
 	if err != nil {
-		return BranchInfo{}, fmt.Errorf("기준 세션을 읽을 수 없음(%s): %w", oldID, err)
+		return BranchInfo{}, fmt.Errorf(lang.T("기준 세션을 읽을 수 없음(%s): %w"), oldID, err)
 	}
 	if newID == "" {
-		return BranchInfo{}, fmt.Errorf("새 세션 이름이 없다")
+		return BranchInfo{}, fmt.Errorf("%s", lang.T("새 세션 이름이 없다"))
 	}
 	if err := d.UpsertLive(newID, agent, root, transcript, model); err != nil {
 		return BranchInfo{}, err

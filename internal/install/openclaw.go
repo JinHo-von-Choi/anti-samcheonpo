@@ -2,6 +2,7 @@ package install
 
 import (
 	"errors"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"os/exec"
 	"path/filepath"
@@ -60,12 +61,12 @@ func InstallOpenclaw(bin string, out func(string)) error {
 	}
 	if b, err := openclawCLI("plugins", "install", dir); err != nil {
 		undo()
-		return errors.New("openclaw plugins install 실패: " + strings.TrimSpace(string(b)) + " (" + err.Error() + ")")
+		return errors.New(lang.T("openclaw plugins install 실패: ") + strings.TrimSpace(string(b)) + " (" + err.Error() + ")")
 	}
 	if b, err := openclawCLI("config", "set", "plugins.entries."+OpenclawPlugin+".hooks.allowConversationAccess", "true"); err != nil {
 		_, _ = openclawCLI("plugins", "uninstall", OpenclawPlugin, "--force")
 		undo()
-		return errors.New("openclaw config set 실패: " + strings.TrimSpace(string(b)) + " (" + err.Error() + ")")
+		return errors.New(lang.T("openclaw config set 실패: ") + strings.TrimSpace(string(b)) + " (" + err.Error() + ")")
 	}
 	// The bundle is recorded so that a later change to the installed files
 	// is visible instead of silent.
@@ -74,11 +75,11 @@ func InstallOpenclaw(bin string, out func(string)) error {
 		bundleFiles = append(bundleFiles, p)
 	}
 	if m, err := BuildManifest("openclaw", dir, bundleFiles, true); err != nil {
-		out("무결성 기록을 남기지 못했다: " + err.Error())
+		out(lang.T("무결성 기록을 남기지 못했다: ") + err.Error())
 	} else if err := RecordManifest(m); err != nil {
-		out("무결성 기록을 남기지 못했다: " + err.Error())
+		out(lang.T("무결성 기록을 남기지 못했다: ") + err.Error())
 	}
-	out("OpenClaw 플러그인 " + OpenclawPlugin + "를 설치했다 (새 실행부터 적용, 게이트웨이는 재시작 후 적용)")
+	out(lang.T("OpenClaw 플러그인 ") + OpenclawPlugin + lang.T("를 설치했다 (새 실행부터 적용, 게이트웨이는 재시작 후 적용)"))
 	return nil
 }
 
@@ -99,7 +100,7 @@ func UninstallOpenclaw(out func(string)) error {
 		}
 	}
 	if b, err := openclawCLI("plugins", "uninstall", OpenclawPlugin, "--force"); err != nil {
-		return errors.New("openclaw plugins uninstall 실패: " + strings.TrimSpace(string(b)) + " (" + err.Error() + ")")
+		return errors.New(lang.T("openclaw plugins uninstall 실패: ") + strings.TrimSpace(string(b)) + " (" + err.Error() + ")")
 	}
 	for _, p := range paths {
 		if err := removeStandalone("openclaw", p); err != nil {
@@ -107,9 +108,9 @@ func UninstallOpenclaw(out func(string)) error {
 		}
 	}
 	if err := ForgetManifest("openclaw"); err != nil {
-		out("무결성 기록을 지우지 못했다: " + err.Error())
+		out(lang.T("무결성 기록을 지우지 못했다: ") + err.Error())
 	}
 	_ = os.Remove(dir)
-	out("OpenClaw 플러그인 " + OpenclawPlugin + "를 제거했다")
+	out(lang.T("OpenClaw 플러그인 ") + OpenclawPlugin + lang.T("를 제거했다"))
 	return nil
 }

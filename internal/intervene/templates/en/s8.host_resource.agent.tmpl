@@ -1,0 +1,4 @@
+[samcheonpo] Observed: {{if eq .kind "artifacts"}}build artifacts in this working folder ({{.dirs}}) grew {{.grown_gb}} GB during the session to {{.total_gb}} GB{{else if eq .kind "free"}}free space on the working folder's disk dropped to {{.free_gb}} GB ({{.free_pct}}%){{else}}checks in this session have taken {{.minutes}} min{{end}}.
+Evidence: event {{.evidence}}. {{if eq .kind "artifacts"}}Each rebuild of the same tests piles up new artifacts{{else if eq .kind "free"}}A full disk makes builds, tests and databases fail together{{else}}{{.unknown}} checks of unknown length were left out of the total{{end}}.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Using machine resources on repeated confirmation is not progress.

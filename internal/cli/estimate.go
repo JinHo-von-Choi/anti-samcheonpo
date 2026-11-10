@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"sort"
 	"strings"
 	"time"
@@ -75,9 +76,9 @@ func estimateStoppedRepetitions(db *ledger.DB, s *event.Session, prices *cost.Ta
 	}
 	avgIn, avgOut := in/turns, out/turns
 	est := &receipt.Estimate{
-		Label: "차단된 반복의 추정 비용",
-		Basis: fmt.Sprintf("이 세션에서 실행 전에 멈춘 반복 %d회 (%s)", blocked, strings.Join(rules, ", ")),
-		Assumption: fmt.Sprintf("각 반복이 이 세션의 평균 회차(%d회, 입력 %d·출력 %d토큰)만큼 더 소모했다고 가정한 값이다. 관측값이 아니라 가정이다",
+		Label: lang.T("차단된 반복의 추정 비용"),
+		Basis: fmt.Sprintf(lang.T("이 세션에서 실행 전에 멈춘 반복 %d회 (%s)"), blocked, strings.Join(rules, ", ")),
+		Assumption: fmt.Sprintf(lang.T("각 반복이 이 세션의 평균 회차(%d회, 입력 %d·출력 %d토큰)만큼 더 소모했다고 가정한 값이다. 관측값이 아니라 가정이다"),
 			turns, avgIn, avgOut),
 		Count:  blocked,
 		Tokens: int64(blocked) * (avgIn + avgOut),
@@ -86,7 +87,7 @@ func estimateStoppedRepetitions(db *ledger.DB, s *event.Session, prices *cost.Ta
 		if _, ok := prices.Lookup(s.Model, now); ok {
 			if micro, ok := prices.MicroKRW(event.Usage{Model: s.Model, In: avgIn * int64(blocked), Out: avgOut * int64(blocked)}, now); ok {
 				est.Micro = micro
-				est.Assumption += fmt.Sprintf(" 단가는 %s 기준(확인일 %s)", s.Model, now.Format("2006-01-02"))
+				est.Assumption += fmt.Sprintf(lang.T(" 단가는 %s 기준(확인일 %s)"), s.Model, now.Format("2006-01-02"))
 			}
 		}
 	}

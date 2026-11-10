@@ -1,0 +1,4 @@
+[samcheonpo] Observed: {{.count}} processes started in the working folder during this session's shell runs are still running: {{.procs}}.
+Evidence: event {{.evidence}}. Their executable or working directory is inside the working folder, they started during this session's shell runs and they are not OS services. This does not prove the session started them.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. A server left by a test holds ports and memory and changes the next test's result.

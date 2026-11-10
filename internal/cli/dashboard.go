@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"net"
 	"net/http"
 	"os"
@@ -24,14 +25,14 @@ import (
 func dashboardCmd() *cobra.Command {
 	var listen, labels, codeFile, reviewQueue string
 	var demo bool
-	c := &cobra.Command{Use: "dashboard", Short: "요청·근거·남은 일·구간 신고를 웹 화면에서 확인", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	c := &cobra.Command{Use: "dashboard", Short: lang.T("요청·근거·남은 일·구간 신고를 웹 화면에서 확인"), Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		host, _, err := net.SplitHostPort(listen)
 		if err != nil {
 			return err
 		}
 		ip := net.ParseIP(host)
 		if !demo && (ip == nil || !ip.IsLoopback()) {
-			return errors.New("실제 원장은 루프백 주소에서만 제공합니다. SSH 포워딩으로 접속할 수 있습니다")
+			return errors.New(lang.T("실제 원장은 루프백 주소에서만 제공합니다. SSH 포워딩으로 접속할 수 있습니다"))
 		}
 		opts := dashboard.Options{DBPath: dbPath(), LabelsDir: labels, Demo: demo, ReviewQueuePath: reviewQueue}
 		if !demo {
@@ -54,14 +55,14 @@ func dashboardCmd() *cobra.Command {
 			var h notify.HUDPayload
 			err = json.Unmarshal(raw, &h)
 			if err == nil && h.State.SessionID != id {
-				return nil, errors.New("세션 식별자가 일치하지 않는 HUD")
+				return nil, errors.New(lang.T("세션 식별자가 일치하지 않는 HUD"))
 			}
 			return &h.State, err
 		}
 		opts.Command = func(id, name, arg string) (string, error) {
 			text, problem, ok := hookclient.Query("Command", live.CommandInput{Session: id, Name: name, Arg: arg}, 5*time.Second)
 			if !ok {
-				return "", errors.New("실행 중인 데몬 연결 없음")
+				return "", errors.New(lang.T("실행 중인 데몬 연결 없음"))
 			}
 			if problem != "" {
 				return "", errors.New(problem)
@@ -85,11 +86,11 @@ func dashboardCmd() *cobra.Command {
 			defer stop()
 			srv.Shutdown(shutdown)
 		}()
-		fmt.Fprintf(cmd.OutOrStdout(), "화면: http://%s\n", ln.Addr())
+		fmt.Fprintf(cmd.OutOrStdout(), lang.T("화면: http://%s\n"), ln.Addr())
 		if demo {
-			fmt.Fprintln(cmd.OutOrStdout(), "데모 데이터만 표시하며 실제 명령·신고는 실행하지 않습니다.")
+			fmt.Fprintln(cmd.OutOrStdout(), lang.T("데모 데이터만 표시하며 실제 명령·신고는 실행하지 않습니다."))
 		} else {
-			fmt.Fprintf(cmd.OutOrStdout(), "접근 코드 파일: %s (0600, 화면 로그인에 사용)\n", codeFile)
+			fmt.Fprintf(cmd.OutOrStdout(), lang.T("접근 코드 파일: %s (0600, 화면 로그인에 사용)\n"), codeFile)
 		}
 		err = srv.Serve(ln)
 		if errors.Is(err, http.ErrServerClosed) {
@@ -97,10 +98,10 @@ func dashboardCmd() *cobra.Command {
 		}
 		return err
 	}}
-	c.Flags().StringVar(&listen, "listen", "127.0.0.1:18773", "화면 수신 주소; 실제 원장은 루프백만")
-	c.Flags().StringVar(&labels, "labels", filepath.Join(config.Home(), "labels"), "사람 구간 라벨 저장 폴더")
-	c.Flags().StringVar(&codeFile, "code-file", "", "새 접근 코드 파일; 기존 파일은 덮어쓰지 않음")
-	c.Flags().BoolVar(&demo, "demo", false, "표시 예시만 제공; 실제 원장·명령·라벨에 접근하지 않음")
-	c.Flags().StringVar(&reviewQueue, "review-queue", "", "고정된 사람 검토 큐 JSON; 탐지 판정은 검토 화면에서 숨김")
+	c.Flags().StringVar(&listen, "listen", "127.0.0.1:18773", lang.T("화면 수신 주소; 실제 원장은 루프백만"))
+	c.Flags().StringVar(&labels, "labels", filepath.Join(config.Home(), "labels"), lang.T("사람 구간 라벨 저장 폴더"))
+	c.Flags().StringVar(&codeFile, "code-file", "", lang.T("새 접근 코드 파일; 기존 파일은 덮어쓰지 않음"))
+	c.Flags().BoolVar(&demo, "demo", false, lang.T("표시 예시만 제공; 실제 원장·명령·라벨에 접근하지 않음"))
+	c.Flags().StringVar(&reviewQueue, "review-queue", "", lang.T("고정된 사람 검토 큐 JSON; 탐지 판정은 검토 화면에서 숨김"))
 	return c
 }

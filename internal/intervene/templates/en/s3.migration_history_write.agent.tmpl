@@ -1,0 +1,4 @@
+[samcheonpo] Observed: `{{.cmd}}` changes the migration history table by hand.
+Evidence: event {{.evidence}}. The history table decides which migrations the next deployment runs or refuses.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. If the history and the real schema diverge, the service may fail to start on the next deployment.

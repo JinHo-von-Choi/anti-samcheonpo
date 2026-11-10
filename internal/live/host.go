@@ -2,6 +2,7 @@ package live
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"sync"
 	"time"
 
@@ -190,7 +191,7 @@ func (s *Session) hostBudgetPre(ev *event.Event) *detect.Signal {
 		}
 	}
 	if m := int(s.host.verifyMS / 60_000); b.VerifyMinutes > 0 && m >= b.VerifyMinutes {
-		facts["kind"], facts["spent"], facts["budget"] = "verify_time", fmt.Sprintf("%d분", m), fmt.Sprintf("%d분", b.VerifyMinutes)
+		facts["kind"], facts["spent"], facts["budget"] = "verify_time", fmt.Sprintf(lang.T("%d분"), m), fmt.Sprintf(lang.T("%d분"), b.VerifyMinutes)
 		return &detect.Signal{Detector: "S8", Rule: "s8.host_budget", Confidence: 1, Level: detect.L3, Evidence: []int64{ev.Seq}, Facts: facts}
 	}
 	return nil

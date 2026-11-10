@@ -1,0 +1,7 @@
+{{if eq .kind "filler"}}[samcheonpo] Observed: {{.path}} has {{.count}} sentences that can be deleted: {{.candidates}}
+Evidence: event {{.evidence}}. Introductions repeating the request, repeated explanations and limit sentences that say only what was proven, picked by sentence form as an estimate.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Delete anything whose removal leaves the reader with the same content.{{else}}[samcheonpo] Observed: {{if eq .kind "publish"}}the text to be published by {{if eq .via "commit"}}commit{{else if eq .via "push"}}push{{else if eq .via "pr"}}PR{{else if eq .via "tag"}}tag{{else}}release{{end}}{{else}}{{.path}}{{end}} has {{.count}} sentences describing how the work was done: {{.candidates}}
+Evidence: event {{.evidence}}. Commit messages, PRs, documents and comments are records other people read, so what was done, what request was followed and how it was checked all become public. Candidates picked by sentence form.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Published text keeps only the changed behavior and usage.{{end}}

@@ -7,6 +7,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/cost"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/eval"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
 	"github.com/spf13/cobra"
@@ -16,7 +17,7 @@ import (
 func compareCmd() *cobra.Command {
 	var queuePath, labelsDir, format string
 	var editThreshold int
-	c := &cobra.Command{Use: "compare", Short: "고정된 실제 검토 구간에 참조 휴리스틱을 비교 (SDK 실행·효과 검증 아님)", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	c := &cobra.Command{Use: "compare", Short: lang.T("고정된 실제 검토 구간에 참조 휴리스틱을 비교 (SDK 실행·효과 검증 아님)"), Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		if editThreshold < 2 || editThreshold > 1000 {
 			return errors.New("edit threshold must be 2..1000")
 		}
@@ -152,12 +153,12 @@ func compareCmd() *cobra.Command {
 			rows = append(rows, row{rulepack.Digest(item.Session), consensus, reason, predictions, count, sourceState, currentRules, currentStatus, states})
 			cases = append(cases, eval.ComparisonCase{Consensus: consensus, Reason: reason, Predictions: states})
 		}
-		report := map[string]any{"version": "reference-comparison/3", "descriptive_scores": eval.ScoreComparison(cases, detectors), "replay_evaluator_version": analyze.EvaluatorVersion, "replay_config_hash": config.Hash(cfg), "replay_price_version": prices.Version, "queue_digest": q.Digest, "review_intervals": len(rows), "label_records": len(labels), "effectiveness_validated": false, "independent_humans_verified": false, "limitations": "실제 원장의 고정 구간에 대한 정규화 휴리스틱 비교. 외부 SDK는 실행하지 않음. 구형 원장의 원본 호출/결과 지문 부재는 unknown. 원장 후보를 층화 표집했으므로 모집단 정밀도·재현율로 일반화할 수 없음. 지표는 모든 비교기가 판정 가능하고 검토 답변이 합의된 동일 구간에서만 계산하며, 분모가 없으면 null이다. 구간 이전의 미관측·보류 근거도 보수적으로 유보한다. 사람 검토자 신원·독립성 확인 및 실사용 on/off 효과는 별도 인수.", "runs": rows}
-		return printJSONOr(cmd.OutOrStdout(), format, report, "참조 비교 실행됨. 수치·유보 사유는 --format json으로 확인. 실제 효과 검증은 미완료.\n")
+		report := map[string]any{"version": "reference-comparison/3", "descriptive_scores": eval.ScoreComparison(cases, detectors), "replay_evaluator_version": analyze.EvaluatorVersion, "replay_config_hash": config.Hash(cfg), "replay_price_version": prices.Version, "queue_digest": q.Digest, "review_intervals": len(rows), "label_records": len(labels), "effectiveness_validated": false, "independent_humans_verified": false, "limitations": lang.T("실제 원장의 고정 구간에 대한 정규화 휴리스틱 비교. 외부 SDK는 실행하지 않음. 구형 원장의 원본 호출/결과 지문 부재는 unknown. 원장 후보를 층화 표집했으므로 모집단 정밀도·재현율로 일반화할 수 없음. 지표는 모든 비교기가 판정 가능하고 검토 답변이 합의된 동일 구간에서만 계산하며, 분모가 없으면 null이다. 구간 이전의 미관측·보류 근거도 보수적으로 유보한다. 사람 검토자 신원·독립성 확인 및 실사용 on/off 효과는 별도 인수."), "runs": rows}
+		return printJSONOr(cmd.OutOrStdout(), format, report, lang.T("참조 비교 실행됨. 수치·유보 사유는 --format json으로 확인. 실제 효과 검증은 미완료.\n"))
 	}}
-	c.Flags().StringVar(&queuePath, "queue", "", "고정된 실제 검토 큐 JSON")
-	c.Flags().StringVar(&labelsDir, "labels", "", "실제 사람 라벨 폴더; 생략 시 정답 미확인")
-	c.Flags().IntVar(&editThreshold, "edit-threshold", 10, "작성한 per-file 편집 휴리스틱의 명시 임계값; 공식 SDK 기본값 아님")
+	c.Flags().StringVar(&queuePath, "queue", "", lang.T("고정된 실제 검토 큐 JSON"))
+	c.Flags().StringVar(&labelsDir, "labels", "", lang.T("실제 사람 라벨 폴더; 생략 시 정답 미확인"))
+	c.Flags().IntVar(&editThreshold, "edit-threshold", 10, lang.T("작성한 per-file 편집 휴리스틱의 명시 임계값; 공식 SDK 기본값 아님"))
 	c.Flags().StringVar(&format, "format", "json", "json | text")
 	return c
 }

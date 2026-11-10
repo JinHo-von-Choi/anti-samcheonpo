@@ -16,6 +16,23 @@ func (d *DB) ObservationGap(agent, session string) (uint64, error) {
 	return n, err
 }
 
+// AddObservationGap counts more missing observations for a session.
+func (d *DB) AddObservationGap(agent, session string, n uint64) error {
+	if agent == "" || session == "" || n == 0 {
+		return errors.New("observation gap requires identity and positive count")
+	}
+	_, err := d.Exec(`INSERT INTO observation_gap(agent,session_id,rejected) VALUES(?,?,?) ON CONFLICT(agent,session_id) DO UPDATE SET rejected=observation_gap.rejected+excluded.rejected`, agent, session, n)
+	return err
+}
+
+// UnobservedSessions counts sessions known only from a gap: no hook of theirs
+// ever reached a daemon.
+func (d *DB) UnobservedSessions() (int, error) {
+	var n int
+	err := d.QueryRow(`SELECT COUNT(*) FROM observation_gap g WHERE NOT EXISTS (SELECT 1 FROM session s WHERE s.agent=g.agent AND s.id=g.session_id)`).Scan(&n)
+	return n, err
+}
+
 func (d *DB) SaveObservationGap(agent, session string, n uint64) error {
 	if agent == "" || session == "" || n == 0 {
 		return errors.New("observation gap requires identity and positive count")

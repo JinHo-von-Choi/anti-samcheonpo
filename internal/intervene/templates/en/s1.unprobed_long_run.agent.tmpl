@@ -1,0 +1,4 @@
+[samcheonpo] Observed: `{{.cmd}}` is a {{if .seconds}}{{.seconds}}-second{{else}}long{{end}} run, and a short run of the same target has {{if .probe}}passed only up to {{.probe}} seconds{{else}}no passing record{{end}}.
+Evidence: event {{.evidence}}. Current evidence allows up to {{.allowed}} seconds{{if eq .kind "estimated"}} (run length estimated from the name and time limit){{end}}.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. If a long run fails midway, all the time up to that point is lost.

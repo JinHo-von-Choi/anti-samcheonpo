@@ -1,0 +1,4 @@
+[samcheonpo] Observed: `{{.cmd}}` writes to a database using production settings ({{.where}}).
+Evidence: event {{.evidence}}. The same command reads production settings and names no other connection target.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Production data changes often cannot be undone, so it is right for the user to confirm before running them.

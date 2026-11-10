@@ -154,7 +154,17 @@ type State struct {
 	prevGuess []string
 	// smuggling holds the deception instructions the assembled context
 	// carried.
-	smuggling            []SmugglingHit
+	smuggling []SmugglingHit
+	// metaArt holds the sentences about the work written into shared
+	// files and commit messages that are not published yet.
+	metaArt *metaState
+	// uiFlagged holds the files already reported for unrequested click
+	// targets, with the number of requests at the time.
+	uiFlagged map[string]int
+	// uiNet holds what the writes since request uiNetRequests added to
+	// each screen file, for requests that numbered the click targets.
+	uiNet                map[string]int
+	uiNetRequests        int
 	compacted            bool
 	allowGuess           []string
 	scopeKnown           bool
@@ -362,6 +372,9 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 		if ev.Forced {
 			e.forcedTurn(ev, &sigs)
 		} else {
+			if ev.PromptOrigin != "agent" && ev.PromptOrigin != "harness" {
+				e.newUserRequest(ev.Text)
+			}
 			if !intent.ConversationOnly(ev.Text) {
 				st.lastPromptSeq = ev.Seq
 			}
@@ -373,7 +386,11 @@ func (e *Engine) Observe(ev *event.Event) []Signal {
 		}
 	case event.KindTool:
 		e.refine(ev)
+		e.trackFullBudget(ev)
+		e.trackQuality(ev)
 		e.tool(ev, &sigs)
+		e.observeArtifactMeta(ev, &sigs)
+		e.observeUIActions(ev, &sigs)
 		e.noteExercise(ev)
 		e.recordChurnProposal(ev)
 		e.recordShortCircuit(ev, &sigs)
@@ -1582,6 +1599,9 @@ func (e *Engine) TurnEnd(msg *event.Event, unmet []string) []Signal {
 		return nil
 	}
 	if s := e.rejectionWait(msg); s != nil {
+		e.add(&sigs, *s)
+	}
+	if s := e.answerPadding(msg); s != nil {
 		e.add(&sigs, *s)
 	}
 	// A completion claim over a failing, stale or unmet state is a false

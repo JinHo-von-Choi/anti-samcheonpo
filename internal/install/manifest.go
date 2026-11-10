@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -124,7 +125,7 @@ func BuildDirManifest(plugin, root string) (Manifest, error) {
 			return nil
 		}
 		if !d.Type().IsRegular() {
-			return fmt.Errorf("일반 파일이 아닌 플러그인 경로: %s", path)
+			return fmt.Errorf(lang.T("일반 파일이 아닌 플러그인 경로: %s"), path)
 		}
 		// A runtime cache is not an installed file, so it is not recorded.
 		rel, err := filepath.Rel(root, path)
@@ -214,13 +215,13 @@ func checkBytecodeCache(plugin, root, rel string, listed map[string]bool) (Manif
 		// The runtime only writes caches it can name after a source. A file
 		// it cannot name was not written by the runtime.
 		return ManifestProblem{Plugin: plugin, Path: slashed, Kind: ProblemAdded,
-			Detail: "캐시 규약에 맞지 않는 파일이다"}, true
+			Detail: lang.T("캐시 규약에 맞지 않는 파일이다")}, true
 	}
 	srcRel := srcDir + name
 	if !listed[srcRel] {
 		// The cache belongs to code that was not installed.
 		return ManifestProblem{Plugin: plugin, Path: slashed, Kind: ProblemAdded,
-			Detail: "기록에 없는 원본의 캐시다"}, true
+			Detail: lang.T("기록에 없는 원본의 캐시다")}, true
 	}
 	body, err := os.ReadFile(filepath.Join(root, filepath.FromSlash(slashed)))
 	if err != nil {
@@ -228,7 +229,7 @@ func checkBytecodeCache(plugin, root, rel string, listed map[string]bool) (Manif
 	}
 	if len(body) < 16 {
 		return ManifestProblem{Plugin: plugin, Path: slashed, Kind: ProblemAdded,
-			Detail: "캐시 형식이 아니다"}, true
+			Detail: lang.T("캐시 형식이 아니다")}, true
 	}
 	if flags := binary.LittleEndian.Uint32(body[4:8]); flags != 0 {
 		// A hash-based cache cannot be re-derived here.
@@ -242,7 +243,7 @@ func checkBytecodeCache(plugin, root, rel string, listed map[string]bool) (Manif
 	}
 	if uint32(info.Size()) != srcSize || uint32(info.ModTime().Unix()) != srcMtime {
 		return ManifestProblem{Plugin: plugin, Path: slashed, Kind: ProblemChanged,
-			Detail: "기록된 원본과 캐시가 맞지 않는다"}, true
+			Detail: lang.T("기록된 원본과 캐시가 맞지 않는다")}, true
 	}
 	return ManifestProblem{}, false
 }
@@ -273,7 +274,7 @@ func VerifyManifest(m Manifest) []ManifestProblem {
 	var problems []ManifestProblem
 	root := m.Root
 	if root == "" {
-		return []ManifestProblem{{Plugin: m.Plugin, Kind: ProblemUnreadable, Detail: "매니페스트에 루트 경로가 없다"}}
+		return []ManifestProblem{{Plugin: m.Plugin, Kind: ProblemUnreadable, Detail: lang.T("매니페스트에 루트 경로가 없다")}}
 	}
 	listed := map[string]bool{}
 	for _, f := range m.Files {
@@ -290,7 +291,7 @@ func VerifyManifest(m Manifest) []ManifestProblem {
 		}
 		if got := hashOf(body); got != f.SHA256 {
 			problems = append(problems, ManifestProblem{Plugin: m.Plugin, Path: f.Path, Kind: ProblemChanged,
-				Detail: "기록된 해시와 다르다"})
+				Detail: lang.T("기록된 해시와 다르다")})
 		}
 	}
 	if !m.Complete {
@@ -428,19 +429,19 @@ func SummarizeManifest(r Registry) []ManifestSummary {
 func ProblemText(p ManifestProblem) string {
 	switch p.Kind {
 	case ProblemMissing:
-		return "사라진 파일: " + p.Path
+		return lang.T("사라진 파일: ") + p.Path
 	case ProblemChanged:
-		return "내용이 바뀐 파일: " + p.Path
+		return lang.T("내용이 바뀐 파일: ") + p.Path
 	case ProblemAdded:
-		return "기록에 없는 파일: " + p.Path
+		return lang.T("기록에 없는 파일: ") + p.Path
 	case ProblemUnreadable:
-		return "읽을 수 없는 파일: " + p.Path
+		return lang.T("읽을 수 없는 파일: ") + p.Path
 	}
 	return p.Kind + ": " + p.Path
 }
 
 // ErrNoManifest is returned when a bundle has no manifest to verify.
-var ErrNoManifest = errors.New("매니페스트 기록이 없다")
+var ErrNoManifest = errors.New(lang.T("매니페스트 기록이 없다"))
 
 // ManifestFor returns the manifest of one plugin bundle.
 func ManifestFor(r Registry, plugin string) (Manifest, error) {

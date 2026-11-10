@@ -1,0 +1,5 @@
+{{if .buried}}[samcheonpo] Observed: the last answer opened as if finished but listed unfinished work later. Say in the first sentence of the next answer whether all of it is done.
+{{end}}[samcheonpo] Observed: the last answer had {{.count}} sentences unrelated to the result: {{.sentences}}
+Evidence: event {{.evidence}}. Previews of what comes next, restating the request, confirming instructions were followed, closing pleasantries and answers over the requested length do not help the reader find the result. An estimate from sentence form.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. An answer consists of the result, the evidence checked and what the user has to decide.

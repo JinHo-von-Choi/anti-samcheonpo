@@ -1,0 +1,4 @@
+[samcheonpo] Observed: {{.count}} times in this session a change was reverted and checked, then restored and checked again. The latest was `{{.cmd}}`.
+Evidence: event {{.evidence}}. Checks on the same working folder state came before and after one check of an earlier state.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Three test runs per change triples the cost of checking.

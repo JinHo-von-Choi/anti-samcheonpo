@@ -3,6 +3,7 @@ package sources
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -135,7 +136,7 @@ func Parse(f File) (*event.Session, error) {
 			return nil, err
 		}
 		if len(ss) == 0 {
-			return nil, fmt.Errorf("%s에 GenAI 세션이 없다", f.Path)
+			return nil, fmt.Errorf(lang.T("%s에 GenAI 세션이 없다"), f.Path)
 		}
 		return ss[0], nil
 	}

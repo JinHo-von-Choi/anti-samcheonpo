@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"sort"
 	"time"
 
@@ -54,7 +55,7 @@ func accuracyCmd() *cobra.Command {
 	var since, agent, format string
 	c := &cobra.Command{
 		Use:   "accuracy",
-		Short: "규칙별 실측 신뢰도: 차단·처방·재발·위양성 표시를 원장에서 계산한다",
+		Short: lang.T("규칙별 실측 신뢰도: 차단·처방·재발·위양성 표시를 원장에서 계산한다"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := ParseSince(since, time.Now())
 			if err != nil {
@@ -133,10 +134,10 @@ func accuracyCmd() *cobra.Command {
 			sort.Strings(rules)
 			w := cmd.OutOrStdout()
 			if len(rules) == 0 {
-				fmt.Fprintln(w, "원장에 규칙별 증거(차단·처방·피드백)가 없다.")
+				fmt.Fprintln(w, lang.T("원장에 규칙별 증거(차단·처방·피드백)가 없다."))
 				return nil
 			}
-			tot := &accuracyRow{rule: "합계"}
+			tot := &accuracyRow{rule: lang.T("합계")}
 			rows := make([]*accuracyRow, 0, len(rules))
 			jsonRows := make([]accuracyRuleJSON, 0, len(rules))
 			for _, rule := range rules {
@@ -160,21 +161,21 @@ func accuracyCmd() *cobra.Command {
 					"rules":        jsonRows,
 				})
 			}
-			fmt.Fprintf(w, "%-24s %5s %5s %5s %5s %8s %6s %7s %5s %5s %8s %10s\n", "규칙", "차단", "제안", "전달", "인지", "재발없음", "재발", "미관측", "위양성", "확인", "정밀도%", "판정정밀도%")
+			fmt.Fprintf(w, "%-24s %5s %5s %5s %5s %8s %6s %7s %5s %5s %8s %10s\n", lang.T("규칙"), lang.T("차단"), lang.T("제안"), lang.T("전달"), lang.T("인지"), lang.T("재발없음"), lang.T("재발"), lang.T("미관측"), lang.T("위양성"), lang.T("확인"), lang.T("정밀도%"), lang.T("판정정밀도%"))
 			for _, r := range rows {
 				fmt.Fprintf(w, "%-24s %5d %5d %5d %5d %8d %6d %7d %5d %5d %8s %10s\n", r.rule, r.blocked, r.proposed, r.delivered, r.acked, r.effect, r.recur, r.censored, r.fp, r.tp, accPrecision(r.effect, r.recur), accPrecision(r.tp, r.fp))
 			}
-			fmt.Fprintf(w, "%-24s %5d %5d %5d %5d %8d %6d %7d %5d %5d %8s %10s\n", "합계", tot.blocked, tot.proposed, tot.delivered, tot.acked, tot.effect, tot.recur, tot.censored, tot.fp, tot.tp, accPrecision(tot.effect, tot.recur), accPrecision(tot.tp, tot.fp))
+			fmt.Fprintf(w, "%-24s %5d %5d %5d %5d %8d %6d %7d %5d %5d %8s %10s\n", lang.T("합계"), tot.blocked, tot.proposed, tot.delivered, tot.acked, tot.effect, tot.recur, tot.censored, tot.fp, tot.tp, accPrecision(tot.effect, tot.recur), accPrecision(tot.tp, tot.fp))
 			fmt.Fprintln(w, "")
-			fmt.Fprintln(w, "정밀도 추정 = 재발없음/(재발없음+재발). 관측 창 안에서 같은 판정이 다시 나오지 않은 처방의 비율이며 인과 효과가 아니다.")
-			fmt.Fprintln(w, "위양성은 사용자가 직접 기록한 반박(false_positive 라벨)의 수다. 분류기가 스스로 세는 성공과 겹치지 않는다.")
-			fmt.Fprintln(w, "확인은 samcheonpo review에서 맞음으로 판정한 수이고, 판정정밀도 = 확인/(확인+위양성)이다.")
-			fmt.Fprintln(w, "차단은 처방과 별개의 행동이고, 재발은 관측 기회가 새겨진 처방만 계산된다. 자세한 전달 단계는 samcheonpo interventions를 본다.")
+			fmt.Fprintln(w, lang.T("정밀도 추정 = 재발없음/(재발없음+재발). 관측 창 안에서 같은 판정이 다시 나오지 않은 처방의 비율이며 인과 효과가 아니다."))
+			fmt.Fprintln(w, lang.T("위양성은 사용자가 직접 기록한 반박(false_positive 라벨)의 수다. 분류기가 스스로 세는 성공과 겹치지 않는다."))
+			fmt.Fprintln(w, lang.T("확인은 samcheonpo review에서 맞음으로 판정한 수이고, 판정정밀도 = 확인/(확인+위양성)이다."))
+			fmt.Fprintln(w, lang.T("차단은 처방과 별개의 행동이고, 재발은 관측 기회가 새겨진 처방만 계산된다. 자세한 전달 단계는 samcheonpo interventions를 본다."))
 			return nil
 		},
 	}
-	c.Flags().StringVar(&since, "since", "30d", "범위: 30d, 12h, 2026-10-01, all")
-	c.Flags().StringVar(&agent, "agent", "all", "에이전트 필터 (all | claude | codex | ...)")
+	c.Flags().StringVar(&since, "since", "30d", lang.T("범위: 30d, 12h, 2026-10-01, all"))
+	c.Flags().StringVar(&agent, "agent", "all", lang.T("에이전트 필터 (all | claude | codex | ...)"))
 	c.Flags().StringVar(&format, "format", "text", "text | json")
 	return c
 }

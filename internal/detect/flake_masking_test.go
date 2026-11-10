@@ -7,7 +7,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 )
 
-func TestFlakeMaskingVellumChanges(t *testing.T) {
+func TestFlakeMaskingBillingChanges(t *testing.T) {
 	b := newB(t, "배포까지", nil)
 	b.run("bash scripts/deploy.sh", 1, "e2e/team.spec.ts:40:3 › 팀 초대\n  Test timeout of 90000ms exceeded.", 3*time.Minute)
 	b.verify("npx playwright test e2e/team.spec.ts", 1, []string{"e2e/team.spec.ts"})

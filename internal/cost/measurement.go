@@ -2,6 +2,7 @@ package cost
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"math"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
@@ -50,7 +51,7 @@ func ValidBillingKind(kind BillingKind) bool {
 func ObserveSession(s *event.Session, priceVersion string) Observation {
 	o := Observation{Kind: BillingUnknown, KindSource: "unconfirmed", UsageSource: "transcript", PriceVersion: priceVersion}
 	if s == nil {
-		o.Missing = []string{"사용량 출처가 없다"}
+		o.Missing = []string{lang.T("사용량 출처가 없다")}
 		return o
 	}
 	if s.Mode == "live" {
@@ -67,15 +68,15 @@ func ObserveSession(s *event.Session, priceVersion string) Observation {
 	for _, ev := range s.Events {
 		if ev.Category == event.CatWatch && ev.Tool == "judge" && (ev.Usage.Total() == 0 || !ev.Priced) {
 			o.UsageComplete = false
-			o.Missing = append(o.Missing, "감시 판정 비용 미확인: 계측 누락을 무료로 계산할 수 없다")
+			o.Missing = append(o.Missing, lang.T("감시 판정 비용 미확인: 계측 누락을 무료로 계산할 수 없다"))
 			break
 		}
 	}
 	if !o.UsageObserved {
-		o.Missing = append(o.Missing, "사용량 계측이 없어 0으로 확정할 수 없다")
+		o.Missing = append(o.Missing, lang.T("사용량 계측이 없어 0으로 확정할 수 없다"))
 	}
 	if !o.UsageComplete {
-		o.Missing = append(o.Missing, "사용량 기록의 완전성을 확인하지 못했다")
+		o.Missing = append(o.Missing, lang.T("사용량 기록의 완전성을 확인하지 못했다"))
 	}
 	if s.QuotaKnown && s.QuotaWindowMin > 0 {
 		o.Quota = &Quota{UsedPct: s.QuotaUsedPct, WindowMinutes: s.QuotaWindowMin, Source: "agent_reported"}
@@ -88,7 +89,7 @@ func Measure(o Observation, micro, tokens, unpricedTokens int64) Measurement {
 	o.Missing = append([]string(nil), o.Missing...)
 	if !ValidBillingKind(o.Kind) {
 		o.Kind = BillingUnknown
-		o.Missing = append(o.Missing, "과금 유형을 인식하지 못했다")
+		o.Missing = append(o.Missing, lang.T("과금 유형을 인식하지 못했다"))
 	}
 	if o.Kind == "" {
 		o.Kind = BillingUnknown
@@ -101,7 +102,7 @@ func Measure(o Observation, micro, tokens, unpricedTokens int64) Measurement {
 	}
 	m := Measurement{Observation: o}
 	if micro < 0 || tokens < 0 || unpricedTokens < 0 || unpricedTokens > tokens {
-		m.Missing = append(m.Missing, "사용량 또는 비용 합계가 유효하지 않다")
+		m.Missing = append(m.Missing, lang.T("사용량 또는 비용 합계가 유효하지 않다"))
 		return m
 	}
 	if o.Quota != nil {
@@ -109,7 +110,7 @@ func Measure(o Observation, micro, tokens, unpricedTokens int64) Measurement {
 		m.Quota = &q
 		if q.WindowMinutes <= 0 || q.UsedPct < 0 || q.UsedPct > 100 || math.IsNaN(q.UsedPct) || math.IsInf(q.UsedPct, 0) {
 			m.Quota = nil
-			m.Missing = append(m.Missing, "한도 계측값이 유효하지 않다")
+			m.Missing = append(m.Missing, lang.T("한도 계측값이 유효하지 않다"))
 		}
 	}
 	if tokens > 0 {
@@ -124,13 +125,13 @@ func Measure(o Observation, micro, tokens, unpricedTokens int64) Measurement {
 		if unpricedTokens == 0 {
 			m.APIEquivalentMicro = &micro
 		} else {
-			m.Missing = append(m.Missing, fmt.Sprintf("단가 미인식 %d토큰: 전체 환산액 미확인", unpricedTokens))
+			m.Missing = append(m.Missing, fmt.Sprintf(lang.T("단가 미인식 %d토큰: 전체 환산액 미확인"), unpricedTokens))
 		}
 	} else if len(m.Missing) == 0 {
-		m.Missing = append(m.Missing, "사용량 미계측: 금액과 토큰 합계 미확인")
+		m.Missing = append(m.Missing, lang.T("사용량 미계측: 금액과 토큰 합계 미확인"))
 	}
 	if !m.UsageComplete && len(m.Missing) == 0 {
-		m.Missing = append(m.Missing, "기록의 완전성 미확인; 계측된 부분만 표시한다")
+		m.Missing = append(m.Missing, lang.T("기록의 완전성 미확인; 계측된 부분만 표시한다"))
 	}
 	return m
 }

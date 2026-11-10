@@ -3,6 +3,7 @@ package install
 import (
 	"crypto/sha256"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -20,7 +21,7 @@ func generatedFiles(root string) (map[string]string, error) {
 			return nil
 		}
 		if !d.Type().IsRegular() {
-			return fmt.Errorf("일반 파일이 아닌 플러그인 경로: %s", path)
+			return fmt.Errorf(lang.T("일반 파일이 아닌 플러그인 경로: %s"), path)
 		}
 		b, err := os.ReadFile(path)
 		if err != nil {
@@ -40,7 +41,7 @@ func generatedFiles(root string) (map[string]string, error) {
 // symlink or remove a user-added file. Legacy manifests conservatively retain.
 func removeGenerated(root string, files map[string]string, out func(string)) error {
 	if len(files) == 0 {
-		out("생성 파일 기록이 없어 플러그인 파일을 보존했다")
+		out(lang.T("생성 파일 기록이 없어 플러그인 파일을 보존했다"))
 		return nil
 	}
 	rootInfo, err := os.Lstat(root)
@@ -51,14 +52,14 @@ func removeGenerated(root string, files map[string]string, out func(string)) err
 		return err
 	}
 	if !rootInfo.IsDir() {
-		out("교체된 플러그인 경로를 보존했다")
+		out(lang.T("교체된 플러그인 경로를 보존했다"))
 		return nil
 	}
 	dirs := map[string]bool{root: true}
 	preserved := false
 	for rel, expected := range files {
 		if !filepath.IsLocal(rel) {
-			return fmt.Errorf("잘못된 생성 파일 경로")
+			return fmt.Errorf("%s", lang.T("잘못된 생성 파일 경로"))
 		}
 		path := filepath.Join(root, rel)
 		safe := true
@@ -136,7 +137,7 @@ func removeGenerated(root string, files map[string]string, out func(string)) err
 		}
 	}
 	if preserved {
-		out("사용자가 추가·수정한 플러그인 파일은 보존했다")
+		out(lang.T("사용자가 추가·수정한 플러그인 파일은 보존했다"))
 	}
 	return nil
 }

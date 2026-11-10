@@ -38,6 +38,9 @@ func TestSaturatedQueueReturnsWithoutWaitingForWorker(t *testing.T) {
 }
 
 func TestQueueGapPreventsReceiptAndSurvivesRestart(t *testing.T) {
+	// a small queue keeps the overflow quick to reach
+	defer func(n int) { eventQueueSize = n }(eventQueueSize)
+	eventQueueSize = 256
 	s, d := reliabilitySession(t)
 	acceptCheck(t, s, d, "true")
 	s.mu.Lock()

@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/verification"
 	"github.com/spf13/cobra"
@@ -10,7 +11,7 @@ import (
 
 func evidenceCmd() *cobra.Command {
 	var session string
-	c := &cobra.Command{Use: "evidence", Short: "호스트 검사 관측과 요구사항 상태 조회 (자동 완료 아님)", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	c := &cobra.Command{Use: "evidence", Short: lang.T("호스트 검사 관측과 요구사항 상태 조회 (자동 완료 아님)"), Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		db, err := ledger.OpenReadOnly(dbPath())
 		if err != nil {
 			return err
@@ -39,7 +40,7 @@ func evidenceCmd() *cobra.Command {
 		enc.SetIndent("", "  ")
 		return enc.Encode(map[string]any{"session_id": session, "checks": checks, "requirements": requirements, "completion": "not_inferred", "reusable_authority": false})
 	}}
-	c.Flags().StringVar(&session, "session", "", "전체 세션 ID")
+	c.Flags().StringVar(&session, "session", "", lang.T("전체 세션 ID"))
 	c.MarkFlagRequired("session")
 	return c
 }

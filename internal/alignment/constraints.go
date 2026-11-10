@@ -1,6 +1,7 @@
 package alignment
 
 import (
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"regexp"
 	"strings"
 
@@ -41,14 +42,14 @@ func Constraints(goal string) []Constraint {
 		}
 	}
 	if (realRequest.MatchString(goal) || forbidMock.MatchString(goal)) && !allowedMock && !noRealIntegration.MatchString(goal) {
-		add("real_integration", "요청한 실제 연동을 모의 결과로 대체하지 않기", "")
+		add("real_integration", lang.T("요청한 실제 연동을 모의 결과로 대체하지 않기"), "")
 	}
 	if preserveChecks.MatchString(goal) {
-		add("preserve_checks", "요청한 검사와 검증 조건을 유지하기", "")
+		add("preserve_checks", lang.T("요청한 검사와 검증 조건을 유지하기"), "")
 	}
 	if preserveFeature.MatchString(goal) {
 		for _, m := range namedFeature.FindAllStringSubmatch(goal, 4) {
-			add("preserve_feature", "요청한 기능 유지: "+strings.TrimSpace(m[1]), m[1])
+			add("preserve_feature", lang.T("요청한 기능 유지: ")+strings.TrimSpace(m[1]), m[1])
 		}
 	}
 	return out

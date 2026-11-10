@@ -4,6 +4,7 @@ package assessment
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"regexp"
 	"slices"
 	"sort"
@@ -45,7 +46,7 @@ type Summary struct {
 var reasonIdentifier = regexp.MustCompile(`^[a-z][a-z0-9_.]{0,63}$`)
 
 func Build(evs []*event.Event, vs []detect.Signal, cfg config.Config, met, total int) Summary {
-	s := Summary{RolloutBasis: "current_configuration", State: "no_finding", CostBasis: "unknown", WasteRatio: "미확인", CostAttribution: "unknown", Completion: "unknown", Reasons: map[string]int{}, Coverage: Coverage{TotalCollection: "unknown"}}
+	s := Summary{RolloutBasis: "current_configuration", State: "no_finding", CostBasis: "unknown", WasteRatio: lang.T("미확인"), CostAttribution: "unknown", Completion: "unknown", Reasons: map[string]int{}, Coverage: Coverage{TotalCollection: "unknown"}}
 	var tokens, unpriced, micro, waste, wasteTokens int64
 	var gaps GapTracker
 	for _, ev := range evs {
@@ -126,8 +127,8 @@ func Build(evs []*event.Event, vs []detect.Signal, cfg config.Config, met, total
 }
 
 func (s Summary) Text() string {
-	label := map[string]string{"no_finding": "탐지 없음", "confirmed_waste": "확정 낭비 있음", "candidate": "확인 후보 있음", "finding_without_cost": "비용 미귀속 지적 있음", "insufficient_evidence": "판단 자료 부족"}[s.State]
-	return fmt.Sprintf("%s · 확정 사건 %d · 확인 후보 %d · 판정 %d · 기록 전용 %d · 낭비 분류율 %s (%s)", label, s.Confirmed, s.Candidates, s.Findings, s.Shadow, s.WasteRatio, s.CostBasis)
+	label := map[string]string{"no_finding": lang.T("탐지 없음"), "confirmed_waste": lang.T("확정 낭비 있음"), "candidate": lang.T("확인 후보 있음"), "finding_without_cost": lang.T("비용 미귀속 지적 있음"), "insufficient_evidence": lang.T("판단 자료 부족")}[s.State]
+	return fmt.Sprintf(lang.T("%s · 확정 사건 %d · 확인 후보 %d · 판정 %d · 기록 전용 %d · 낭비 분류율 %s (%s)"), label, s.Confirmed, s.Candidates, s.Findings, s.Shadow, s.WasteRatio, s.CostBasis)
 }
 
 func (s Summary) ReasonKeys() []string {
@@ -144,7 +145,7 @@ func (s Summary) ReasonKeys() []string {
 func (s *Summary) ApplyMeasurement(tokens, unpriced, micro, waste, wasteTokens int64, met, total int) {
 	s.State = "no_finding"
 	s.CostBasis = "unknown"
-	s.WasteRatio = "미확인"
+	s.WasteRatio = lang.T("미확인")
 	s.CostAttribution = "unknown"
 	s.Completion = "unknown"
 	s.Progress.Completion = false

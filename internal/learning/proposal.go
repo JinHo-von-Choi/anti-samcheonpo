@@ -4,6 +4,7 @@ import (
 	"errors"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/eval"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
 	"sort"
 )
@@ -143,7 +144,7 @@ func ProposeWithGate(labels []eval.Label, split eval.Split, data map[string][]*e
 			continue
 		}
 		if t != tier {
-			return p, errors.New("학습 구간의 라벨 출처가 섞여 있다")
+			return p, errors.New(lang.T("학습 구간의 라벨 출처가 섞여 있다"))
 		}
 	}
 	if tier != "" {

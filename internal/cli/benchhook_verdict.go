@@ -1,6 +1,10 @@
 package cli
 
-import "fmt"
+import (
+	"fmt"
+
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
+)
 
 // benchHookVerdict is what one bench-hook round measured.
 //
@@ -62,29 +66,29 @@ func benchHookTolerance(n, maxTimeouts int) int {
 // so a tolerated stall is never silent.
 func checkBenchHook(v benchHookVerdict, maxTimeouts int) (string, string) {
 	if !v.ColdLate && (!v.FirstOK || !v.FirstResponse) {
-		return "콜드 스타트의 훅이 응답하지 못했다", ""
+		return lang.T("콜드 스타트의 훅이 응답하지 못했다"), ""
 	}
 	if v.FastFailures > 0 {
-		return fmt.Sprintf("빠른 실패 %d회가 있어 지연 통과로 인정하지 않는다", v.FastFailures), ""
+		return fmt.Sprintf(lang.T("빠른 실패 %d회가 있어 지연 통과로 인정하지 않는다"), v.FastFailures), ""
 	}
 	tol := benchHookTolerance(v.N, maxTimeouts)
 	if v.Timeouts > tol {
-		return fmt.Sprintf("타임아웃 %d회가 허용 한도 %d회를 넘는다", v.Timeouts, tol), ""
+		return fmt.Sprintf(lang.T("타임아웃 %d회가 허용 한도 %d회를 넘는다"), v.Timeouts, tol), ""
 	}
 	if v.NoResponse != v.Timeouts {
-		return fmt.Sprintf("응답 없는 요청 %d건 중 타임아웃 %d건 외에 %d건이 있다", v.NoResponse, v.Timeouts, v.NoResponse-v.Timeouts), ""
+		return fmt.Sprintf(lang.T("응답 없는 요청 %d건 중 타임아웃 %d건 외에 %d건이 있다"), v.NoResponse, v.Timeouts, v.NoResponse-v.Timeouts), ""
 	}
 	if v.Prompts != 1 {
-		return fmt.Sprintf("데몬이 첫 프롬프트를 %d번 기록했다", v.Prompts), ""
+		return fmt.Sprintf(lang.T("데몬이 첫 프롬프트를 %d번 기록했다"), v.Prompts), ""
 	}
 	if v.ToolCalls != v.N {
-		return fmt.Sprintf("데몬이 도구 호출을 %d/%d 건 받았다", v.ToolCalls, v.N), ""
+		return fmt.Sprintf(lang.T("데몬이 도구 호출을 %d/%d 건 받았다"), v.ToolCalls, v.N), ""
 	}
 	if v.QueueRejected > 0 {
-		return fmt.Sprintf("데몬이 %d건을 큐에서 거절했다", v.QueueRejected), ""
+		return fmt.Sprintf(lang.T("데몬이 %d건을 큐에서 거절했다"), v.QueueRejected), ""
 	}
 	if v.Timeouts > 0 {
-		return "", fmt.Sprintf("느린 기동 %d회를 허용 한도 %d회 이내에서 견뎠다 (느림이지 훅이 일을 못 한 것은 아니다; 빠른 실패·데몬 수신·처리 구간 기준은 그대로 검사)", v.Timeouts, tol)
+		return "", fmt.Sprintf(lang.T("느린 기동 %d회를 허용 한도 %d회 이내에서 견뎠다 (느림이지 훅이 일을 못 한 것은 아니다; 빠른 실패·데몬 수신·처리 구간 기준은 그대로 검사)"), v.Timeouts, tol)
 	}
 	return "", ""
 }

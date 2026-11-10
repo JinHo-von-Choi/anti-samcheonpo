@@ -3,6 +3,7 @@ package live
 import (
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"strings"
 	"time"
@@ -48,7 +49,7 @@ func (s *Session) goldenCapture(seq int64, reason string) {
 	g := s.goldenManager()
 	go func() {
 		if _, err := g.Capture(meta, files); err != nil {
-			fmt.Fprintf(os.Stderr, "samcheonpo: 통과 시점 기록 실패: %v\n", err)
+			fmt.Fprintf(os.Stderr, lang.T("samcheonpo: 통과 시점 기록 실패: %v\n"), err)
 		}
 	}()
 }
@@ -65,21 +66,21 @@ func (s *Session) goldenRollback(fields []string) (string, error) {
 	if len(fields) == 0 {
 		list := g.ListSnapshots()
 		if len(list) == 0 {
-			return "기록된 통과 시점이 없다. 완료 조건이나 검사가 통과하면 그 시점의 AI 파일을 기록한다.\n", nil
+			return lang.T("기록된 통과 시점이 없다. 완료 조건이나 검사가 통과하면 그 시점의 AI 파일을 기록한다.\n"), nil
 		}
 		var b strings.Builder
-		b.WriteString("기록된 통과 시점 (최신 먼저):\n")
+		b.WriteString(lang.T("기록된 통과 시점 (최신 먼저):\n"))
 		for _, m := range list {
-			fmt.Fprintf(&b, "- %s  %s  %s  (파일 %d개, 이벤트 %d)\n", m.ID, m.Timestamp.Local().Format(time.DateTime), m.Reason, len(m.Files), m.Seq)
+			fmt.Fprintf(&b, lang.T("- %s  %s  %s  (파일 %d개, 이벤트 %d)\n"), m.ID, m.Timestamp.Local().Format(time.DateTime), m.Reason, len(m.Files), m.Seq)
 		}
-		b.WriteString("미리보기: /samcheonpo:rollback golden <id>\n")
+		b.WriteString(lang.T("미리보기: /samcheonpo:rollback golden <id>\n"))
 		return b.String(), nil
 	}
 	id := fields[0]
 	meta, err := g.Get(id)
 	if err != nil {
 		if errors.Is(err, patch.ErrSnapshotGone) {
-			return "그 통과 시점은 없거나 이미 정리됐다. /samcheonpo:rollback golden 으로 목록을 확인한다.\n", nil
+			return lang.T("그 통과 시점은 없거나 이미 정리됐다. /samcheonpo:rollback golden 으로 목록을 확인한다.\n"), nil
 		}
 		return "", err
 	}
@@ -95,7 +96,7 @@ func (s *Session) goldenRollback(fields []string) (string, error) {
 			paths = append(paths, rel)
 			continue
 		}
-		skipped = append(skipped, rollbackItem{Path: rel, Reason: "이 세션의 AI가 쓴 파일이 아니라 소유권을 확정할 수 없음"})
+		skipped = append(skipped, rollbackItem{Path: rel, Reason: lang.T("이 세션의 AI가 쓴 파일이 아니라 소유권을 확정할 수 없음")})
 	}
 	target := func(rel string) (fileState, bool, string) {
 		f, err := g.ReadFile(id, rel)
@@ -113,6 +114,6 @@ func (s *Session) goldenRollback(fields []string) (string, error) {
 			applyID = fields[2]
 		}
 	}
-	basis := fmt.Sprintf("기록된 통과 시점 %s (%s, 이벤트 %d)", id, meta.Reason, meta.Seq)
+	basis := fmt.Sprintf(lang.T("기록된 통과 시점 %s (%s, 이벤트 %d)"), id, meta.Reason, meta.Seq)
 	return s.runRollback(todo, skipped, planID, basis, "rollback golden "+id, apply, applyID, meta.Seq)
 }

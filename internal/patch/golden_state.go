@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -43,10 +44,10 @@ const (
 // directory at all. Concurrent captures can trim a snapshot between the moment
 // a caller reads LatestSnapshotID and the moment it reads it, so callers that
 // race for the newest point should expect this one.
-var ErrSnapshotGone = errors.New("스냅샷이 없거나 정리되어 읽을 수 없음")
+var ErrSnapshotGone = errors.New(lang.T("스냅샷이 없거나 정리되어 읽을 수 없음"))
 
 // ErrSnapshotTooLarge is returned when a capture would go over maxSnapshotBytes.
-var ErrSnapshotTooLarge = errors.New("스냅샷이 너무 커서 기록하지 않음")
+var ErrSnapshotTooLarge = errors.New(lang.T("스냅샷이 너무 커서 기록하지 않음"))
 
 // File is one captured file: its bytes and permission bits.
 type File struct {
@@ -103,7 +104,7 @@ func (g *GoldenStateManager) Capture(meta SnapshotMeta, files map[string]File) (
 	var total int64
 	for rel, f := range files {
 		if rel == "" || filepath.IsAbs(filepath.FromSlash(rel)) || !safeRelPath(filepath.FromSlash(rel)) {
-			return "", fmt.Errorf("%s: 프로젝트 밖을 가리켜 기록하지 않음", rel)
+			return "", fmt.Errorf(lang.T("%s: 프로젝트 밖을 가리켜 기록하지 않음"), rel)
 		}
 		total += int64(len(f.Data))
 	}
@@ -112,7 +113,7 @@ func (g *GoldenStateManager) Capture(meta SnapshotMeta, files map[string]File) (
 	}
 	root, err := os.OpenRoot(g.workDir)
 	if err != nil {
-		return "", fmt.Errorf("프로젝트 폴더를 열 수 없음(%s): %w", g.workDir, err)
+		return "", fmt.Errorf(lang.T("프로젝트 폴더를 열 수 없음(%s): %w"), g.workDir, err)
 	}
 	defer root.Close()
 
@@ -120,7 +121,7 @@ func (g *GoldenStateManager) Capture(meta SnapshotMeta, files map[string]File) (
 	id := newSnapshotID(now)
 	tmp := filepath.Join(snapshotsDir, tmpPrefix+id)
 	if err := root.MkdirAll(filepath.Join(tmp, filesDir), 0o700); err != nil {
-		return "", fmt.Errorf("스냅샷 폴더를 만들 수 없음: %w", err)
+		return "", fmt.Errorf(lang.T("스냅샷 폴더를 만들 수 없음: %w"), err)
 	}
 	meta.ID, meta.Timestamp = id, now
 	meta.Files, meta.Hashes = nil, map[string]string{}
@@ -137,7 +138,7 @@ func (g *GoldenStateManager) Capture(meta SnapshotMeta, files map[string]File) (
 		}
 		if err := root.WriteFile(out, f.Data, mode); err != nil {
 			_ = root.RemoveAll(tmp)
-			return "", fmt.Errorf("%s를 스냅샷에 넣지 못함: %w", rel, err)
+			return "", fmt.Errorf(lang.T("%s를 스냅샷에 넣지 못함: %w"), rel, err)
 		}
 		meta.Files = append(meta.Files, rel)
 		meta.Hashes[rel] = HashContent(string(f.Data))
@@ -146,15 +147,15 @@ func (g *GoldenStateManager) Capture(meta SnapshotMeta, files map[string]File) (
 	b, err := json.MarshalIndent(meta, "", "  ")
 	if err != nil {
 		_ = root.RemoveAll(tmp)
-		return "", fmt.Errorf("스냅샷 정보를 쓸 수 없음: %w", err)
+		return "", fmt.Errorf(lang.T("스냅샷 정보를 쓸 수 없음: %w"), err)
 	}
 	if err := root.WriteFile(filepath.Join(tmp, metaName), append(b, '\n'), 0o600); err != nil {
 		_ = root.RemoveAll(tmp)
-		return "", fmt.Errorf("스냅샷 정보를 쓸 수 없음: %w", err)
+		return "", fmt.Errorf(lang.T("스냅샷 정보를 쓸 수 없음: %w"), err)
 	}
 	if err := root.Rename(tmp, filepath.Join(snapshotsDir, id)); err != nil {
 		_ = root.RemoveAll(tmp)
-		return "", fmt.Errorf("스냅샷을 확정할 수 없음: %w", err)
+		return "", fmt.Errorf(lang.T("스냅샷을 확정할 수 없음: %w"), err)
 	}
 	if err := g.trim(root); err != nil {
 		return id, err
@@ -168,7 +169,7 @@ func (g *GoldenStateManager) Get(id string) (SnapshotMeta, error) {
 	defer g.mu.Unlock()
 	root, err := os.OpenRoot(g.workDir)
 	if err != nil {
-		return SnapshotMeta{}, fmt.Errorf("프로젝트 폴더를 열 수 없음(%s): %w", g.workDir, err)
+		return SnapshotMeta{}, fmt.Errorf(lang.T("프로젝트 폴더를 열 수 없음(%s): %w"), g.workDir, err)
 	}
 	defer root.Close()
 	return readMeta(root, id)
@@ -180,7 +181,7 @@ func (g *GoldenStateManager) ReadFile(id, rel string) (File, error) {
 	defer g.mu.Unlock()
 	root, err := os.OpenRoot(g.workDir)
 	if err != nil {
-		return File{}, fmt.Errorf("프로젝트 폴더를 열 수 없음(%s): %w", g.workDir, err)
+		return File{}, fmt.Errorf(lang.T("프로젝트 폴더를 열 수 없음(%s): %w"), g.workDir, err)
 	}
 	defer root.Close()
 	meta, err := readMeta(root, id)
@@ -188,12 +189,12 @@ func (g *GoldenStateManager) ReadFile(id, rel string) (File, error) {
 		return File{}, err
 	}
 	if !slices.Contains(meta.Files, rel) {
-		return File{}, fmt.Errorf("%w: %s에 %s가 없음", ErrSnapshotGone, id, rel)
+		return File{}, fmt.Errorf(lang.T("%w: %s에 %s가 없음"), ErrSnapshotGone, id, rel)
 	}
 	name := filepath.Join(snapshotsDir, id, filesDir, filepath.FromSlash(rel))
 	data, err := root.ReadFile(name)
 	if err != nil {
-		return File{}, fmt.Errorf("%s: 스냅샷에 내용이 없음: %w", rel, err)
+		return File{}, fmt.Errorf(lang.T("%s: 스냅샷에 내용이 없음: %w"), rel, err)
 	}
 	f := File{Data: data, Mode: 0o644}
 	if st, err := root.Stat(name); err == nil {
@@ -235,11 +236,11 @@ func readMeta(root *os.Root, id string) (SnapshotMeta, error) {
 		if errors.Is(err, fs.ErrNotExist) {
 			return SnapshotMeta{}, fmt.Errorf("%w: %s", ErrSnapshotGone, id)
 		}
-		return SnapshotMeta{}, fmt.Errorf("스냅샷 %s를 읽을 수 없음: %w", id, err)
+		return SnapshotMeta{}, fmt.Errorf(lang.T("스냅샷 %s를 읽을 수 없음: %w"), id, err)
 	}
 	var meta SnapshotMeta
 	if err := json.Unmarshal(b, &meta); err != nil || meta.ID != id {
-		return SnapshotMeta{}, fmt.Errorf("스냅샷 %s의 정보가 깨져 있음", id)
+		return SnapshotMeta{}, fmt.Errorf(lang.T("스냅샷 %s의 정보가 깨져 있음"), id)
 	}
 	return meta, nil
 }
@@ -250,7 +251,7 @@ func (g *GoldenStateManager) trim(root *os.Root) error {
 	var failed []error
 	for i := maxSnapshots; i < len(list); i++ {
 		if err := root.RemoveAll(filepath.Join(snapshotsDir, list[i].ID)); err != nil {
-			failed = append(failed, fmt.Errorf("오래된 스냅샷 %s를 지우지 못함: %w", list[i].ID, err))
+			failed = append(failed, fmt.Errorf(lang.T("오래된 스냅샷 %s를 지우지 못함: %w"), list[i].ID, err))
 		}
 	}
 	return errors.Join(failed...)
@@ -326,7 +327,7 @@ func (g *GoldenStateManager) Restore(id string) (restored []string, skipped []st
 	defer g.mu.Unlock()
 	root, err := os.OpenRoot(g.workDir)
 	if err != nil {
-		return nil, nil, fmt.Errorf("프로젝트 폴더를 열 수 없음(%s): %w", g.workDir, err)
+		return nil, nil, fmt.Errorf(lang.T("프로젝트 폴더를 열 수 없음(%s): %w"), g.workDir, err)
 	}
 	defer root.Close()
 	meta, err := readMeta(root, id)
@@ -354,11 +355,11 @@ func (g *GoldenStateManager) Restore(id string) (restored []string, skipped []st
 		}
 		tmp := filepath.Join(filepath.Dir(name), ".samcheonpo-restore-"+filepath.Base(name))
 		if err := root.WriteFile(tmp, data, mode); err != nil {
-			return restored, skipped, fmt.Errorf("%s를 복구하지 못함: %w", rel, err)
+			return restored, skipped, fmt.Errorf(lang.T("%s를 복구하지 못함: %w"), rel, err)
 		}
 		if err := root.Rename(tmp, name); err != nil {
 			_ = root.Remove(tmp)
-			return restored, skipped, fmt.Errorf("%s를 복구하지 못함: %w", rel, err)
+			return restored, skipped, fmt.Errorf(lang.T("%s를 복구하지 못함: %w"), rel, err)
 		}
 		restored = append(restored, rel)
 	}

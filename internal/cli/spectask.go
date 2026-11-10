@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io"
 	"os"
 
@@ -22,7 +23,7 @@ type taskSpecInput struct {
 }
 
 func specTaskCmd() *cobra.Command {
-	return &cobra.Command{Use: "task <input.json>", Short: "v1과 분리된 v2 작업 봉인 생성/검증 (명령 실행 없음)", Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
+	return &cobra.Command{Use: "task <input.json>", Short: lang.T("v1과 분리된 v2 작업 봉인 생성/검증 (명령 실행 없음)"), Args: cobra.ExactArgs(1), RunE: func(cmd *cobra.Command, args []string) error {
 		f, err := os.Open(args[0])
 		if err != nil {
 			return err

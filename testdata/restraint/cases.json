@@ -1,0 +1,13 @@
+[
+  {"name": "status-question", "request": "빌드 통과했어?", "answer": "통과했습니다.\n\n먼저 빌드 로그를 확인했습니다.\n\n궁금한 점이 있으면 알려 주세요.", "minimal": ["통과"], "want_excess": 2},
+  {"name": "one-line-answer", "request": "기본 포트가 뭐야?", "answer": "8080입니다.", "minimal": ["8080"], "want_excess": 0},
+  {"name": "preamble-and-summary", "request": "캐시 만료 시간 알려 줘", "answer": "캐시 만료 시간을 확인해 보겠습니다.\n\n만료 시간은 300초입니다.\n\n요약하면 300초 뒤 만료됩니다.", "minimal": ["만료 시간은 300초"], "want_excess": 2},
+  {"name": "detailed-explanation-requested", "request": "재시도 동작을 자세히 설명해 줘", "answer": "실패하면 1초 뒤 재시도합니다.\n\n재시도 간격은 매번 2배로 늘어납니다.\n\n5회를 넘으면 오류를 돌려줍니다.\n\n네트워크 오류만 재시도합니다.", "minimal": ["1초 뒤", "2배", "5회", "네트워크 오류"], "want_excess": 0},
+  {"name": "changelog-behavior", "request": "변경 기록 써 줘", "answer": "- 실패한 검증 결과를 보존한다.\n- 재시도 횟수를 설정할 수 있다.", "minimal": ["검증 결과를 보존", "재시도 횟수"], "want_excess": 0},
+  {"name": "feature-doc-uses-word", "request": "dedupe 명령 설명 써 줘", "answer": "이 명령은 중복 항목을 정리한다.", "minimal": ["중복 항목을 정리"], "want_excess": 0},
+  {"name": "install-doc-with-limit-note", "request": "설치 방법 써 줘", "answer": "`samcheonpo install --agent claude`를 실행합니다.\n\n실제 SDK 그래프로 검증했으며 모델 효과를 입증한 것은 아닙니다.", "minimal": ["samcheonpo install"], "want_excess": 1},
+  {"name": "english-padded", "request": "What is the default timeout?", "answer": "Let me check that for you.\n\nThe default timeout is 30 seconds.\n\nLet me know if you need anything else!", "minimal": ["30 seconds"], "want_excess": 2},
+  {"name": "form-keeps-error-text", "request": "로그인 폼 만들어 줘", "elements": ["이메일 라벨", "비밀번호 라벨", "로그인 버튼", "이메일 형식 오류 안내"], "minimal": ["이메일 라벨", "비밀번호 라벨", "로그인 버튼", "오류 안내"], "want_excess": 0},
+  {"name": "screen-with-extra-cards", "request": "저장 버튼 하나 추가해 줘", "elements": ["저장 버튼", "시작 안내 카드", "도움말 카드", "저장 버튼 설명 링크"], "minimal": ["저장 버튼"], "want_excess": 2},
+  {"name": "missing-required", "request": "포트와 호스트 알려 줘", "answer": "포트는 8080입니다.", "minimal": ["8080", "호스트"], "want_excess": 0}
+]

@@ -2,6 +2,7 @@ package live
 
 import (
 	"encoding/json"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"regexp"
 	"strconv"
 	"strings"
@@ -288,7 +289,7 @@ func copilotIn(name string, raw json.RawMessage) ([]string, []HookInput, error) 
 		claudeEvent = "PostToolUseFailure"
 	}
 	if in.SessionID == "" {
-		e.Shape = "Copilot 훅에 세션 ID가 없다"
+		e.Shape = lang.T("Copilot 훅에 세션 ID가 없다")
 	}
 	return []string{claudeEvent}, []HookInput{in}, nil
 }

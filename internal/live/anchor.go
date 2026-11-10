@@ -1,6 +1,7 @@
 package live
 
 import (
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"strings"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
@@ -25,7 +26,7 @@ func (s *Session) anchorInfo() hookclient.ContractAnchorInfo {
 	default:
 		info.Goal = s.eng.RequestText()
 		if _, missing := s.eng.TargetStatus(info.Goal); len(missing) > 0 {
-			info.Goal += " / 아직 변경 없음: " + strings.Join(missing, ", ")
+			info.Goal += lang.T(" / 아직 변경 없음: ") + strings.Join(missing, ", ")
 		}
 	}
 	if s.c == nil || s.acc.State != contract.StateAccepted {

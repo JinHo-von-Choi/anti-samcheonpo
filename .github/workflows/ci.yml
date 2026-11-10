@@ -3,13 +3,31 @@ name: ci
 on:
   push:
     branches: [main]
+    paths-ignore: ['docs/**', 'README*.md', 'CHANGELOG.md', 'LICENSE']
   pull_request:
+    paths-ignore: ['docs/**', 'README*.md', 'CHANGELOG.md', 'LICENSE']
 
 permissions:
   contents: read
 
 jobs:
+  # Cheap checks of the source itself. The other jobs wait for this one.
+  quick:
+    runs-on: ubuntu-latest
+    timeout-minutes: 5
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-go@v5
+        with:
+          go-version-file: go.mod
+      - name: file names, links and formatting
+        run: |
+          python3 scripts/check-repository-paths.py
+          python3 scripts/check-doc-links.py
+          test -z "$(gofmt -l cmd internal plugins)"
+
   deepagents-sdk:
+    needs: quick
     runs-on: ubuntu-latest
     timeout-minutes: 10
     steps:
@@ -34,6 +52,7 @@ jobs:
         run: python -m pytest -q -p no:cacheprovider plugins/deepagents/test_sdk.py
 
   test:
+    needs: quick
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -41,14 +60,12 @@ jobs:
       - uses: actions/setup-go@v5
         with:
           go-version-file: go.mod
-      - name: gofmt
-        run: |
-          python3 scripts/check-repository-paths.py
-          test -z "$(gofmt -l cmd internal plugins)"
       - name: vet
         run: go vet ./...
       - name: test
         run: go test -race ./...
+      - name: real browser click check
+        run: go test -tags browser ./internal/uicheck
       - name: bench
         run: go run ./cmd/samcheonpo bench
       - name: conformance
@@ -63,6 +80,7 @@ jobs:
   # The hook transport is Rust on unix. This job holds the transport to the
   # same contract as the Go one: one spec file, two implementations.
   rust:
+    needs: quick
     runs-on: ubuntu-latest
     timeout-minutes: 20
     steps:
@@ -91,6 +109,7 @@ jobs:
   # The daemon, hooks, checkpoints and rollback are Unix code paths shared with
   # Linux; this job proves they also build and pass on macOS.
   macos:
+    needs: quick
     runs-on: macos-15
     timeout-minutes: 30
     steps:
@@ -113,6 +132,7 @@ jobs:
   # x64 and arm64 runners. Commands run in Git Bash, the shell the harness
   # uses for checks on Windows.
   windows:
+    needs: quick
     strategy:
       fail-fast: false
       matrix:
@@ -139,8 +159,6 @@ jobs:
             py=$(command -v python)
             cp "$py" "$(dirname "$py")/python3.exe"
           fi
-      - name: gofmt
-        run: test -z "$(gofmt -l cmd internal plugins)"
       - name: vet
         run: go vet ./...
       - name: test

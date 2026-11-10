@@ -1,0 +1,4 @@
+[samcheonpo] Observed: the accepted work contract's {{if eq .kind "artifacts"}}build artifact budget{{else}}check time budget{{end}} {{.budget}} has already been used ({{.spent}}), and heavy check `{{.cmd}}` is about to start.
+Evidence: budget.{{if eq .kind "artifacts"}}artifact_gb{{else}}verify_minutes{{end}} in contract.yml.
+Cost: a proposed block by itself does not prove any real saving.
+Contract: the goal is {{.goal}}. Within budget, confirming with light tests of the changed area fits the contract.

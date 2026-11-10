@@ -18,7 +18,7 @@ const minOwnSentence = 12
 var templateAction = regexp.MustCompile(`\{\{.*?\}\}`)
 
 var recoveryCauses = []recovery.Cause{recovery.Verification, recovery.Code, recovery.Environment, recovery.Scope,
-	recovery.Capability, recovery.Memory, recovery.Budget, recovery.Unknown}
+	recovery.Capability, recovery.Memory, recovery.Budget, recovery.Process, recovery.Writing, recovery.Unknown}
 
 func init() {
 	detect.SetOwnText(OwnSentences())
@@ -40,7 +40,7 @@ func OwnSentences() []string {
 			out = append(out, line)
 		}
 	}
-	files, _ := fs.Glob(tmplFS, "templates/ko/*.tmpl")
+	files, _ := fs.Glob(tmplFS, "templates/*/*.tmpl")
 	for _, name := range files {
 		b, err := tmplFS.ReadFile(name)
 		if err != nil {
@@ -50,8 +50,13 @@ func OwnSentences() []string {
 			add(piece)
 		}
 	}
-	for _, c := range recoveryCauses {
-		p := recovery.For(c)
+	for _, l := range Languages {
+		for _, c := range recoveryCauses {
+			p := recovery.Localize(recovery.For(c), l)
+			add(p.Action)
+			add(p.StopCondition)
+		}
+		p := recovery.Localize(recovery.Prescription{Action: recovery.HandoffAction, StopCondition: recovery.HandoffStop}, l)
 		add(p.Action)
 		add(p.StopCondition)
 	}
@@ -62,14 +67,15 @@ func OwnSentences() []string {
 		for _, kind := range []string{detect.KindBypassMonitor, detect.KindHideReport, detect.KindFakeResult} {
 			for _, source := range []string{"prompt", "message", "tool_output", "written", "other"} {
 				v := detect.Signal{Detector: "S9", Rule: rule, Level: detect.L2, Facts: map[string]any{"kind": kind, "source": source}}
-				add(Agent(v, Context{}, ""))
-				add(User(v, Context{}))
-				add(Say(v, Context{}))
+				for _, l := range Languages {
+					add(Agent(v, Context{Lang: l}, ""))
+					add(User(v, Context{Lang: l}))
+					add(Say(v, Context{Lang: l}))
+				}
 			}
 		}
 	}
-	add(recovery.HandoffAction)
-	add(recovery.HandoffStop)
 	add(Choices)
+	add(ChoicesEnglish)
 	return out
 }

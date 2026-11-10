@@ -4,6 +4,7 @@ package analyze
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"slices"
 	"sort"
 	"strings"
@@ -393,10 +394,10 @@ func CheckInvariant(s *event.Session, t Totals) error {
 		bt += v
 	}
 	if bm != micro || bm != t.Micro {
-		return fmt.Errorf("합계 불변식 위반: 분류 합계 %d != 세션 합계 %d (마이크로원)", bm, micro)
+		return fmt.Errorf(lang.T("합계 불변식 위반: 분류 합계 %d != 세션 합계 %d (마이크로원)"), bm, micro)
 	}
 	if bt != tok {
-		return fmt.Errorf("합계 불변식 위반: 분류 토큰 %d != 세션 토큰 %d", bt, tok)
+		return fmt.Errorf(lang.T("합계 불변식 위반: 분류 토큰 %d != 세션 토큰 %d"), bt, tok)
 	}
 	return nil
 }

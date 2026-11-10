@@ -8,6 +8,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/config"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/eval"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/learning"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rulepack"
@@ -96,16 +97,16 @@ func writeLearning(cmd *cobra.Command, out string, v any) error {
 func evidenceTierLabel(tier string) string {
 	switch tier {
 	case rulepack.EvidenceDerivedExecution:
-		return "실행 기반 파생"
+		return lang.T("실행 기반 파생")
 	default:
-		return "사람 라벨"
+		return lang.T("사람 라벨")
 	}
 }
 
 func learningCmds() []*cobra.Command {
 	var labels, split, out string
 	var precision, fpr float64
-	propose := &cobra.Command{Use: "propose", Short: "사람 신고의 학습 구간에서 고정된 비차단 반복 규칙을 설계", Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
+	propose := &cobra.Command{Use: "propose", Short: lang.T("사람 신고의 학습 구간에서 고정된 비차단 반복 규칙을 설계"), Args: cobra.NoArgs, RunE: func(cmd *cobra.Command, args []string) error {
 		s, ls, data, err := learningInputs(labels, split, false)
 		if err != nil {
 			return err
@@ -116,14 +117,14 @@ func learningCmds() []*cobra.Command {
 		}
 		return writeLearning(cmd, out, p)
 	}}
-	propose.Flags().StringVar(&labels, "labels", "", "사람 라벨 디렉터리")
-	propose.Flags().StringVar(&split, "split", "", "사전 격리 split/2")
-	propose.Flags().StringVar(&out, "out", "", "고정 제안 파일")
-	propose.Flags().Float64Var(&precision, "precision-min", .9, "사전 지정 precision 신뢰구간 하한")
-	propose.Flags().Float64Var(&fpr, "fpr-max", .05, "사전 지정 오탐률 신뢰구간 상한")
+	propose.Flags().StringVar(&labels, "labels", "", lang.T("사람 라벨 디렉터리"))
+	propose.Flags().StringVar(&split, "split", "", lang.T("사전 격리 split/2"))
+	propose.Flags().StringVar(&out, "out", "", lang.T("고정 제안 파일"))
+	propose.Flags().Float64Var(&precision, "precision-min", .9, lang.T("사전 지정 precision 신뢰구간 하한"))
+	propose.Flags().Float64Var(&fpr, "fpr-max", .05, lang.T("사전 지정 오탐률 신뢰구간 상한"))
 	var evLabels, evSplit, evOut string
 	var check bool
-	evaluate := &cobra.Command{Use: "evaluate <proposal.json>", Short: "고정 규칙을 독립 holdout 사람 라벨로 평가", Args: cobra.ExactArgs(1), SilenceUsage: true, RunE: func(cmd *cobra.Command, args []string) error {
+	evaluate := &cobra.Command{Use: "evaluate <proposal.json>", Short: lang.T("고정 규칙을 독립 holdout 사람 라벨로 평가"), Args: cobra.ExactArgs(1), SilenceUsage: true, RunE: func(cmd *cobra.Command, args []string) error {
 		p, err := loadProposal(args[0])
 		if err != nil {
 			return err
@@ -140,17 +141,17 @@ func learningCmds() []*cobra.Command {
 			return err
 		}
 		if check && !r.Passed {
-			return errors.New("독립 평가 근거 부족 또는 규칙 기준 미충족")
+			return errors.New(lang.T("독립 평가 근거 부족 또는 규칙 기준 미충족"))
 		}
 		return nil
 	}}
-	evaluate.Flags().StringVar(&evLabels, "labels", "", "독립 라벨 디렉터리")
-	evaluate.Flags().StringVar(&evSplit, "split", "", "고정 split/2")
-	evaluate.Flags().StringVar(&evOut, "out", "", "평가 보고서")
-	evaluate.Flags().BoolVar(&check, "check", false, "보류·미충족이면 실패 종료")
+	evaluate.Flags().StringVar(&evLabels, "labels", "", lang.T("독립 라벨 디렉터리"))
+	evaluate.Flags().StringVar(&evSplit, "split", "", lang.T("고정 split/2"))
+	evaluate.Flags().StringVar(&evOut, "out", "", lang.T("평가 보고서"))
+	evaluate.Flags().BoolVar(&check, "check", false, lang.T("보류·미충족이면 실패 종료"))
 	var promoteLabels, promoteSplit, promoteOut string
 	var install bool
-	promote := &cobra.Command{Use: "promote <proposal.json>", Short: "독립 평가를 재계산한 뒤 규칙 팩 생성·선택 설치 (기본 기록 전용)", Args: cobra.ExactArgs(1), SilenceUsage: true, RunE: func(cmd *cobra.Command, args []string) error {
+	promote := &cobra.Command{Use: "promote <proposal.json>", Short: lang.T("독립 평가를 재계산한 뒤 규칙 팩 생성·선택 설치 (기본 기록 전용)"), Args: cobra.ExactArgs(1), SilenceUsage: true, RunE: func(cmd *cobra.Command, args []string) error {
 		p, err := loadProposal(args[0])
 		if err != nil {
 			return err
@@ -175,7 +176,7 @@ func learningCmds() []*cobra.Command {
 				return err
 			}
 			for _, d := range pack.Definitions {
-				fmt.Fprintf(cmd.OutOrStdout(), "기록 전용 설치: %s · %s 근거 · 안내 선택은 사용자 recommend_rules에 명시\n", d.RuleID(), evidenceTierLabel(pack.EvidenceTier))
+				fmt.Fprintf(cmd.OutOrStdout(), lang.T("기록 전용 설치: %s · %s 근거 · 안내 선택은 사용자 recommend_rules에 명시\n"), d.RuleID(), evidenceTierLabel(pack.EvidenceTier))
 			}
 		}
 		if promoteOut != "" || !install {
@@ -183,9 +184,9 @@ func learningCmds() []*cobra.Command {
 		}
 		return nil
 	}}
-	promote.Flags().StringVar(&promoteLabels, "labels", "", "독립 라벨 디렉터리")
-	promote.Flags().StringVar(&promoteSplit, "split", "", "고정 split/2")
-	promote.Flags().StringVar(&promoteOut, "out", "", "평가 통과 팩 파일")
-	promote.Flags().BoolVar(&install, "install", false, "사용자 전용 learned-rules.json에 설치; 설정·데몬은 바꾸지 않음")
+	promote.Flags().StringVar(&promoteLabels, "labels", "", lang.T("독립 라벨 디렉터리"))
+	promote.Flags().StringVar(&promoteSplit, "split", "", lang.T("고정 split/2"))
+	promote.Flags().StringVar(&promoteOut, "out", "", lang.T("평가 통과 팩 파일"))
+	promote.Flags().BoolVar(&install, "install", false, lang.T("사용자 전용 learned-rules.json에 설치; 설정·데몬은 바꾸지 않음"))
 	return []*cobra.Command{propose, evaluate, promote}
 }

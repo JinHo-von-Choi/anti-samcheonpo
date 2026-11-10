@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
@@ -19,7 +20,7 @@ func lineageCmd() *cobra.Command {
 	var format, session, agent string
 	c := &cobra.Command{
 		Use:   "lineage [taskID]",
-		Short: "목표의 세션 간 계보와 최초 판정 시점을 보여 준다",
+		Short: lang.T("목표의 세션 간 계보와 최초 판정 시점을 보여 준다"),
 		Args:  cobra.RangeArgs(0, 1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			db, err := ledger.OpenReadOnly(dbPath())
@@ -29,7 +30,7 @@ func lineageCmd() *cobra.Command {
 			defer db.Close()
 			if session != "" {
 				if len(args) > 0 {
-					return fmt.Errorf("taskID와 --session은 함께 지정할 수 없다")
+					return fmt.Errorf("%s", lang.T("taskID와 --session은 함께 지정할 수 없다"))
 				}
 				var root string
 				if err := db.QueryRow(`SELECT project_path FROM session WHERE agent=? AND id=?`, agent, session).Scan(&root); err != nil {
@@ -43,12 +44,12 @@ func lineageCmd() *cobra.Command {
 					return json.NewEncoder(cmd.OutOrStdout()).Encode(map[string]any{"agent": agent, "session_id": session, "native_lineage": links, "completion": "not_inferred"})
 				}
 				for _, link := range links {
-					fmt.Fprintf(cmd.OutOrStdout(), "%s/%s ← %s (호스트 연결; 완료·승인 상속 아님)\n", agent, link.Session, link.Parent)
+					fmt.Fprintf(cmd.OutOrStdout(), lang.T("%s/%s ← %s (호스트 연결; 완료·승인 상속 아님)\n"), agent, link.Session, link.Parent)
 				}
 				return nil
 			}
 			if len(args) != 1 {
-				return fmt.Errorf("taskID 또는 --session이 필요하다")
+				return fmt.Errorf("%s", lang.T("taskID 또는 --session이 필요하다"))
 			}
 			lineage, err := db.Lineage(args[0])
 			if err != nil {
@@ -64,11 +65,11 @@ func lineageCmd() *cobra.Command {
 				return nil
 			}
 			if len(lineage.Revisions) == 0 && len(lineage.Sessions) == 0 {
-				return fmt.Errorf("목표 %s에 기록된 세션이 없다", args[0])
+				return fmt.Errorf(lang.T("목표 %s에 기록된 세션이 없다"), args[0])
 			}
-			fmt.Fprintf(w, "목표 %s\n", lineage.TaskID)
+			fmt.Fprintf(w, lang.T("목표 %s\n"), lineage.TaskID)
 			for _, rev := range lineage.Revisions {
-				fmt.Fprintf(w, "  수정 %d · %s", rev.Revision, rev.Goal)
+				fmt.Fprintf(w, lang.T("  수정 %d · %s"), rev.Revision, rev.Goal)
 				if !rev.At.IsZero() {
 					fmt.Fprintf(w, " · %s", rev.At.Format(time.RFC3339))
 				}
@@ -79,34 +80,34 @@ func lineageCmd() *cobra.Command {
 				if s.ParentSession != "" {
 					from = fmt.Sprintf(" ← %s/%s", s.ParentAgent, s.ParentSession)
 				}
-				fmt.Fprintf(w, "  %s/%s%s · 판정 %d건", s.Agent, s.Session, from, s.Verdicts)
+				fmt.Fprintf(w, lang.T("  %s/%s%s · 판정 %d건"), s.Agent, s.Session, from, s.Verdicts)
 				if !s.FirstVerdict.IsZero() {
-					fmt.Fprintf(w, " · 최초 판정 %s", s.FirstVerdict.Format(time.RFC3339))
+					fmt.Fprintf(w, lang.T(" · 최초 판정 %s"), s.FirstVerdict.Format(time.RFC3339))
 				}
 				if s.Position > 0 {
-					fmt.Fprintf(w, " · 위치 %.1f%%", 100*s.Position)
+					fmt.Fprintf(w, lang.T(" · 위치 %.1f%%"), 100*s.Position)
 				}
 				if s.InLastThird {
-					fmt.Fprintln(w, " · 마지막 1/3")
+					fmt.Fprintln(w, lang.T(" · 마지막 1/3"))
 				}
 				if s.LeadMS > 0 {
-					fmt.Fprintf(w, " · 선행 %s", (time.Duration(s.LeadMS) * time.Millisecond).Round(time.Second))
+					fmt.Fprintf(w, lang.T(" · 선행 %s"), (time.Duration(s.LeadMS) * time.Millisecond).Round(time.Second))
 				}
 				fmt.Fprintln(w)
 				for _, v := range s.Judgments {
 					mark := ""
 					if v.Blocked {
-						mark = " 차단"
+						mark = lang.T(" 차단")
 					}
 					fmt.Fprintf(w, "    seq %d · %s (%s) L%d%s\n", v.Seq, v.Rule, v.Detector, v.Level, mark)
 				}
 			}
-			fmt.Fprintln(w, "선행 시간은 관측 종료까지의 값이다. 채점기의 확정을 대신하지 않는다.")
+			fmt.Fprintln(w, lang.T("선행 시간은 관측 종료까지의 값이다. 채점기의 확정을 대신하지 않는다."))
 			return nil
 		},
 	}
-	c.Flags().StringVar(&session, "session", "", "호스트가 연결한 세션 계보 조회")
-	c.Flags().StringVar(&agent, "agent", "claude", "세션의 에이전트")
+	c.Flags().StringVar(&session, "session", "", lang.T("호스트가 연결한 세션 계보 조회"))
+	c.Flags().StringVar(&agent, "agent", "claude", lang.T("세션의 에이전트"))
 	c.Flags().StringVar(&format, "format", "text", "text | json")
 	return c
 }

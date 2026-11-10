@@ -126,4 +126,6 @@ func shellWords(s string) []string {
 	return out
 }
 
+const userOnlyReasonEnglish = "[samcheonpo] This command (accepting, editing or skipping a contract, releasing a verdict, applying a rollback) is run by the user as a slash command, so it was not run from the agent shell. If it is needed, ask the user for the slash command (for example /samcheonpo:accept, /samcheonpo:keep normal, /samcheonpo:rollback apply)."
+
 const userOnlyReason = "[삼천포] 이 명령(계약 수락·수정·건너뛰기, 판정 해제, 되돌리기 적용)은 사용자가 슬래시 명령으로 실행하는 명령이라 에이전트 셸에서는 실행하지 않았다. 필요하면 사용자에게 해당 슬래시 명령(예: /samcheonpo:accept, /samcheonpo:keep normal, /samcheonpo:rollback apply)을 요청할 수 있다."

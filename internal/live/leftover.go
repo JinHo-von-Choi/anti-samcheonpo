@@ -17,9 +17,14 @@ import (
 const leftoverBudget = 200 * time.Millisecond
 
 // shellWindows are the spans the session's shell calls ran in, with a
-// little slack for process start. A background call runs until its
-// completion, or until now while it has none. The caller holds s.mu.
-func (s *Session) shellWindows(now time.Time) []procscan.Window {
+// little slack for process start. A background call counts once it has
+// finished: until then its processes are the work it was started for. The
+// caller holds s.mu.
+// leftoverMinAge is how long a process has to have run before it counts as
+// left behind.
+var leftoverMinAge = 30 * time.Second
+
+func (s *Session) shellWindows() []procscan.Window {
 	const slack = 2 * time.Second
 	var out []procscan.Window
 	ends := map[int64]time.Time{}
@@ -36,7 +41,7 @@ func (s *Session) shellWindows(now time.Time) []procscan.Window {
 		case ev.Background:
 			end, ok := ends[ev.Seq]
 			if !ok {
-				end = now
+				continue
 			}
 			out = append(out, procscan.Window{From: ev.TS.Add(-slack), To: end.Add(slack)})
 		case ev.OriginSeq > 0:
@@ -50,19 +55,26 @@ func (s *Session) shellWindows(now time.Time) []procscan.Window {
 
 // leftoverAtStop advises on processes the session started in its workspace
 // that still run when a turn ends: a server left from a test run keeps a
-// port and memory. It never ends them. A process set is told once. The
-// caller holds s.mu.
+// port and memory. It never ends them. Each process is told once, and what
+// the agent's own process still parents is not left behind. The caller
+// holds s.mu.
 func (s *Session) leftoverAtStop(ev *event.Event) {
 	now := time.Now()
-	procs := procscan.Leftover(s.Root, s.shellWindows(now), map[int]bool{os.Getpid(): true}, now.Add(leftoverBudget))
-	if len(procs) == 0 {
-		return
-	}
+	found := procscan.Leftover(s.Root, s.shellWindows(), map[int]bool{os.Getpid(): true}, s.hostPID, now.Add(leftoverBudget))
+	var procs []procscan.Proc
 	var keys, lines []string
 	var identities []map[string]any
-	for _, p := range procs {
+	for _, p := range found {
+		id := fmt.Sprintf("%d@%d", p.PID, p.Started.Unix())
+		if s.leftoverSeen[id] {
+			continue
+		}
+		if !p.Started.IsZero() && now.Sub(p.Started) < leftoverMinAge {
+			continue // the host or a hook is still starting it
+		}
+		procs = append(procs, p)
 		identities = append(identities, map[string]any{"pid": p.PID, "parent_pid": p.ParentPID, "executable_hash": fp.Hash(p.Exe), "command_summary_hash": fp.Hash(p.Cmd), "started_at": p.Started.UTC().Format(time.RFC3339Nano), "ports": p.Ports, "ownership": "workspace_time_candidate"})
-		keys = append(keys, fmt.Sprintf("%d@%d", p.PID, p.Started.Unix()))
+		keys = append(keys, id)
 		line := fmt.Sprintf("pid %d %s", p.PID, p.Cmd)
 		if len(p.Ports) > 0 {
 			var ps []string
@@ -74,13 +86,25 @@ func (s *Session) leftoverAtStop(ev *event.Event) {
 		line += fmt.Sprintf(", %s 경과", now.Sub(p.Started).Round(time.Minute))
 		lines = append(lines, line)
 	}
-	sort.Strings(keys)
-	key := strings.Join(keys, ",")
-	if s.leftoverSeen == key {
+	if len(procs) == 0 {
 		return
 	}
-	s.leftoverSeen = key
+	sort.Strings(keys)
+	key := strings.Join(keys, ",")
 	sig := detect.Signal{Detector: "S8", Rule: "s8.leftover_process", Confidence: 0.7, Level: detect.L1, Evidence: []int64{ev.Seq}, Estimate: true,
 		Facts: map[string]any{"count": len(procs), "procs": strings.Join(lines, "; "), "target": "leftover", "target_hash": key, "candidate_key": "leftover", "ownership": "workspace_time_candidate", "ownership_confirmed": false, "process_identities": identities, "cleanup_action": "manual_review"}}
-	s.deliver(s.eng.Emit(ev, []detect.Signal{sig}))
+	emitted := s.eng.Emit(ev, []detect.Signal{sig})
+	// a report held back by the cooldown has told nobody, so these processes
+	// stay new for the next turn end
+	for _, v := range emitted {
+		if v.Rule == sig.Rule && !v.Suppressed {
+			if s.leftoverSeen == nil {
+				s.leftoverSeen = map[string]bool{}
+			}
+			for _, id := range keys {
+				s.leftoverSeen[id] = true
+			}
+		}
+	}
+	s.deliver(emitted)
 }

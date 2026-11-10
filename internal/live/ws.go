@@ -5,6 +5,7 @@ import (
 	"context"
 	"crypto/sha256"
 	"encoding/hex"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io"
 	"io/fs"
 	"os"
@@ -238,7 +239,7 @@ func (w *Workspace) walk(ctx context.Context) (string, error) {
 		return "", err
 	}
 	if tooMany {
-		w.Warn = "파일이 5만 개를 넘어 계약 범위 경로만 지문에 넣는다"
+		w.Warn = lang.T("파일이 5만 개를 넘어 계약 범위 경로만 지문에 넣는다")
 		files = w.scopeFiles()
 	}
 	sort.Strings(files)

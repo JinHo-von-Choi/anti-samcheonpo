@@ -1,0 +1,7 @@
+{{if eq .kind "filler"}}[삼천포] 관찰: {{.path}}에 지워도 되는 문장 {{.count}}개가 있다: {{.candidates}}
+근거: 이벤트 {{.evidence}}. 요청을 되풀이한 도입문, 같은 설명의 반복, 입증 여부만 밝히는 한계 문장을 문장 형태로 고른 추정이다.
+비용: {{.cost_summary}}
+계약: 목표는 {{.goal}}이다. 지워도 독자가 얻는 내용이 그대로면 지운다.{{else}}[삼천포] 관찰: {{if eq .kind "publish"}}{{if eq .via "commit"}}커밋{{else if eq .via "push"}}푸시{{else if eq .via "pr"}}PR{{else if eq .via "tag"}}태그{{else}}릴리스{{end}}로 공개될 글{{else}}{{.path}}{{end}}에 작업 경위를 적은 문장 {{.count}}개가 있다: {{.candidates}}
+근거: 이벤트 {{.evidence}}. 커밋 메시지·PR·문서·주석은 다른 사람이 읽는 기록이라, 무엇을 했는지·어떤 요청을 따랐는지·어떻게 확인했는지가 그대로 공개된다. 문장의 서술 형태로 고른 후보다.
+비용: {{.cost_summary}}
+계약: 목표는 {{.goal}}이다. 공개되는 글에는 바뀐 동작과 사용법만 남긴다.{{end}}

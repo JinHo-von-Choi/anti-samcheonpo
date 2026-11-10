@@ -1,0 +1,4 @@
+[samcheonpo] Observed: browser test `{{.cmd}}` failed {{.count}} times waiting for screen state{{if eq .kind "tweak"}}. The edits in between changed only expected text, time limits or wait times{{end}}.
+Evidence: event {{.evidence}}. The failure output is a timeout waiting for an element or text.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Changing text or wait times only moves the race, and the failure stays.

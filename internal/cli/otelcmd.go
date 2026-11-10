@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"time"
 
@@ -19,7 +20,7 @@ import (
 func importOtelCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "import-otel <otlp.jsonl>",
-		Short: "OpenTelemetry GenAI 트레이스(OTLP/JSON)를 분석해 원장에 넣는다",
+		Short: lang.T("OpenTelemetry GenAI 트레이스(OTLP/JSON)를 분석해 원장에 넣는다"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			sessions, err := otel.ParseFile(args[0])
@@ -52,7 +53,7 @@ func importOtelCmd() *cobra.Command {
 				if _, err := db.SaveAnalysis(r, st.Size(), st.ModTime().UnixNano(), Messages(s.FirstPrompt)); err != nil {
 					return err
 				}
-				fmt.Fprintf(cmd.OutOrStdout(), "%s  %s  도구 %d회  판정 %d개\n", short8(s.ID), s.StartedAt.Local().Format(time.DateTime), s.ToolUses, len(r.Verdicts))
+				fmt.Fprintf(cmd.OutOrStdout(), lang.T("%s  %s  도구 %d회  판정 %d개\n"), short8(s.ID), s.StartedAt.Local().Format(time.DateTime), s.ToolUses, len(r.Verdicts))
 			}
 			return nil
 		},

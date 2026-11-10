@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -69,7 +70,7 @@ func CopilotRepoHookPath(project string) string {
 func CopilotHookFile(bin, path string, out func(string)) error {
 	bin = hookclient.Executable(bin)
 	if _, err := os.Stat(path); err == nil {
-		return fmt.Errorf("%s가 이미 있다", path)
+		return fmt.Errorf(lang.T("%s가 이미 있다"), path)
 	}
 	hooks := map[string]any{}
 	for _, ev := range CopilotEvents {
@@ -85,7 +86,7 @@ func CopilotHookFile(bin, path string, out func(string)) error {
 		return err
 	}
 	if out != nil {
-		out("Copilot CLI 훅을 " + path + "에 썼다")
+		out(lang.T("Copilot CLI 훅을 ") + path + lang.T("에 썼다"))
 	}
 	return nil
 }
@@ -140,17 +141,17 @@ func copilotScope(path string) string {
 func inspectCopilotFile(path string) (int, []string, bool, string) {
 	raw, err := os.ReadFile(path)
 	if err != nil {
-		return 0, nil, false, "훅 파일이 없거나 읽을 수 없습니다"
+		return 0, nil, false, lang.T("훅 파일이 없거나 읽을 수 없습니다")
 	}
 	var root struct {
 		Version int                         `json:"version"`
 		Hooks   map[string][]map[string]any `json:"hooks"`
 	}
 	if json.Unmarshal(raw, &root) != nil {
-		return 0, nil, false, "훅 파일 JSON 형식 오류"
+		return 0, nil, false, lang.T("훅 파일 JSON 형식 오류")
 	}
 	if root.Version != 1 {
-		return 0, nil, false, "훅 version은 1이어야 합니다"
+		return 0, nil, false, lang.T("훅 version은 1이어야 합니다")
 	}
 	var missing []string
 	executable := false
@@ -183,14 +184,14 @@ func inspectCopilotFile(path string) (int, []string, bool, string) {
 func RemoveCopilotHooks(out func(string)) error {
 	items := CopilotInstallations()
 	if len(items) == 0 {
-		return errors.New("Copilot 설치 기록이 없습니다")
+		return errors.New(lang.T("Copilot 설치 기록이 없습니다"))
 	}
 	for _, item := range items {
 		if err := removeStandalone("copilot", item.Path); err != nil {
 			return err
 		}
 		if out != nil {
-			out(item.Path + "를 지웠다")
+			out(item.Path + lang.T("를 지웠다"))
 		}
 	}
 	return nil

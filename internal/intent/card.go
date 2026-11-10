@@ -2,6 +2,7 @@ package intent
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"strings"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
@@ -10,6 +11,7 @@ import (
 // Card is a presentation of intent and existing authority, never a grant.
 type Card struct {
 	Work             Work                          `json:"work"`
+	Output           Output                        `json:"output"`
 	Temporal         *contract.TemporalRequirement `json:"temporal_requirement,omitempty"`
 	TemporalConflict bool                          `json:"temporal_conflict,omitempty"`
 	TaskID           string                        `json:"task_id,omitempty"`
@@ -31,7 +33,7 @@ type Card struct {
 }
 
 func GoalCard(c *contract.Contract, acceptance contract.Acceptance, requested string, candidates []contract.Candidate) Card {
-	card := Card{RequestedGoal: requested, State: acceptance.State, Certainty: "draft", Authority: "자동 검사 실행 미승인", Candidates: candidates}
+	card := Card{RequestedGoal: requested, State: acceptance.State, Certainty: "draft", Authority: lang.T("자동 검사 실행 미승인"), Candidates: candidates}
 	if card.State == "" {
 		card.State = contract.StateDraft
 	}
@@ -45,7 +47,7 @@ func GoalCard(c *contract.Contract, acceptance contract.Acceptance, requested st
 		card.BudgetKRW, card.BudgetMinutes = c.Budget.KRW, c.Budget.Minutes
 		if acceptance.State == contract.StateAccepted && acceptance.ChecksHash == c.ChecksHash() && acceptance.AuthorityHash == contract.AuthorityDigest(c) && acceptance.RequestedGoal == "" {
 			card.Certainty = "accepted_contract"
-			card.Authority = "수락된 계약의 검사만 실행 가능; 새 명령·권한 확대 승인 아님"
+			card.Authority = lang.T("수락된 계약의 검사만 실행 가능; 새 명령·권한 확대 승인 아님")
 		}
 	}
 	if acceptance.RequestedGoal != "" {
@@ -56,79 +58,89 @@ func GoalCard(c *contract.Contract, acceptance contract.Acceptance, requested st
 		goal = requested
 	}
 	card.Work = InferWork(goal)
+	card.Output = InferOutput(goal)
 	return card
 }
 
 func (c Card) Text() string {
 	var b strings.Builder
-	b.WriteString("AI는 이렇게 이해했습니다.\n")
+	b.WriteString(lang.T("AI는 이렇게 이해했습니다.\n"))
 
 	if t := c.Temporal; t != nil {
-		fmt.Fprintf(&b, "시간 조건: %s", t.Kind)
+		fmt.Fprintf(&b, lang.T("시간 조건: %s"), t.Kind)
 		if t.Seconds > 0 {
-			fmt.Fprintf(&b, " · 최소 %d초 관찰", t.Seconds)
+			fmt.Fprintf(&b, lang.T(" · 최소 %d초 관찰"), t.Seconds)
 		}
 		if t.CheckID != "" {
-			fmt.Fprintf(&b, " · %s 확인까지 관찰", t.CheckID)
+			fmt.Fprintf(&b, lang.T(" · %s 확인까지 관찰"), t.CheckID)
 		}
 		b.WriteString("\n")
 	}
 	if c.TemporalConflict {
-		b.WriteString("시간 조건과 명시 상한이 충돌합니다. 조건을 고치기 전에는 대기 판정을 유보합니다.\n")
+		b.WriteString(lang.T("시간 조건과 명시 상한이 충돌합니다. 조건을 고치기 전에는 대기 판정을 유보합니다.\n"))
 	}
 	// What should change, in the user's words, comes first; files are
 	// reference detail for whoever can read them.
 	if c.Goal != "" {
-		fmt.Fprintf(&b, "바뀔 동작: %s\n", c.Goal)
+		fmt.Fprintf(&b, lang.T("바뀔 동작: %s\n"), c.Goal)
 	}
 	if c.RequestedGoal != "" {
-		fmt.Fprintf(&b, "사용자 요청(초안에 반영할 내용): %s\n", c.RequestedGoal)
+		fmt.Fprintf(&b, lang.T("사용자 요청(초안에 반영할 내용): %s\n"), c.RequestedGoal)
 	}
 	if c.LatestMessage != "" && c.LatestMessage != c.RequestedGoal {
-		fmt.Fprintf(&b, "최근 요청 기록: %s\n", c.LatestMessage)
+		fmt.Fprintf(&b, lang.T("최근 요청 기록: %s\n"), c.LatestMessage)
 	}
 	if c.Work.Kind != "" {
-		fmt.Fprintf(&b, "작업 해석: %s · 현재 단계: %s (추정)\n남은 확인: %s\n", c.Work.KindText(), c.Work.PhaseText(), strings.Join(c.Work.Remaining, ", "))
+		fmt.Fprintf(&b, lang.T("작업 해석: %s · 현재 단계: %s (추정)\n남은 확인: %s\n"), c.Work.KindText(), c.Work.PhaseText(), strings.Join(c.Work.Remaining, ", "))
+	}
+	if text := c.Output.ReaderText(); text != "" {
+		fmt.Fprintf(&b, lang.T("결과물: %s (추정)\n"), text)
+	}
+	if text := c.Output.AmountText(); text != "" {
+		fmt.Fprintf(&b, lang.T("요청한 양: %s\n"), text)
+	}
+	if len(c.Output.Keep) > 0 {
+		fmt.Fprintf(&b, lang.T("그대로 둘 것: %s\n"), strings.Join(c.Output.Keep, ", "))
 	}
 	for _, check := range c.Criteria {
 		if check.Manual != "" {
-			fmt.Fprintf(&b, "끝났는지 직접 확인할 것: %s\n", check.Manual)
+			fmt.Fprintf(&b, lang.T("끝났는지 직접 확인할 것: %s\n"), check.Manual)
 		} else {
-			fmt.Fprintf(&b, "끝났는지 자동으로 확인할 명령: %s\n", check.Check)
+			fmt.Fprintf(&b, lang.T("끝났는지 자동으로 확인할 명령: %s\n"), check.Check)
 			if check.Reuse != nil {
-				fmt.Fprintf(&b, "  재사용 선언: 입력·환경 동일 시 %d초; 외부 의존성·flaky 검사 제외\n", check.Reuse.MaxAgeSec)
+				fmt.Fprintf(&b, lang.T("  재사용 선언: 입력·환경 동일 시 %d초; 외부 의존성·flaky 검사 제외\n"), check.Reuse.MaxAgeSec)
 			}
 		}
 	}
 	if len(c.Forbidden) > 0 {
-		fmt.Fprintf(&b, "하지 않을 것: %s\n", strings.Join(c.Forbidden, ", "))
+		fmt.Fprintf(&b, lang.T("하지 않을 것: %s\n"), strings.Join(c.Forbidden, ", "))
 	}
 	if c.BudgetKRW > 0 {
-		fmt.Fprintf(&b, "설정된 API 환산 예산: %s원(실제 청구액 아님)\n", contract.Comma(c.BudgetKRW))
+		fmt.Fprintf(&b, lang.T("설정된 API 환산 예산: %s원(실제 청구액 아님)\n"), contract.Comma(c.BudgetKRW))
 	}
 	if c.BudgetMinutes > 0 {
-		fmt.Fprintf(&b, "설정된 시간 예산: %d분\n", c.BudgetMinutes)
+		fmt.Fprintf(&b, lang.T("설정된 시간 예산: %d분\n"), c.BudgetMinutes)
 	}
 	if len(c.Allowed) > 0 || len(c.Protected) > 0 {
-		b.WriteString("참고(파일 범위):")
+		b.WriteString(lang.T("참고(파일 범위):"))
 		if len(c.Allowed) > 0 {
-			fmt.Fprintf(&b, " 손댈 수 있는 곳 %s", strings.Join(c.Allowed, ", "))
+			fmt.Fprintf(&b, lang.T(" 손댈 수 있는 곳 %s"), strings.Join(c.Allowed, ", "))
 		}
 		if len(c.Protected) > 0 {
-			fmt.Fprintf(&b, " · 손대지 않을 곳 %s", strings.Join(c.Protected, ", "))
+			fmt.Fprintf(&b, lang.T(" · 손대지 않을 곳 %s"), strings.Join(c.Protected, ", "))
 		}
 		b.WriteString("\n")
 	}
-	fmt.Fprintf(&b, "[목표 카드] 상태: %s · 확실성: %s\n권한: %s\n", c.State, c.Certainty, c.Authority)
+	fmt.Fprintf(&b, lang.T("[목표 카드] 상태: %s · 확실성: %s\n권한: %s\n"), c.State, c.Certainty, c.Authority)
 	if c.TaskID != "" {
-		fmt.Fprintf(&b, "작업 %s · 의도 개정 %d\n", c.TaskID, c.Revision)
+		fmt.Fprintf(&b, lang.T("작업 %s · 의도 개정 %d\n"), c.TaskID, c.Revision)
 	}
 	if c.Source != nil {
-		fmt.Fprintf(&b, "요청 출처: %s / %s / %s\n", c.Source.Origin, c.Source.SessionID, c.Source.EventID)
+		fmt.Fprintf(&b, lang.T("요청 출처: %s / %s / %s\n"), c.Source.Origin, c.Source.SessionID, c.Source.EventID)
 	}
 	if c.Certainty != "accepted_contract" {
-		b.WriteString("초안·후보 발견은 실행 승인이 아니다. 동작 설명이 맞는지 확인하고 accept하거나 edit로 고친다.\n")
-		b.WriteString("[/samcheonpo:accept 맞아요]  [/samcheonpo:edit 고칠래요]  [/samcheonpo:skip 계약 없이 진행]\n")
+		b.WriteString(lang.T("초안·후보 발견은 실행 승인이 아니다. 동작 설명이 맞는지 확인하고 accept하거나 edit로 고친다.\n"))
+		b.WriteString(lang.T("[/samcheonpo:accept 맞아요]  [/samcheonpo:edit 고칠래요]  [/samcheonpo:skip 계약 없이 진행]\n"))
 	}
 	return b.String()
 }

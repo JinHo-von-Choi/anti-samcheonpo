@@ -1,0 +1,4 @@
+[samcheonpo] Observed: `{{.cmd}}` ran {{.count}} times with no change to the working folder and the same result each time{{if .failed}} ({{len .failed}} failed{{if .first_failed}}, {{.first_failed}}{{end}}){{end}}.
+Evidence: {{.count}} runs with the same command, working folder and result fingerprints (events {{.evidence}}).
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Repeating the same result does not justify more code changes or a wider check.

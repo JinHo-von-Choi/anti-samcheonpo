@@ -1,0 +1,3 @@
+[samcheonpo] Observed: {{.count}} of the last {{.window}} actions concentrated on {{if eq .kind "error"}}the same error{{else if .path}}`{{.path}}`{{else}}the same command{{end}}, with no new output or check turning to pass.{{if .dominant_term}} The word "{{.dominant_term}}", absent from the request, repeats in each recent message.{{end}}
+Evidence: event {{.evidence}}.
+Contract: the goal is {{.goal}}. Requested but not yet in any change: {{.missing}}.

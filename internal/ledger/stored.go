@@ -4,6 +4,7 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"reflect"
 	"time"
 
@@ -34,7 +35,7 @@ func (d *DB) ObservationOf(sessionID string) (analyze.Observation, error) {
 	}
 	var snap receiptSnapshot
 	if err := json.Unmarshal([]byte(payload), &snap); err != nil {
-		return analyze.Observation{}, fmt.Errorf("세션 %s 저장 분석 읽기: %w", sessionID, err)
+		return analyze.Observation{}, fmt.Errorf(lang.T("세션 %s 저장 분석 읽기: %w"), sessionID, err)
 	}
 	return snap.Result.Observation, nil
 }
@@ -73,23 +74,23 @@ func (d *DB) snapshot(full string) (*analyze.Result, seal.Seal, error) {
 		return nil, seal.Seal{}, err
 	}
 	if state == ObservationOpen {
-		return nil, seal.Seal{}, fmt.Errorf("세션 %s는 관측 중이다. 분석 완료 후 영수증을 발급한다", full)
+		return nil, seal.Seal{}, fmt.Errorf(lang.T("세션 %s는 관측 중이다. 분석 완료 후 영수증을 발급한다"), full)
 	}
 	var snap receiptSnapshot
 	var sl seal.Seal
 	if err := json.Unmarshal([]byte(payload), &snap); err != nil {
-		return nil, sl, fmt.Errorf("세션 %s 저장 분석 읽기: %w", full, err)
+		return nil, sl, fmt.Errorf(lang.T("세션 %s 저장 분석 읽기: %w"), full, err)
 	}
 	if err := json.Unmarshal([]byte(sealed), &sl); err != nil {
 		return nil, sl, err
 	}
 	r := &snap.Result
 	if r.Session == nil || r.Session.ID != full || sl.Spec != seal.SpecVersion {
-		return nil, sl, fmt.Errorf("세션 %s 저장 분석 형식이 유효하지 않다", full)
+		return nil, sl, fmt.Errorf(lang.T("세션 %s 저장 분석 형식이 유효하지 않다"), full)
 	}
 	for _, ev := range snap.Events {
 		if ev == nil {
-			return nil, sl, fmt.Errorf("세션 %s 저장 이벤트가 유효하지 않다", full)
+			return nil, sl, fmt.Errorf(lang.T("세션 %s 저장 이벤트가 유효하지 않다"), full)
 		}
 	}
 	r.Session.Events = snap.Events
@@ -97,10 +98,10 @@ func (d *DB) snapshot(full string) (*analyze.Result, seal.Seal, error) {
 	// Stored verification checks the recorded evaluator, not the installed one.
 	got.Evaluator = sl.Evaluator
 	if !reflect.DeepEqual(got, sl) {
-		return nil, sl, fmt.Errorf("세션 %s 저장 분석과 봉인이 일치하지 않는다", full)
+		return nil, sl, fmt.Errorf(lang.T("세션 %s 저장 분석과 봉인이 일치하지 않는다"), full)
 	}
 	if err := analyze.CheckInvariant(r.Session, r.Totals); err != nil {
-		return nil, sl, fmt.Errorf("세션 %s 저장 합계 검증: %w", full, err)
+		return nil, sl, fmt.Errorf(lang.T("세션 %s 저장 합계 검증: %w"), full, err)
 	}
 	return r, sl, nil
 }
@@ -110,7 +111,7 @@ func (d *DB) snapshot(full string) (*analyze.Result, seal.Seal, error) {
 func (d *DB) StoredResult(id string) (*analyze.Result, seal.Seal, error) {
 	full, _, _, err := d.SourceOf(id)
 	if err != nil {
-		return nil, seal.Seal{}, fmt.Errorf("세션 %s를 원장에서 찾지 못했다: %w", id, err)
+		return nil, seal.Seal{}, fmt.Errorf(lang.T("세션 %s를 원장에서 찾지 못했다: %w"), id, err)
 	}
 	if r, sl, err := d.snapshot(full); err != sql.ErrNoRows {
 		return r, sl, err
@@ -128,29 +129,29 @@ func (d *DB) StoredResult(id string) (*analyze.Result, seal.Seal, error) {
 		Scan(&agent, &model, &project, &contractHash, &startedS, &endedS, &mode, &srcPath, &srcHash,
 			&grade, &formatOK, &quotaPct, &quotaWin, &first)
 	if err != nil {
-		return nil, seal.Seal{}, fmt.Errorf("세션 %s 기록 읽기: %w", full, err)
+		return nil, seal.Seal{}, fmt.Errorf(lang.T("세션 %s 기록 읽기: %w"), full, err)
 	}
 	sl, err := d.Seal(full)
 	if err != nil {
-		return nil, seal.Seal{}, fmt.Errorf("세션 %s 봉인 읽기: %w", full, err)
+		return nil, seal.Seal{}, fmt.Errorf(lang.T("세션 %s 봉인 읽기: %w"), full, err)
 	}
 	events, err := d.EventsOf(full)
 	if err != nil {
-		return nil, seal.Seal{}, fmt.Errorf("세션 %s 이벤트 읽기: %w", full, err)
+		return nil, seal.Seal{}, fmt.Errorf(lang.T("세션 %s 이벤트 읽기: %w"), full, err)
 	}
 	verdicts, err := d.VerdictsOf(full)
 	if err != nil {
-		return nil, seal.Seal{}, fmt.Errorf("세션 %s 판정 읽기: %w", full, err)
+		return nil, seal.Seal{}, fmt.Errorf(lang.T("세션 %s 판정 읽기: %w"), full, err)
 	}
 	var started, ended time.Time
 	if startedS != "" {
 		if started, err = time.Parse(time.RFC3339Nano, startedS); err != nil {
-			return nil, seal.Seal{}, fmt.Errorf("세션 %s 시작 시각 읽기: %w", full, err)
+			return nil, seal.Seal{}, fmt.Errorf(lang.T("세션 %s 시작 시각 읽기: %w"), full, err)
 		}
 	}
 	if endedS != "" {
 		if ended, err = time.Parse(time.RFC3339Nano, endedS); err != nil {
-			return nil, seal.Seal{}, fmt.Errorf("세션 %s 종료 시각 읽기: %w", full, err)
+			return nil, seal.Seal{}, fmt.Errorf(lang.T("세션 %s 종료 시각 읽기: %w"), full, err)
 		}
 	}
 	sess := &event.Session{
@@ -165,7 +166,7 @@ func (d *DB) StoredResult(id string) (*analyze.Result, seal.Seal, error) {
 		ConfigHash: sl.ConfigHash, PriceVersion: sl.PriceVersion,
 	}
 	if r.Totals.Micro != sl.TotalMicro || r.Totals.Tokens != sl.TotalTokens || !reflect.DeepEqual(r.Totals.BucketMicro, sl.BucketMicro) {
-		return nil, seal.Seal{}, fmt.Errorf("세션 %s 저장 합계와 봉인이 일치하지 않는다", full)
+		return nil, seal.Seal{}, fmt.Errorf(lang.T("세션 %s 저장 합계와 봉인이 일치하지 않는다"), full)
 	}
 	return r, seal.Seal{}, nil
 }

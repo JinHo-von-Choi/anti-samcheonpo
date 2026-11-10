@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"sort"
 	"strings"
 	"time"
@@ -14,10 +15,10 @@ import (
 
 func reportCmd() *cobra.Command {
 	var since, mode, agent string
-	c := &cobra.Command{Use: "report", Short: "에이전트별 관측·환산액·헛짓 분류 비교"}
+	c := &cobra.Command{Use: "report", Short: lang.T("에이전트별 관측·환산액·헛짓 분류 비교")}
 	c.RunE = func(cmd *cobra.Command, _ []string) error {
 		if mode != "all" && mode != "audit" && mode != "live" {
-			return fmt.Errorf("mode는 all, audit 또는 live")
+			return fmt.Errorf("%s", lang.T("mode는 all, audit 또는 live"))
 		}
 		t, err := ParseSince(since, time.Now())
 		if err != nil {
@@ -66,14 +67,14 @@ func reportCmd() *cobra.Command {
 			if err = db.QueryRow(`SELECT COALESCE(o.close_reason,'legacy_unknown'),COALESCE(o.evaluator_version,(SELECT json_extract(seal,'$.evaluator') FROM session_seal WHERE session_id=s.id),''),COALESCE((SELECT MAX(ts) FROM event WHERE session_id=s.id),o.last_activity_at,'') FROM session s LEFT JOIN session_observation o ON o.session_id=s.id WHERE s.id=?`, r.ID).Scan(&reason, &version, &last); err != nil {
 				return err
 			}
-			labels := map[string]string{"legacy_unknown": "기존 기록·종료 확인 불가", "open": "관측 중", "session_end": "실제 종료 확인",
-				"daemon_shutdown": "데몬 관측 종료", "daemon_lost": "데몬 손실로 관측 중단", "idle_timeout": "무활동으로 관측 중단", "audit_snapshot": "감사 스냅샷"}
+			labels := map[string]string{"legacy_unknown": lang.T("기존 기록·종료 확인 불가"), "open": lang.T("관측 중"), "session_end": lang.T("실제 종료 확인"),
+				"daemon_shutdown": lang.T("데몬 관측 종료"), "daemon_lost": lang.T("데몬 손실로 관측 중단"), "idle_timeout": lang.T("무활동으로 관측 중단"), "audit_snapshot": lang.T("감사 스냅샷")}
 			label := labels[reason]
 			if label == "" {
-				label = "종료 사유 미확인"
+				label = lang.T("종료 사유 미확인")
 			}
 			if version == "" {
-				version = "판정기 버전 미확인"
+				version = lang.T("판정기 버전 미확인")
 			}
 			g.metadata[label+" / "+version]++
 			activity, _ := time.Parse(time.RFC3339Nano, last)
@@ -111,7 +112,7 @@ func reportCmd() *cobra.Command {
 			}
 		}
 		w := cmd.OutOrStdout()
-		fmt.Fprintln(w, "에이전트 모드 세션 API환산액 기준 헛짓분류율 활동진척분류율 단가확인 원본 검사근거 최근분석")
+		fmt.Fprintln(w, lang.T("에이전트 모드 세션 API환산액 기준 헛짓분류율 활동진척분류율 단가확인 원본 검사근거 최근분석"))
 		var keys []string
 		for k := range by {
 			keys = append(keys, k)
@@ -120,51 +121,51 @@ func reportCmd() *cobra.Command {
 		for _, k := range keys {
 			g := by[k]
 			x := g.t
-			basis := "원화"
-			amount := contract.Comma(cost.Won(x.Micro)) + "원"
+			basis := lang.T("원화")
+			amount := contract.Comma(cost.Won(x.Micro)) + lang.T("원")
 			waste := x.SymptomTotal()
 			progress := x.BucketMicro[analyze.BucketProgress]
 			denom := x.Micro
 			if x.Tokens == 0 {
-				basis = "미확인"
-				amount = "사용량 미확인"
+				basis = lang.T("미확인")
+				amount = lang.T("사용량 미확인")
 			} else if x.UnpricedTokens > 0 {
-				basis = "토큰"
+				basis = lang.T("토큰")
 				denom = x.Tokens
 				waste = x.SymptomTokenTotal()
 				progress = x.BucketTokens[analyze.BucketProgress]
-				amount = "단가 미확인"
+				amount = lang.T("단가 미확인")
 				if x.Micro > 0 {
-					amount = contract.Comma(cost.Won(x.Micro)) + "원(확인된 일부 환산액)"
+					amount = contract.Comma(cost.Won(x.Micro)) + lang.T("원(확인된 일부 환산액)")
 				}
 			}
 			pct := func(n int64) string {
 				if denom == 0 || x.Tokens == 0 {
-					return "미확인"
+					return lang.T("미확인")
 				}
 				if n > 0 && 100*float64(n)/float64(denom) < 0.1 {
 					return "<0.1%"
 				}
 				return fmt.Sprintf("%.1f%%", 100*float64(n)/float64(denom))
 			}
-			coverage := "미확인"
+			coverage := lang.T("미확인")
 			if x.Tokens > 0 {
 				coverage = fmt.Sprintf("%.1f%%", 100*x.PriceCoverage())
 			}
-			checks := "완료 미확인"
+			checks := lang.T("완료 미확인")
 			if g.checks > 0 {
-				checks = fmt.Sprintf("검사관측%d/%d", g.checks, g.n)
+				checks = fmt.Sprintf(lang.T("검사관측%d/%d"), g.checks, g.n)
 			}
-			at := "미확인"
+			at := lang.T("미확인")
 			if !g.latest.IsZero() {
 				at = g.latest.Local().Format("2006-01-02T15:04:05")
 			}
 			fmt.Fprintf(w, "%s %s %d %s %s %s %s %s %d/%d %s %s\n", g.agent, g.mode, g.n, amount, basis, pct(waste), pct(progress), coverage, g.sources, g.n, checks, at)
-			activity := "미확인"
+			activity := lang.T("미확인")
 			if !g.activity.IsZero() {
 				activity = g.activity.Local().Format("2006-01-02T15:04:05")
 			}
-			fmt.Fprintf(w, "  마지막 활동: %s; 관측 메타데이터:\n", activity)
+			fmt.Fprintf(w, lang.T("  마지막 활동: %s; 관측 메타데이터:\n"), activity)
 			var metaKeys []string
 			for k := range g.metadata {
 				metaKeys = append(metaKeys, k)
@@ -175,9 +176,9 @@ func reportCmd() *cobra.Command {
 			}
 		}
 		if len(keys) == 0 {
-			fmt.Fprintln(w, "선택한 기간·모드의 기록이 없습니다. 미수집은 품질 0점이 아닙니다.")
+			fmt.Fprintln(w, lang.T("선택한 기간·모드의 기록이 없습니다. 미수집은 품질 0점이 아닙니다."))
 		}
-		fmt.Fprintln(w, "API환산액은 실제 청구액이 아닙니다. 활동 진척 분류와 검사 관측은 완료 증거가 아닙니다. 다른 기준·수집 범위의 행은 순위로 비교하지 않습니다.")
+		fmt.Fprintln(w, lang.T("API환산액은 실제 청구액이 아닙니다. 활동 진척 분류와 검사 관측은 완료 증거가 아닙니다. 다른 기준·수집 범위의 행은 순위로 비교하지 않습니다."))
 		if agent == "all" {
 			var absent []string
 			for _, a := range []string{"claude", "codex", "opencode", "agy", "hermes", "openclaw"} {
@@ -190,13 +191,13 @@ func reportCmd() *cobra.Command {
 				}
 			}
 			if len(absent) > 0 {
-				fmt.Fprintf(w, "선택 범위에 기록 없음: %s\n", strings.Join(absent, ", "))
+				fmt.Fprintf(w, lang.T("선택 범위에 기록 없음: %s\n"), strings.Join(absent, ", "))
 			}
 		}
 		return nil
 	}
-	c.Flags().StringVar(&since, "since", "30d", "기간")
+	c.Flags().StringVar(&since, "since", "30d", lang.T("기간"))
 	c.Flags().StringVar(&mode, "mode", "all", "all | audit | live")
-	c.Flags().StringVar(&agent, "agent", "all", "에이전트 또는 all")
+	c.Flags().StringVar(&agent, "agent", "all", lang.T("에이전트 또는 all"))
 	return c
 }

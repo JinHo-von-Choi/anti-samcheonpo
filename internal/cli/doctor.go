@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"runtime"
 	"time"
@@ -40,47 +41,50 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 	}
 	switch runtime.GOOS {
 	case "linux", "darwin":
-		add("platform", "ok", "Unix 실행 경로. 이 결과만으로 모든 배포 환경의 검증을 의미하지는 않음")
+		add("platform", "ok", lang.T("Unix 실행 경로. 이 결과만으로 모든 배포 환경의 검증을 의미하지는 않음"))
 	case "windows":
-		add("platform", "ok", "Windows 네이티브 실행 경로. 이 결과만으로 모든 배포 환경의 검증을 의미하지는 않음")
+		add("platform", "ok", lang.T("Windows 네이티브 실행 경로. 이 결과만으로 모든 배포 환경의 검증을 의미하지는 않음"))
 		for _, d := range windowsChecks() {
 			add(d.ID, d.State, d.Message)
 		}
 	default:
-		add("platform", "error", "지원하지 않는 OS; 이 환경에서는 Linux 실행 파일을 쓸 수 있는 환경(WSL 등)이 필요")
+		add("platform", "error", lang.T("지원하지 않는 OS; 이 환경에서는 Linux 실행 파일을 쓸 수 있는 환경(WSL 등)이 필요"))
 	}
 	if exe != "" && hookclient.Executable(exe) != exe {
-		add("hook_transport", "ok", "경량 훅 파일 발견; 현재 설치된 연결이 이 파일을 사용하는지는 설치 기록 확인 필요")
+		add("hook_transport", "ok", lang.T("경량 훅 파일 발견; 현재 설치된 연결이 이 파일을 사용하는지는 설치 기록 확인 필요"))
 		version := hookclient.TransportVersion(hookclient.Executable(exe))
 		if version == Version {
-			add("hook_version", "ok", "메인 파일과 경량 훅의 버전 표기가 일치함 (무결성 인증은 아님)")
+			add("hook_version", "ok", lang.T("메인 파일과 경량 훅의 버전 표기가 일치함 (무결성 인증은 아님)"))
 		} else {
-			add("hook_version", "warning", "경량 훅 버전이 다르거나 확인할 수 없음; 같은 릴리스의 두 파일로 맞춰야 함")
+			add("hook_version", "warning", lang.T("경량 훅 버전이 다르거나 확인할 수 없음; 같은 릴리스의 두 파일로 맞춰야 함"))
 		}
 	} else {
-		add("hook_transport", "warning", "경량 훅 파일 없음; 같은 버전의 samcheonpo-hook을 메인 파일 옆에 설치하면 기동 비용을 줄일 수 있음")
+		add("hook_transport", "warning", lang.T("경량 훅 파일 없음; 같은 버전의 samcheonpo-hook을 메인 파일 옆에 설치하면 기동 비용을 줄일 수 있음"))
+	}
+	if n := missedSessions(db); n > 0 {
+		add("hook_misses", "warning", fmt.Sprintf(lang.T("데몬에 연결하지 못해 기록되지 않은 세션 %d개"), n))
 	}
 	cfg, _, err := config.Load(project)
 	if err != nil {
-		add("config", "error", "설정을 해석할 수 없음; config.yml/.samcheonpo.yml 확인 (원문·비밀값 출력 안 함)")
+		add("config", "error", lang.T("설정을 해석할 수 없음; config.yml/.samcheonpo.yml 확인 (원문·비밀값 출력 안 함)"))
 	} else {
-		add("config", "ok", "설정을 읽었으며 변경하지 않았음")
+		add("config", "ok", lang.T("설정을 읽었으며 변경하지 않았음"))
 		if cfg.Detectors.S3.Judge.Provider == "" {
-			add("judge", "ok", "의미 판정기 꺼짐; 기본 감사·감시는 API 키 없이 사용 가능")
+			add("judge", "ok", lang.T("의미 판정기 꺼짐; 기본 감사·감시는 API 키 없이 사용 가능"))
 		} else {
-			add("judge", "warning", "의미 판정기 설정이 있음; 위험 등급이 높은 행동(셸·자격증명·커밋·완료 주장)에서만 호출하고 읽기·탐색은 결정론적 탐지기가 처리한다. 이 진단은 모델·네트워크 호출이나 인증 검사를 하지 않음")
+			add("judge", "warning", lang.T("의미 판정기 설정이 있음; 위험 등급이 높은 행동(셸·자격증명·커밋·완료 주장)에서만 호출하고 읽기·탐색은 결정론적 탐지기가 처리한다. 이 진단은 모델·네트워크 호출이나 인증 검사를 하지 않음"))
 		}
 		if cfg.Privacy.ExternalJudge {
-			add("external_judge", "warning", "사용자 설정에서 외부 판정을 허용함; 정책을 변경하지 않았음")
+			add("external_judge", "warning", lang.T("사용자 설정에서 외부 판정을 허용함; 정책을 변경하지 않았음"))
 		} else {
-			add("external_judge", "ok", "외부 판정 전송 비허용 정책")
+			add("external_judge", "ok", lang.T("외부 판정 전송 비허용 정책"))
 		}
 		if cfg.Experiment.Enabled {
-			add("experiment", "warning", "실험 모드 켜짐: 일부 안내를 대조군으로 보류하고 전달하지 않음 (연구용)")
+			add("experiment", "warning", lang.T("실험 모드 켜짐: 일부 안내를 대조군으로 보류하고 전달하지 않음 (연구용)"))
 		} else {
-			add("experiment", "ok", "실험 모드 꺼짐: 모든 안내가 정책대로 전달됨")
+			add("experiment", "ok", lang.T("실험 모드 꺼짐: 모든 안내가 정책대로 전달됨"))
 		}
-		add("rollout", "ok", fmt.Sprintf("개입 단계 %s, 세션당 차단 상한 %d회", cfg.Rollout.Mode, cfg.Rollout.EscalateMaxBlocks))
+		add("rollout", "ok", fmt.Sprintf(lang.T("개입 단계 %s, 세션당 차단 상한 %d회"), cfg.Rollout.Mode, cfg.Rollout.EscalateMaxBlocks))
 	}
 	if agent == "cursor" {
 		r.Checks = append(r.Checks, cursorChecks(db)...)
@@ -98,46 +102,46 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 	k, raw, contractErr := contract.Load(project)
 	switch {
 	case contractErr != nil:
-		add("completion", "warning", "완료 조건을 읽을 수 없음; 원문을 출력하지 않았고 검사를 실행하지 않았음")
+		add("completion", "warning", lang.T("완료 조건을 읽을 수 없음; 원문을 출력하지 않았고 검사를 실행하지 않았음"))
 	case k == nil:
-		add("completion", "warning", "완료 미확인: 계약 없음. contract show로 후보를 확인하고 사용자 수락 후 체크포인트로 확인")
+		add("completion", "warning", lang.T("완료 미확인: 계약 없음. contract show로 후보를 확인하고 사용자 수락 후 체크포인트로 확인"))
 	case contract.CurrentState(project, k, raw).State != contract.StateAccepted:
-		add("completion", "warning", "완료 미확인: 현재 조건이 수락되지 않았음. contract show로 초안·수락 상태 확인")
+		add("completion", "warning", lang.T("완료 미확인: 현재 조건이 수락되지 않았음. contract show로 초안·수락 상태 확인"))
 	default:
-		add("completion", "ok", fmt.Sprintf("수락된 완료 조건 %d개; 수락은 통과 증거가 아님. 실제 체크포인트 결과로 완료 확인", len(k.Done)))
+		add("completion", "ok", fmt.Sprintf(lang.T("수락된 완료 조건 %d개; 수락은 통과 증거가 아님. 실제 체크포인트 결과로 완료 확인"), len(k.Done)))
 	}
 	caps, tested := adapter.Resolve(agent, version)
 	switch {
 	case tested:
-		add("agent_version", "ok", fmt.Sprintf("%s 버전이 캡처 fixture 시험 범위에 있음; 실제 세션 권한·제품 효과 인증은 아님", agent))
+		add("agent_version", "ok", fmt.Sprintf(lang.T("%s 버전이 캡처 fixture 시험 범위에 있음; 실제 세션 권한·제품 효과 인증은 아님"), agent))
 	case caps == adapter.Observe(agent):
-		add("agent_version", "warning", fmt.Sprintf("현재 삼천포 %s 어댑터는 관찰 전용", agent))
+		add("agent_version", "warning", fmt.Sprintf(lang.T("현재 삼천포 %s 어댑터는 관찰 전용"), agent))
 	case version == "":
-		add("agent_version", "warning", fmt.Sprintf("%s 버전을 읽지 못했음(미설치이거나 응답 지연). 설치돼 있다면 데몬이 다시 확인하고, 실제 훅 형식이 맞는 동안 개입함", agent))
+		add("agent_version", "warning", fmt.Sprintf(lang.T("%s 버전을 읽지 못했음(미설치이거나 응답 지연). 설치돼 있다면 데몬이 다시 확인하고, 실제 훅 형식이 맞는 동안 개입함"), agent))
 	default:
-		add("agent_version", "ok", fmt.Sprintf("%s %s는 캡처 fixture 범위 밖이지만 버전으로 막지 않음; 데몬이 받은 훅 형식이 다르면 그때 관찰 전용으로 낮춤", agent, version))
+		add("agent_version", "ok", fmt.Sprintf(lang.T("%s %s는 캡처 fixture 범위 밖이지만 버전으로 막지 않음; 데몬이 받은 훅 형식이 다르면 그때 관찰 전용으로 낮춤"), agent, version))
 	}
 	if reason := shapeMismatch(agent); reason != "" {
 		caps = adapter.Observe(agent)
-		add("hook_shape", "warning", "데몬이 받은 훅 형식이 달라 관찰 전용으로 낮춤: "+reason+". 에이전트 업데이트로 훅이 바뀐 것으로 보이며 삼천포 업데이트가 필요함")
+		add("hook_shape", "warning", lang.T("데몬이 받은 훅 형식이 달라 관찰 전용으로 낮춤: ")+reason+lang.T(". 에이전트 업데이트로 훅이 바뀐 것으로 보이며 삼천포 업데이트가 필요함"))
 	}
 	add("capabilities", "ok", capabilityText(caps))
 	if ping() {
-		add("daemon", "ok", "현재 홈의 데몬이 응답함")
+		add("daemon", "ok", lang.T("현재 홈의 데몬이 응답함"))
 	} else {
-		add("daemon", "warning", "현재 홈의 데몬 응답 없음; 진단에서 기동하지 않았음")
+		add("daemon", "warning", lang.T("현재 홈의 데몬 응답 없음; 진단에서 기동하지 않았음"))
 	}
 	if _, err := os.Stat(db); os.IsNotExist(err) {
-		add("ledger", "warning", "아직 원장 없음; 진단에서 만들지 않았음")
+		add("ledger", "warning", lang.T("아직 원장 없음; 진단에서 만들지 않았음"))
 	} else if err != nil {
-		add("ledger", "error", "원장 경로 접근 실패")
+		add("ledger", "error", lang.T("원장 경로 접근 실패"))
 	} else if version, skipped, err := ledger.InspectWithBudget(db); err != nil {
-		add("ledger", "error", fmt.Sprintf("원장 무결성/스키마 확인 실패 (읽은 버전 %d); 원문·레코드는 출력하지 않음", version))
+		add("ledger", "error", fmt.Sprintf(lang.T("원장 무결성/스키마 확인 실패 (읽은 버전 %d); 원문·레코드는 출력하지 않음"), version))
 	} else if skipped {
-		add("ledger", "ok", fmt.Sprintf("원장이 크므로 페이지 전체 검사(quick_check, 용량 비례)를 건너뛰고 스키마 %d만 확인함; 무결성 의심 시 파일 크기 증가가 멈췄는지로 먼저 가린다", version))
+		add("ledger", "ok", fmt.Sprintf(lang.T("원장이 크므로 페이지 전체 검사(quick_check, 용량 비례)를 건너뛰고 스키마 %d만 확인함; 무결성 의심 시 파일 크기 증가가 멈췄는지로 먼저 가린다"), version))
 		addLedgerUsage(&r, db)
 	} else {
-		add("ledger", "ok", fmt.Sprintf("원장 읽기 전용 무결성 검사 통과, 스키마 %d", version))
+		add("ledger", "ok", fmt.Sprintf(lang.T("원장 읽기 전용 무결성 검사 통과, 스키마 %d"), version))
 		addLedgerUsage(&r, db)
 	}
 	addWatchBudget(&r)
@@ -157,23 +161,23 @@ func addLedgerUsage(r *doctorReport, path string) {
 	}
 	db, err := ledger.OpenReadOnly(path)
 	if err != nil {
-		add("ledger_size", "warning", fmt.Sprintf("원장 용량을 읽지 못함 (%v); 원본·레코드는 출력하지 않음", err))
+		add("ledger_size", "warning", fmt.Sprintf(lang.T("원장 용량을 읽지 못함 (%v); 원본·레코드는 출력하지 않음"), err))
 		return
 	}
 	defer db.Close()
 	usage, err := db.Usage()
 	if err != nil {
-		add("ledger_size", "warning", "원장 행 집계에 실패함; 원본·레코드는 출력하지 않음")
+		add("ledger_size", "warning", lang.T("원장 행 집계에 실패함; 원본·레코드는 출력하지 않음"))
 		return
 	}
 	mb := float64(size) / (1024 * 1024)
-	message := fmt.Sprintf("원장 %.0fMB · 세션 %d · 이벤트 %d · 판정 %d · 봉인 %d", mb, usage.Sessions, usage.Events, usage.Verdicts, usage.Sealed)
+	message := fmt.Sprintf(lang.T("원장 %.0fMB · 세션 %d · 이벤트 %d · 판정 %d · 봉인 %d"), mb, usage.Sessions, usage.Events, usage.Verdicts, usage.Sealed)
 	// The retention window is stated here so that the size of the file is
 	// read together with the rule that decides what stays in it.
-	threshold := fmt.Sprintf(". 보존 기준: 종료 %d일 지난 세션의 상세만 정리 대상이며 봉인·영수증·판정은 남는다", ledger.PruneDays)
+	threshold := fmt.Sprintf(lang.T(". 보존 기준: 종료 %d일 지난 세션의 상세만 정리 대상이며 봉인·영수증·판정은 남는다"), ledger.PruneDays)
 	switch {
 	case mb >= 1024:
-		add("ledger_size", "warning", message+". 원장은 계속 커지고 줄지 않는다"+threshold+". samcheonpo compact로 빈 공간을 회수할 수 있다")
+		add("ledger_size", "warning", message+lang.T(". 원장은 계속 커지고 줄지 않는다")+threshold+lang.T(". samcheonpo compact로 빈 공간을 회수할 수 있다"))
 	case mb >= 256:
 		add("ledger_size", "ok", message+threshold)
 	default:
@@ -191,16 +195,16 @@ func addWatchBudget(r *doctorReport) {
 	}
 	w := watchBudget()
 	if !w.Known {
-		add("watch_budget", "ok", "이 호스트는 파일 감시 인스턴스 한도를 노출하지 않는다")
+		add("watch_budget", "ok", lang.T("이 호스트는 파일 감시 인스턴스 한도를 노출하지 않는다"))
 		return
 	}
 	switch {
 	case w.Used >= w.Limit:
-		add("watch_budget", "error", fmt.Sprintf("파일 감시 인스턴스 %d/%d 한도 소진. 감시기가 열리지 않아 삼천포가 작업 폴더 변화를 보지 못한다", w.Used, w.Limit))
+		add("watch_budget", "error", fmt.Sprintf(lang.T("파일 감시 인스턴스 %d/%d 한도 소진. 감시기가 열리지 않아 삼천포가 작업 폴더 변화를 보지 못한다"), w.Used, w.Limit))
 	case w.Ratio() >= 0.8:
-		add("watch_budget", "warning", fmt.Sprintf("파일 감시 인스턴스 %d/%d (%.0f%%). 한도에 닿으면 감시가 조용히 멈춘다", w.Used, w.Limit, w.Ratio()*100))
+		add("watch_budget", "warning", fmt.Sprintf(lang.T("파일 감시 인스턴스 %d/%d (%.0f%%). 한도에 닿으면 감시가 조용히 멈춘다"), w.Used, w.Limit, w.Ratio()*100))
 	default:
-		add("watch_budget", "ok", fmt.Sprintf("파일 감시 인스턴스 %d/%d (%.0f%%)", w.Used, w.Limit, w.Ratio()*100))
+		add("watch_budget", "ok", fmt.Sprintf(lang.T("파일 감시 인스턴스 %d/%d (%.0f%%)"), w.Used, w.Limit, w.Ratio()*100))
 	}
 }
 
@@ -208,24 +212,24 @@ func addWatchBudget(r *doctorReport) {
 func capabilityText(c adapter.Caps) string {
 	yes := func(b bool) string {
 		if b {
-			return "가능"
+			return lang.T("가능")
 		}
-		return "불가"
+		return lang.T("불가")
 	}
-	return fmt.Sprintf("실행 전 차단 %s · 실행 전 안내 %s · 결과 옆 안내 %s · 종료 보류 %s · 상태줄 %s",
+	return fmt.Sprintf(lang.T("실행 전 차단 %s · 실행 전 안내 %s · 결과 옆 안내 %s · 종료 보류 %s · 상태줄 %s"),
 		yes(c.BlockPre), yes(c.InjectPre), yes(c.InjectPost), yes(c.BlockStop), yes(c.StatusLine))
 }
 
 func doctorCmd() *cobra.Command {
 	var agent, format string
 	c := &cobra.Command{
-		Use: "doctor", Short: "설정·원장·훅 실행 경로를 변경 없이 진단", Args: cobra.NoArgs,
+		Use: "doctor", Short: lang.T("설정·원장·훅 실행 경로를 변경 없이 진단"), Args: cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if _, ok := adapter.Profiles[agent]; !ok {
-				return fmt.Errorf("알 수 없는 에이전트")
+				return fmt.Errorf("%s", lang.T("알 수 없는 에이전트"))
 			}
 			if format != "text" && format != "json" {
-				return fmt.Errorf("format은 text 또는 json")
+				return fmt.Errorf("%s", lang.T("format은 text 또는 json"))
 			}
 			root, err := os.Getwd()
 			if err != nil {
@@ -253,12 +257,12 @@ func doctorCmd() *cobra.Command {
 				}
 			}
 			if failed {
-				return fmt.Errorf("설치 진단에서 오류를 발견했다")
+				return fmt.Errorf("%s", lang.T("설치 진단에서 오류를 발견했다"))
 			}
 			return nil
 		},
 	}
-	c.Flags().StringVar(&agent, "agent", "claude", "진단할 에이전트")
+	c.Flags().StringVar(&agent, "agent", "claude", lang.T("진단할 에이전트"))
 	c.Flags().StringVar(&format, "format", "text", "text|json")
 	return c
 }

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io/fs"
 	"os"
 	"os/exec"
@@ -60,7 +61,7 @@ func Install(o Options) (retErr error) {
 		o.Out = func(string) {}
 	}
 	if _, err := os.Lstat(statePath()); err == nil {
-		return errors.New("이미 설치되어 있다. 다시 설치하려면 먼저 samcheonpo uninstall")
+		return errors.New(lang.T("이미 설치되어 있다. 다시 설치하려면 먼저 samcheonpo uninstall"))
 	} else if !os.IsNotExist(err) {
 		return err
 	}
@@ -74,7 +75,7 @@ func Install(o Options) (retErr error) {
 		return err
 	}
 	if err := os.Mkdir(root, 0700); err != nil {
-		return fmt.Errorf("기존 플러그인 경로를 덮어쓰지 않습니다: %w", err)
+		return fmt.Errorf(lang.T("기존 플러그인 경로를 덮어쓰지 않습니다: %w"), err)
 	}
 	committed, settingsWritten := false, false
 	st := State{SettingsPath: o.SettingsPath, PluginDir: pdir, InstalledAt: time.Now().UTC()}
@@ -97,11 +98,11 @@ func Install(o Options) (retErr error) {
 				}
 			}
 			if err != nil {
-				retErr = errors.Join(retErr, fmt.Errorf("설정 복구 실패: %w", err))
+				retErr = errors.Join(retErr, fmt.Errorf(lang.T("설정 복구 실패: %w"), err))
 			}
 		}
 		if err := os.RemoveAll(root); err != nil {
-			retErr = errors.Join(retErr, fmt.Errorf("새 플러그인 파일 복구 실패: %w", err))
+			retErr = errors.Join(retErr, fmt.Errorf(lang.T("새 플러그인 파일 복구 실패: %w"), err))
 		}
 	}()
 	if err := writePlugin(pdir, o.Binary); err != nil {
@@ -145,11 +146,11 @@ func Install(o Options) (retErr error) {
 	// The bundle is recorded only after the install committed, so the
 	// registry never claims a bundle that was rolled back.
 	if m, err := BuildDirManifest("claude-code", root); err != nil {
-		o.Out("플러그인 무결성 기록을 남기지 못했다: " + err.Error())
+		o.Out(lang.T("플러그인 무결성 기록을 남기지 못했다: ") + err.Error())
 	} else if err := RecordManifest(m); err != nil {
-		o.Out("플러그인 무결성 기록을 남기지 못했다: " + err.Error())
+		o.Out(lang.T("플러그인 무결성 기록을 남기지 못했다: ") + err.Error())
 	}
-	o.Out("상태줄을 " + o.SettingsPath + "에 등록했다")
+	o.Out(lang.T("상태줄을 ") + o.SettingsPath + lang.T("에 등록했다"))
 	if o.UsePluginCLI {
 		if _, err := exec.LookPath("claude"); err == nil {
 			// Record cleanup intent before changing the external plugin registry.
@@ -159,17 +160,17 @@ func Install(o Options) (retErr error) {
 				return err
 			}
 			if out, err := exec.Command("claude", "plugin", "marketplace", "add", root).CombinedOutput(); err != nil {
-				o.Out("marketplace 등록 실패: " + strings.TrimSpace(string(out)))
-				return fmt.Errorf("marketplace 등록 실패; 설치 기록을 보존했습니다: %w", err)
+				o.Out(lang.T("marketplace 등록 실패: ") + strings.TrimSpace(string(out)))
+				return fmt.Errorf(lang.T("marketplace 등록 실패; 설치 기록을 보존했습니다: %w"), err)
 			} else if out, err := exec.Command("claude", "plugin", "install", "samcheonpo@"+MarketplaceName, "--scope", "user").CombinedOutput(); err != nil {
-				o.Out("플러그인 설치 실패: " + strings.TrimSpace(string(out)))
-				return fmt.Errorf("플러그인 등록 실패; 설치 기록을 보존했습니다: %w", err)
+				o.Out(lang.T("플러그인 설치 실패: ") + strings.TrimSpace(string(out)))
+				return fmt.Errorf(lang.T("플러그인 등록 실패; 설치 기록을 보존했습니다: %w"), err)
 			} else {
 				st.PluginCLI = true
-				o.Out("Claude Code 플러그인 samcheonpo@" + MarketplaceName + "을 설치했다 (새 세션부터 적용)")
+				o.Out(lang.T("Claude Code 플러그인 samcheonpo@") + MarketplaceName + lang.T("을 설치했다 (새 세션부터 적용)"))
 			}
 		} else {
-			o.Out("claude 명령을 찾지 못했다. Claude Code에서 /plugin marketplace add " + root + " 후 samcheonpo를 설치하면 된다")
+			o.Out(lang.T("claude 명령을 찾지 못했다. Claude Code에서 /plugin marketplace add ") + root + lang.T(" 후 samcheonpo를 설치하면 된다"))
 		}
 	}
 	return nil
@@ -182,7 +183,7 @@ func Uninstall(out func(string)) error {
 	}
 	b, err := os.ReadFile(statePath())
 	if err != nil {
-		return errors.New("설치 기록이 없다")
+		return errors.New(lang.T("설치 기록이 없다"))
 	}
 	var st State
 	if err := json.Unmarshal(b, &st); err != nil {
@@ -190,13 +191,13 @@ func Uninstall(out func(string)) error {
 	}
 	if st.PluginCLI {
 		if _, err := exec.LookPath("claude"); err != nil {
-			return errors.New("claude 명령이 없어 등록 해제를 확인할 수 없습니다; 설치 기록을 보존했습니다")
+			return errors.New(lang.T("claude 명령이 없어 등록 해제를 확인할 수 없습니다; 설치 기록을 보존했습니다"))
 		}
 		if err := exec.Command("claude", "plugin", "uninstall", "samcheonpo@"+MarketplaceName).Run(); err != nil {
-			return fmt.Errorf("플러그인 등록 해제 실패; 설치 기록 보존: %w", err)
+			return fmt.Errorf(lang.T("플러그인 등록 해제 실패; 설치 기록 보존: %w"), err)
 		}
 		if err := exec.Command("claude", "plugin", "marketplace", "remove", MarketplaceName).Run(); err != nil {
-			return fmt.Errorf("marketplace 등록 해제 실패; 설치 기록 보존: %w", err)
+			return fmt.Errorf(lang.T("marketplace 등록 해제 실패; 설치 기록 보존: %w"), err)
 		}
 	}
 	settings, raw, err := readSettings(st.SettingsPath)
@@ -222,15 +223,15 @@ func Uninstall(out func(string)) error {
 		} else if err := writeSettings(st.SettingsPath, settings); err != nil {
 			return err
 		}
-		out("상태줄 설정을 설치 전 값으로 되돌렸다")
+		out(lang.T("상태줄 설정을 설치 전 값으로 되돌렸다"))
 	default:
-		out("상태줄 설정이 설치 뒤에 바뀌어 건드리지 않았다")
+		out(lang.T("상태줄 설정이 설치 뒤에 바뀌어 건드리지 않았다"))
 	}
 	if err := removeGenerated(filepath.Join(config.Home(), "plugin"), st.Generated, out); err != nil {
 		return err
 	}
 	if err := ForgetManifest("claude-code"); err != nil {
-		out("무결성 기록을 지우지 못했다: " + err.Error())
+		out(lang.T("무결성 기록을 지우지 못했다: ") + err.Error())
 	}
 	return os.Remove(statePath())
 }
@@ -248,7 +249,7 @@ func jsonEqual(a, b json.RawMessage) bool {
 // readSettings parses settings.json preserving unknown keys as raw JSON.
 func readSettings(p string) (map[string]json.RawMessage, []byte, error) {
 	if st, err := os.Lstat(p); err == nil && st.Mode()&os.ModeSymlink != 0 {
-		return nil, nil, errors.New("설정 심볼릭 링크를 바꾸지 않습니다. 대상의 실제 경로를 지정하세요")
+		return nil, nil, errors.New(lang.T("설정 심볼릭 링크를 바꾸지 않습니다. 대상의 실제 경로를 지정하세요"))
 	}
 	m := map[string]json.RawMessage{}
 	raw, err := os.ReadFile(p)
@@ -262,10 +263,10 @@ func readSettings(p string) (map[string]json.RawMessage, []byte, error) {
 		return m, raw, nil
 	}
 	if err := json.Unmarshal(raw, &m); err != nil {
-		return nil, nil, fmt.Errorf("%s를 해석하지 못했다: %w", p, err)
+		return nil, nil, fmt.Errorf(lang.T("%s를 해석하지 못했다: %w"), p, err)
 	}
 	if m == nil {
-		return nil, nil, errors.New("설정의 최상위 값은 JSON 객체여야 합니다")
+		return nil, nil, errors.New(lang.T("설정의 최상위 값은 JSON 객체여야 합니다"))
 	}
 	return m, raw, nil
 }
@@ -325,7 +326,7 @@ func shellQuote(s string) string { return "'" + strings.ReplaceAll(s, "'", `'\''
 // writePlugin copies the embedded plugin, pointing commands at the binary.
 func writePlugin(dst, bin string) error {
 	if _, err := os.Lstat(dst); err == nil {
-		return errors.New("기존 플러그인 디렉터리를 덮어쓰지 않습니다")
+		return errors.New(lang.T("기존 플러그인 디렉터리를 덮어쓰지 않습니다"))
 	} else if !os.IsNotExist(err) {
 		return err
 	}
@@ -365,7 +366,7 @@ func writeMarketplace(root string) error {
 	m := map[string]any{
 		"name":    MarketplaceName,
 		"owner":   map[string]string{"name": "samcheonpo"},
-		"plugins": []map[string]any{{"name": "samcheonpo", "source": "./claude-code", "description": "AI 코딩 에이전트 헛짓 탐지와 원화 영수증"}},
+		"plugins": []map[string]any{{"name": "samcheonpo", "source": "./claude-code", "description": lang.T("AI 코딩 에이전트 헛짓 탐지와 원화 영수증")}},
 	}
 	b, _ := json.MarshalIndent(m, "", "  ")
 	if err := os.MkdirAll(filepath.Join(root, ".claude-plugin"), 0o755); err != nil {

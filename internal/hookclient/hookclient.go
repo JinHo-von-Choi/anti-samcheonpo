@@ -7,10 +7,12 @@ import (
 	"bufio"
 	"encoding/json"
 	"errors"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io"
 	"net"
 	"os"
 	"os/exec"
+	"path/filepath"
 	"strings"
 	"time"
 
@@ -178,15 +180,18 @@ func runAgent(event, agent string, stdin io.Reader, stdout, diagnostics io.Write
 	if err != nil || len(payload) == 0 || !json.Valid(payload) {
 		return pass()
 	}
-	sock := socketPath()
-	var conn net.Conn
-	if os.Getenv("SAMCHEONPO_NO_SPAWN") == "1" {
-		conn, err = net.DialTimeout("unix", sock, ConnectTimeout)
-	} else {
-		conn, err = connectHook(sock, spawnDaemon)
+	socks := sockpath.Candidates()
+	noSpawn := os.Getenv("SAMCHEONPO_NO_SPAWN") == "1"
+	conn, err := dialAny(socks)
+	if err != nil && !noSpawn {
+		// a daemon this hook starts listens where this environment points
+		conn, err = connectHook(socks[0], spawnDaemon)
 	}
 	if err != nil {
 		fail("connect_failed", err)
+		if !noSpawn {
+			recordMiss(agent, event, payload)
+		}
 		return pass()
 	}
 	defer conn.Close()
@@ -274,6 +279,50 @@ func runAgent(event, agent string, stdin io.Reader, stdout, diagnostics io.Write
 
 func socketPath() string { return sockpath.Path() }
 
+func dialAny(socks []string) (net.Conn, error) {
+	var last error
+	for _, sock := range socks {
+		conn, err := net.DialTimeout("unix", sock, ConnectTimeout)
+		if err == nil {
+			return conn, nil
+		}
+		last = err
+	}
+	return nil, last
+}
+
+// maxMissLog is the size at which the record of missed hooks stops growing.
+const maxMissLog = 256 << 10
+
+// recordMiss leaves a record that this hook call reached no daemon. It never
+// affects the hook's answer.
+func recordMiss(agent, event string, payload []byte) {
+	path := sockpath.MissLogPath()
+	if st, err := os.Stat(path); err == nil && st.Size() >= maxMissLog {
+		return
+	}
+	var body map[string]any
+	_ = json.Unmarshal(payload, &body)
+	session := ""
+	for _, key := range []string{"session_id", "sessionId", "conversation_id", "thread_id"} {
+		if v, ok := body[key].(string); ok && v != "" {
+			session = v
+			break
+		}
+	}
+	line, err := json.Marshal(map[string]any{"agent": agent, "event": event, "session_id": session, "at_ms": time.Now().UnixMilli()})
+	if err != nil {
+		return
+	}
+	_ = os.MkdirAll(filepath.Dir(path), 0o700)
+	f, err := os.OpenFile(path, os.O_CREATE|os.O_APPEND|os.O_WRONLY, 0o600)
+	if err != nil {
+		return
+	}
+	defer f.Close()
+	_, _ = f.Write(append(line, '\n'))
+}
+
 // spawnDaemon starts the daemon detached; duplicates exit on the flock.
 func spawnDaemon() {
 	if os.Getenv("SAMCHEONPO_NO_SPAWN") == "1" {
@@ -311,7 +360,7 @@ func QueryOutput(event string, payload any, timeout time.Duration) (json.RawMess
 	resp, ok := query(event, payload, timeout)
 	switch {
 	case !ok:
-		return nil, errors.New("데몬에 연결할 수 없다")
+		return nil, errors.New(lang.T("데몬에 연결할 수 없다"))
 	case resp.Error != "":
 		return nil, errors.New(resp.Error)
 	}

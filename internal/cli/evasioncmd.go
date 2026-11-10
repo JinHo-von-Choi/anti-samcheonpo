@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/evasion"
@@ -19,7 +20,7 @@ func evasionCmd() *cobra.Command {
 	var corpus, format, out string
 	c := &cobra.Command{
 		Use:   "evasion",
-		Short: "탐지 규칙이 놓치는 회피를 재현해 측정한다",
+		Short: lang.T("탐지 규칙이 놓치는 회피를 재현해 측정한다"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			scenarios, err := evasion.Load(corpus)
@@ -27,7 +28,7 @@ func evasionCmd() *cobra.Command {
 				return err
 			}
 			if len(scenarios) == 0 {
-				return fmt.Errorf("회피 코퍼스가 비어 있다")
+				return fmt.Errorf("%s", lang.T("회피 코퍼스가 비어 있다"))
 			}
 			report, err := evasion.Measure(scenarios)
 			if err != nil {
@@ -53,13 +54,13 @@ func evasionCmd() *cobra.Command {
 				}
 			}
 			if report.Missed > 0 {
-				return fmt.Errorf("규칙이 회피를 %d건 놓쳤다", report.Missed)
+				return fmt.Errorf(lang.T("규칙이 회피를 %d건 놓쳤다"), report.Missed)
 			}
 			return nil
 		},
 	}
-	c.Flags().StringVar(&corpus, "corpus", "", "회피 코퍼스 파일 (기본은 내장 코퍼스)")
+	c.Flags().StringVar(&corpus, "corpus", "", lang.T("회피 코퍼스 파일 (기본은 내장 코퍼스)"))
 	c.Flags().StringVar(&format, "format", "text", "text | json")
-	c.Flags().StringVar(&out, "out", "", "보고서 JSON 파일 경로")
+	c.Flags().StringVar(&out, "out", "", lang.T("보고서 JSON 파일 경로"))
 	return c
 }

@@ -13,6 +13,9 @@ import (
 // session's active time.
 type marathonState struct {
 	scope       scopeState
+	budget      fullBudget
+	quality     qualityState
+	promptText  string // the latest user message
 	probes      map[string]probeMark
 	triage      map[string]*triageMark
 	lastRead    string // findings report read or queried most recently
@@ -119,6 +122,18 @@ func (e *Engine) preGuard(ev *event.Event, live bool) *Signal {
 		return s
 	}
 	if s := e.longRunCheck(ev, live); s != nil {
+		return s
+	}
+	if s := e.publishCheck(ev, live); s != nil {
+		return s
+	}
+	if s := e.noChangeRerunCheck(ev, live); s != nil {
+		return s
+	}
+	if s := e.testGrowthCheck(ev, live); s != nil {
+		return s
+	}
+	if s := e.fullBudgetCheck(ev, live); s != nil {
 		return s
 	}
 	return e.fullSuiteCheck(ev, live)

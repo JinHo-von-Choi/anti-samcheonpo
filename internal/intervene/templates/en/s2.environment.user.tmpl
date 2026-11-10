@@ -1,0 +1,3 @@
+{{if .frozen}}The cause outside the code ({{.kindname}}) has not changed, so the edit to `{{.frozen_path}}` was held. Changing the code will not clear this failure.
+{{else}}The same command failed {{.count}} times, probably from a cause outside the code ({{.kindname}}).
+{{end}}{{if .remedy}}For you to check: `{{.remedy}}`. After fixing it, ask the AI to run the same command again.{{else}}Check installs, services, permissions and network first. More code changes may not solve this.{{end}}

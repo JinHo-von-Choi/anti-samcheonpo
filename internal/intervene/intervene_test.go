@@ -1,6 +1,9 @@
 package intervene
 
 import (
+	"maps"
+	"regexp"
+	"slices"
 	"strings"
 	"testing"
 
@@ -11,19 +14,61 @@ import (
 var rules = []string{"s1.explicit_waiting", "s8.progress_stall", "s1.identical_rerun", "s1.verify_after_docs", "s1.review_repeat", "s1.evidence_rerun", "s1.verify_ratio", "s1.test_bloat", "s2.stuck_error", "s2.oscillation", "s2.whack_a_mole", "s2.environment", "s2.attempt_repeat",
 	"s3.out_of_scope", "s3.config_bypass", "s3.protected_path", "s4.read_only_streak", "s5.test_weakening", "s5.error_hiding",
 	"s5.false_done", "s5.abandoned_verification", "s3.fixation", "s5.answer_copy", "s7.memory_rot", "s8.velocity", "s8.budget", "s8.idle_spend", "s8.forced_no_progress", "s5.stop_unmet", "s6.capability_limit", "s3.drift",
-	"s2.semantic_oscillation", "s1.full_suite_local_change", "s1.concurrent_heavy_check", "s5.deploy_without_preflight", "s3.production_write", "s3.production_guard", "s3.migration_history_write", "s8.host_resource", "s8.host_budget", "s5.flake_masking", "s1.revert_reverify", "s8.leftover_process", "s1.unprobed_long_run", "s4.serial_triage", "s2.verifier_deadlock", "s5.release_without_preflight",
+	"s2.semantic_oscillation", "s1.full_suite_local_change", "s1.concurrent_heavy_check", "s5.deploy_without_preflight", "s3.production_write", "s3.production_guard", "s3.migration_history_write", "s8.host_resource", "s8.host_budget", "s5.flake_masking", "s5.artifact_meta", "s5.answer_padding", "s3.unrequested_ui_action", "s1.revert_reverify", "s8.leftover_process", "s1.unprobed_long_run", "s4.serial_triage", "s2.verifier_deadlock", "s5.release_without_preflight",
 	"s5.release_rate", "s2.flaky_ui_race", "s8.session_long", "s8.session_ceiling",
 	"s9.instruction_smuggling", "s9.unverified_claim_request", "s10.grader_access"}
 
 // TestVocabulary checks every agent template against the directive word list.
 func TestVocabulary(t *testing.T) {
+	for _, l := range Languages {
+		for _, name := range Templates() {
+			if strings.HasSuffix(name, ".user.tmpl") {
+				continue
+			}
+			raw := RawIn(l, name)
+			if loc := ForbiddenRe.FindStringIndex(raw); loc != nil {
+				t.Errorf("%s/%s contains directive vocabulary %q", l, name, raw[loc[0]:loc[1]])
+			}
+		}
+	}
+}
+
+// A template present in only one language, or one that reads other facts,
+// would show the user a blank or Korean message.
+func TestEveryTemplateHasAnEnglishTwin(t *testing.T) {
+	actions := regexp.MustCompile(`\{\{[^}]*\}\}`)
+	field := regexp.MustCompile(`\.[a-z_]+`)
+	fields := func(raw string) string {
+		seen := map[string]bool{}
+		for _, a := range actions.FindAllString(raw, -1) {
+			for _, f := range field.FindAllString(a, -1) {
+				seen[f] = true
+			}
+		}
+		return strings.Join(slices.Sorted(maps.Keys(seen)), " ")
+	}
 	for _, name := range Templates() {
-		if strings.HasSuffix(name, ".user.tmpl") {
+		if name == "" {
 			continue
 		}
-		if loc := ForbiddenRe.FindStringIndex(Raw(name)); loc != nil {
-			t.Errorf("%s contains directive vocabulary %q", name, Raw(name)[loc[0]:loc[1]])
+		en := RawIn("en", name)
+		if strings.TrimSpace(Raw(name)) != "" && strings.TrimSpace(en) == "" {
+			t.Errorf("%s has no English text", name)
 		}
+		if a, b := fields(Raw(name)), fields(en); a != b {
+			t.Errorf("%s reads different facts: ko %q, en %q", name, a, b)
+		}
+		if regexp.MustCompile(`[가-힣]`).MatchString(en) {
+			t.Errorf("%s has Korean text in the English version", name)
+		}
+	}
+}
+
+func TestEnglishUserMessageUsesDollars(t *testing.T) {
+	v := detect.Signal{Rule: "s2.stuck_error", Facts: map[string]any{"count": 3}, WasteMicro: 2770 * 1_000_000}
+	msg := User(v, Context{Lang: "en", USDKRW: 1385, TotalMicro: 1, IdleMicro: 1})
+	if !strings.Contains(msg, "$2.00") || !strings.Contains(msg, "this verdict is wrong") || regexp.MustCompile(`[가-힣]`).MatchString(msg) {
+		t.Fatalf("%s", msg)
 	}
 }
 

@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io/fs"
 	"os"
 	"path/filepath"
@@ -95,14 +96,14 @@ func readState(root *os.Root, rel string) (fileState, error) {
 	}
 	switch {
 	case st.Mode()&fs.ModeSymlink != 0:
-		return fileState{}, fmt.Errorf("심볼릭 링크라 다루지 않음")
+		return fileState{}, fmt.Errorf("%s", lang.T("심볼릭 링크라 다루지 않음"))
 	case !st.Mode().IsRegular():
-		return fileState{}, fmt.Errorf("일반 파일이 아님")
+		return fileState{}, fmt.Errorf("%s", lang.T("일반 파일이 아님"))
 	case st.Size() > maxTrackedFile:
-		return fileState{}, fmt.Errorf("파일이 %dMB보다 큼", maxTrackedFile>>20)
+		return fileState{}, fmt.Errorf(lang.T("파일이 %dMB보다 큼"), maxTrackedFile>>20)
 	}
 	if procgroup.HardLinked(filepath.Join(root.Name(), name), st) {
-		return fileState{}, fmt.Errorf("하드링크라 다른 위치도 바뀔 수 있어 다루지 않음")
+		return fileState{}, fmt.Errorf("%s", lang.T("하드링크라 다른 위치도 바뀔 수 있어 다루지 않음"))
 	}
 	b, err := root.ReadFile(name)
 	if err != nil {
@@ -118,7 +119,7 @@ func (s *Session) keep(m map[string]fileState, rel string, f fileState) bool {
 		r.bytes -= int64(len(old.data))
 	}
 	if r.bytes+int64(len(f.data)) > maxTrackedTotal {
-		r.untracked[rel] = "보관 용량 초과"
+		r.untracked[rel] = lang.T("보관 용량 초과")
 		delete(m, rel)
 		return false
 	}
@@ -208,7 +209,7 @@ func (s *Session) trackBefore(in HookInput, call string, paths []string) {
 				continue
 			}
 		} else if h, ok := s.rb.agentHash[rel]; ok && h != cur.hash() {
-			s.rb.untracked[rel] = "AI가 쓴 뒤 다른 편집이 섞여 소유권을 확정할 수 없음"
+			s.rb.untracked[rel] = lang.T("AI가 쓴 뒤 다른 편집이 섞여 소유권을 확정할 수 없음")
 			continue
 		}
 		if text, ok := expectedContent(in.ToolName, in.ToolInput, cur); ok {
@@ -252,9 +253,9 @@ func (s *Session) trackAfter(call string, paths []string) {
 		want, ok := expect[rel]
 		switch {
 		case !ok:
-			s.rb.untracked[rel] = "도구 입력으로 결과를 재현할 수 없어 소유권을 확정할 수 없음"
+			s.rb.untracked[rel] = lang.T("도구 입력으로 결과를 재현할 수 없어 소유권을 확정할 수 없음")
 		case want != cur.hash():
-			s.rb.untracked[rel] = "도구 결과와 실제 파일이 달라 소유권을 확정할 수 없음(동시 편집 가능)"
+			s.rb.untracked[rel] = lang.T("도구 결과와 실제 파일이 달라 소유권을 확정할 수 없음(동시 편집 가능)")
 		}
 	}
 }
@@ -315,7 +316,7 @@ func (s *Session) rollbackPlan() (todo, skipped []rollbackItem, id string) {
 		if t, ok := s.rb.baseline[rel]; ok {
 			return t, true, ""
 		}
-		return fileState{}, false, "되돌릴 기준 내용이 없음"
+		return fileState{}, false, lang.T("되돌릴 기준 내용이 없음")
 	}
 	return s.planWith(paths, target, "rollback-plan", fmt.Sprint(s.rb.snapshotSeq))
 }
@@ -328,7 +329,7 @@ func (s *Session) planWith(paths []string, target targetFn, salt ...string) (tod
 	root, err := os.OpenRoot(s.Root)
 	if err != nil {
 		for _, rel := range paths {
-			skipped = append(skipped, rollbackItem{Path: rel, Reason: "프로젝트 폴더를 열 수 없음"})
+			skipped = append(skipped, rollbackItem{Path: rel, Reason: lang.T("프로젝트 폴더를 열 수 없음")})
 		}
 		return nil, skipped, ""
 	}
@@ -353,7 +354,7 @@ func (s *Session) planWith(paths []string, target targetFn, salt ...string) (tod
 			continue
 		}
 		if cur.hash() != s.rb.agentHash[rel] || (cur.absent && s.rb.agentHash[rel] != "") {
-			skipped = append(skipped, rollbackItem{Path: rel, Reason: "AI가 마지막으로 쓴 뒤 다른 곳에서 바뀌어 덮어쓰지 않음"})
+			skipped = append(skipped, rollbackItem{Path: rel, Reason: lang.T("AI가 마지막으로 쓴 뒤 다른 곳에서 바뀌어 덮어쓰지 않음")})
 			continue
 		}
 		action := "restore"
@@ -371,9 +372,9 @@ func (s *Session) planWith(paths []string, target targetFn, salt ...string) (tod
 
 func (s *Session) rollbackBasis() string {
 	if s.rb.snapshotSeq >= 0 {
-		return fmt.Sprintf("마지막으로 진척이 확인된 시점(이벤트 %d)", s.rb.snapshotSeq)
+		return fmt.Sprintf(lang.T("마지막으로 진척이 확인된 시점(이벤트 %d)"), s.rb.snapshotSeq)
 	}
-	return "AI가 이 세션에서 처음 쓰기 전 상태(아직 확인된 진척 없음)"
+	return lang.T("AI가 이 세션에서 처음 쓰기 전 상태(아직 확인된 진척 없음)")
 }
 
 // rollback previews (arg "") or applies (arg "apply <plan ID>") a rollback to
@@ -402,30 +403,30 @@ func (s *Session) rollback(arg string) (string, error) {
 // with s.mu held.
 func (s *Session) runRollback(todo, skipped []rollbackItem, id, basis, command string, apply bool, applyID string, basisSeq int64) (string, error) {
 	var b strings.Builder
-	fmt.Fprintf(&b, "되돌리기 기준: %s\n", basis)
+	fmt.Fprintf(&b, lang.T("되돌리기 기준: %s\n"), basis)
 	if len(todo) == 0 {
-		b.WriteString("되돌릴 파일이 없다.\n")
+		b.WriteString(lang.T("되돌릴 파일이 없다.\n"))
 	}
 	for _, it := range todo {
-		verb := "이전 내용으로 복구"
+		verb := lang.T("이전 내용으로 복구")
 		if it.Action == "delete" {
-			verb = "AI가 새로 만든 파일이라 삭제"
+			verb = lang.T("AI가 새로 만든 파일이라 삭제")
 		}
 		fmt.Fprintf(&b, "- %s: %s\n", it.Path, verb)
 	}
 	for _, it := range skipped {
-		fmt.Fprintf(&b, "- %s: 대상 아님 (%s)\n", it.Path, it.Reason)
+		fmt.Fprintf(&b, lang.T("- %s: 대상 아님 (%s)\n"), it.Path, it.Reason)
 	}
-	b.WriteString("셸 명령으로 바뀐 파일은 대상이 아니다.\n")
+	b.WriteString(lang.T("셸 명령으로 바뀐 파일은 대상이 아니다.\n"))
 	if !apply || len(todo) == 0 {
 		if len(todo) > 0 {
-			fmt.Fprintf(&b, "미리보기다. 이대로 되돌리려면 /samcheonpo:%s apply %s 를 실행한다.\n", command, id)
+			fmt.Fprintf(&b, lang.T("미리보기다. 이대로 되돌리려면 /samcheonpo:%s apply %s 를 실행한다.\n"), command, id)
 		}
 		return b.String(), nil
 	}
 	if applyID != id {
-		b.WriteString("적용하지 않았다: 계획 ID가 없거나 미리본 뒤 파일이 바뀌었다. 위 내용을 확인하고 표시된 ID로 다시 실행한다.\n")
-		fmt.Fprintf(&b, "현재 계획 ID: %s\n", id)
+		b.WriteString(lang.T("적용하지 않았다: 계획 ID가 없거나 미리본 뒤 파일이 바뀌었다. 위 내용을 확인하고 표시된 ID로 다시 실행한다.\n"))
+		fmt.Fprintf(&b, lang.T("현재 계획 ID: %s\n"), id)
 		return b.String(), nil
 	}
 	root, err := os.OpenRoot(s.Root)
@@ -439,17 +440,17 @@ func (s *Session) runRollback(todo, skipped []rollbackItem, id, basis, command s
 	for _, it := range todo {
 		cur, err := readState(root, it.Path)
 		if err != nil || cur.hash() != it.current {
-			failed = append(failed, it.Path+": 적용 직전에 내용이 바뀌어 건너뜀")
+			failed = append(failed, it.Path+lang.T(": 적용 직전에 내용이 바뀌어 건너뜀"))
 			continue
 		}
 		if !cur.absent {
 			dst := filepath.Join(backup, filepath.FromSlash(it.Path))
 			if err := os.MkdirAll(filepath.Dir(dst), 0o700); err != nil {
-				failed = append(failed, it.Path+": 백업 실패: "+err.Error())
+				failed = append(failed, it.Path+lang.T(": 백업 실패: ")+err.Error())
 				continue
 			}
 			if err := os.WriteFile(dst, cur.data, 0o600); err != nil {
-				failed = append(failed, it.Path+": 백업 실패: "+err.Error())
+				failed = append(failed, it.Path+lang.T(": 백업 실패: ")+err.Error())
 				continue
 			}
 		}
@@ -479,12 +480,12 @@ func (s *Session) runRollback(todo, skipped []rollbackItem, id, basis, command s
 			s.ID, time.Now().UTC().Format(time.RFC3339Nano), basisSeq, string(restored), string(skip), strings.Join(failed, "\n"))
 		s.recordStorageError(err)
 	}
-	fmt.Fprintf(&b, "%d개 파일을 되돌렸다.\n", len(done))
+	fmt.Fprintf(&b, lang.T("%d개 파일을 되돌렸다.\n"), len(done))
 	if len(done) > 0 {
-		fmt.Fprintf(&b, "바꾸기 전 내용은 %s 에 백업했다.\n", backup)
+		fmt.Fprintf(&b, lang.T("바꾸기 전 내용은 %s 에 백업했다.\n"), backup)
 	}
 	for _, f := range failed {
-		fmt.Fprintf(&b, "실패: %s\n", f)
+		fmt.Fprintf(&b, lang.T("실패: %s\n"), f)
 	}
 	return b.String(), nil
 }

@@ -3,6 +3,7 @@ package live
 import (
 	"context"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"strings"
 	"time"
 
@@ -44,15 +45,15 @@ func verificationHint(p verification.Plan) string {
 	var lines []string
 	for _, i := range p.Items {
 		if i.State == "candidate" {
-			lines = append(lines, fmt.Sprintf("검사 %s: 재사용 후보 %s (출처 %s, 만료 %s). %s", i.CheckID, i.EvidenceID, i.SourceEventID, i.ExpiresAt.UTC().Format(time.RFC3339), i.Reason))
+			lines = append(lines, fmt.Sprintf(lang.T("검사 %s: 재사용 후보 %s (출처 %s, 만료 %s). %s"), i.CheckID, i.EvidenceID, i.SourceEventID, i.ExpiresAt.UTC().Format(time.RFC3339), i.Reason))
 		}
 	}
 	if len(lines) == 0 {
 		return ""
 	}
-	lines = append(lines, "종료선: check에서 현재 입력·환경과 일치하는 통과가 확인되면 같은 검사를 반복하지 않는다. 목표 완료를 자동 선언하지 않는다.")
+	lines = append(lines, lang.T("종료선: check에서 현재 입력·환경과 일치하는 통과가 확인되면 같은 검사를 반복하지 않는다. 목표 완료를 자동 선언하지 않는다."))
 	if p.ManualPending > 0 {
-		lines = append(lines, fmt.Sprintf("수동 완료 조건 %d개는 별도 확인이 필요하다.", p.ManualPending))
+		lines = append(lines, fmt.Sprintf(lang.T("수동 완료 조건 %d개는 별도 확인이 필요하다."), p.ManualPending))
 	}
 	return strings.Join(lines, "\n")
 }

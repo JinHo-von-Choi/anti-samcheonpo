@@ -8,6 +8,8 @@ import (
 	"fmt"
 	"os"
 	"path/filepath"
+	"runtime"
+	"slices"
 )
 
 // maxLen keeps the path under the unix socket limit (108 bytes on Linux,
@@ -36,6 +38,36 @@ func Path() string {
 	}
 	return shortPath(p, os.TempDir(), UserID())
 }
+
+// Candidates lists the sockets a client may find the daemon on, Path first.
+// The daemon listens where its own environment points, and a service started
+// without XDG_RUNTIME_DIR resolves a different path from the login session
+// that started the daemon. An explicit SAMCHEONPO_HOME has one socket.
+func Candidates() []string {
+	out := []string{Path()}
+	if os.Getenv("SAMCHEONPO_HOME") != "" {
+		return out
+	}
+	paths := []string{filepath.Join(Home(), "run", "samcheonpo.sock")}
+	if d := os.Getenv("XDG_RUNTIME_DIR"); d != "" {
+		paths = append(paths, filepath.Join(d, "samcheonpo.sock"))
+	}
+	if runtime.GOOS == "linux" {
+		paths = append(paths, filepath.Join("/run/user", UserID(), "samcheonpo.sock"))
+	}
+	for _, p := range paths {
+		if dir, err := os.Stat(filepath.Dir(p)); err != nil || !dir.IsDir() {
+			continue
+		}
+		if s := shortPath(p, os.TempDir(), UserID()); !slices.Contains(out, s) {
+			out = append(out, s)
+		}
+	}
+	return out
+}
+
+// MissLogPath is where a hook that reached no daemon leaves its record.
+func MissLogPath() string { return filepath.Join(Home(), "run", "hook-misses.jsonl") }
 
 func UserID() string {
 	user := fmt.Sprint(os.Getuid())

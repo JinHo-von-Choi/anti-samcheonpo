@@ -3,6 +3,7 @@ package install
 import (
 	"encoding/json"
 	"errors"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -31,17 +32,17 @@ func InspectHooks(d HookDialect) (HookInstallation, error) {
 		return result, nil
 	}
 	if err != nil {
-		return result, errors.New(d.Agent + " 설치 기록을 읽을 수 없다")
+		return result, errors.New(d.Agent + lang.T(" 설치 기록을 읽을 수 없다"))
 	}
 	var state hookState
 	if json.Unmarshal(raw, &state) != nil || state.Agent != d.Agent || state.Path == "" {
-		return result, errors.New(d.Agent + " 설치 기록 형식 오류")
+		return result, errors.New(d.Agent + lang.T(" 설치 기록 형식 오류"))
 	}
 	result.Installed = true
 	result.Path = state.Path
 	root, file, err := readSettings(state.Path)
 	if err != nil || file == nil {
-		return result, errors.New(state.Path + " 훅 파일이 없거나 읽을 수 없다")
+		return result, errors.New(state.Path + lang.T(" 훅 파일이 없거나 읽을 수 없다"))
 	}
 	if d.RootEnabled {
 		var on bool
@@ -49,7 +50,7 @@ func InspectHooks(d HookDialect) (HookInstallation, error) {
 	}
 	var hooks map[string][]json.RawMessage
 	if h, ok := root["hooks"]; ok && json.Unmarshal(h, &hooks) != nil {
-		return result, errors.New(state.Path + "의 hooks 형식 오류")
+		return result, errors.New(state.Path + lang.T("의 hooks 형식 오류"))
 	}
 	events := make([]string, 0, len(d.Events))
 	for ev := range d.Events {

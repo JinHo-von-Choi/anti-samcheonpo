@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io"
 	"sort"
 	"strings"
@@ -44,7 +45,7 @@ func provenanceCmd() *cobra.Command {
 	var format string
 	c := &cobra.Command{
 		Use:   "provenance [rule]",
-		Short: "규칙별 원장 근거 다이제스트: 이 규칙이 이 원장에서 실측됐다는 증거",
+		Short: lang.T("규칙별 원장 근거 다이제스트: 이 규칙이 이 원장에서 실측됐다는 증거"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			blocks, err := openDB()
 			if err != nil {
@@ -129,7 +130,7 @@ func provenanceCmd() *cobra.Command {
 			if len(args) == 1 {
 				r, ok := access[args[0]]
 				if !ok {
-					return fmt.Errorf("원장에 %s 규칙의 근거가 없다", args[0])
+					return fmt.Errorf(lang.T("원장에 %s 규칙의 근거가 없다"), args[0])
 				}
 				rows = []*provenanceRow{r}
 			} else {
@@ -151,11 +152,11 @@ func provenanceCmd() *cobra.Command {
 			}
 			if len(args) == 1 {
 				r := rows[0]
-				fmt.Fprintf(out, "규칙: %s\n", r.rule)
-				fmt.Fprintf(out, "차단 %d회, 처방 %d건, 피드백 %d건\n", r.blocked, r.attempts, r.feedback)
-				fmt.Fprintf(out, "기간: %s ~ %s\n", dateOnly(r.first), dateOnly(r.last))
-				fmt.Fprintf(out, "증거다이제스트: %s\n", r.digest)
-				fmt.Fprintln(out, "근거 세션:")
+				fmt.Fprintf(out, lang.T("규칙: %s\n"), r.rule)
+				fmt.Fprintf(out, lang.T("차단 %d회, 처방 %d건, 피드백 %d건\n"), r.blocked, r.attempts, r.feedback)
+				fmt.Fprintf(out, lang.T("기간: %s ~ %s\n"), dateOnly(r.first), dateOnly(r.last))
+				fmt.Fprintf(out, lang.T("증거다이제스트: %s\n"), r.digest)
+				fmt.Fprintln(out, lang.T("근거 세션:"))
 				sessions := make([]string, 0, len(r.sessions))
 				for s := range r.sessions {
 					sessions = append(sessions, s)
@@ -163,19 +164,19 @@ func provenanceCmd() *cobra.Command {
 				sort.Strings(sessions)
 				for i, s := range sessions {
 					if i == 10 {
-						fmt.Fprintf(out, "  … 외 %d개\n", len(sessions)-i)
+						fmt.Fprintf(out, lang.T("  … 외 %d개\n"), len(sessions)-i)
 						break
 					}
 					fmt.Fprintf(out, "  %s\n", s)
 				}
-				fmt.Fprintln(out, "다이제스트는 이 원장의 규칙별 증거 레코드를 정렬해 해시한 값이다. 같은 원장에서 samcheonpo provenance로 재계산해 비교하고, 다른 원장 간 규칙 신뢰도 비교에는 이 값을 쓴다.")
+				fmt.Fprintln(out, lang.T("다이제스트는 이 원장의 규칙별 증거 레코드를 정렬해 해시한 값이다. 같은 원장에서 samcheonpo provenance로 재계산해 비교하고, 다른 원장 간 규칙 신뢰도 비교에는 이 값을 쓴다."))
 				return nil
 			}
-			fmt.Fprintf(out, "%-24s %5s %5s %6s %7s %s\n", "규칙", "차단", "처방", "피드백", "기간", "증거다이제스트")
+			fmt.Fprintf(out, "%-24s %5s %5s %6s %7s %s\n", lang.T("규칙"), lang.T("차단"), lang.T("처방"), lang.T("피드백"), lang.T("기간"), lang.T("증거다이제스트"))
 			for _, r := range rows {
 				fmt.Fprintf(out, "%-24s %5d %5d %6d %7s %s\n", r.rule, r.blocked, r.attempts, r.feedback, dateOnly(r.first), short(r.digest))
 			}
-			fmt.Fprintln(out, "기간은 처방·피드백이 처음·마지막으로 기록된 시각이다. 상세 보기: samcheonpo provenance <규칙>")
+			fmt.Fprintln(out, lang.T("기간은 처방·피드백이 처음·마지막으로 기록된 시각이다. 상세 보기: samcheonpo provenance <규칙>"))
 			return nil
 		},
 	}

@@ -3,6 +3,7 @@ package detect
 import (
 	"fmt"
 	"path"
+	"regexp"
 	"sort"
 	"strings"
 
@@ -19,6 +20,107 @@ type scopeState struct {
 	lines    int
 	unsized  bool // a change of unknown size (a script wrote the file)
 	targeted bool // a selected run passed after the last change
+}
+
+// fullBudget counts the whole-suite runs of the current user request.
+type fullBudget struct {
+	runs         int
+	failed       bool // the last whole-suite run failed
+	targetedPass bool // a selected run passed since that failure
+	// passed holds, per command, the last write seen when it passed
+	passed map[string]int64
+}
+
+var (
+	fullRequestRe    = regexp.MustCompile(`(?i)(전체|풀)\s*(시험|테스트|검사)|\bfull[- ](test|suite|check)|\ball tests\b|\./\.\.\.`)
+	fullRequestNotRe = regexp.MustCompile(`(?i)((전체|풀)\s*(시험|테스트|검사)|full[- ](test|suite|check)|all tests)[^.\n]{0,16}(말|마$|지 ?마|금지|그만|안 ?돌|don'?t|stop|no more)|(don'?t|do not|stop|no more|never)[^.\n]{0,16}(full[- ](test|suite|check)|all tests)`)
+)
+
+// mentionOnly are programs that print or search text: naming a gate to them
+// runs nothing.
+var mentionOnly = map[string]bool{"echo": true, "printf": true, "grep": true, "rg": true, "sed": true, "awk": true, "cat": true, "head": true, "tail": true, "ls": true, "git": true}
+
+// fullCheck reports a call that runs the whole test suite or a project gate
+// named in the settings, however it is wrapped.
+func (e *Engine) fullCheck(ev *event.Event) bool {
+	if ev.Tool != event.ToolShell {
+		return false
+	}
+	for _, stage := range fp.SplitStages(ev.CmdNorm) {
+		stage = strings.TrimLeft(stage, "( ")
+		if word, _, _ := strings.Cut(stage, " "); mentionOnly[word] {
+			continue
+		}
+		for _, f := range e.Cfg.Detectors.S1.FullCheckCommands {
+			if f != "" && strings.Contains(stage, f) {
+				return true
+			}
+		}
+	}
+	if ev.Category != event.CatVerify {
+		return false
+	}
+	return e.wide(e.checkOf(ev))
+}
+
+// fullBudgetCheck refuses a whole-suite run once the request has used its
+// allowance. Two things open it again: the user asking for one in the latest
+// message, and a failed whole run whose fix a selected run has confirmed.
+func (e *Engine) fullBudgetCheck(ev *event.Event, live bool) *Signal {
+	limit := e.Cfg.Detectors.S1.FullChecksPerRequest
+	b := &e.St.mar.budget
+	if limit <= 0 || b.runs < limit || !e.fullCheck(ev) {
+		return nil
+	}
+	if b.failed && b.targetedPass {
+		return nil
+	}
+	if text := e.St.mar.promptText; fullRequestRe.MatchString(text) && !fullRequestNotRe.MatchString(text) {
+		return nil
+	}
+	sc := &e.St.mar.scope
+	paths := make([]string, 0, len(sc.files))
+	for p := range sc.files {
+		paths = append(paths, p)
+	}
+	sort.Strings(paths)
+	facts := map[string]any{"cmd": ev.CmdNorm, "runs": b.runs, "limit": limit, "target": "full_budget"}
+	if s := suggestTargeted(ev.CmdNorm, paths); s != "" {
+		facts["suggest"] = s
+	}
+	if live {
+		facts["blocked"] = true
+	}
+	return &Signal{Detector: "S1", Rule: RuleFullBudget, Confidence: 0.95, Level: L1, Evidence: []int64{ev.Seq}, Facts: facts}
+}
+
+// trackFullBudget counts a whole-suite run that started. A background run
+// has no exit code yet and counts all the same.
+func (e *Engine) trackFullBudget(ev *event.Event) {
+	if ev.Tool != event.ToolShell || (ev.ExitCode == nil && !ev.Background) || (ev.ExitCode != nil && *ev.ExitCode == -1) {
+		return
+	}
+	b := &e.St.mar.budget
+	if ev.Category == event.CatVerify && ev.ExitCode != nil && !failing(ev) {
+		if b.passed == nil {
+			b.passed = map[string]int64{}
+		}
+		b.passed[ev.CmdNorm] = e.St.lastWriteSeq
+	}
+	if e.fullCheck(ev) {
+		b.runs++
+		b.failed, b.targetedPass = ev.ExitCode != nil && failing(ev), false
+		return
+	}
+	if b.failed && ExecutedVerify(ev) && !failing(ev) && e.checkOf(ev).scope == classify.ScopeTargeted {
+		b.targetedPass = true
+	}
+}
+
+// newUserRequest starts a new allowance.
+func (e *Engine) newUserRequest(text string) {
+	m := e.St.mar
+	m.budget, m.promptText, m.quality = fullBudget{}, text, qualityState{}
 }
 
 // trackScope keeps the change since the last whole-suite run and whether a
@@ -75,6 +177,9 @@ func changedPaths(ev *event.Event) []string {
 	}
 	return paths
 }
+
+// RuleFullBudget is a whole-suite run beyond the allowance of one request.
+const RuleFullBudget = "s1.full_suite_budget"
 
 // fullSuiteCheck raises s1.full_suite_local_change for an expensive test run
 // (the same tests took expensive_check_sec or longer last time) after a change

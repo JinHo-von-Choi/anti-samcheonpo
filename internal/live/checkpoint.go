@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io"
 	"os"
 	"os/exec"
@@ -95,13 +96,13 @@ func (r *Runner) RunTaskRevision(checks []contract.Check, mid bool, sideEffect m
 		res := CheckResult{ID: c.ID, Command: c.Check}
 		switch {
 		case sideEffect[c.ID]:
-			res.Skipped = "작업 폴더를 바꾸는 검사라 자동 실행에서 뺐다"
+			res.Skipped = lang.T("작업 폴더를 바꾸는 검사라 자동 실행에서 뺐다")
 		case mid && c.Isolation != "worktree" && !c.Pure:
-			res.Skipped = "작업 중 실행은 격리되거나 부작용 없는 검사만 한다"
+			res.Skipped = lang.T("작업 중 실행은 격리되거나 부작용 없는 검사만 한다")
 		case r.Busy != nil && r.Busy():
-			res.Skipped = "에이전트 셸 실행 중이라 다음 기회로 미뤘다"
+			res.Skipped = lang.T("에이전트 셸 실행 중이라 다음 기회로 미뤘다")
 		case r.Contended != nil && r.Contended():
-			res.Skipped = "같은 작업 폴더에서 다른 세션의 무거운 시험이 실행 중이라 다음 기회로 미뤘다"
+			res.Skipped = lang.T("같은 작업 폴더에서 다른 세션의 무거운 시험이 실행 중이라 다음 기회로 미뤘다")
 		default:
 			res = r.reusable(c, taskID, revision, sessionID)
 		}
@@ -119,7 +120,7 @@ func (r *Runner) proofKey(c contract.Check, taskID string, revision uint64) (ver
 func (r *Runner) proofKeyContext(ctx context.Context, c contract.Check, taskID string, revision uint64) (verification.Key, error) {
 	key := verification.Key{TaskID: taskID, Revision: revision, CheckID: c.ID, RunnerVersion: "samcheonpo-check/2", AuthorityHash: r.authorityHash()}
 	if c.Reuse == nil || !c.Pure || !c.Reuse.Deterministic || r.WS == nil {
-		return key, fmt.Errorf("완전한 로컬 입력 선언이 없는 검사는 재사용하지 않는다")
+		return key, fmt.Errorf("%s", lang.T("완전한 로컬 입력 선언이 없는 검사는 재사용하지 않는다"))
 	}
 	b, _ := json.Marshal(c)
 	key.CommandHash = fp.Hash(string(b))
@@ -164,7 +165,7 @@ func (r *Runner) reusable(c contract.Check, taskID string, revision uint64, sess
 	if err != nil {
 		res := r.one(c)
 		if c.Reuse != nil {
-			res.ReuseReason = "입력·환경을 확인하지 못해 새로 실행했다"
+			res.ReuseReason = lang.T("입력·환경을 확인하지 못해 새로 실행했다")
 		}
 		return res
 	}
@@ -174,7 +175,7 @@ func (r *Runner) reusable(c contract.Check, taskID string, revision uint64, sess
 		after, e := r.proofKey(c, taskID, revision)
 		if e != nil || after != key {
 			fresh.Pass = false
-			fresh.ReuseReason = "검사 중 입력·환경이 바뀌어 통과 근거를 적용하지 않았다"
+			fresh.ReuseReason = lang.T("검사 중 입력·환경이 바뀌어 통과 근거를 적용하지 않았다")
 			return verification.Evidence{}, fmt.Errorf("inputs changed during check")
 		}
 		now := time.Now().UTC()
@@ -187,10 +188,10 @@ func (r *Runner) reusable(c contract.Check, taskID string, revision uint64, sess
 	stopReason := ""
 	plan := verification.PlanChecks([]verification.Candidate{{CheckID: c.ID, Evidence: &e, CurrentKey: &key}}, time.Now())
 	if plan.StopMachineChecks {
-		stopReason = plan.Items[0].Reason + " 새 변경·실패·유효기간 만료가 있으면 다시 확인한다."
+		stopReason = plan.Items[0].Reason + lang.T(" 새 변경·실패·유효기간 만료가 있으면 다시 확인한다.")
 	}
 	if reused {
-		return CheckResult{ID: c.ID, Command: c.Check, Pass: e.Pass, ExitCode: e.ExitCode, ResultFP: e.ResultHash, Reused: true, Evidence: &e, ReuseReason: "같은 목표 개정·명령·입력·환경에서 이미 통과했다", StopReason: stopReason}
+		return CheckResult{ID: c.ID, Command: c.Check, Pass: e.Pass, ExitCode: e.ExitCode, ResultFP: e.ResultHash, Reused: true, Evidence: &e, ReuseReason: lang.T("같은 목표 개정·명령·입력·환경에서 이미 통과했다"), StopReason: stopReason}
 	}
 	fresh.Evidence = &e
 	fresh.StopReason = stopReason
@@ -208,7 +209,7 @@ func (r *Runner) one(c contract.Check) CheckResult {
 	if c.Isolation == "worktree" {
 		d, cl, err := r.worktree()
 		if err != nil {
-			res.Skipped = "격리 작업 폴더를 만들지 못했다: " + err.Error()
+			res.Skipped = lang.T("격리 작업 폴더를 만들지 못했다: ") + err.Error()
 			return res
 		}
 		dir, cleanup = d, cl
@@ -335,7 +336,7 @@ func (l *limitWriter) Write(p []byte) (int, error) {
 // and untracked files, returning its path and a cleanup function.
 func (r *Runner) worktree() (string, func(), error) {
 	if r.WS == nil || !r.WS.IsGit() {
-		return "", func() {}, fmt.Errorf("git 저장소가 아니다")
+		return "", func() {}, fmt.Errorf("%s", lang.T("git 저장소가 아니다"))
 	}
 	ctx, cancel := withTimeout(60 * time.Second)
 	defer cancel()
@@ -373,7 +374,7 @@ func (r *Runner) worktree() (string, func(), error) {
 		}
 		if err != nil {
 			cleanup()
-			return "", func() {}, fmt.Errorf("격리 작업 폴더에 %s를 복사하지 못했다: %w", p, err)
+			return "", func() {}, fmt.Errorf(lang.T("격리 작업 폴더에 %s를 복사하지 못했다: %w"), p, err)
 		}
 	}
 	return dir, cleanup, nil

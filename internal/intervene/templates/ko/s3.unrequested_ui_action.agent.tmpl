@@ -1,0 +1,10 @@
+{{if .issue}}[삼천포] 관찰: {{.path}}에 {{if eq .issue "dead_target"}}이동할 곳이 없는 링크 {{.count}}개{{else if eq .issue "filler_card"}}글자만 있는 안내 카드 {{.count}}개{{else}}같은 문구 "{{.label}}"의 클릭 대상 {{.count}}개{{end}}가 추가됐다.
+근거: 이벤트 {{.evidence}}. 추가된 태그에서 고른 추정이다.
+비용: {{.cost_summary}}
+계약: 목표는 {{.goal}}이다. 화면의 클릭 대상은 각각 다른 동작으로 이어져야 한다.{{else}}{{if .element}}[삼천포] 관찰: 요청한 {{.element}} 수는 {{.requested}}개인데 {{.path}}에 {{.count}}개가 추가됐다.
+근거: 이벤트 {{.evidence}}. 요청 문장의 수량과 추가된 태그 수를 비교한 추정이다.
+비용: {{.cost_summary}}
+계약: 목표는 {{.goal}}이다. 화면에는 요청한 수만큼만 둔다.{{else}}[삼천포] 관찰: 버튼·링크를 요청한 적이 없는데 {{.path}}에 클릭 대상 {{.count}}개가 추가됐다.
+근거: 이벤트 {{.evidence}}. 화면의 버튼과 링크는 사용자가 하나씩 읽고 판단하는 요소다. 요청 문장과 추가된 태그 수로 고른 추정이다.
+비용: {{.cost_summary}}
+계약: 목표는 {{.goal}}이다. 화면에는 요청한 일을 끝내는 데 필요한 요소만 둔다.{{end}}{{end}}

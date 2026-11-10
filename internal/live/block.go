@@ -2,6 +2,7 @@ package live
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 )
@@ -14,7 +15,7 @@ import (
 // and what the contract asked for, so the agent can correct the work
 // instead of retrying the same call.
 func hardBlockReason(v detect.Signal, detail string) string {
-	r := fmt.Sprintf("[삼천포 차단: %s] 악성 행동이 감지되어 실행이 거부되었습니다.", v.Rule)
+	r := fmt.Sprintf(lang.T("[삼천포 차단: %s] 악성 행동이 감지되어 실행이 거부되었습니다."), v.Rule)
 	if detail != "" {
 		r += "\n" + detail
 	}

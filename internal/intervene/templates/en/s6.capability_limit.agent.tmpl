@@ -1,0 +1,4 @@
+[samcheonpo] Observed: {{if .same_files}}the same set of files ({{.files}}) was changed {{.attempts}} times and all ended in the same kind of failure{{else}}{{.strategies}} different approaches (each changing a different set of files) all ended in the same kind of failure{{end}}{{if .error}} ({{.error}}){{end}}.
+Evidence: {{if .same_files}}last verification events {{.evidence}}, with no drop in the failure count{{else}}last verification events of each approach {{.evidence}}{{end}}.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. The approaches so far have not got past this failure.{{if .handoff}} A handoff document is at {{.handoff}}.{{end}}

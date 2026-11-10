@@ -1,0 +1,4 @@
+[samcheonpo] Observed: about to release with `{{.cmd}}` {{if eq .kind "ci_failed"}}after remote CI (`{{.ci_cmd}}`) failed, with no check passing locally{{else if eq .kind "unverified_change"}}after code changed since the last release, with no check passing{{else}}while browser test `{{.failing_cmd}}` is left in a timing failure{{end}}.
+Evidence: event {{.evidence}}.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Remote CI is where a local pass gets confirmed, and not where failures are first found.

@@ -4,6 +4,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"path/filepath"
 	"strconv"
@@ -63,7 +64,7 @@ func InstallHooks(d HookDialect, bin, path string, out func(string)) error {
 		out = func(string) {}
 	}
 	if _, err := os.Lstat(hookStatePath(d.Agent)); err == nil {
-		return fmt.Errorf("%s 연결이 이미 설치되어 있다", d.Agent)
+		return fmt.Errorf(lang.T("%s 연결이 이미 설치되어 있다"), d.Agent)
 	} else if !os.IsNotExist(err) {
 		return err
 	}
@@ -75,10 +76,10 @@ func InstallHooks(d HookDialect, bin, path string, out func(string)) error {
 	hooks := map[string][]json.RawMessage{}
 	if h, ok := root["hooks"]; ok {
 		if err := json.Unmarshal(h, &hooks); err != nil {
-			return fmt.Errorf("%s의 hooks를 해석하지 못했다: %w", path, err)
+			return fmt.Errorf(lang.T("%s의 hooks를 해석하지 못했다: %w"), path, err)
 		}
 		if hooks == nil {
-			return errors.New("hooks는 JSON 객체여야 합니다")
+			return errors.New(lang.T("hooks는 JSON 객체여야 합니다"))
 		}
 	}
 	enabledSet := false
@@ -87,17 +88,17 @@ func InstallHooks(d HookDialect, bin, path string, out func(string)) error {
 		if v, ok := root["enabled"]; ok {
 			var b bool
 			if json.Unmarshal(v, &b) != nil {
-				return fmt.Errorf("%s의 enabled는 true나 false여야 한다", path)
+				return fmt.Errorf(lang.T("%s의 enabled는 true나 false여야 한다"), path)
 			}
 			on = &b
 		}
 		switch {
 		case on != nil && !*on:
-			return fmt.Errorf("%s의 훅이 꺼져 있다(\"enabled\": false). 켜려면 직접 true로 바꾼 뒤 다시 설치한다", path)
+			return fmt.Errorf(lang.T("%s의 훅이 꺼져 있다(\"enabled\": false). 켜려면 직접 true로 바꾼 뒤 다시 설치한다"), path)
 		case on == nil && len(hooks) > 0:
 			// turning the file on would also start the hooks already in it,
 			// which have never run
-			return fmt.Errorf("%s에 아직 실행된 적 없는 훅이 있다(\"enabled\" 없음). 그 훅을 켜도 되면 \"enabled\": true를 넣은 뒤 다시 설치한다", path)
+			return fmt.Errorf(lang.T("%s에 아직 실행된 적 없는 훅이 있다(\"enabled\" 없음). 그 훅을 켜도 되면 \"enabled\": true를 넣은 뒤 다시 설치한다"), path)
 		case on == nil:
 			root["enabled"] = json.RawMessage("true")
 			enabledSet = true
@@ -130,7 +131,7 @@ func InstallHooks(d HookDialect, bin, path string, out func(string)) error {
 	if err := writeHookSettings(path, append(b, '\n'), raw, hookStatePath(d.Agent), st); err != nil {
 		return err
 	}
-	out(fmt.Sprintf("%s 훅을 %s에 추가했다. 에이전트의 훅 신뢰 확인(/hooks)이 필요할 수 있다", d.Agent, path))
+	out(fmt.Sprintf(lang.T("%s 훅을 %s에 추가했다. 에이전트의 훅 신뢰 확인(/hooks)이 필요할 수 있다"), d.Agent, path))
 	return nil
 }
 
@@ -141,7 +142,7 @@ func UninstallHooks(agent string, out func(string)) error {
 	}
 	sb, err := os.ReadFile(hookStatePath(agent))
 	if err != nil {
-		return errors.New(agent + " 설치 기록이 없다")
+		return errors.New(agent + lang.T(" 설치 기록이 없다"))
 	}
 	var st hookState
 	if err := json.Unmarshal(sb, &st); err != nil {
@@ -155,7 +156,7 @@ func UninstallHooks(agent string, out func(string)) error {
 		hooks := map[string][]json.RawMessage{}
 		if h, ok := root["hooks"]; ok {
 			if err := json.Unmarshal(h, &hooks); err != nil || hooks == nil {
-				return errors.New("hooks는 이벤트 배열을 담은 JSON 객체여야 합니다")
+				return errors.New(lang.T("hooks는 이벤트 배열을 담은 JSON 객체여야 합니다"))
 			}
 		}
 		removed := 0
@@ -197,7 +198,7 @@ func UninstallHooks(agent string, out func(string)) error {
 				return err
 			}
 		}
-		out(fmt.Sprintf("%s에서 삼천포 훅 %d개를 뺐다", st.Path, removed))
+		out(fmt.Sprintf(lang.T("%s에서 삼천포 훅 %d개를 뺐다"), st.Path, removed))
 	}
 	return os.Remove(hookStatePath(agent))
 }
@@ -239,7 +240,7 @@ func InstallAgy(bin, path string, out func(string)) error {
 		out = func(string) {}
 	}
 	if _, err := os.Lstat(hookStatePath("agy")); err == nil {
-		return errors.New("agy 연결이 이미 설치되어 있다")
+		return errors.New(lang.T("agy 연결이 이미 설치되어 있다"))
 	} else if !os.IsNotExist(err) {
 		return err
 	}
@@ -248,7 +249,7 @@ func InstallAgy(bin, path string, out func(string)) error {
 		return err
 	}
 	if _, ok := root[AgyGroup]; ok {
-		return fmt.Errorf("%s에 %q 훅 묶음이 이미 있다", path, AgyGroup)
+		return fmt.Errorf(lang.T("%s에 %q 훅 묶음이 이미 있다"), path, AgyGroup)
 	}
 	if err := backup(path, raw); err != nil {
 		return err
@@ -263,7 +264,7 @@ func InstallAgy(bin, path string, out func(string)) error {
 	if err := writeHookSettings(path, append(b, '\n'), raw, hookStatePath("agy"), st); err != nil {
 		return err
 	}
-	out(fmt.Sprintf("agy 훅 묶음 %q를 %s에 추가했다", AgyGroup, path))
+	out(fmt.Sprintf(lang.T("agy 훅 묶음 %q를 %s에 추가했다"), AgyGroup, path))
 	return nil
 }
 
@@ -276,7 +277,7 @@ func UninstallAgy(out func(string)) error {
 	}
 	sb, err := os.ReadFile(hookStatePath("agy"))
 	if err != nil {
-		return errors.New("agy 설치 기록이 없다")
+		return errors.New(lang.T("agy 설치 기록이 없다"))
 	}
 	var st hookState
 	if err := json.Unmarshal(sb, &st); err != nil {
@@ -292,7 +293,7 @@ func UninstallAgy(out func(string)) error {
 	}
 	if cur, ok := root[AgyGroup]; ok {
 		if !jsonEqual(cur, want) {
-			return fmt.Errorf("%s의 %q 훅 묶음이 설치 뒤 바뀌어 지우지 않았다. 직접 확인한 뒤 지우고 %s를 삭제하면 된다", st.Path, AgyGroup, hookStatePath("agy"))
+			return fmt.Errorf(lang.T("%s의 %q 훅 묶음이 설치 뒤 바뀌어 지우지 않았다. 직접 확인한 뒤 지우고 %s를 삭제하면 된다"), st.Path, AgyGroup, hookStatePath("agy"))
 		}
 		delete(root, AgyGroup)
 		if err := backup(st.Path, raw); err != nil {
@@ -308,7 +309,7 @@ func UninstallAgy(out func(string)) error {
 				return err
 			}
 		}
-		out(fmt.Sprintf("%s에서 %q 훅 묶음을 뺐다", st.Path, AgyGroup))
+		out(fmt.Sprintf(lang.T("%s에서 %q 훅 묶음을 뺐다"), st.Path, AgyGroup))
 	}
 	return os.Remove(hookStatePath("agy"))
 }
@@ -323,12 +324,12 @@ func InstallCursor(bin, path string, out func(string)) error {
 	if data, err := os.ReadFile(hookStatePath("cursor")); err == nil {
 		var st hookState
 		if json.Unmarshal(data, &st) != nil || st.Agent != "cursor" || st.Path == "" {
-			return errors.New("Cursor 설치 기록이 올바르지 않습니다")
+			return errors.New(lang.T("Cursor 설치 기록이 올바르지 않습니다"))
 		}
 		a, _ := filepath.Abs(path)
 		b, _ := filepath.Abs(st.Path)
 		if a != b {
-			return errors.New("기존 Cursor 연결을 제거한 뒤 다른 경로에 설치하세요")
+			return errors.New(lang.T("기존 Cursor 연결을 제거한 뒤 다른 경로에 설치하세요"))
 		}
 		previous = &st
 	} else if !os.IsNotExist(err) {
@@ -348,12 +349,12 @@ func InstallCursor(bin, path string, out func(string)) error {
 	}
 	var version int
 	if json.Unmarshal(root["version"], &version) != nil || version != 1 {
-		return errors.New("Cursor 훅 version은 1이어야 합니다")
+		return errors.New(lang.T("Cursor 훅 version은 1이어야 합니다"))
 	}
 	hooks := map[string][]json.RawMessage{}
 	if h, ok := root["hooks"]; ok {
 		if err := json.Unmarshal(h, &hooks); err != nil || hooks == nil {
-			return errors.New("hooks는 이벤트 배열을 담은 JSON 객체여야 합니다")
+			return errors.New(lang.T("hooks는 이벤트 배열을 담은 JSON 객체여야 합니다"))
 		}
 	}
 	if previous != nil {
@@ -389,7 +390,7 @@ func InstallCursor(bin, path string, out func(string)) error {
 		return err
 	}
 	if out != nil {
-		out("Cursor 훅을 " + path + "에 추가했다 (관찰 전용: 실제 차단·안내 전달은 미검증)")
+		out(lang.T("Cursor 훅을 ") + path + lang.T("에 추가했다 (관찰 전용: 실제 차단·안내 전달은 미검증)"))
 	}
 	return nil
 }

@@ -2,13 +2,14 @@ package cost
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"math"
 )
 
 // PercentageText preserves positive measurements below display precision.
 func PercentageText(percent float64) string {
 	if math.IsNaN(percent) || math.IsInf(percent, 0) || percent < 0 {
-		return "미확인"
+		return lang.T("미확인")
 	}
 	if percent == 0 {
 		return "0%"
@@ -24,7 +25,7 @@ func PercentageText(percent float64) string {
 
 func RatioText(numerator, denominator int64) string {
 	if denominator <= 0 || numerator < 0 {
-		return "미확인"
+		return lang.T("미확인")
 	}
 	return PercentageText(100 * float64(numerator) / float64(denominator))
 }

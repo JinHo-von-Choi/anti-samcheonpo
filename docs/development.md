@@ -30,6 +30,14 @@ sh scripts/check-hook-budget.sh --p95-max 0 --handling-p95-max 6ms
 
 변경한 기능의 관련 검사를 먼저 실행하고, 릴리즈 전에는 CI의 전체 검사와 플랫폼별 패키지 검사를 확인합니다.
 
+환경 문제로 실패한 작업은 전체를 다시 돌리지 말고 실패한 작업만 다시 실행합니다.
+
+```sh
+gh run rerun <실행 ID> --failed
+```
+
+단계별 소요 시간은 `python3 scripts/ci-step-times.py [실행 ID]`로 봅니다. 문서만 바꾼 변경에는 `docs` 작업의 링크·경로 검사만 실행됩니다. 브라우저 클릭 검사는 `go test -tags browser ./internal/uicheck`로 실행합니다.
+
 ## Deep Agents 검사
 
 Python 3.14 가상환경에서 SDK 의존성을 설치하고, 빌드한 데몬의 경로를 지정합니다.
@@ -87,7 +95,7 @@ python3 scripts/probe_native_hooks.py run \
 현재 플랫폼의 패키지만 만들 때는 버전과 새 출력 폴더를 지정합니다.
 
 ```sh
-sh scripts/package-release.sh 0.11.1 ./release-out
+sh scripts/package-release.sh 0.12.0 ./release-out
 ```
 
 패키지에는 실행 파일과 배포용 자료를 담습니다. 개인 원장과 인증 자료는 작업 환경에 보관합니다.

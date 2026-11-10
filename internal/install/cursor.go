@@ -3,6 +3,7 @@ package install
 import (
 	"encoding/json"
 	"errors"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"path/filepath"
 	"runtime"
@@ -25,25 +26,25 @@ func InspectCursor() (CursorInstallation, error) {
 		return result, nil
 	}
 	if err != nil {
-		return result, errors.New("Cursor 설치 기록을 읽을 수 없습니다")
+		return result, errors.New(lang.T("Cursor 설치 기록을 읽을 수 없습니다"))
 	}
 	var state hookState
 	if json.Unmarshal(raw, &state) != nil || state.Agent != "cursor" || state.Path == "" {
-		return result, errors.New("Cursor 설치 기록 형식 오류")
+		return result, errors.New(lang.T("Cursor 설치 기록 형식 오류"))
 	}
 	result.Installed = true
 	result.Path = state.Path
 	root, raw, err := readSettings(state.Path)
 	if err != nil || raw == nil {
-		return result, errors.New("Cursor 훅 파일이 없거나 읽을 수 없습니다")
+		return result, errors.New(lang.T("Cursor 훅 파일이 없거나 읽을 수 없습니다"))
 	}
 	var version int
 	if json.Unmarshal(root["version"], &version) != nil || version != 1 {
-		return result, errors.New("Cursor 훅 version은 1이어야 합니다")
+		return result, errors.New(lang.T("Cursor 훅 version은 1이어야 합니다"))
 	}
 	var hooks map[string][]json.RawMessage
 	if json.Unmarshal(root["hooks"], &hooks) != nil || hooks == nil {
-		return result, errors.New("Cursor hooks 형식 오류")
+		return result, errors.New(lang.T("Cursor hooks 형식 오류"))
 	}
 	for _, name := range CursorEvents {
 		count := 0

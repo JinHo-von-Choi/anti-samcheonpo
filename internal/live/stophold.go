@@ -102,13 +102,13 @@ func (s *Session) stopRelease(v detect.Signal) string {
 	switch {
 	case s.stopPassOnce:
 		s.stopPassOnce = false
-		s.stopNotice = "[삼천포] 요청하신 대로 이번 종료는 보류하지 않았습니다. 마지막 변경" + where + "은 아직 검증되지 않았습니다."
+		s.stopNotice = s.pick("[삼천포] 요청하신 대로 이번 종료는 보류하지 않았습니다. 마지막 변경"+where+"은 아직 검증되지 않았습니다.", "[samcheonpo] As you asked, this stop was not held. The last change"+where+" has not been verified.")
 		return "stop_hold_passed_once"
 	case v.Rule == detect.RuleAbandonedVerification && s.eng.PassedUnjudgedSince(write):
-		s.stopNotice = "[삼천포] 마지막 변경 뒤에 성공한 검사가 있지만 변경 파일" + where + "과 연결할 수 없었습니다. 미검증 상태로 종료를 허용했습니다."
+		s.stopNotice = s.pick("[삼천포] 마지막 변경 뒤에 성공한 검사가 있지만 변경 파일"+where+"과 연결할 수 없었습니다. 미검증 상태로 종료를 허용했습니다.", "[samcheonpo] A check passed after the last change but could not be tied to the changed files"+where+". The stop was allowed as unverified.")
 		return "stop_hold_unrelated_pass"
 	case s.Cfg.Levels.MaxStopHolds > 0 && s.stopHolds >= s.Cfg.Levels.MaxStopHolds:
-		s.stopNotice = fmt.Sprintf("[삼천포] 같은 변경%s으로 종료를 %d번 보류했지만 검사로 확인하지 못했습니다. 미검증 상태로 종료를 허용했습니다.", where, s.stopHolds)
+		s.stopNotice = fmt.Sprintf(s.pick("[삼천포] 같은 변경%s으로 종료를 %d번 보류했지만 검사로 확인하지 못했습니다. 미검증 상태로 종료를 허용했습니다.", "[samcheonpo] The stop was held %[2]d times for the same change%[1]s but no check confirmed it. The stop was allowed as unverified."), where, s.stopHolds)
 		return "stop_hold_exhausted"
 	}
 	return ""

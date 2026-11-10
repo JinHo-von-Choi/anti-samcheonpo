@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"path/filepath"
 	"sort"
@@ -25,10 +26,10 @@ func benchReplayCmd() *cobra.Command {
 	var gapsPath, out, since string
 	c := &cobra.Command{
 		Use:   "replay",
-		Short: "실제 세션의 의심 구간을 재현 과제로 만든다 (복원 불가 구간은 사유별로 센다)",
+		Short: lang.T("실제 세션의 의심 구간을 재현 과제로 만든다 (복원 불가 구간은 사유별로 센다)"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if gapsPath == "" || out == "" {
-				return fmt.Errorf("--gaps와 --out이 필요하다")
+				return fmt.Errorf("%s", lang.T("--gaps와 --out이 필요하다"))
 			}
 			t, err := ParseSince(since, time.Now())
 			if err != nil {
@@ -61,13 +62,13 @@ func benchReplayCmd() *cobra.Command {
 			for _, g := range gaps {
 				f, ok := files[g.Session]
 				if !ok {
-					reasons["원본 기록을 찾지 못했다"]++
+					reasons[lang.T("원본 기록을 찾지 못했다")]++
 					continue
 				}
 				s := sessions[g.Session]
 				if s == nil {
 					if s, err = sources.Parse(f); err != nil {
-						reasons["원본 기록을 읽지 못했다"]++
+						reasons[lang.T("원본 기록을 읽지 못했다")]++
 						continue
 					}
 					sessions[g.Session] = s
@@ -83,24 +84,24 @@ func benchReplayCmd() *cobra.Command {
 				made = append(made, r)
 			}
 			w := cmd.OutOrStdout()
-			fmt.Fprintf(w, "구간 %d개 중 재현 과제 %d개 생성 (%s)\n", len(gaps), len(made), out)
+			fmt.Fprintf(w, lang.T("구간 %d개 중 재현 과제 %d개 생성 (%s)\n"), len(gaps), len(made), out)
 			keys := make([]string, 0, len(reasons))
 			for k := range reasons {
 				keys = append(keys, k)
 			}
 			sort.Strings(keys)
 			for _, k := range keys {
-				fmt.Fprintf(w, "  복원 불가 %3d  %s\n", reasons[k], k)
+				fmt.Fprintf(w, lang.T("  복원 불가 %3d  %s\n"), reasons[k], k)
 			}
 			if len(made) > 0 {
-				fmt.Fprintln(w, "생성된 과제는 채점기가 없어 독립 채점이 아니다. 채점 기준을 검토하고 grader/를 추가하기 전에는 효과 판정에 쓰지 않는다.")
+				fmt.Fprintln(w, lang.T("생성된 과제는 채점기가 없어 독립 채점이 아니다. 채점 기준을 검토하고 grader/를 추가하기 전에는 효과 판정에 쓰지 않는다."))
 			}
 			return nil
 		},
 	}
-	c.Flags().StringVar(&gapsPath, "gaps", "", "samcheonpo gaps --out으로 만든 표본 JSONL")
-	c.Flags().StringVar(&out, "out", "", "과제를 만들 디렉터리 (원문이 들어가므로 저장소 밖 권장)")
-	c.Flags().StringVar(&since, "since", "90d", "원본 기록을 찾을 기간")
+	c.Flags().StringVar(&gapsPath, "gaps", "", lang.T("samcheonpo gaps --out으로 만든 표본 JSONL"))
+	c.Flags().StringVar(&out, "out", "", lang.T("과제를 만들 디렉터리 (원문이 들어가므로 저장소 밖 권장)"))
+	c.Flags().StringVar(&since, "since", "90d", lang.T("원본 기록을 찾을 기간"))
 	return c
 }
 

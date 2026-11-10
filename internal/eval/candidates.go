@@ -5,6 +5,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"sort"
 )
 
@@ -32,12 +33,12 @@ func candidateDigest(b []byte) string { h := sha256.Sum256(b); return hex.Encode
 // BuildCandidates uses calibration only. It never promotes policies or learns
 // from holdout labels; isolated labels remain review requests, not rules.
 func BuildCandidates(labels []Label, split Split) (CandidatePack, error) {
-	p := CandidatePack{Version: "candidate-pack/1", Candidates: []LearningCandidate{}, RequiredValidation: "독립 holdout 재생·오탐·완료율·감시 포함 총비용 검증 후 별도 정책 검토"}
+	p := CandidatePack{Version: "candidate-pack/1", Candidates: []LearningCandidate{}, RequiredValidation: lang.T("독립 holdout 재생·오탐·완료율·감시 포함 총비용 검증 후 별도 정책 검토")}
 	if err := split.Validate(); err != nil {
 		return p, err
 	}
 	if split.Version != "split/2" {
-		return p, fmt.Errorf("출처 그룹을 격리한 split/2 필요")
+		return p, fmt.Errorf("%s", lang.T("출처 그룹을 격리한 split/2 필요"))
 	}
 	raw, _ := json.Marshal(split)
 	p.SplitSHA256 = candidateDigest(raw)
@@ -97,11 +98,11 @@ func BuildCandidates(labels []Label, split Split) (CandidatePack, error) {
 		sort.Strings(g.SessionHashes)
 		g.Sessions = len(g.SessionHashes)
 		if g.Sessions < 3 {
-			g.Recommendation = "표본 추가; 규칙 변경 근거 부족"
+			g.Recommendation = lang.T("표본 추가; 규칙 변경 근거 부족")
 		} else if g.Unjustified > 0 {
-			g.Recommendation = "오탐 예외와 증거 적격성 검토"
+			g.Recommendation = lang.T("오탐 예외와 증거 적격성 검토")
 		} else {
-			g.Recommendation = "놓친 구간을 재생해 규칙 후보 설계; 효과 미검증"
+			g.Recommendation = lang.T("놓친 구간을 재생해 규칙 후보 설계; 효과 미검증")
 		}
 		p.Candidates = append(p.Candidates, *g)
 	}

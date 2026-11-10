@@ -5,6 +5,7 @@ import (
 	"crypto/sha256"
 	"encoding/hex"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"path/filepath"
 	"slices"
@@ -28,6 +29,8 @@ type Config struct {
 	// rubric so that a trial cannot read what it is graded against.
 	ProtectedPaths []string    `yaml:"protected_paths" json:"protected_paths"`
 	Contract       ContractCfg `yaml:"contract" json:"contract"`
+	Trim           TrimCfg     `yaml:"trim" json:"trim"`
+	Quality        QualityCfg  `yaml:"quality" json:"quality"`
 	Notify         Notify      `yaml:"notify" json:"notify"`
 	Privacy        Privacy     `yaml:"privacy" json:"privacy"`
 	Experiment     Experiment  `yaml:"experiment" json:"experiment"`
@@ -39,6 +42,25 @@ type Config struct {
 		Enabled bool   `yaml:"enabled" json:"enabled"`
 		Path    string `yaml:"path" json:"path"`
 	} `yaml:"iron_laws" json:"iron_laws"`
+}
+
+// QualityCfg controls what keeps a turn from ending on unfinished or
+// unconfirmed work.
+type QualityCfg struct {
+	Enabled  bool `yaml:"enabled" json:"enabled"`
+	Critique struct {
+		// Enabled requires an independent review of code changes before the
+		// turn ends. It runs a model, so it is off unless the user turns it on.
+		Enabled bool `yaml:"enabled" json:"enabled"`
+		// Command reads the review prompt on stdin; user settings only.
+		Command  []string `yaml:"command" json:"command"`
+		MinLines int      `yaml:"min_lines" json:"min_lines"`
+	} `yaml:"critique" json:"critique"`
+}
+
+// TrimCfg turns on the delete-only pass over documents the agent wrote.
+type TrimCfg struct {
+	Enabled bool `yaml:"enabled" json:"enabled"`
 }
 
 // Levels configures the intervention ladder.
@@ -86,6 +108,12 @@ type Detectors struct {
 		// Runs stated to last up to LongRunFreeSec need no earlier probe;
 		// longer ones may last StepRatio times the longest passed run of the
 		// same target.
+		// FullChecksPerRequest is how many whole-suite runs one user request
+		// may start. A later one is refused before it runs. 0 turns this off.
+		FullChecksPerRequest int `yaml:"full_checks_per_request" json:"full_checks_per_request"`
+		// FullCheckCommands are command fragments that count as a whole-suite
+		// run, for project gates a test runner's arguments cannot reveal.
+		FullCheckCommands []string `yaml:"full_check_commands" json:"full_check_commands"`
 		// ExpensiveCheckSec makes a test run that last took this long count
 		// as a whole-suite run, whatever runs it (0: by scope only).
 		ExpensiveCheckSec int `yaml:"expensive_check_sec" json:"expensive_check_sec"`
@@ -216,7 +244,7 @@ type Checkpoint struct {
 
 // Default returns the initial configuration.
 func Default() Config {
-	c := Config{Language: "ko", Currency: "KRW"}
+	c := Config{Language: "auto", Currency: "auto"}
 	c.Rollout.Mode = "recommend"
 	c.Rollout.EscalateMaxBlocks = 3
 	c.Rollout.ShadowRules = []string{"s1.verify_after_docs", "s1.review_repeat", "s1.verify_streak", "s1.explicit_waiting", "s8.progress_stall", "s2.behavior_loop", "s4.research_repeat", "s1.delegation_loop", "s1.linked_loop", "s5.partial_done", "s3.requirement_substitution", "s3.repeated_permission", "s5.short_circuit"}
@@ -232,6 +260,7 @@ func Default() Config {
 	c.Detectors.S1.LocalChangeLines = 50
 	c.Detectors.S1.LongRunFreeSec = 300
 	c.Detectors.S1.ExpensiveCheckSec = 300
+	c.Detectors.S1.FullChecksPerRequest = 1
 	c.Detectors.S1.LongRunStepRatio = 6
 	c.Detectors.S2.RejectionRepeats = 2
 	c.Detectors.S2.UITimingRepeats = 2
@@ -262,6 +291,8 @@ func Default() Config {
 	c.Notify.Desktop = true
 	c.Privacy = Privacy{ExternalJudge: false, StoreRawText: false}
 	c.Experiment.Enabled = false
+	c.Quality.Enabled = true
+	c.Quality.Critique.MinLines = 30
 	c.Experiment.Arms = []string{"none", "prescription"}
 	c.Checkpoint.TimeoutSec = 120
 	c.IronLaws.Enabled = true
@@ -283,12 +314,13 @@ func Load(projectDir string) (Config, string, error) {
 			if os.IsNotExist(err) {
 				continue
 			}
-			return c, "", fmt.Errorf("설정 파일 읽기 실패: %w", err)
+			return c, "", fmt.Errorf(lang.T("설정 파일 읽기 실패: %w"), err)
 		}
 		allowExternal := c.Privacy.ExternalJudge
 		userIronLaws := c.IronLaws
 		userPush := c.Notify.Push
 		userJudge := c.Detectors.S3.Judge
+		userCritique := c.Quality.Critique
 		userExperiment := c.Experiment.Enabled
 		userArms := append([]string(nil), c.Experiment.Arms...)
 		userDetectors, userLevels := c.Detectors, c.Levels
@@ -339,6 +371,10 @@ func Load(projectDir string) (Config, string, error) {
 					c.Notify.Push = userPush
 				}
 			}
+			// a repository cannot choose what program the review runs or turn
+			// it on; it can only turn it off
+			critiqueOff := userCritique.Enabled && !c.Quality.Critique.Enabled
+			c.Quality.Critique.Command, c.Quality.Critique.Enabled = userCritique.Command, userCritique.Enabled && !critiqueOff
 			if c.Detectors.S3.Judge != userJudge {
 				if c.Detectors.S3.Judge.Provider == "" {
 					c.Detectors.S3.Judge = userJudge
@@ -533,8 +569,10 @@ func Hash(c Config) string {
 
 // Template is the file written by `samcheonpo init`.
 const Template = `# samcheonpo project settings
-language: ko
-currency: KRW
+# auto follows the language the user writes in; ko or en fixes it
+language: auto
+# auto: won for Korean, dollars for English; KRW or USD fixes it
+currency: auto
 # shadow: observe only; recommend: advice first (default)
 # validated requires user-level rule -> reviewed evaluation SHA256 declarations
 # escalate_max_blocks: a rule whose advice the agent already received and then

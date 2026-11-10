@@ -1,0 +1,4 @@
+[samcheonpo] Observed: {{if eq .kind "retries"}}a retry setting was added{{else if eq .kind "timeout"}}the time limit was raised from {{.timeout_from}} ms to {{.timeout_to}} ms{{else}}a counted retry loop was added{{end}} in {{.path}}{{if ne .kinds .kind}} ({{.kinds}}){{end}}. This test or a timeout failed in the same session.
+Evidence: event {{.evidence}}. Retries and longer limits only try again; causes such as concurrent runs, overload or wait conditions remain. An estimate at file level.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Retrying without a confirmed cause hides the defect.

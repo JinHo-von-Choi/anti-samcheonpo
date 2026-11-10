@@ -19,6 +19,8 @@ const (
 	Capability   Cause = "capability"
 	Memory       Cause = "memory"
 	Budget       Cause = "budget"
+	Process      Cause = "process_cleanup"
+	Writing      Cause = "writing"
 	Unknown      Cause = "unknown"
 )
 
@@ -33,6 +35,27 @@ type Prescription struct {
 	Shell string `json:"shell,omitempty"`
 }
 
+// causeByRule names the cause of the rules whose prefix says too little: an
+// S5 rule can be about verification, code or writing, and an S8 rule is not
+// always about money.
+var causeByRule = map[string]Cause{
+	"s5.false_done":                Verification,
+	"s5.abandoned_verification":    Verification,
+	"s5.stop_unmet":                Verification,
+	"s5.partial_done":              Verification,
+	"s5.deploy_without_preflight":  Verification,
+	"s5.release_without_preflight": Verification,
+	"s5.release_rate":              Verification,
+	"s5.error_hiding":              Code,
+	"s5.test_weakening":            Code,
+	"s5.flake_masking":             Code,
+	"s5.artifact_meta":             Writing,
+	"s5.answer_padding":            Writing,
+	"s3.unrequested_ui_action":     Scope,
+	"s8.leftover_process":          Process,
+	"s8.host_resource":             Environment,
+}
+
 // Diagnose needs a failed execution before interpreting an environmental
 // error. Prose alone, including a user/tool instruction, is not that evidence.
 func Diagnose(rule, errorText string, failed bool) Cause {
@@ -41,6 +64,9 @@ func Diagnose(rule, errorText string, failed bool) Cause {
 	}
 	if failed && fp.External(fp.ClassifyFailure(errorText)) {
 		return Environment
+	}
+	if cause, ok := causeByRule[rule]; ok {
+		return cause
 	}
 	switch {
 	case strings.HasPrefix(rule, "s1."):
@@ -121,6 +147,12 @@ func For(cause Cause) Prescription {
 		p.Action = "최신 목표·검증 근거·이미 실패한 접근을 인수인계 자료로 묶는다. 과거의 통과를 새 환경의 통과로 취급하지 않는다."
 		p.StopCondition = "실패한 접근을 다시 시작하기 전에 달라진 조건을 확인한다."
 		p.Handoff = true
+	case Process:
+		p.Action = "남아 있는 프로세스가 이 세션이 띄운 것인지 확인한다. 더 쓰지 않을 프로세스만 정리하고, 남겨 둘 프로세스는 이유를 사용자에게 알린다."
+		p.StopCondition = "이 세션이 띄웠다는 근거가 없는 프로세스는 종료하지 않는다."
+	case Writing:
+		p.Action = "후보 문장을 지우거나 대상 자체를 설명하는 문장으로 고친다. 지워도 독자가 얻는 내용이 그대로인지 확인한다."
+		p.StopCondition = "독자에게 필요한 내용을 지워야 한다면 후보를 그대로 두고 사용자에게 판단을 맡긴다."
 	case Budget:
 		p.Action = "명시적 예산과 지금까지 관측한 사용량·미확인 비용을 요약한다. 추가 실행이 한도를 넘으면 사용자에게 선택을 요청한다."
 		p.StopCondition = "예산 확대나 새 목표 없이 자동 계속하기를 반복하지 않는다."

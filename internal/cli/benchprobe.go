@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/bench"
@@ -18,9 +19,9 @@ import (
 func benchProbeCmd() *cobra.Command {
 	var base, arm, candidate, out string
 	c := &cobra.Command{
-		Use:          "probe <결과.jsonl>...",
+		Use:          lang.T("probe <결과.jsonl>..."),
 		SilenceUsage: true,
-		Short:        "후보 규칙의 생중 효과를 판정한다 (helped·hurt·no observed effect·confounded)",
+		Short:        lang.T("후보 규칙의 생중 효과를 판정한다 (helped·hurt·no observed effect·confounded)"),
 		Args:         cobra.MinimumNArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			var rows []bench.TrialResult
@@ -66,14 +67,14 @@ func benchProbeCmd() *cobra.Command {
 				}
 			}
 			if verdict.Verdict == "hurt" || verdict.Veto {
-				return fmt.Errorf("생중 probe가 후보를 거부했다")
+				return fmt.Errorf("%s", lang.T("생중 probe가 후보를 거부했다"))
 			}
 			return nil
 		},
 	}
-	c.Flags().StringVar(&base, "base", "off", "기준 팔")
-	c.Flags().StringVar(&arm, "arm", "on", "후보 규칙이 있는 팔")
-	c.Flags().StringVar(&candidate, "candidate", "", "후보 규칙 ID")
-	c.Flags().StringVar(&out, "out", "", "판정 JSON 파일 경로")
+	c.Flags().StringVar(&base, "base", "off", lang.T("기준 팔"))
+	c.Flags().StringVar(&arm, "arm", "on", lang.T("후보 규칙이 있는 팔"))
+	c.Flags().StringVar(&candidate, "candidate", "", lang.T("후보 규칙 ID"))
+	c.Flags().StringVar(&out, "out", "", lang.T("판정 JSON 파일 경로"))
 	return c
 }

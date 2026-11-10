@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"net"
 	"os"
 	"os/signal"
@@ -46,6 +47,8 @@ type Request struct {
 	Payload json.RawMessage `json:"payload"`
 	// DeadlineUnixMs is when the hook client stops waiting (0: older client).
 	DeadlineUnixMs int64 `json:"deadline_unix_ms,omitempty"`
+	// peerPID is the connected client's process (0: unknown).
+	peerPID int
 }
 
 // Response is the reply line. Output is printed verbatim by the hook client.
@@ -105,7 +108,7 @@ func Run(dbPath string, idle time.Duration) error {
 	}
 	defer lf.Close()
 	if err := procgroup.LockExclusive(lf); err != nil {
-		return errors.New("데몬이 이미 실행 중이다")
+		return errors.New(lang.T("데몬이 이미 실행 중이다"))
 	}
 	// the lock file names the holder so tools can stop this daemon
 	_ = lf.Truncate(0)
@@ -128,10 +131,11 @@ func Run(dbPath string, idle time.Duration) error {
 	// that is gone. Closing it makes the stored analysis reachable again
 	// instead of leaving the session out of reach forever.
 	if n, err := db.CloseLostObservations(ledger.ObservationDaemonLost, time.Now()); err != nil {
-		fmt.Fprintf(os.Stderr, "samcheonpo: 잃어버린 관측 종료 실패: %v\n", err)
+		fmt.Fprintf(os.Stderr, lang.T("samcheonpo: 잃어버린 관측 종료 실패: %v\n"), err)
 	} else if n > 0 {
-		fmt.Fprintf(os.Stderr, "samcheonpo: 이전 데몬이 남긴 관측 %d건을 종료했다\n", n)
+		fmt.Fprintf(os.Stderr, lang.T("samcheonpo: 이전 데몬이 남긴 관측 %d건을 종료했다\n"), n)
 	}
+	ingestHookMisses(db)
 	prices, err := cost.Load(filepath.Join(config.Home(), "prices.yml"))
 	if err != nil {
 		ln.Close()
@@ -167,7 +171,7 @@ func Run(dbPath string, idle time.Duration) error {
 			defer d.serving.Done()
 			defer func() {
 				if r := recover(); r != nil {
-					fmt.Fprintf(os.Stderr, "samcheonpo: 요청 처리 중 오류: %v\n", r)
+					fmt.Fprintf(os.Stderr, lang.T("samcheonpo: 요청 처리 중 오류: %v\n"), r)
 					_ = c.Close()
 				}
 			}()
@@ -188,7 +192,7 @@ func Run(dbPath string, idle time.Duration) error {
 	var finalErr error
 	for _, s := range sessions {
 		if _, err := s.CloseObservation(); err != nil {
-			finalErr = errors.Join(finalErr, fmt.Errorf("세션 %s: %w", s.ID, err))
+			finalErr = errors.Join(finalErr, fmt.Errorf(lang.T("세션 %s: %w"), s.ID, err))
 		}
 	}
 	_ = os.Remove(sock)
@@ -345,7 +349,7 @@ func (d *Daemon) reapIdleSessions() {
 	d.mu.Unlock()
 	for _, s := range idle {
 		if _, err := s.ReapObservation(); err != nil {
-			fmt.Fprintf(os.Stderr, "samcheonpo: 무활동 세션 %s 정리 실패: %v\n", s.ID, err)
+			fmt.Fprintf(os.Stderr, lang.T("samcheonpo: 무활동 세션 %s 정리 실패: %v\n"), s.ID, err)
 			continue
 		}
 		d.mu.Lock()
@@ -371,14 +375,15 @@ func (d *Daemon) serve(c net.Conn) {
 	var slot *ackSlot
 	resp := Response{V: ProtocolVersion}
 	if err := json.Unmarshal(line, &req); err != nil {
-		resp.Error = "잘못된 요청: " + err.Error()
+		resp.Error = lang.T("잘못된 요청: ") + err.Error()
 	} else if req.V != ProtocolVersion {
-		resp.Error = fmt.Sprintf("지원하지 않는 프로토콜 버전 %d", req.V)
+		resp.Error = fmt.Sprintf(lang.T("지원하지 않는 프로토콜 버전 %d"), req.V)
 	} else if req.Event == "HUDStream" {
 		d.streamHUD(c, req)
 		return
 	} else {
 		var err error
+		req.peerPID = hookPeerPID(c)
 		resp.Output, resp.Text, slot, err = d.handleAck(req)
 		if err != nil {
 			resp.Error = err.Error()
@@ -452,7 +457,7 @@ func (d *Daemon) handleWith(req Request, slot *ackSlot) (json.RawMessage, string
 		s := d.sessions[in.Session]
 		d.mu.Unlock()
 		if s == nil {
-			return nil, "", errors.New("세션을 찾을 수 없다")
+			return nil, "", errors.New(lang.T("세션을 찾을 수 없다"))
 		}
 		s.mu.Lock()
 		var generation uint64
@@ -470,7 +475,7 @@ func (d *Daemon) handleWith(req Request, slot *ackSlot) (json.RawMessage, string
 			return nil, "", err
 		}
 		if _, ok := adapter.Profiles[in.Agent]; !ok {
-			return nil, "", errors.New("알 수 없는 에이전트")
+			return nil, "", errors.New(lang.T("알 수 없는 에이전트"))
 		}
 		d.mu.Lock()
 		d.ensureProbe(in.Agent)
@@ -526,8 +531,8 @@ func (d *Daemon) handleWith(req Request, slot *ackSlot) (json.RawMessage, string
 	events, inputs, err := translateIn(agent, req.Event, req.Payload)
 	if err != nil {
 		if agent == "cursor" {
-			d.markShapeBad(agent, "Cursor: 훅 JSON 형식 오류")
-			return nil, "", errors.New("Cursor 훅 JSON 형식 오류")
+			d.markShapeBad(agent, lang.T("Cursor: 훅 JSON 형식 오류"))
+			return nil, "", errors.New(lang.T("Cursor 훅 JSON 형식 오류"))
 		}
 		return nil, "", err
 	}
@@ -548,6 +553,7 @@ func (d *Daemon) handleWith(req Request, slot *ackSlot) (json.RawMessage, string
 		}
 		inputs[i].Deadline = deadline
 		inputs[i].Ack = slot
+		inputs[i].PeerPID = req.peerPID
 		out, err = d.handleHook(agent, ev, inputs[i])
 		if err != nil {
 			return nil, "", err
@@ -561,16 +567,16 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 	d.mu.Lock()
 	defer d.mu.Unlock()
 	if d.ended[id] {
-		return nil, errors.New("이미 종료된 세션이다")
+		return nil, errors.New(lang.T("이미 종료된 세션이다"))
 	}
 	if s := d.sessions[id]; s != nil {
 		if s.Agent != agent {
-			return nil, errors.New("다른 에이전트와 세션 ID가 충돌한다; 새 세션 ID가 필요하다")
+			return nil, errors.New(lang.T("다른 에이전트와 세션 ID가 충돌한다; 새 세션 ID가 필요하다"))
 		}
 		abs, err := pathnorm.Absolute(root)
 		known, knownErr := pathnorm.Absolute(s.Root)
 		if err != nil || knownErr != nil || filepath.Clean(abs) != filepath.Clean(known) {
-			return nil, errors.New("세션 ID가 다른 프로젝트 경로에 재사용되었습니다")
+			return nil, errors.New(lang.T("세션 ID가 다른 프로젝트 경로에 재사용되었습니다"))
 		}
 		s.mu.Lock()
 		s.attachChildTranscript(transcript)
@@ -589,6 +595,7 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 		caps = d.capsFor(agent)
 		cause = observeCauseFor(caps, agent, ready, tracked)
 	}
+	ingestHookMisses(d.db)
 	// Give the host its watch budget back before taking another one.
 	d.reclaimWatchers()
 	s, err := newSession(id, agent, root, transcript, d.db, d.prices, caps)
@@ -729,7 +736,7 @@ func sameDir(a, b string) bool {
 func (d *Daemon) command(in CommandInput) (string, error) {
 	s := d.latest(in.Root, in.Session)
 	if s == nil {
-		return "", errors.New("이 프로젝트에서 삼천포가 보고 있는 세션이 없다")
+		return "", errors.New(lang.T("이 프로젝트에서 삼천포가 보고 있는 세션이 없다"))
 	}
 	s.opMu.RLock()
 	defer s.opMu.RUnlock()
@@ -737,9 +744,15 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 	closed := s.closed
 	s.mu.Unlock()
 	if closed && in.Name != "status" && in.Name != "summary" && in.Name != "card" {
-		return "", errors.New("이미 종료된 세션이다")
+		return "", errors.New(lang.T("이미 종료된 세션이다"))
 	}
 	switch in.Name {
+	case "agent":
+		return s.Agent, nil
+	case "request":
+		s.mu.Lock()
+		defer s.mu.Unlock()
+		return s.eng.RequestText(), nil
 	case "card":
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -747,10 +760,10 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 	case "accept":
 		c, raw, err := contract.Load(s.Root)
 		if err != nil {
-			return "", fmt.Errorf("계약 파일 오류: %w", err)
+			return "", fmt.Errorf(lang.T("계약 파일 오류: %w"), err)
 		}
 		if c == nil {
-			return "", errors.New(".samcheonpo/contract.yml이 없다")
+			return "", errors.New(lang.T(".samcheonpo/contract.yml이 없다"))
 		}
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -766,14 +779,14 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		if s.storageErr != nil {
 			return "", s.storageErr
 		}
-		return "계약을 수락했다. 이제 진척은 이 계약의 완료 조건으로 잰다.\n" + strings.TrimSuffix(contract.PlainSummary(c), "\n[/samcheonpo:accept 맞아요]  [/samcheonpo:edit 고칠래요]  [/samcheonpo:skip 계약 없이 진행]"), nil
+		return s.pick("계약을 수락했다. 이제 진척은 이 계약의 완료 조건으로 잰다.\n", "Contract accepted. Progress is now measured by this contract's completion criteria.\n") + strings.TrimSuffix(contract.PlainSummary(c), lang.T("\n[/samcheonpo:accept 맞아요]  [/samcheonpo:edit 고칠래요]  [/samcheonpo:skip 계약 없이 진행]")), nil
 	case "edit":
 		s.mu.Lock()
 		defer s.mu.Unlock()
 		acc, err := contract.RequestChange(s.Root, in.Arg)
 		if err != nil {
 			s.recordStorageError(err)
-			s.setContract(s.c, contract.Acceptance{State: contract.StateDraft, RequestedGoal: "계약 수정 요청 저장 실패; 재수락 필요"})
+			s.setContract(s.c, contract.Acceptance{State: contract.StateDraft, RequestedGoal: lang.T("계약 수정 요청 저장 실패; 재수락 필요")})
 			return "", err
 		}
 		s.setContract(s.c, acc)
@@ -781,7 +794,7 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		if s.storageErr != nil {
 			return "", s.storageErr
 		}
-		return "이전 계약의 검사·범위 승인을 보류했다. 계약 파일은 " + contract.Path(s.Root) + "에 있다. 요청을 반영한 뒤 /samcheonpo:accept로 새 초안을 수락하면 된다. 새 권한·검사 실행은 승인되지 않았다.\n" + s.goalCard("").Text(), nil
+		return s.pick("이전 계약의 검사·범위 승인을 보류했다. 계약 파일은 ", "The earlier contract's check and scope approvals are on hold. The contract file is at ") + contract.Path(s.Root) + s.pick("에 있다. 요청을 반영한 뒤 /samcheonpo:accept로 새 초안을 수락하면 된다. 새 권한·검사 실행은 승인되지 않았다.\n", ". After reflecting the request, accept the new draft with /samcheonpo:accept. No new permissions or check runs have been approved.\n") + s.goalCard("").Text(), nil
 	case "skip":
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -796,7 +809,7 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		if s.storageErr != nil {
 			return "", s.storageErr
 		}
-		return "계약 없이 진행한다. 진척은 오류 감소와 산출물 증가로만 추정한다.", nil
+		return s.pick("계약 없이 진행한다. 진척은 오류 감소와 산출물 증가로만 추정한다.", "Continuing without a contract. Progress is only estimated from fewer errors and more output."), nil
 	case "keep":
 		s.mu.Lock()
 		v := s.lastPrimary
@@ -806,7 +819,7 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		s.unresolved = nil
 		s.mu.Unlock()
 		if v == nil {
-			return "되돌릴 판정이 없다.", nil
+			return s.pick("되돌릴 판정이 없다.", "There is no verdict to release."), nil
 		}
 		label, reason := "ignore_once", in.Arg
 		switch in.Arg {
@@ -844,17 +857,17 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		if target == "" {
 			target, _ = v.Facts["cmd"].(string)
 		}
-		scope := "지금 작업 목표 안에서"
+		scope := s.pick("지금 작업 목표 안에서", "within the current goal")
 		if target != "" {
-			scope += " `" + target + "`에 대한"
+			scope += s.pick(" `"+target+"`에 대한", " for `"+target+"`")
 		}
 		if label == "false_positive" {
-			return fmt.Sprintf("'%s' 판정을 오탐으로 기록했다. %s 같은 판정은 다시 막지 않는다. 다른 대상이나 새 목표에는 적용되지 않고, 보호 경로와 예산 제한은 그대로다. 같은 판정이 이 프로젝트에서 3번 오탐으로 기록되면 기준을 한 단계 올린다.", receipt.Describe(*v), scope), nil
+			return fmt.Sprintf(s.pick("'%s' 판정을 오탐으로 기록했다. %s 같은 판정은 다시 막지 않는다. 다른 대상이나 새 목표에는 적용되지 않고, 보호 경로와 예산 제한은 그대로다. 같은 판정이 이 프로젝트에서 3번 오탐으로 기록되면 기준을 한 단계 올린다.", "Recorded verdict '%s' as a false positive. The same verdict %s will not block again. This does not apply to other targets or new goals, and protected paths and budget limits stay in place. Three false positives for the same verdict in this project raise its threshold one step."), receipt.Describe(*v), scope), nil
 		}
 		if gate {
-			return "다음 종료 한 번은 보류하지 않는다. 그 뒤의 종료는 다시 판정한다.", nil
+			return s.pick("다음 종료 한 번은 보류하지 않는다. 그 뒤의 종료는 다시 판정한다.", "The next stop will not be held. Stops after that are judged again."), nil
 		}
-		return "이번 한 번만 넘어간다. 같은 일이 다시 생기면 막기 전에 먼저 안내한다.", nil
+		return s.pick("이번 한 번만 넘어간다. 같은 일이 다시 생기면 막기 전에 먼저 안내한다.", "Letting this one through. If the same thing happens again you will get advice before any block."), nil
 	case "steer":
 		s.mu.Lock()
 		v := s.lastPrimary
@@ -864,9 +877,9 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		ctx := s.msgContext()
 		s.mu.Unlock()
 		if v == nil {
-			return "지금 바꿀 방향이 없다.", nil
+			return s.pick("지금 바꿀 방향이 없다.", "There is no direction to change right now."), nil
 		}
-		return "아래 내용을 에이전트에게 전달한다.\n\n" + intervene.Agent(*v, ctx, "prescription"), nil
+		return s.pick("아래 내용을 에이전트에게 전달한다.\n\n", "Passing this to the agent.\n\n") + intervene.Agent(*v, ctx, "prescription"), nil
 	case "summary":
 		return s.plainSummary(), nil
 	case "extend":
@@ -880,44 +893,44 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		s.mu.Unlock()
 		if res == nil {
 			if manual > 0 {
-				return fmt.Sprintf("자동 실행할 검사는 없다. 수동 완료 조건 %d개는 별도 확인이 필요하다.\n", manual), nil
+				return fmt.Sprintf(s.pick("자동 실행할 검사는 없다. 수동 완료 조건 %d개는 별도 확인이 필요하다.\n", "No checks to run automatically. %d manual completion criteria need separate confirmation.\n"), manual), nil
 			}
-			return "수락된 계약이 없어 실행할 검사가 없다.", nil
+			return s.pick("수락된 계약이 없어 실행할 검사가 없다.", "No accepted contract, so there are no checks to run."), nil
 		}
 		var b strings.Builder
 		for _, r := range res {
-			st := "통과"
+			st := s.pick("통과", "passed")
 			switch {
 			case r.Skipped != "":
-				st = "건너뜀: " + r.Skipped
+				st = s.pick("건너뜀: ", "skipped: ") + r.Skipped
 			case r.Reused:
-				st = "기존 통과 근거 재사용: " + r.ReuseReason
+				st = s.pick("기존 통과 근거 재사용: ", "reused passing evidence: ") + r.ReuseReason
 			case r.Truncated:
-				st = "미확인: 출력 한도를 넘어 완전한 결과를 확보하지 못했다"
+				st = s.pick("미확인: 출력 한도를 넘어 완전한 결과를 확보하지 못했다", "unconfirmed: output limit exceeded, so the full result was not captured")
 			case r.TimedOut:
-				st = "시간 초과"
+				st = s.pick("시간 초과", "timed out")
 			case !r.Pass:
-				st = fmt.Sprintf("실패 (종료 코드 %d)", r.ExitCode)
+				st = fmt.Sprintf(s.pick("실패 (종료 코드 %d)", "failed (exit code %d)"), r.ExitCode)
 			}
 			if r.SideEffect {
-				st += ", 작업 폴더를 바꿔 자동 실행에서 뺐다"
+				st += s.pick(", 작업 폴더를 바꿔 자동 실행에서 뺐다", ", changed the working folder and was removed from automatic runs")
 			}
 			if !r.Reused && r.ReuseReason != "" {
 				st += ", " + r.ReuseReason
 			}
 			fmt.Fprintf(&b, "%s: %s\n", r.Command, st)
 			if r.StopReason != "" && r.Pass && r.Skipped == "" && r.Evidence != nil {
-				fmt.Fprintf(&b, "이 검사의 종료 이유: %s (근거 %s)\n", r.StopReason, r.Evidence.ID)
+				fmt.Fprintf(&b, s.pick("이 검사의 종료 이유: %s (근거 %s)\n", "Why this check ended: %s (evidence %s)\n"), r.StopReason, r.Evidence.ID)
 			}
 		}
 		if manual > 0 {
-			fmt.Fprintf(&b, "수동 완료 조건 %d개는 별도 확인이 필요하다. 자동 검사 통과는 전체 목표 완료를 뜻하지 않는다.\n", manual)
+			fmt.Fprintf(&b, s.pick("수동 완료 조건 %d개는 별도 확인이 필요하다. 자동 검사 통과는 전체 목표 완료를 뜻하지 않는다.\n", "%d manual completion criteria need separate confirmation. Automatic checks passing does not mean the whole goal is done.\n"), manual)
 		}
 		return b.String(), nil
 	case "status":
 		return s.Statusline(), nil
 	}
-	return "", fmt.Errorf("알 수 없는 명령 %s", in.Name)
+	return "", fmt.Errorf(lang.T("알 수 없는 명령 %s"), in.Name)
 }
 
 func (s *Session) plainSummary() string {
@@ -926,22 +939,22 @@ func (s *Session) plainSummary() string {
 	st := s.eng.St
 	var b strings.Builder
 	if n := s.queueRejected.Load(); n > 0 {
-		fmt.Fprintf(&b, "관측 큐 포화로 %d건을 처리하지 못했습니다. 개입과 완료 판정을 중단했으며 이 요약은 불완전합니다.\n", n)
+		fmt.Fprintf(&b, s.pick("관측 큐 포화로 %d건을 처리하지 못했습니다. 개입과 완료 판정을 중단했으며 이 요약은 불완전합니다.\n", "The observation queue was full and %d items were not processed. Interventions and completion judgment stopped, and this summary is incomplete.\n"), n)
 	}
 	if s.storageErr != nil {
-		b.WriteString("기록 저장에 실패해 이 요약은 불완전할 수 있습니다.\n")
+		b.WriteString(s.pick("기록 저장에 실패해 이 요약은 불완전할 수 있습니다.\n", "Saving records failed, so this summary may be incomplete.\n"))
 	}
 	if s.judgeBudgetReason != "" {
-		fmt.Fprintf(&b, "감시 판정: %s\n", s.judgeBudgetReason)
+		fmt.Fprintf(&b, s.pick("감시 판정: %s\n", "Monitor verdict: %s\n"), s.judgeBudgetReason)
 	}
 	b.WriteString(s.requestVsNow())
 	met, total := s.criteria()
 	if total > 0 {
-		fmt.Fprintf(&b, "끝난 것: 완료 조건 %d개 중 %d개 충족.\n", total, met)
+		fmt.Fprintf(&b, s.pick("끝난 것: 완료 조건 %d개 중 %d개 충족.\n", "Done: %[2]d of %[1]d completion criteria met.\n"), total, met)
 	} else if len(st.ProgressSeqs) > 0 {
-		b.WriteString("끝난 것: 계약이 없어 정확히 잴 수 없지만 파일이 늘고 오류가 줄어든 구간이 있었다.\n")
+		b.WriteString(s.pick("끝난 것: 계약이 없어 정확히 잴 수 없지만 파일이 늘고 오류가 줄어든 구간이 있었다.\n", "Done: there is no contract to measure exactly, but files grew and errors fell during part of this session.\n"))
 	} else {
-		b.WriteString("끝난 것: 아직 확인된 진척이 없다.\n")
+		b.WriteString(s.pick("끝난 것: 아직 확인된 진척이 없다.\n", "Done: no confirmed progress yet.\n"))
 	}
 	var blocked []string
 	for _, v := range s.eng.Verdicts {
@@ -953,21 +966,21 @@ func (s *Session) plainSummary() string {
 		if len(blocked) > 3 {
 			blocked = blocked[len(blocked)-3:]
 		}
-		b.WriteString("막힌 것: " + strings.Join(blocked, "; ") + ".\n")
+		b.WriteString(s.pick("막힌 것: ", "Blocked: ") + strings.Join(blocked, "; ") + ".\n")
 	}
 	observedTokens, unpriced, _, _ := s.measuredUsage()
 	if observedTokens == 0 {
-		b.WriteString("비용·사용량: 미확인(계측 부재는 무료라는 뜻이 아닙니다).\n")
+		b.WriteString(s.pick("비용·사용량: 미확인(계측 부재는 무료라는 뜻이 아닙니다).\n", "Cost and usage: unknown (no measurement does not mean free).\n"))
 	} else if unpriced > 0 {
-		fmt.Fprintf(&b, "계측된 사용량: %d토큰. 단가 누락으로 전체 환산액은 미확인입니다.\n", observedTokens)
+		fmt.Fprintf(&b, s.pick("계측된 사용량: %d토큰. 단가 누락으로 전체 환산액은 미확인입니다.\n", "Measured usage: %d tokens. The total amount is unknown because a price is missing.\n"), observedTokens)
 	} else {
-		fmt.Fprintf(&b, "API 환산액(계측분): %s원, 마지막 진척 이후 %s원. 실제 청구액·절감액은 미확인입니다.\n", contract.Comma(cost.Won(st.TotalMicro)), contract.Comma(cost.Won(st.TotalMicro-st.ProgressMark)))
+		fmt.Fprintf(&b, s.pick("API 환산액(계측분): %s, 마지막 진척 이후 %s. 실제 청구액·절감액은 미확인입니다.\n", "API-equivalent amount (measured): %s, %s since the last progress. The actual charge and any saving are unknown.\n"), s.amountContext().Amount(cost.Won(st.TotalMicro)), s.amountContext().Amount(cost.Won(st.TotalMicro-st.ProgressMark)))
 	}
-	next := "남은 일을 한 가지만 골라 그것부터 끝내 달라고 하면 됩니다."
+	next := s.pick("남은 일을 한 가지만 골라 그것부터 끝내 달라고 하면 됩니다.", "You can ask it to pick one remaining task and finish that first.")
 	if s.c != nil && total > met {
 		for _, c := range s.c.MachineChecks() {
 			if r, ok := s.checks[c.ID]; !ok || !r.Pass {
-				next = fmt.Sprintf("다음 지시 추천: \"`%s`가 통과하도록 고쳐 줘. 다른 파일은 건드리지 마.\"", c.Check)
+				next = fmt.Sprintf(s.pick("다음 지시 추천: \"`%s`가 통과하도록 고쳐 줘. 다른 파일은 건드리지 마.\"", "Suggested next instruction: \"Make `%s` pass, and leave other files alone.\""), c.Check)
 				break
 			}
 		}
@@ -975,13 +988,14 @@ func (s *Session) plainSummary() string {
 	for i := len(s.recoveries) - 1; i >= 0 && !(total > 0 && met == total); i-- {
 		a := s.recoveries[i]
 		if a.Revision == s.contractRevision && a.Prescription.Handoff {
-			next = "다음 행동: " + a.Prescription.Action + "\n종료 조건: " + a.Prescription.StopCondition
+			p := recovery.Localize(a.Prescription, s.language())
+			next = s.pick("다음 행동: ", "Next action: ") + p.Action + s.pick("\n종료 조건: ", "\nStop when: ") + p.StopCondition
 			break
 		}
 	}
 	b.WriteString(next)
 	if len(s.rb.agentHash) > 0 {
-		b.WriteString("\nAI가 바꾼 파일을 " + s.rollbackBasis() + "으로 되돌리려면 /samcheonpo:rollback 으로 먼저 미리 볼 수 있습니다.")
+		b.WriteString(s.pick("\nAI가 바꾼 파일을 "+s.rollbackBasis()+"으로 되돌리려면 /samcheonpo:rollback 으로 먼저 미리 볼 수 있습니다.", "\nTo restore the files the AI changed ("+s.rollbackBasis()+"), preview it first with /samcheonpo:rollback."))
 	}
 	return b.String()
 }
@@ -998,14 +1012,14 @@ func (s *Session) requestVsNow() string {
 	}
 	var b strings.Builder
 	if request != "" {
-		fmt.Fprintf(&b, "요청한 일: \"%s\"", request)
+		fmt.Fprintf(&b, s.pick("요청한 일: \"%s\"", "Requested: \"%s\""), request)
 		if n := len(s.eng.Requests); n > 0 {
-			fmt.Fprintf(&b, " (이전 요청 %d개 포함)", n)
+			fmt.Fprintf(&b, s.pick(" (이전 요청 %d개 포함)", " (including %d earlier requests)"), n)
 		}
 		b.WriteString("\n")
 	}
 	if _, missing := s.eng.TargetStatus(s.eng.RequestText()); len(missing) > 0 {
-		fmt.Fprintf(&b, "요청에 적힌 대상 중 아직 어떤 변경에도 없는 것: %s\n", strings.Join(missing, ", "))
+		fmt.Fprintf(&b, s.pick("요청에 적힌 대상 중 아직 어떤 변경에도 없는 것: %s\n", "Named in the request but not in any change yet: %s\n"), strings.Join(missing, ", "))
 	}
 	var files, outside []string
 	seen := map[string]bool{}
@@ -1035,18 +1049,18 @@ func (s *Session) requestVsNow() string {
 	}
 	switch {
 	case len(files) == 0 && lastCmd == "":
-		b.WriteString("지금 하는 일: 아직 파일을 바꾸거나 명령을 실행하지 않았다.\n")
+		b.WriteString(s.pick("지금 하는 일: 아직 파일을 바꾸거나 명령을 실행하지 않았다.\n", "Now: no file changed and no command run yet.\n"))
 	case len(files) == 0:
-		fmt.Fprintf(&b, "지금 하는 일: 파일은 바꾸지 않았고 마지막 명령은 `%s`이다.\n", short(lastCmd, 60))
+		fmt.Fprintf(&b, s.pick("지금 하는 일: 파일은 바꾸지 않았고 마지막 명령은 `%s`이다.\n", "Now: no file changed, and the last command is `%s`.\n"), short(lastCmd, 60))
 	default:
-		fmt.Fprintf(&b, "지금 하는 일: 최근에 %s를 바꿨다", strings.Join(files, ", "))
+		fmt.Fprintf(&b, s.pick("지금 하는 일: 최근에 %s를 바꿨다", "Now: recently changed %s"), strings.Join(files, ", "))
 		if lastCmd != "" {
-			fmt.Fprintf(&b, ", 마지막 명령은 `%s`", short(lastCmd, 60))
+			fmt.Fprintf(&b, s.pick(", 마지막 명령은 `%s`", ", and the last command is `%s`"), short(lastCmd, 60))
 		}
 		b.WriteString(".\n")
 	}
 	if len(outside) > 0 {
-		fmt.Fprintf(&b, "요청 범위 밖으로 보이는 변경: %s. 의도한 변경이 아니라면 방향을 다시 알려 주면 된다.\n", strings.Join(outside, ", "))
+		fmt.Fprintf(&b, s.pick("요청 범위 밖으로 보이는 변경: %s. 의도한 변경이 아니라면 방향을 다시 알려 주면 된다.\n", "Changes that look outside the request: %s. If they are unintended, give it the direction again.\n"), strings.Join(outside, ", "))
 	}
 	return b.String()
 }

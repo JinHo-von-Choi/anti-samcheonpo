@@ -7,6 +7,10 @@ import subprocess
 
 BIN = os.environ.get("SAMCHEONPO_BIN") or "samcheonpo"
 
+# Adds the end-of-run notice to a scheduled job's report. It changes what the
+# user receives, so it stays off unless asked for.
+CRON_NOTICE = os.environ.get("SAMCHEONPO_HERMES_CRON_NOTICE") == "1"
+
 TOOLS = {"terminal": "Bash", "read_file": "Read", "write_file": "Write", "patch": "Edit", "search_files": "Grep"}
 
 
@@ -101,17 +105,30 @@ def register(ctx):
             return {"action": "continue", "message": r["reason"]}
         return None
 
-    def post_llm_call(session_id="", assistant_response="", **_):
+    def transform_llm_output(response_text="", session_id="", platform="", **_):
+        if platform != "cron":
+            return None
+        verified.add(session_id)
+        r = _hook("Stop", {"session_id": session_id, "stop_hook_active": True, "last_assistant_message": response_text or ""})
+        note = r.get("systemMessage") or ""
+        return (response_text or "") + "\n\n" + note if note else None
+
+    def post_llm_call(session_id="", assistant_response="", platform="", **_):
         # turns without edited code skip pre_verify: report the end without a hold
         if session_id in verified:
             verified.discard(session_id)
-            return
-        _hook("Stop", {"session_id": session_id, "stop_hook_active": True, "last_assistant_message": assistant_response or ""})
+        else:
+            _hook("Stop", {"session_id": session_id, "stop_hook_active": True, "last_assistant_message": assistant_response or ""})
+        # a scheduled run calls no session-end hook and has no next turn
+        if platform == "cron" and session_id:
+            _hook("SessionEnd", {"session_id": session_id, "reason": "scheduled_run_end"})
 
     def on_session_finalize(session_id="", reason="", **_):
         if session_id:
             _hook("SessionEnd", {"session_id": session_id, "reason": reason or "exit"})
 
+    if CRON_NOTICE:
+        ctx.register_hook("transform_llm_output", transform_llm_output)
     for name, fn in (("on_session_start", on_session_start), ("pre_llm_call", pre_llm_call), ("pre_tool_call", pre_tool_call),
                      ("transform_tool_result", transform_tool_result), ("post_api_request", post_api_request),
                      ("pre_verify", pre_verify), ("post_llm_call", post_llm_call), ("on_session_finalize", on_session_finalize)):

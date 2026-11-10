@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"path/filepath"
 
@@ -31,7 +32,7 @@ func installStandalone(agent, path string, body []byte) error {
 		return err
 	}
 	if _, err := os.Lstat(state); err == nil {
-		return errors.New("설치 기록이 이미 있습니다; 먼저 연결을 제거하세요")
+		return errors.New(lang.T("설치 기록이 이미 있습니다; 먼저 연결을 제거하세요"))
 	} else if !os.IsNotExist(err) {
 		return err
 	}
@@ -40,7 +41,7 @@ func installStandalone(agent, path string, body []byte) error {
 	}
 	file, err := os.OpenFile(path, os.O_WRONLY|os.O_CREATE|os.O_EXCL, 0644)
 	if err != nil {
-		return fmt.Errorf("기존 연결 파일을 덮어쓰지 않습니다: %w", err)
+		return fmt.Errorf(lang.T("기존 연결 파일을 덮어쓰지 않습니다: %w"), err)
 	}
 	committed := false
 	defer func() {
@@ -91,7 +92,7 @@ func checkStandalone(agent, path string) (string, error) {
 	}
 	raw, err := os.ReadFile(state)
 	if err != nil {
-		return "", errors.New("생성 파일 해시 기록이 없어 연결 파일을 보존했습니다; 파일 내용을 직접 확인하세요")
+		return "", errors.New(lang.T("생성 파일 해시 기록이 없어 연결 파일을 보존했습니다; 파일 내용을 직접 확인하세요"))
 	}
 	var record standaloneRecord
 	if err := json.Unmarshal(raw, &record); err != nil {
@@ -102,7 +103,7 @@ func checkStandalone(agent, path string) (string, error) {
 		return "", err
 	}
 	if record.Path != abs || record.SHA256 == "" {
-		return "", errors.New("연결 파일 기록 불일치")
+		return "", errors.New(lang.T("연결 파일 기록 불일치"))
 	}
 	st, err := os.Lstat(path)
 	if os.IsNotExist(err) {
@@ -112,14 +113,14 @@ func checkStandalone(agent, path string) (string, error) {
 		return "", err
 	}
 	if !st.Mode().IsRegular() {
-		return "", errors.New("교체된 연결 경로를 보존했습니다")
+		return "", errors.New(lang.T("교체된 연결 경로를 보존했습니다"))
 	}
 	body, err := os.ReadFile(path)
 	if err != nil {
 		return "", err
 	}
 	if fmt.Sprintf("%x", sha256.Sum256(body)) != record.SHA256 {
-		return "", errors.New("설치 이후 수정된 연결 파일을 보존했습니다; 원복하거나 수동으로 제거하세요")
+		return "", errors.New(lang.T("설치 이후 수정된 연결 파일을 보존했습니다; 원복하거나 수동으로 제거하세요"))
 	}
 	return state, nil
 }

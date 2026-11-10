@@ -2,6 +2,7 @@ package live
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"sync"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
@@ -178,8 +179,8 @@ func (s *Session) swarmPre() *detect.Signal {
 		pct = spent * 100 / limit
 	}
 	return &detect.Signal{Detector: "S8", Rule: "s8.budget", Confidence: 1.0, Level: detect.L3,
-		Facts: map[string]any{"kind": "swarm_tree", "budget": contract.Comma(limit) + "원", "spent": contract.Comma(spent) + "원", "pct": pct,
-			"cmd": "swarm", "blocked": true, "tree": fmt.Sprintf("부모·자식 세션을 합한 군집 지출 %s원이 한도 %s원을 넘었다", contract.Comma(spent), contract.Comma(limit))}}
+		Facts: map[string]any{"kind": "swarm_tree", "budget": contract.Comma(limit) + lang.T("원"), "spent": contract.Comma(spent) + lang.T("원"), "pct": pct,
+			"cmd": "swarm", "blocked": true, "tree": fmt.Sprintf(lang.T("부모·자식 세션을 합한 군집 지출 %s원이 한도 %s원을 넘었다"), contract.Comma(spent), contract.Comma(limit))}}
 }
 
 // Cumulative attribution makes startup replay and repeated native hooks

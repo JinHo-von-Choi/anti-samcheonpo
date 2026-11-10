@@ -3,6 +3,7 @@ package live
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"strings"
 	"time"
 
@@ -95,12 +96,12 @@ func cursorIn(name string, raw json.RawMessage) ([]string, []HookInput, error) {
 				payload = json.RawMessage(encoded)
 			}
 			if json.Unmarshal(payload, &body) != nil || body == nil {
-				e.Shape = "Cursor: tool_output이 JSON 객체가 아님"
+				e.Shape = lang.T("Cursor: tool_output이 JSON 객체가 아님")
 			} else {
 				if value, ok := body["exitCode"]; in.ToolName == "Bash" && ok && string(value) != "null" {
 					var code int
 					if json.Unmarshal(value, &code) != nil || code < 0 {
-						e.Shape = "Cursor: exitCode가 음이 아닌 정수가 아님"
+						e.Shape = lang.T("Cursor: exitCode가 음이 아닌 정수가 아님")
 					} else {
 						e.Exit = &code
 						e.State = "exited"
@@ -192,10 +193,10 @@ func cursorIn(name string, raw json.RawMessage) ([]string, []HookInput, error) {
 		}
 	}
 	if c.ConversationID == "" {
-		e.Shape = "Cursor: conversation_id 없음"
+		e.Shape = lang.T("Cursor: conversation_id 없음")
 	}
 	if strings.Contains(ev, "ToolUse") && c.ID == "" {
-		e.Shape = "Cursor: tool_use_id 없음"
+		e.Shape = lang.T("Cursor: tool_use_id 없음")
 	}
 	return []string{ev}, []HookInput{in}, nil
 }

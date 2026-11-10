@@ -3,6 +3,7 @@ package cli
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 
 	"github.com/spf13/cobra"
@@ -37,11 +38,11 @@ type specVerdict struct {
 }
 
 func specCmd() *cobra.Command {
-	c := &cobra.Command{Use: "spec", Short: "규격 적합성 인터페이스"}
+	c := &cobra.Command{Use: "spec", Short: lang.T("규격 적합성 인터페이스")}
 	var agent, contractFile string
 	run := &cobra.Command{
 		Use:   "run <transcript>",
-		Short: "기록 하나를 분석해 Evidence Ledger v1 결과를 JSON으로 낸다",
+		Short: lang.T("기록 하나를 분석해 Evidence Ledger v1 결과를 JSON으로 낸다"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if agent == "" {
@@ -66,7 +67,7 @@ func specCmd() *cobra.Command {
 				}
 				k, errs := contract.Parse(b)
 				if len(errs) > 0 {
-					return fmt.Errorf("계약 오류: %v", errs)
+					return fmt.Errorf(lang.T("계약 오류: %v"), errs)
 				}
 				opt.Contract, opt.Accepted = k, true
 				state = string(contract.StateAccepted)
@@ -92,8 +93,8 @@ func specCmd() *cobra.Command {
 			return nil
 		},
 	}
-	run.Flags().StringVar(&agent, "agent", "", "claude | codex (기본: 경로로 추정)")
-	run.Flags().StringVar(&contractFile, "contract", "", "수락된 계약 파일")
+	run.Flags().StringVar(&agent, "agent", "", lang.T("claude | codex (기본: 경로로 추정)"))
+	run.Flags().StringVar(&contractFile, "contract", "", lang.T("수락된 계약 파일"))
 	c.AddCommand(run, specTaskCmd())
 	return c
 }

@@ -1,0 +1,10 @@
+{{if .issue}}[samcheonpo] Observed: {{if eq .issue "dead_target"}}{{.count}} links with nowhere to go{{else if eq .issue "filler_card"}}{{.count}} text-only info cards{{else}}{{.count}} click targets with the same text "{{.label}}"{{end}} were added to {{.path}}.
+Evidence: event {{.evidence}}. An estimate picked from the added tags.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Each click target on a screen should lead to a different action.{{else}}{{if .element}}[samcheonpo] Observed: {{.requested}} of {{.element}} were requested and {{.count}} were added to {{.path}}.
+Evidence: event {{.evidence}}. An estimate comparing the number in the request with the number of added tags.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Keep only as many on the screen as were requested.{{else}}[samcheonpo] Observed: {{.count}} click targets were added to {{.path}} though no button or link was requested.
+Evidence: event {{.evidence}}. Each button and link is something the user reads and decides about. An estimate from the request text and the number of added tags.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Keep only the elements needed to finish the requested work on the screen.{{end}}{{end}}

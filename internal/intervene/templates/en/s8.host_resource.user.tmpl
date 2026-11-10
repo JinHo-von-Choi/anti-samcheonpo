@@ -1,0 +1,2 @@
+{{if eq .kind "artifacts"}}Build artifacts in this working folder grew {{.grown_gb}} GB during the session to {{.total_gb}} GB.{{else if eq .kind "free"}}Free disk space dropped to {{.free_gb}} GB ({{.free_pct}}%).{{else}}Checks in this session have taken {{.minutes}} min.{{end}}
+If the same test is repeating, stop it, and decide yourself whether to clean up artifacts.

@@ -2,6 +2,7 @@ package live
 
 import (
 	"encoding/json"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter/mcode"
@@ -31,7 +32,7 @@ func mcodeIn(name string, raw json.RawMessage) ([]string, []HookInput, error) {
 	e := &mcodeEvidence{Result: mcode.Result{State: "unknown"}}
 	in.Mcode = e
 	if in.SessionID == "" {
-		e.Shape = "mcode 훅에 세션 ID가 없다"
+		e.Shape = lang.T("mcode 훅에 세션 ID가 없다")
 	}
 	switch name {
 	case "SessionStart", "SessionEnd", "UserPromptSubmit", "Stop", "PreCompact":
@@ -68,7 +69,7 @@ func mcodeIn(name string, raw json.RawMessage) ([]string, []HookInput, error) {
 	}
 	var r mcode.Response
 	if len(in.ToolResponse) > 0 && json.Unmarshal(in.ToolResponse, &r) != nil {
-		e.Shape = "mcode 도구 결과 형식을 읽을 수 없다"
+		e.Shape = lang.T("mcode 도구 결과 형식을 읽을 수 없다")
 	}
 	e.Result = mcode.ReadResult(in.ToolName, &r)
 	out, _ := json.Marshal(map[string]any{"stdout": e.Result.Text})

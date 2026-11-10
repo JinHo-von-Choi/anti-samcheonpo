@@ -32,6 +32,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intervene"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/judge"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/notify"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/patch"
@@ -76,6 +77,8 @@ type Session struct {
 	usage            *claude.UsageTracker
 	eng              *detect.Engine
 	prices           *cost.Table
+	lang             atomic.Value // string: the language of the latest user message
+	budgetDeny       atomic.Bool  // the reply being sent is a gate that holds under lost observation
 	db               *ledger.DB
 	ws               *Workspace
 	runner           *Runner
@@ -112,7 +115,11 @@ type Session struct {
 	copilotSeq      int
 	background      map[string]*backgroundRun // background shell calls by task id, until their result
 	host            hostSeen                  // check time and host advice given
-	leftoverSeen    string                    // the leftover process set already told
+	leftoverSeen    map[string]bool           // the leftover processes already told
+	trimDone        map[string]int            // documents already sent to the delete-only pass, with the request count
+	trimThrough     int64                     // the last event the delete-only pass looked at
+	labelHinted     bool                      // the session's user has been shown how to mark a warning
+	hostPID         int                       // the agent's own process at the last turn end (0: unknown)
 	codexPosted     map[string]bool
 	msgEvents       map[string]*event.Event // message id -> event holding tool-less usage
 	caps            adapter.Caps
@@ -203,7 +210,7 @@ func (s *Session) activeAt() time.Time {
 
 func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.Table, caps adapter.Caps) (*Session, error) {
 	if id == "" || id == "." || id == ".." || len(id) > 240 || strings.ContainsAny(id, "/\\\x00\r\n") {
-		return nil, fmt.Errorf("안전하지 않은 세션 ID")
+		return nil, fmt.Errorf("%s", lang.T("안전하지 않은 세션 ID"))
 	}
 	var err error
 	root, err = filepath.Abs(root)
@@ -220,7 +227,7 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 		return nil, err
 	}
 	s := &Session{ID: id, Agent: agent, Root: root, Transcript: transcript, Cfg: cfg, CfgHash: config.Hash(cfg), db: db, prices: prices, caps: caps,
-		byTool: map[string]*event.Event{}, msgEvents: map[string]*event.Event{}, usageTargets: map[string][]*event.Event{}, usageSeen: map[string]event.Usage{}, awaiting: map[string]*event.Event{}, flushed: map[string]bool{}, shell: map[string]bool{}, checks: map[string]CheckResult{}, advised: map[string]bool{}, failedEdits: map[string]ledger.FailedAttempt{}, pendingRule: map[string]string{}, released: map[string]bool{}, heldStops: map[string]bool{}, queue: make(chan *job, 256), workerDone: make(chan struct{}), lastActive: time.Now()}
+		byTool: map[string]*event.Event{}, msgEvents: map[string]*event.Event{}, usageTargets: map[string][]*event.Event{}, usageSeen: map[string]event.Usage{}, awaiting: map[string]*event.Event{}, flushed: map[string]bool{}, shell: map[string]bool{}, checks: map[string]CheckResult{}, advised: map[string]bool{}, failedEdits: map[string]ledger.FailedAttempt{}, pendingRule: map[string]string{}, released: map[string]bool{}, heldStops: map[string]bool{}, queue: make(chan *job, eventQueueSize), workerDone: make(chan struct{}), lastActive: time.Now()}
 	s.applyOverrides()
 	s.parser = claude.NewParser(transcript)
 	s.parser.Session.ID = id
@@ -282,6 +289,7 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 		s.ws.Close()
 		return nil, err
 	}
+	s.refreshLanguage()
 	if err := s.restoreHistory(); err != nil {
 		s.ws.Close()
 		return nil, err
@@ -535,7 +543,7 @@ func (s *Session) observeSafe(ev *event.Event) (sigs []detect.Signal) {
 	defer func() {
 		if r := recover(); r != nil {
 			s.queueRejected.Add(1)
-			fmt.Fprintf(os.Stderr, "samcheonpo: 세션 %s 사건 처리 중 오류: %v\n", s.ID, r)
+			fmt.Fprintf(os.Stderr, lang.T("samcheonpo: 세션 %s 사건 처리 중 오류: %v\n"), s.ID, r)
 			sigs = nil
 		}
 	}()
@@ -606,10 +614,25 @@ func (s *Session) observe(ev *event.Event) []detect.Signal {
 	return sigs
 }
 
+// withLabelHint adds, to the first message a user gets in a session, how to
+// mark the warning wrong.
+func (s *Session) withLabelHint(msg string, v detect.Signal) string {
+	if s.labelHinted {
+		return msg
+	}
+	s.labelHinted = true
+	command := "samcheonpo cmd keep wrong"
+	if s.Agent == "claude" {
+		command = "/samcheonpo:keep wrong"
+	}
+	return fmt.Sprintf(s.pick("%s\n판정 #%d이 틀렸으면 `%s`로 표시할 수 있습니다.", "%s\nIf verdict #%d is wrong, mark it with `%s`."), msg, v.Seq, command)
+}
+
 // deliver turns combined signals into pending agent nudges, user messages,
 // notifications and ledger rows.
 func (s *Session) deliver(sigs []detect.Signal) {
 	for i := range sigs {
+		s.locateMetaLines(&sigs[i])
 		v := sigs[i]
 		if strings.HasPrefix(v.Rule, "s1.") {
 			// Clone before enrichment: engine-owned facts must stay immutable.
@@ -680,7 +703,7 @@ func (s *Session) deliver(sigs []detect.Signal) {
 		case v.Level == detect.L1:
 			m := armMessage(v, intervene.Agent(v, ctx, "fact"), attempt, prescription)
 			if attempt.Route == "user" {
-				s.userMsg = append(s.userMsg, m)
+				s.userMsg = append(s.userMsg, s.withLabelHint(m, v))
 			} else {
 				s.pending = append(s.pending, m)
 				s.pendingRule[m] = s.adviceKey(v)
@@ -696,8 +719,8 @@ func (s *Session) deliver(sigs []detect.Signal) {
 			if attempt.Route == "user" {
 				um = armMessage(v, um, attempt, prescription)
 			}
-			s.userMsg = append(s.userMsg, um)
-			s.notifier.Send("삼천포", firstLine(um))
+			s.userMsg = append(s.userMsg, s.withLabelHint(um, v))
+			s.notifier.Send(s.pick("삼천포", "samcheonpo"), firstLine(um))
 			s.record(v, channel)
 		}
 	}
@@ -756,6 +779,107 @@ func (s *Session) routeFor(v detect.Signal) (route string, escalated bool) {
 // escalationNote explains an escalated block to the agent and the user.
 const escalationNote = "[삼천포] 같은 문제에 대한 권고가 이미 전달됐는데 반복되어 이번에는 막았다. 잘못된 판정이면 사용자가 /samcheonpo:keep normal로 해제할 수 있다."
 
+const escalationNoteEnglish = "[samcheonpo] Advice on this same problem was already delivered and it repeated, so it was blocked this time. If the verdict is wrong, the user can release it with /samcheonpo:keep normal."
+
+// eventQueueSize holds the events of a long stall in the ledger writer: a
+// lost event makes the session's receipt incomplete for good.
+var eventQueueSize = 4096
+
+// pick returns the text for the session's language.
+func (s *Session) pick(ko, en string) string {
+	if s.language() == lang.English {
+		return en
+	}
+	return ko
+}
+
+// language is the language of the session's messages: the configured one, or
+// the one the user last wrote in.
+func (s *Session) language() string {
+	if l, ok := s.lang.Load().(string); ok {
+		return l
+	}
+	if l := s.fixedLanguage(); l != "" {
+		return l
+	}
+	return lang.System()
+}
+
+const maxLocateBytes = 2 << 20
+
+// locateMetaLines adds the file line to each candidate sentence, so the
+// agent can go straight to it. A file that moved on or is too large keeps
+// the candidate without a line.
+func (s *Session) locateMetaLines(v *detect.Signal) {
+	hits, ok := v.Facts["hits"].([]detect.MetaHit)
+	if v.Rule != detect.RuleArtifactMeta || !ok {
+		return
+	}
+	files := map[string][]string{}
+	lineOf := func(path, sentence string) int {
+		lines, seen := files[path]
+		if !seen {
+			full := path
+			if !filepath.IsAbs(full) {
+				full = filepath.Join(s.Root, path)
+			}
+			if st, err := os.Stat(full); err == nil && st.Size() <= maxLocateBytes {
+				if b, err := os.ReadFile(full); err == nil {
+					lines = strings.Split(string(b), "\n")
+				}
+			}
+			files[path] = lines
+		}
+		probe := strings.TrimSuffix(sentence, "…")
+		for i, l := range lines {
+			if strings.Contains(l, probe) {
+				return i + 1
+			}
+		}
+		return 0
+	}
+	facts := make(map[string]any, len(v.Facts))
+	for k, x := range v.Facts {
+		facts[k] = x
+	}
+	facts["candidates"] = detect.MetaCandidates(hits, lineOf)
+	v.Facts = facts
+}
+
+// fixedLanguage is the language named by the environment or the settings.
+func (s *Session) fixedLanguage() string {
+	if l := lang.Fixed(os.Getenv("SAMCHEONPO_LANGUAGE")); l != "" {
+		return l
+	}
+	return lang.Fixed(s.Cfg.Language)
+}
+
+// refreshLanguage records the language of the latest user message that shows
+// one. Called with s.mu held.
+func (s *Session) refreshLanguage() {
+	if s.fixedLanguage() != "" {
+		return
+	}
+	for i := len(s.eng.Requests) - 1; i >= 0; i-- {
+		if l := lang.Detect(s.eng.Requests[i]); l != "" {
+			s.lang.Store(l)
+			return
+		}
+	}
+	if l := lang.Detect(s.eng.FirstPrompt); l != "" {
+		s.lang.Store(l)
+	}
+}
+
+// amountContext carries what is needed to render amounts and messages.
+func (s *Session) amountContext() intervene.Context {
+	c := intervene.Context{Lang: s.language(), Currency: strings.ToUpper(s.Cfg.Currency)}
+	if s.prices != nil {
+		c.USDKRW = s.prices.Rate(time.Now())
+	}
+	return c
+}
+
 func firstLine(s string) string {
 	if i := strings.IndexByte(s, '\n'); i >= 0 {
 		return s[:i]
@@ -765,7 +889,8 @@ func firstLine(s string) string {
 
 func (s *Session) msgContext() intervene.Context {
 	st := s.eng.St
-	c := intervene.Context{IdleMicro: st.TotalMicro - st.ProgressMark, TotalMicro: st.TotalMicro}
+	c := s.amountContext()
+	c.IdleMicro, c.TotalMicro = st.TotalMicro-st.ProgressMark, st.TotalMicro
 	tokens, unpriced, _, idleTokens := s.measuredUsage()
 	c.UsageUnknown = tokens == 0
 	c.UnitTokens = unpriced > 0
@@ -775,6 +900,9 @@ func (s *Session) msgContext() intervene.Context {
 		c.Scope = strings.Join(s.c.Scope.Allow, ", ")
 	} else {
 		c.Goal = s.requestGoal()
+	}
+	if amounts := intent.InferOutput(s.eng.RequestText()).AmountText(); amounts != "" && c.Goal != "" {
+		c.Goal += s.pick(" (요청한 양: ", " (requested amount: ") + intervene.FactText(s.language(), amounts) + ")"
 	}
 	c.Handoff = filepath.Join(contract.Dir(s.Root), "handoff")
 	return c
@@ -787,9 +915,9 @@ func (s *Session) requestGoal() string {
 	if strings.TrimSpace(latest) == "" {
 		return ""
 	}
-	goal := "최신 요청(" + trunc(latest, 60) + ")"
+	goal := s.pick("최신 요청(", "the latest request (") + trunc(latest, 60) + ")"
 	if n := len(s.eng.Requests); n > 0 {
-		goal += fmt.Sprintf(" 외 이전 요청 %d개", n)
+		goal += fmt.Sprintf(s.pick(" 외 이전 요청 %d개", " and %d earlier requests"), n)
 	}
 	return goal
 }
@@ -864,8 +992,8 @@ func (s *Session) persistVerdict(v detect.Signal) {
 // recordStorageError is called with s.mu held; retain the first lost write.
 func (s *Session) recordStorageError(err error) {
 	if err != nil && s.storageErr == nil {
-		s.storageErr = fmt.Errorf("기록 저장 실패: %w", err)
-		s.userMsg = append(s.userMsg, "삼천포 기록 저장에 실패했습니다. 진척과 영수증이 불완전할 수 있습니다.")
+		s.storageErr = fmt.Errorf(lang.T("기록 저장 실패: %w"), err)
+		s.userMsg = append(s.userMsg, s.pick("삼천포 기록 저장에 실패했습니다. 진척과 영수증이 불완전할 수 있습니다.", "samcheonpo could not save its records. Progress and receipts may be incomplete."))
 	}
 }
 
@@ -1014,7 +1142,7 @@ func (s *Session) checkpoint(mid bool) []CheckResult {
 	if s.closed || s.queueRejected.Load() > 0 || revision != s.contractRevision || currentTask != taskID || currentRevision != intentRevision {
 		for i := range res {
 			res[i].Pass = false
-			res[i].Skipped = "검사 중 계약이나 관측 상태가 바뀌어 결과를 적용하지 않았다"
+			res[i].Skipped = lang.T("검사 중 계약이나 관측 상태가 바뀌어 결과를 적용하지 않았다")
 		}
 		return res
 	}
@@ -1047,15 +1175,15 @@ func (s *Session) checkpoint(mid bool) []CheckResult {
 				// shown to the user only; the agent hears about reusable
 				// evidence right before it would run the same check again
 				if r.Evidence != nil {
-					s.userMsg = append(s.userMsg, fmt.Sprintf("삼천포: 완료 조건 `%s`이(가) 통과했습니다(근거 %s). 관련 코드와 환경이 바뀌지 않으면 같은 검사를 다시 돌릴 필요가 없습니다.", r.Command, r.Evidence.ID))
+					s.userMsg = append(s.userMsg, fmt.Sprintf(s.pick("삼천포: 완료 조건 `%s`이(가) 통과했습니다(근거 %s). 관련 코드와 환경이 바뀌지 않으면 같은 검사를 다시 돌릴 필요가 없습니다.", "samcheonpo: completion criterion `%s` passed (evidence %s). The same check does not need to run again unless the related code or environment changes."), r.Command, r.Evidence.ID))
 				} else {
-					s.userMsg = append(s.userMsg, fmt.Sprintf("삼천포: 완료 조건 `%s`이(가) 통과했습니다.", r.Command))
+					s.userMsg = append(s.userMsg, fmt.Sprintf(s.pick("삼천포: 완료 조건 `%s`이(가) 통과했습니다.", "samcheonpo: completion criterion `%s` passed."), r.Command))
 				}
 			}
 		}
 	}
 	ev := &event.Event{Kind: event.KindTool, Tool: "checkpoint", RawTool: "samcheonpo.checkpoint", TS: time.Now(), Category: event.CatWatch, Basis: "live",
-		Summary: fmt.Sprintf("checkpoint %d/%d (재사용 %d)", met, total, reused), Priced: true}
+		Summary: fmt.Sprintf(lang.T("checkpoint %d/%d (재사용 %d)"), met, total, reused), Priced: true}
 	s.parser.AddEvent(ev)
 	s.eng.ObserveWatch(ev)
 	s.persistEvent(ev)
@@ -1103,21 +1231,21 @@ func (s *Session) Statusline() string {
 func (s *Session) stateLabel(met, total int) string {
 	st := s.eng.St
 	if s.queueRejected.Load() > 0 || s.storageErr != nil || s.preLate.Load() > 0 {
-		return "확인 불가"
+		return s.pick("확인 불가", "unknown")
 	}
 	if s.unresolved != nil {
-		return "지금 끼어드세요"
+		return s.pick("지금 끼어드세요", "step in now")
 	}
 	if p := s.lastPrimary; p != nil && p.Seq > st.LastProgress {
 		if p.Level >= detect.L2 {
-			return "지금 끼어드세요"
+			return s.pick("지금 끼어드세요", "step in now")
 		}
-		return "지켜보는 중"
+		return s.pick("지켜보는 중", "watching")
 	}
 	if met > 0 || (total == 0 && len(st.ProgressSeqs) > 0) {
-		return "순조로움"
+		return s.pick("순조로움", "on track")
 	}
-	return "지켜보는 중"
+	return s.pick("지켜보는 중", "watching")
 }
 
 // measuredUsage is called under s.mu and never mistakes unobserved usage for
@@ -1248,7 +1376,7 @@ func (s *Session) saveSnapshot() error {
 // session its receipt.
 func (s *Session) storeSnapshot() {
 	if err := s.saveSnapshot(); err != nil {
-		fmt.Fprintf(os.Stderr, "samcheonpo: 세션 %s 분석 스냅샷 저장 실패: %v\n", s.ID, err)
+		fmt.Fprintf(os.Stderr, lang.T("samcheonpo: 세션 %s 분석 스냅샷 저장 실패: %v\n"), s.ID, err)
 	}
 }
 
@@ -1283,7 +1411,7 @@ func (s *Session) finalize(reason string) (string, error) {
 			s.judgeCancel()
 		}
 		s.judgeBudget.Settle(0, false)
-		s.judgeBudgetReason = "판정 중 세션 종료: 비용 미확인, 추가 호출 중단"
+		s.judgeBudgetReason = lang.T("판정 중 세션 종료: 비용 미확인, 추가 호출 중단")
 		s.recordStorageError(s.saveJudgeBudget())
 	}
 	s.mu.Unlock()
@@ -1318,10 +1446,10 @@ func (s *Session) finalize(reason string) (string, error) {
 	if n := s.queueRejected.Load(); n > 0 {
 		if s.db != nil {
 			if err := s.db.SaveObservationGap(s.Agent, s.ID, n); err != nil {
-				return "", fmt.Errorf("관측 누락 기록 저장 실패: %w", err)
+				return "", fmt.Errorf(lang.T("관측 누락 기록 저장 실패: %w"), err)
 			}
 		}
-		return "", fmt.Errorf("관측 큐 포화로 %d건을 처리하지 못해 완전한 영수증을 발행할 수 없습니다", n)
+		return "", fmt.Errorf(lang.T("관측 큐 포화로 %d건을 처리하지 못해 완전한 영수증을 발행할 수 없습니다"), n)
 	}
 	sess := s.parser.Session
 	sess.ObservationClosedAt = time.Now()
@@ -1345,7 +1473,7 @@ func (s *Session) finalize(reason string) (string, error) {
 	billing := cost.ObserveSession(sess, s.prices.Version)
 	if s.judgeBudget.Unknown {
 		billing.UsageComplete = false
-		billing.Missing = append(billing.Missing, "감시 판정 비용 미확인: 예약을 실제 지출이나 무료로 확정하지 않는다")
+		billing.Missing = append(billing.Missing, lang.T("감시 판정 비용 미확인: 예약을 실제 지출이나 무료로 확정하지 않는다"))
 	}
 	rc := receipt.Build(receipt.Input{Title: receipt.SessionTitle(sess.StartedAt, s.ID, s.Agent), Agent: s.Agent, Totals: res.Totals, Grade: res.Grade,
 		Verdicts: res.Verdicts, Seal: &sl, Criteria: [2]int{res.Criteria.Met, res.Criteria.Total}, Billing: billing, Recoveries: s.recoveries,
@@ -1372,29 +1500,29 @@ func (s *Session) handoffDoc(reason string) string {
 	}
 	st := s.eng.St
 	var b strings.Builder
-	fmt.Fprintf(&b, "# 인수인계 %s\n\n", time.Now().Format("2006-01-02 15:04"))
-	fmt.Fprintf(&b, "사유: %s\n\n", reason)
+	fmt.Fprintf(&b, s.pick("# 인수인계 %s\n\n", "# Handoff %s\n\n"), time.Now().Format("2006-01-02 15:04"))
+	fmt.Fprintf(&b, s.pick("사유: %s\n\n", "Reason: %s\n\n"), reason)
 	if s.c != nil {
-		fmt.Fprintf(&b, "## 계약\n\n- 목표: %s\n", s.c.Goal)
+		fmt.Fprintf(&b, s.pick("## 계약\n\n- 목표: %s\n", "## Contract\n\n- Goal: %s\n"), s.c.Goal)
 		for _, d := range s.c.Done {
-			state := "미확인"
+			state := s.pick("미확인", "unconfirmed")
 			if r, ok := s.checks[d.ID]; ok {
 				if r.Pass {
-					state = "충족"
+					state = s.pick("충족", "met")
 				} else {
-					state = "실패"
+					state = s.pick("실패", "failed")
 				}
 			}
 			if d.Check != "" {
-				fmt.Fprintf(&b, "- 완료 조건 `%s`: %s\n", d.Check, state)
+				fmt.Fprintf(&b, s.pick("- 완료 조건 `%s`: %s\n", "- Completion criterion `%s`: %s\n"), d.Check, state)
 			} else {
-				fmt.Fprintf(&b, "- 완료 조건 (사람 확인) %s\n", d.Manual)
+				fmt.Fprintf(&b, s.pick("- 완료 조건 (사람 확인) %s\n", "- Completion criterion (manual) %s\n"), d.Manual)
 			}
 		}
 	} else if s.firstPrompt != "" {
-		fmt.Fprintf(&b, "## 요청\n\n%s\n", trunc(s.firstPrompt, 400))
+		fmt.Fprintf(&b, s.pick("## 요청\n\n%s\n", "## Request\n\n%s\n"), trunc(s.firstPrompt, 400))
 	}
-	b.WriteString("\n## 진척 원장 요약\n\n")
+	b.WriteString(s.pick("\n## 진척 원장 요약\n\n", "\n## Progress ledger summary\n\n"))
 	files := map[string]bool{}
 	for _, ev := range st.Events {
 		if ev.Category == event.CatProduce {
@@ -1408,23 +1536,23 @@ func (s *Session) handoffDoc(reason string) string {
 		fl = append(fl, f)
 	}
 	sort.Strings(fl)
-	fmt.Fprintf(&b, "- 바꾼 파일: %s\n", strings.Join(fl, ", "))
-	fmt.Fprintf(&b, "- 지출: %s원, 마지막 진척 이후 %s원\n", contract.Comma(cost.Won(st.TotalMicro)), contract.Comma(cost.Won(st.TotalMicro-st.ProgressMark)))
-	b.WriteString("\n## 막힌 문제\n\n")
+	fmt.Fprintf(&b, s.pick("- 바꾼 파일: %s\n", "- Changed files: %s\n"), strings.Join(fl, ", "))
+	fmt.Fprintf(&b, s.pick("- 지출: %s, 마지막 진척 이후 %s\n", "- Spend: %s, %s since the last progress\n"), s.amountContext().Amount(cost.Won(st.TotalMicro)), s.amountContext().Amount(cost.Won(st.TotalMicro-st.ProgressMark)))
+	b.WriteString(s.pick("\n## 막힌 문제\n\n", "\n## Blockers\n\n"))
 	for _, v := range s.eng.Verdicts {
 		if v.Primary && v.Level >= detect.L1 {
 			fmt.Fprintf(&b, "- %s\n", receipt.Describe(v))
 		}
 	}
 	if st.LastVerifyFailing() {
-		b.WriteString("- 마지막 검증이 실패한 상태다\n")
+		b.WriteString(s.pick("- 마지막 검증이 실패한 상태다\n", "- The last verification is failing\n"))
 	}
-	b.WriteString("\n## 다음 세션 첫 지시문\n\n")
+	b.WriteString(s.pick("\n## 다음 세션 첫 지시문\n\n", "\n## First instruction for the next session\n\n"))
 	goal := s.eng.RequestText()
 	if s.c != nil {
 		goal = s.c.Goal
 	}
-	fmt.Fprintf(&b, "이전 세션의 인수인계 문서(이 파일)를 읽고 이어서 진행한다. 목표: %s. 위 '막힌 문제'에 적힌 접근은 이미 시도되었다.\n", trunc(goal, 300))
+	fmt.Fprintf(&b, s.pick("이전 세션의 인수인계 문서(이 파일)를 읽고 이어서 진행한다. 목표: %s. 위 '막힌 문제'에 적힌 접근은 이미 시도되었다.\n", "Read the previous session's handoff document (this file) and continue. Goal: %s. The approaches under 'Blockers' above have already been tried.\n"), trunc(goal, 300))
 	p := filepath.Join(dir, time.Now().Format("20060102-150405")+".md")
 	if err := os.WriteFile(p, []byte(b.String()), 0o644); err != nil {
 		return ""
@@ -1548,7 +1676,7 @@ func (s *Session) runJudge() {
 		return
 	}
 	if cfg.MaxWatchCostRatio <= 0 || cfg.MaxWatchCostRatio > 1 || math.IsNaN(cfg.MaxWatchCostRatio) || cfg.MaxWatchKRW <= 0 || cfg.MaxWatchKRW > 1000000 || cfg.JudgeTimeoutSec <= 0 || cfg.JudgeTimeoutSec > 60 || cfg.MaxJudgeInputBytes <= 0 || cfg.MaxJudgeInputBytes > 65536 {
-		s.judgeBudgetReason = "판정 예산 설정이 유효하지 않아 호출하지 않았다"
+		s.judgeBudgetReason = lang.T("판정 예산 설정이 유효하지 않아 호출하지 않았다")
 		s.mu.Unlock()
 		return
 	}
@@ -1573,7 +1701,7 @@ func (s *Session) runJudge() {
 	revision := s.contractRevision
 	inputBytes := len(in.Goal)
 	if inputBytes > cfg.MaxJudgeInputBytes {
-		s.judgeBudgetReason = "판정 입력 크기 상한을 넘어 호출하지 않았다"
+		s.judgeBudgetReason = lang.T("판정 입력 크기 상한을 넘어 호출하지 않았다")
 		s.mu.Unlock()
 		return
 	}
@@ -1593,7 +1721,7 @@ func (s *Session) runJudge() {
 				continue
 			}
 			if len(summary) > cfg.MaxJudgeInputBytes-inputBytes {
-				s.judgeBudgetReason = "판정 입력 크기 상한을 넘어 호출하지 않았다"
+				s.judgeBudgetReason = lang.T("판정 입력 크기 상한을 넘어 호출하지 않았다")
 				s.mu.Unlock()
 				return
 			}
@@ -1604,7 +1732,7 @@ func (s *Session) runJudge() {
 	}
 	prompt := judge.Prompt(in)
 	if len(prompt) > cfg.MaxJudgeInputBytes {
-		s.judgeBudgetReason = "판정 입력 크기 상한을 넘어 호출하지 않았다"
+		s.judgeBudgetReason = lang.T("판정 입력 크기 상한을 넘어 호출하지 않았다")
 		s.mu.Unlock()
 		return
 	}
@@ -1613,7 +1741,7 @@ func (s *Session) runJudge() {
 	model := judge.EffectiveModel(cfg.Judge.Provider, cfg.Judge.Model)
 	estimate, priced := s.prices.MicroKRW(event.Usage{In: int64(len(prompt) + 4096), Out: 256, Model: model}, time.Now())
 	if !priced {
-		s.judgeBudgetReason = "판정 모델 단가가 미확인이라 호출하지 않았다"
+		s.judgeBudgetReason = lang.T("판정 모델 단가가 미확인이라 호출하지 않았다")
 		s.mu.Unlock()
 		return
 	}
@@ -1630,7 +1758,7 @@ func (s *Session) runJudge() {
 	if err := s.saveJudgeBudget(); err != nil {
 		s.recordStorageError(err)
 		s.judgeBudget.Settle(0, false)
-		s.judgeBudgetReason = "판정 예산 예약 저장 실패: 호출하지 않았다"
+		s.judgeBudgetReason = lang.T("판정 예산 예약 저장 실패: 호출하지 않았다")
 		s.mu.Unlock()
 		return
 	}
@@ -1656,10 +1784,10 @@ func (s *Session) runJudge() {
 	s.judgeBudget.Settle(actual, known)
 	s.recordStorageError(s.saveJudgeBudget())
 	if !known {
-		s.judgeBudgetReason = "판정 실패 또는 사용량 누락: 비용 미확인, 추가 호출 중단"
+		s.judgeBudgetReason = lang.T("판정 실패 또는 사용량 누락: 비용 미확인, 추가 호출 중단")
 	}
 	if s.judgeBudget.Overrun {
-		s.judgeBudgetReason = "계측된 판정 비용이 예약액을 넘어 추가 호출을 중단했다"
+		s.judgeBudgetReason = lang.T("계측된 판정 비용이 예약액을 넘어 추가 호출을 중단했다")
 	}
 	ev := &event.Event{Kind: event.KindTool, Tool: "judge", RawTool: "samcheonpo.judge", TS: time.Now(), Category: event.CatWatch, Basis: "live",
 		Usage: v.Usage, Summary: "drift judge: " + v.Label}

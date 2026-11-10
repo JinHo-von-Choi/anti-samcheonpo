@@ -9,6 +9,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io"
 	"io/fs"
 	"net"
@@ -82,12 +83,12 @@ type Detail struct {
 
 func New(opts Options) (*Server, error) {
 	if !opts.Demo && (opts.DBPath == "" || len(opts.AccessCode) < 32) {
-		return nil, errors.New("원장 경로와 접근 코드가 필요하다")
+		return nil, errors.New(lang.T("원장 경로와 접근 코드가 필요하다"))
 	}
 	s := &Server{Options: opts}
 	if opts.ReviewQueuePath != "" {
 		if opts.Demo {
-			return nil, errors.New("데모에는 실제 검토 큐를 연결할 수 없다")
+			return nil, errors.New(lang.T("데모에는 실제 검토 큐를 연결할 수 없다"))
 		}
 		q, err := eval.LoadReviewQueue(opts.ReviewQueuePath)
 		if err != nil {
@@ -110,7 +111,7 @@ func New(opts Options) (*Server, error) {
 			host, _, err := net.SplitHostPort(r.Host)
 			ip := net.ParseIP(host)
 			if err != nil || host != "localhost" && (ip == nil || !ip.IsLoopback()) {
-				http.Error(w, "허용되지 않는 호스트", http.StatusForbidden)
+				http.Error(w, lang.T("허용되지 않는 호스트"), http.StatusForbidden)
 				return
 			}
 		}
@@ -118,13 +119,13 @@ func New(opts Options) (*Server, error) {
 		w.Header().Set("X-Content-Type-Options", "nosniff")
 		w.Header().Set("Content-Security-Policy", "default-src 'self'; script-src 'self'; style-src 'self'; connect-src 'self'; object-src 'none'; frame-ancestors 'none'; base-uri 'none'")
 		if r.Method == http.MethodPost && (r.Header.Get("Content-Type") != "application/json" || r.Header.Get("Origin") != "http://"+r.Host && r.Header.Get("Origin") != "https://"+r.Host) {
-			http.Error(w, "같은 화면에서 JSON 요청으로 실행해 주세요", http.StatusForbidden)
+			http.Error(w, lang.T("같은 화면에서 JSON 요청으로 실행해 주세요"), http.StatusForbidden)
 			return
 		}
 		if strings.HasPrefix(r.URL.Path, "/api/") && r.URL.Path != "/api/info" && r.URL.Path != "/api/login" && !s.Demo {
 			cookie, err := r.Cookie("samcheonpo_access")
 			if err != nil || subtle.ConstantTimeCompare([]byte(cookie.Value), []byte(s.AccessCode)) != 1 {
-				http.Error(w, "접근 코드 확인 필요", http.StatusUnauthorized)
+				http.Error(w, lang.T("접근 코드 확인 필요"), http.StatusUnauthorized)
 				return
 			}
 		}
@@ -141,7 +142,7 @@ func writeJSON(w http.ResponseWriter, value any) {
 }
 func readJSON(w http.ResponseWriter, r *http.Request, value any) error {
 	if r.Method != http.MethodPost {
-		return errors.New("POST 요청 필요")
+		return errors.New(lang.T("POST 요청 필요"))
 	}
 	d := json.NewDecoder(http.MaxBytesReader(w, r.Body, 16384))
 	d.DisallowUnknownFields()
@@ -150,7 +151,7 @@ func readJSON(w http.ResponseWriter, r *http.Request, value any) error {
 	}
 	var extra any
 	if err := d.Decode(&extra); err != io.EOF {
-		return errors.New("중복 JSON")
+		return errors.New(lang.T("중복 JSON"))
 	}
 	return nil
 }
@@ -164,7 +165,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !s.Demo && subtle.ConstantTimeCompare([]byte(in.Code), []byte(s.AccessCode)) != 1 {
-		http.Error(w, "접근 코드가 맞지 않습니다", http.StatusUnauthorized)
+		http.Error(w, lang.T("접근 코드가 맞지 않습니다"), http.StatusUnauthorized)
 		return
 	}
 	http.SetCookie(w, &http.Cookie{Name: "samcheonpo_access", Value: s.AccessCode, Path: "/", HttpOnly: true, SameSite: http.SameSiteStrictMode, Secure: r.TLS != nil, MaxAge: 8 * 60 * 60})
@@ -172,7 +173,7 @@ func (s *Server) login(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) sessions(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "GET 요청 필요", 405)
+		http.Error(w, lang.T("GET 요청 필요"), 405)
 		return
 	}
 	if s.Demo {
@@ -288,7 +289,7 @@ func (s *Server) load(id string, review bool) (Detail, []*event.Event, error) {
 }
 func (s *Server) detail(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "GET 요청 필요", 405)
+		http.Error(w, lang.T("GET 요청 필요"), 405)
 		return
 	}
 	review := r.URL.Query().Get("review") == "1"
@@ -301,7 +302,7 @@ func (s *Server) detail(w http.ResponseWriter, r *http.Request) {
 	if value := r.URL.Query().Get("page"); value != "" {
 		page, err = strconv.Atoi(value)
 		if err != nil || page < 0 || page > 1000000 {
-			fail(w, errors.New("페이지 확인 필요"))
+			fail(w, errors.New(lang.T("페이지 확인 필요")))
 			return
 		}
 	}
@@ -341,7 +342,7 @@ var labelerPattern = regexp.MustCompile(`^[\p{L}\p{N}_-]{1,64}$`)
 
 func (s *Server) label(w http.ResponseWriter, r *http.Request) {
 	if s.Demo {
-		http.Error(w, "데모는 저장하지 않습니다", http.StatusForbidden)
+		http.Error(w, lang.T("데모는 저장하지 않습니다"), http.StatusForbidden)
 		return
 	}
 	var in struct {
@@ -360,15 +361,15 @@ func (s *Server) label(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if !labelerPattern.MatchString(in.Labeler) || in.Start < 0 || in.End < in.Start || len(in.Note) > 2000 {
-		fail(w, errors.New("라벨러·구간·메모 확인 필요"))
+		fail(w, errors.New(lang.T("라벨러·구간·메모 확인 필요")))
 		return
 	}
 	if in.Symptom != "none" && (len(in.Symptom) != 2 || in.Symptom[0] != 'S' || in.Symptom[1] < '1' || in.Symptom[1] > '8') {
-		fail(w, errors.New("증상은 S1~S8 또는 none"))
+		fail(w, errors.New(lang.T("증상은 S1~S8 또는 none")))
 		return
 	}
 	if in.Justified != "yes" && in.Justified != "no" && in.Justified != "unsure" || in.Outcome != "resolved" && in.Outcome != "unresolved" && in.Outcome != "unknown" {
-		fail(w, errors.New("타당성·결과 값 확인 필요"))
+		fail(w, errors.New(lang.T("타당성·결과 값 확인 필요")))
 		return
 	}
 	d, events, err := s.load(in.Session, true)
@@ -382,12 +383,12 @@ func (s *Server) label(w http.ResponseWriter, r *http.Request) {
 		last = last || e.Seq == in.End
 	}
 	if !first || !last {
-		fail(w, errors.New("관측에 없는 구간"))
+		fail(w, errors.New(lang.T("관측에 없는 구간")))
 		return
 	}
 	if in.QueueDigest != "" {
 		if s.queue == nil {
-			fail(w, errors.New("연결된 고정 검토 큐가 없다"))
+			fail(w, errors.New(lang.T("연결된 고정 검토 큐가 없다")))
 			return
 		}
 		matched := false
@@ -408,7 +409,7 @@ func (s *Server) label(w http.ResponseWriter, r *http.Request) {
 					}
 					sha, e := eval.NativeSourceDigest(source)
 					if e != nil || sha != item.NativeSourceSHA256 {
-						fail(w, errors.New("고정된 원본 자료가 변경되었거나 접근할 수 없음"))
+						fail(w, errors.New(lang.T("고정된 원본 자료가 변경되었거나 접근할 수 없음")))
 						return
 					}
 				}
@@ -417,7 +418,7 @@ func (s *Server) label(w http.ResponseWriter, r *http.Request) {
 			}
 		}
 		if in.QueueDigest != s.queue.Digest || !matched {
-			fail(w, errors.New("고정된 검토 구간 또는 원장이 변경됨"))
+			fail(w, errors.New(lang.T("고정된 검토 구간 또는 원장이 변경됨")))
 			return
 		}
 	}
@@ -444,7 +445,7 @@ func (s *Server) label(w http.ResponseWriter, r *http.Request) {
 	if all, err := eval.LoadLabels(s.LabelsDir); err == nil {
 		for _, old := range all {
 			if old.Meta == nil && old.Session == in.Session && old.Labeler == in.Labeler && old.Start == in.Start && old.End == in.End {
-				fail(w, errors.New("이 검토자는 같은 구간을 이미 제출했습니다"))
+				fail(w, errors.New(lang.T("이 검토자는 같은 구간을 이미 제출했습니다")))
 				return
 			}
 		}
@@ -466,11 +467,11 @@ func (s *Server) label(w http.ResponseWriter, r *http.Request) {
 				continue
 			}
 			if json.Unmarshal([]byte(line), &old) != nil {
-				fail(w, errors.New("기존 라벨 파일을 확인할 수 없다"))
+				fail(w, errors.New(lang.T("기존 라벨 파일을 확인할 수 없다")))
 				return
 			}
 			if old.Meta == nil && old.Start == in.Start && old.End == in.End {
-				fail(w, errors.New("이 검토자는 같은 구간을 이미 제출했습니다"))
+				fail(w, errors.New(lang.T("이 검토자는 같은 구간을 이미 제출했습니다")))
 				return
 			}
 		}
@@ -493,7 +494,7 @@ func (s *Server) label(w http.ResponseWriter, r *http.Request) {
 }
 func (s *Server) command(w http.ResponseWriter, r *http.Request) {
 	if s.Demo {
-		http.Error(w, "데모는 실행하지 않습니다", 403)
+		http.Error(w, lang.T("데모는 실행하지 않습니다"), 403)
 		return
 	}
 	var in struct {
@@ -506,11 +507,11 @@ func (s *Server) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if in.Name != "keep" && in.Name != "steer" && in.Name != "summary" {
-		fail(w, errors.New("지원하지 않는 화면 동작"))
+		fail(w, errors.New(lang.T("지원하지 않는 화면 동작")))
 		return
 	}
 	if in.Name == "keep" && in.Arg != "now" && in.Arg != "normal" || in.Name == "steer" && (strings.TrimSpace(in.Arg) == "" || len(in.Arg) > 4096) {
-		fail(w, errors.New("동작 인자 확인 필요"))
+		fail(w, errors.New(lang.T("동작 인자 확인 필요")))
 		return
 	}
 	if _, _, err := s.load(in.Session, true); err != nil {
@@ -518,16 +519,16 @@ func (s *Server) command(w http.ResponseWriter, r *http.Request) {
 		return
 	}
 	if s.Command == nil {
-		fail(w, errors.New("실행 중 데몬 연결 없음"))
+		fail(w, errors.New(lang.T("실행 중 데몬 연결 없음")))
 		return
 	}
 	if s.HUD == nil {
-		fail(w, errors.New("대상 실행 세션 확인 불가"))
+		fail(w, errors.New(lang.T("대상 실행 세션 확인 불가")))
 		return
 	}
 	h, err := s.HUD(in.Session)
 	if err != nil || h == nil || h.SessionID != in.Session {
-		fail(w, errors.New("대상 실행 세션 확인 불가; 다른 세션에는 명령을 전달하지 않습니다"))
+		fail(w, errors.New(lang.T("대상 실행 세션 확인 불가; 다른 세션에는 명령을 전달하지 않습니다")))
 		return
 	}
 	message, err := s.Command(in.Session, in.Name, in.Arg)
@@ -548,7 +549,7 @@ func AccessCode(path string) (string, error) {
 	}
 	f, err := os.OpenFile(path, os.O_CREATE|os.O_EXCL|os.O_WRONLY, 0600)
 	if err != nil {
-		return "", fmt.Errorf("새 접근 코드 파일 경로가 필요합니다: %w", err)
+		return "", fmt.Errorf(lang.T("새 접근 코드 파일 경로가 필요합니다: %w"), err)
 	}
 	if err := procgroup.MakeFilePrivate(path); err != nil {
 		f.Close()

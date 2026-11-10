@@ -3,6 +3,7 @@ package cli
 import (
 	"bufio"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io"
 	"strings"
 	"time"
@@ -28,11 +29,11 @@ func reviewCmd() *cobra.Command {
 	var limit int
 	c := &cobra.Command{
 		Use:   "review",
-		Short: "전달된 경고를 하나씩 보여 주고 맞음·오탐·모름 판정을 기록",
+		Short: lang.T("전달된 경고를 하나씩 보여 주고 맞음·오탐·모름 판정을 기록"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if limit < 1 {
-				return fmt.Errorf("--limit은 1 이상이어야 합니다")
+				return fmt.Errorf("%s", lang.T("--limit은 1 이상이어야 합니다"))
 			}
 			from, err := ParseSince(since, time.Now())
 			if err != nil {
@@ -52,7 +53,7 @@ func reviewCmd() *cobra.Command {
 			rows = spreadRules(rows, limit)
 			out := cmd.OutOrStdout()
 			if len(rows) == 0 {
-				fmt.Fprintln(out, "판정할 경고가 없습니다.")
+				fmt.Fprintln(out, lang.T("판정할 경고가 없습니다."))
 				return nil
 			}
 			in := bufio.NewScanner(cmd.InOrStdin())
@@ -62,10 +63,10 @@ func reviewCmd() *cobra.Command {
 				if len(sid) > 12 {
 					sid = sid[:12]
 				}
-				fmt.Fprintf(out, "\n[%d/%d] %s  %s  %s  세션 %s\n  %s\n", i+1, len(rows), r.EmittedAt, r.Agent, r.Verdict.Rule, sid, receipt.Describe(r.Verdict))
+				fmt.Fprintf(out, lang.T("\n[%d/%d] %s  %s  %s  세션 %s\n  %s\n"), i+1, len(rows), r.EmittedAt, r.Agent, r.Verdict.Rule, sid, receipt.Describe(r.Verdict))
 				label := ""
 				for label == "" {
-					fmt.Fprint(out, "  맞음(y) / 오탐(n) / 모름(s) / 건너뛰기(Enter) / 끝내기(q): ")
+					fmt.Fprint(out, lang.T("  맞음(y) / 오탐(n) / 모름(s) / 건너뛰기(Enter) / 끝내기(q): "))
 					if !in.Scan() {
 						return finishReview(out, counts, in.Err())
 					}
@@ -90,8 +91,8 @@ func reviewCmd() *cobra.Command {
 			return finishReview(out, counts, nil)
 		},
 	}
-	c.Flags().StringVar(&since, "since", "7d", "이 기간 안에 전달된 경고만 (예: 7d, 30d)")
-	c.Flags().IntVar(&limit, "limit", 5, "한 번에 보여 줄 최대 건수 (규칙마다 돌아가며 고른다)")
+	c.Flags().StringVar(&since, "since", "7d", lang.T("이 기간 안에 전달된 경고만 (예: 7d, 30d)"))
+	c.Flags().IntVar(&limit, "limit", 5, lang.T("한 번에 보여 줄 최대 건수 (규칙마다 돌아가며 고른다)"))
 	return c
 }
 
@@ -131,6 +132,6 @@ func spreadRules(rows []ledger.ReviewRow, limit int) []ledger.ReviewRow {
 }
 
 func finishReview(out io.Writer, counts map[string]int, err error) error {
-	fmt.Fprintf(out, "\n기록: 맞음 %d, 오탐 %d, 모름 %d\n", counts[ledger.LabelTruePositive], counts[ledger.LabelFalsePositive], counts["unsure"])
+	fmt.Fprintf(out, lang.T("\n기록: 맞음 %d, 오탐 %d, 모름 %d\n"), counts[ledger.LabelTruePositive], counts[ledger.LabelFalsePositive], counts["unsure"])
 	return err
 }

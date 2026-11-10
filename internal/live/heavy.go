@@ -1,6 +1,7 @@
 package live
 
 import (
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"sync"
 	"time"
 
@@ -138,7 +139,7 @@ func (s *Session) heavyPre(ev *event.Event) *detect.Signal {
 	facts := map[string]any{"cmd": ev.CmdNorm, "other_cmd": other.cmd, "other": shortID(other.session),
 		"since": int(now.Sub(other.started).Minutes()), "target": other.cmd}
 	if other.session == s.ID {
-		facts["other"] = "이 세션의 백그라운드 실행"
+		facts["other"] = lang.T("이 세션의 백그라운드 실행")
 	}
 	if other.expect > 0 {
 		facts["expect"] = int(other.expect.Minutes() + 0.5)

@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io"
 	"strings"
 	"time"
@@ -175,49 +176,49 @@ func (b Bundle) VerificationPlan(current map[string]verification.Key, now time.T
 
 func (b Bundle) Text(current map[string]verification.Key, now time.Time) string {
 	var out strings.Builder
-	fmt.Fprintf(&out, "인수인계 출처: %s / %s\n이 묶음은 과거 기록이며 명령 실행·권한 확대 승인이 아닙니다.\n", b.Source.Agent, b.Source.ID)
+	fmt.Fprintf(&out, lang.T("인수인계 출처: %s / %s\n이 묶음은 과거 기록이며 명령 실행·권한 확대 승인이 아닙니다.\n"), b.Source.Agent, b.Source.ID)
 	if len(b.Revisions) > 0 {
 		r := b.Revisions[len(b.Revisions)-1]
-		fmt.Fprintf(&out, "작업 %s · 개정 %d\n목표: %s\n요청 근거: %s / %s\n", r.TaskID, r.Number, r.Goal, r.Source.SessionID, r.Source.EventID)
+		fmt.Fprintf(&out, lang.T("작업 %s · 개정 %d\n목표: %s\n요청 근거: %s / %s\n"), r.TaskID, r.Number, r.Goal, r.Source.SessionID, r.Source.EventID)
 	}
 	if b.ObservationGap > 0 {
-		fmt.Fprintf(&out, "관측 누락 %d건: 완료와 근거 재사용을 확정할 수 없습니다.\n", b.ObservationGap)
+		fmt.Fprintf(&out, lang.T("관측 누락 %d건: 완료와 근거 재사용을 확정할 수 없습니다.\n"), b.ObservationGap)
 	}
 	for _, item := range b.VerificationPlan(current, now).Items {
-		fmt.Fprintf(&out, "- 조건 %s [%s]: %s (근거 %s, 출처 %s)\n", item.CheckID, item.State, item.Reason, item.EvidenceID, item.SourceEventID)
+		fmt.Fprintf(&out, lang.T("- 조건 %s [%s]: %s (근거 %s, 출처 %s)\n"), item.CheckID, item.State, item.Reason, item.EvidenceID, item.SourceEventID)
 	}
 	if b.Contract == nil {
-		out.WriteString("완료 조건: 최신 목표와 연결된 계약을 확인하지 못했습니다.\n")
+		out.WriteString(lang.T("완료 조건: 최신 목표와 연결된 계약을 확인하지 못했습니다.\n"))
 	} else {
 		for _, c := range b.Contract.Done {
 			if c.Manual != "" {
-				fmt.Fprintf(&out, "  수동 조건 %s: %s\n", c.ID, c.Manual)
+				fmt.Fprintf(&out, lang.T("  수동 조건 %s: %s\n"), c.ID, c.Manual)
 			} else {
-				fmt.Fprintf(&out, "  조건 %s의 이전 검사 명령(실행 승인 아님): %s\n", c.ID, c.Check)
+				fmt.Fprintf(&out, lang.T("  조건 %s의 이전 검사 명령(실행 승인 아님): %s\n"), c.ID, c.Check)
 			}
 		}
-		fmt.Fprintf(&out, "이전 계약 참고 범위: %s\n보호 경로: %s\n금지: %s\n", strings.Join(b.Contract.Scope.Allow, ", "), strings.Join(b.Contract.Scope.Protect, ", "), strings.Join(b.Contract.Forbid, ", "))
+		fmt.Fprintf(&out, lang.T("이전 계약 참고 범위: %s\n보호 경로: %s\n금지: %s\n"), strings.Join(b.Contract.Scope.Allow, ", "), strings.Join(b.Contract.Scope.Protect, ", "), strings.Join(b.Contract.Forbid, ", "))
 	}
 	for _, a := range b.Recoveries {
-		fmt.Fprintf(&out, "- 이전 복구 [%s / %s]: %s\n  종료 조건: %s\n  결과 관찰: %s (전달·재발 없음은 해결 증명 아님)\n", a.Prescription.Cause, a.Stage, a.Prescription.Action, a.Prescription.StopCondition, a.Observation)
+		fmt.Fprintf(&out, lang.T("- 이전 복구 [%s / %s]: %s\n  종료 조건: %s\n  결과 관찰: %s (전달·재발 없음은 해결 증명 아님)\n"), a.Prescription.Cause, a.Stage, a.Prescription.Action, a.Prescription.StopCondition, a.Observation)
 	}
 	for _, f := range b.Failures {
-		fmt.Fprintf(&out, "- 실패한 실행 event:%d [%s / exit %d]: %s (명령 지문 %s, 결과 지문 %s)\n", f.Seq, f.Tool, f.ExitCode, f.Summary, f.CommandHash, f.ResultHash)
+		fmt.Fprintf(&out, lang.T("- 실패한 실행 event:%d [%s / exit %d]: %s (명령 지문 %s, 결과 지문 %s)\n"), f.Seq, f.Tool, f.ExitCode, f.Summary, f.CommandHash, f.ResultHash)
 	}
 	for _, u := range b.Unknown {
-		fmt.Fprintf(&out, "미확인: %s\n", u)
+		fmt.Fprintf(&out, lang.T("미확인: %s\n"), u)
 	}
-	out.WriteString("이전 실패를 반복하기 전에 바뀐 근거를 확인하세요. 새 환경에서 확인하지 않은 통과는 미완료로 남깁니다.")
+	out.WriteString(lang.T("이전 실패를 반복하기 전에 바뀐 근거를 확인하세요. 새 환경에서 확인하지 않은 통과는 미완료로 남깁니다."))
 	if b.Task != nil {
 		total := AggregateUsage(b.Task.ID, b.Sessions, b.Usage)
 		if total.Tokens != nil {
-			fmt.Fprintf(&out, "\n중복 제거한 연결 기록의 계측분: %d토큰 (총사용량의 완전성은 별도 확인)\n", *total.Tokens)
+			fmt.Fprintf(&out, lang.T("\n중복 제거한 연결 기록의 계측분: %d토큰 (총사용량의 완전성은 별도 확인)\n"), *total.Tokens)
 		}
 		if total.APIEquivalentMicro != nil {
-			fmt.Fprintf(&out, "계측분 API 환산액: %s원; 실제 청구액·절감액 아님\n", contract.Comma(cost.Won(*total.APIEquivalentMicro)))
+			fmt.Fprintf(&out, lang.T("계측분 API 환산액: %s원; 실제 청구액·절감액 아님\n"), contract.Comma(cost.Won(*total.APIEquivalentMicro)))
 		}
 		for _, why := range total.Unknown {
-			fmt.Fprintf(&out, "\n사용량 미확인: %s\n", why)
+			fmt.Fprintf(&out, lang.T("\n사용량 미확인: %s\n"), why)
 		}
 	}
 	return out.String()

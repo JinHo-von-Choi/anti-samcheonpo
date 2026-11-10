@@ -2,6 +2,7 @@ package cli
 
 import (
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
@@ -23,7 +24,7 @@ func compactCmd() *cobra.Command {
 	var pruneDays int
 	c := &cobra.Command{
 		Use:   "compact",
-		Short: "원장 용량을 보고하고 빈 공간을 회수한다",
+		Short: lang.T("원장 용량을 보고하고 빈 공간을 회수한다"),
 		Args:  cobra.NoArgs,
 		RunE: func(cmd *cobra.Command, args []string) error {
 			path := dbPath()
@@ -38,7 +39,7 @@ func compactCmd() *cobra.Command {
 				return err
 			}
 			w := cmd.OutOrStdout()
-			fmt.Fprintf(w, "원장 %.0fMB · 세션 %d · 이벤트 %d · 판정 %d · 봉인 %d\n",
+			fmt.Fprintf(w, lang.T("원장 %.0fMB · 세션 %d · 이벤트 %d · 판정 %d · 봉인 %d\n"),
 				float64(before)/(1024*1024), usage.Sessions, usage.Events, usage.Verdicts, usage.Sealed)
 			if report {
 				return nil
@@ -47,20 +48,20 @@ func compactCmd() *cobra.Command {
 				cutoff := time.Now().AddDate(0, 0, -pruneDays)
 				pr, err := db.Prune(cutoff)
 				if err != nil {
-					return fmt.Errorf("원장 보존 정리 실패: %w", err)
+					return fmt.Errorf(lang.T("원장 보존 정리 실패: %w"), err)
 				}
-				fmt.Fprintf(w, "%d일 지난 종료 세션 %d건의 상세 %d건·관측 %d건을 정리했다. 봉인·영수증·판정은 남았다\n",
+				fmt.Fprintf(w, lang.T("%d일 지난 종료 세션 %d건의 상세 %d건·관측 %d건을 정리했다. 봉인·영수증·판정은 남았다\n"),
 					pruneDays, pr.Sessions, pr.Events, pr.Observations)
 			}
 			if err := db.Compact(); err != nil {
-				return fmt.Errorf("원장 공간 회수 실패: %w", err)
+				return fmt.Errorf(lang.T("원장 공간 회수 실패: %w"), err)
 			}
 			after := ledger.FileSize(path)
-			fmt.Fprintf(w, "빈 공간 회수 후 %.0fMB\n", float64(after)/(1024*1024))
+			fmt.Fprintf(w, lang.T("빈 공간 회수 후 %.0fMB\n"), float64(after)/(1024*1024))
 			return nil
 		},
 	}
-	c.Flags().BoolVar(&report, "report", false, "보고만 하고 회수하지 않는다")
-	c.Flags().IntVar(&pruneDays, "prune-days", 0, fmt.Sprintf("이 날짜보다 오래 전에 종료된 세션의 상세만 정리한다 (기본 보존 기준 %d일, 0이면 정리하지 않음)", ledger.PruneDays))
+	c.Flags().BoolVar(&report, "report", false, lang.T("보고만 하고 회수하지 않는다"))
+	c.Flags().IntVar(&pruneDays, "prune-days", 0, fmt.Sprintf(lang.T("이 날짜보다 오래 전에 종료된 세션의 상세만 정리한다 (기본 보존 기준 %d일, 0이면 정리하지 않음)"), ledger.PruneDays))
 	return c
 }

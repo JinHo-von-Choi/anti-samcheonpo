@@ -1,12 +1,15 @@
 package dashboard
 
-import "net/http"
+import (
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
+	"net/http"
+)
 
 // reviewQueue omits sampling strata and other reviewers' answers so they do
 // not influence a new independent review. The queue itself is never a label.
 func (s *Server) reviewQueue(w http.ResponseWriter, r *http.Request) {
 	if r.Method != http.MethodGet {
-		http.Error(w, "GET 요청 필요", 405)
+		http.Error(w, lang.T("GET 요청 필요"), 405)
 		return
 	}
 	type item struct {

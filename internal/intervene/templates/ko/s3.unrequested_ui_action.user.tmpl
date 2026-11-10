@@ -1,0 +1,2 @@
+{{if .issue}}AI가 화면에 {{if eq .issue "dead_target"}}이동할 곳이 없는 링크 {{.count}}개{{else if eq .issue "filler_card"}}글자만 있는 안내 카드 {{.count}}개{{else}}같은 문구 "{{.label}}"의 버튼·링크 {{.count}}개{{end}}를 넣었습니다 ({{.path}}).{{else}}{{if .element}}AI가 화면에 {{.element}} {{.count}}개를 추가했습니다. 요청한 수는 {{.requested}}개입니다 ({{.path}}).{{else}}AI가 요청에 없던 버튼·링크 {{.count}}개를 화면에 추가했습니다 ({{.path}}).
+쓸 일 없는 버튼이 많으면 무엇을 눌러야 하는지 알기 어렵습니다.{{end}}{{end}}

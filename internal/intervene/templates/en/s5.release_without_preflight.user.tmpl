@@ -1,0 +1,2 @@
+The AI is about to release again {{if eq .kind "ci_failed"}}without confirming the remote CI failure locally{{else if eq .kind "unverified_change"}}without checking what it changed{{else}}with a browser test failing{{end}} (`{{.cmd}}`).
+Remote CI runs from the start on every release, so checking locally first is faster.

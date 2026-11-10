@@ -1,0 +1,2 @@
+The AI is about to start a production deployment {{if eq .kind "ci_failed"}}with remote CI failing{{else if eq .kind "ui_timing"}}with a screen test failing{{else}}without checking the changed code{{end}}.
+If the deployment fails, the service can go down during rollback.

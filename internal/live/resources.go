@@ -3,6 +3,7 @@ package live
 import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/detect"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/fp"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"sync"
 	"time"
 )
@@ -85,5 +86,5 @@ func (s *Session) resourcePre(in HookInput, seq int64) *detect.Signal {
 	if key == "" {
 		return nil
 	}
-	return &detect.Signal{Detector: "S1", Rule: "s1.concurrent_shared_resource", Confidence: 1, Level: detect.L1, Evidence: []int64{seq}, Facts: map[string]any{"kind": "host_declared_resource", "target_hash": key, "next_action": "공유 자원 작업의 결과를 확인한 뒤 실행하거나 별도 자원을 지정한다"}}
+	return &detect.Signal{Detector: "S1", Rule: "s1.concurrent_shared_resource", Confidence: 1, Level: detect.L1, Evidence: []int64{seq}, Facts: map[string]any{"kind": "host_declared_resource", "target_hash": key, "next_action": lang.T("공유 자원 작업의 결과를 확인한 뒤 실행하거나 별도 자원을 지정한다")}}
 }

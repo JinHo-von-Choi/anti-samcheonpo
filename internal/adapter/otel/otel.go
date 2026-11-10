@@ -10,6 +10,7 @@ import (
 	"encoding/hex"
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"sort"
 	"strconv"
@@ -146,7 +147,7 @@ func ParseFile(path string) ([]*event.Session, error) {
 		}
 		var ex Export
 		if err := json.Unmarshal(line, &ex); err != nil {
-			return nil, fmt.Errorf("OTLP/JSON이 아니다: %w", err)
+			return nil, fmt.Errorf(lang.T("OTLP/JSON이 아니다: %w"), err)
 		}
 		for _, rs := range ex.ResourceSpans {
 			res := attrs(rs.Resource.Attributes)

@@ -1,0 +1,3 @@
+[samcheonpo] Observed: {{.kindname}}{{if .cmd}} (check `{{.cmd}}`){{end}}{{if .path}} (last change `{{.path}}`){{end}}. The work is about to end in this state.{{if .deferral}} The last report put off verification.{{end}}
+Evidence: event {{.evidence}}. The failure was not classified as an external cause such as permissions, network or an outside service.
+Contract: the goal is {{.goal}}.{{if .unmet}} Completion criteria not yet met: {{.unmet}}.{{end}}

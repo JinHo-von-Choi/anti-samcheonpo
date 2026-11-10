@@ -24,6 +24,9 @@ const VERSION: &str = env!("SAMCHEONPO_HOOK_VERSION");
 /// The largest hook payload the transport reads.
 const MAX_PAYLOAD: usize = 32 << 20;
 
+/// The size at which the record of missed hooks stops growing.
+const MAX_MISS_LOG: u64 = 256 << 10;
+
 /// Reports the transport handling, not whether the agent read or obeyed
 /// advice. No request text, tool arguments, or response content is
 /// included.
@@ -107,12 +110,15 @@ fn run() -> Outcome {
         None => return pass(&mut outcome, started, allow, &mut stdout),
     };
 
-    let sock = samcheonpo_hook::sockpath::path();
-    let mut conn = match connect(&sock) {
+    let socks = samcheonpo_hook::sockpath::candidates();
+    let mut conn = match connect(&socks) {
         Ok(c) => c,
         Err(e) => {
             outcome.status = "connect_failed";
             outcome.timed_out = is_timeout(&e);
+            if !no_spawn() {
+                record_miss(&agent, &event, &payload);
+            }
             return pass(&mut outcome, started, allow, &mut stdout);
         }
     };
@@ -217,13 +223,19 @@ fn record(outcome: &mut Outcome, started: Instant) -> Outcome {
 /// used; if not, the hook gives up rather than sending the request again,
 /// because a duplicate tool record or a stale intent is worse than a
 /// missing event.
-fn connect(sock: &str) -> std::io::Result<UnixStream> {
+fn connect(socks: &[String]) -> std::io::Result<UnixStream> {
+    let mut failure = None;
+    for sock in socks {
+        match samcheonpo_hook::ipc::connect(sock, CONNECT_TIMEOUT) {
+            Ok(c) => return Ok(c),
+            Err(e) => failure = Some(e),
+        }
+    }
     if no_spawn() {
-        return samcheonpo_hook::ipc::connect(sock, CONNECT_TIMEOUT);
+        return Err(failure.unwrap_or_else(|| std::io::ErrorKind::NotFound.into()));
     }
-    if let Ok(c) = samcheonpo_hook::ipc::connect(sock, CONNECT_TIMEOUT) {
-        return Ok(c);
-    }
+    // a daemon this hook starts listens where this environment points
+    let sock = socks[0].as_str();
     spawn_daemon(&daemon_executable(&current_exe()));
     let deadline = Instant::now() + COLD_START_TIMEOUT;
     loop {
@@ -237,6 +249,39 @@ fn connect(sock: &str) -> std::io::Result<UnixStream> {
         }
     }
     samcheonpo_hook::ipc::connect(sock, CONNECT_TIMEOUT)
+}
+
+/// Leaves a record that this hook call reached no daemon. The daemon adds it
+/// to the observation gaps when it next starts or opens a session. It never
+/// affects the hook's answer, and the file stops growing at `MAX_MISS_LOG`.
+fn record_miss(agent: &str, event: &str, payload: &[u8]) {
+    let path = samcheonpo_hook::sockpath::miss_log_path();
+    if std::fs::metadata(&path)
+        .map(|m| m.len() >= MAX_MISS_LOG)
+        .unwrap_or(false)
+    {
+        return;
+    }
+    let body: serde_json::Value = serde_json::from_slice(payload).unwrap_or_default();
+    let session = ["session_id", "sessionId", "conversation_id", "thread_id"]
+        .iter()
+        .find_map(|k| body.get(*k).and_then(|v| v.as_str()))
+        .unwrap_or("");
+    let mut line = serde_json::json!({"agent": agent, "event": event, "session_id": session, "at_ms": unix_millis()}).to_string();
+    line.push('\n');
+    if let Some(dir) = std::path::Path::new(&path).parent() {
+        let _ = std::fs::create_dir_all(dir);
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.create(true).append(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    if let Ok(mut f) = options.open(&path) {
+        let _ = f.write_all(line.as_bytes());
+    }
 }
 
 fn current_exe() -> std::path::PathBuf {

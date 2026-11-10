@@ -6,6 +6,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 )
 
 // Rule verdicts.
@@ -103,21 +104,21 @@ func (v ProbeVerdict) Digest() string {
 // Validate checks that the verdict says what it counted.
 func (v ProbeVerdict) Validate() error {
 	if v.Version == "rule-probe/2" && v.Evidence == "" {
-		return errors.New("판정에는 유효한 시행 증거 digest가 필요하다")
+		return errors.New(lang.T("판정에는 유효한 시행 증거 digest가 필요하다"))
 	}
 	if v.Version == "rule-probe/2" && v.Verdict == VerdictHelped && (!v.EvidenceSufficient || v.SuccessDifference == nil || v.CostReduction == nil || v.SuccessDifference.Lo < -0.02 || v.CostReduction.Lo < 0.15) {
-		return errors.New("효과 판정에는 완전한 증거와 완료율·비용 구간이 필요하다")
+		return errors.New(lang.T("효과 판정에는 완전한 증거와 완료율·비용 구간이 필요하다"))
 	}
 	switch v.Verdict {
 	case VerdictHelped, VerdictHurt, VerdictNoObservedEffect, VerdictConfounded, VerdictNoEntry:
 	default:
-		return fmt.Errorf("알 수 없는 판정 %q", v.Verdict)
+		return fmt.Errorf(lang.T("알 수 없는 판정 %q"), v.Verdict)
 	}
 	if v.Verdict == VerdictNoEntry && v.Reason == "" {
-		return errors.New("판정 거절에는 이유가 필요하다")
+		return errors.New(lang.T("판정 거절에는 이유가 필요하다"))
 	}
 	if v.Veto && v.Verdict != VerdictHurt {
-		return errors.New("차단 거절은 hurt 판정과 함께만 기록된다")
+		return errors.New(lang.T("차단 거절은 hurt 판정과 함께만 기록된다"))
 	}
 	return nil
 }

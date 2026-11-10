@@ -5,6 +5,7 @@ import (
 	"encoding/json"
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"io"
 	"os"
 	"path/filepath"
@@ -38,7 +39,7 @@ import (
 )
 
 // Version is set at build time.
-var Version = "0.11.1"
+var Version = "0.12.0"
 
 var (
 	flagDB        string
@@ -50,16 +51,19 @@ var (
 func Root() *cobra.Command {
 	root := &cobra.Command{
 		Use:           "samcheonpo",
-		Short:         "AI 코딩 에이전트의 반복 작업과 실패를 기록·안내하는 로컬 도구",
+		Short:         lang.T("AI 코딩 에이전트의 반복 작업과 실패를 기록·안내하는 로컬 도구"),
 		Version:       Version,
 		SilenceUsage:  true,
 		SilenceErrors: true,
 	}
-	root.PersistentFlags().StringVar(&flagDB, "db", "", "원장 경로 (기본 ~/.samcheonpo/ledger.db)")
-	root.PersistentFlags().StringVar(&flagClaudeDir, "claude-dir", "", "Claude Code projects 경로")
-	root.PersistentFlags().StringVar(&flagCodexDir, "codex-dir", "", "Codex sessions 경로")
-	root.PersistentFlags().StringVar(&sources.McodeDir, "mcode-dir", "", "MiniMax Code sessions 경로 (기본 ~/.minimax/v2/sessions)")
-	root.AddCommand(auditCmd(), evidenceCmd(), gapsCmd(), interventionsCmd(), outcomesCmd(), accuracyCmd(), reviewCmd(), provenanceCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(), forkCmd(),
+	if w := moneyOutput(); w != nil {
+		root.SetOut(w)
+	}
+	root.PersistentFlags().StringVar(&flagDB, "db", "", lang.T("원장 경로 (기본 ~/.samcheonpo/ledger.db)"))
+	root.PersistentFlags().StringVar(&flagClaudeDir, "claude-dir", "", lang.T("Claude Code projects 경로"))
+	root.PersistentFlags().StringVar(&flagCodexDir, "codex-dir", "", lang.T("Codex sessions 경로"))
+	root.PersistentFlags().StringVar(&sources.McodeDir, "mcode-dir", "", lang.T("MiniMax Code sessions 경로 (기본 ~/.minimax/v2/sessions)"))
+	root.AddCommand(auditCmd(), trimCmd(), critiqueCmd(), uiCheckCmd(), restraintEvalCmd(), evidenceCmd(), gapsCmd(), interventionsCmd(), outcomesCmd(), accuracyCmd(), reviewCmd(), provenanceCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(), forkCmd(),
 		labelCmd(), evalCmd(), benchCmd(), evasionCmd(), lineageCmd(), detectionTimingCmd(), surfaceCmd(), debugCmd(), contractCmd(), specCmd(), importOtelCmd(), rulesCmd(), handoffCmd(), reportCmd(), taskCoverageCmd(), diagnosticCmd("why"), diagnosticCmd("coverage"), compactCmd())
 	root.AddCommand(liveCommands()...)
 	root.AddCommand(dashboardCmd())
@@ -113,7 +117,7 @@ func ParseSince(s string, now time.Time) (time.Time, error) {
 	}
 	t, err := time.ParseInLocation("2006-01-02", s, time.Local)
 	if err != nil {
-		return time.Time{}, fmt.Errorf("--since는 30d, 12h 또는 2026-10-01 형식이어야 한다")
+		return time.Time{}, fmt.Errorf("%s", lang.T("--since는 30d, 12h 또는 2026-10-01 형식이어야 한다"))
 	}
 	return t, nil
 }
@@ -155,7 +159,7 @@ func auditCmd() *cobra.Command {
 	var refresh bool
 	c := &cobra.Command{
 		Use:   "audit",
-		Short: "과거 세션 기록으로 멍청비용 영수증을 낸다",
+		Short: lang.T("과거 세션 기록으로 멍청비용 영수증을 낸다"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			start := time.Now()
 			t, err := ParseSince(since, start)
@@ -192,10 +196,10 @@ func auditCmd() *cobra.Command {
 			// measured: ~25MB/s per worker overall, ~40MB/s for one large file
 			nw := float64(max(1, min(workers, runtime.NumCPU())))
 			est := max(float64(largest)/40e6, float64(total)/(nw*25e6))
-			fmt.Fprintf(stderr, "사전 점검: 세션 기록 %d개 (Claude Code %d, Codex %d, mcode %d), %.0fMB, 예상 %.0f초\n",
+			fmt.Fprintf(stderr, lang.T("사전 점검: 세션 기록 %d개 (Claude Code %d, Codex %d, mcode %d), %.0fMB, 예상 %.0f초\n"),
 				len(files), agents["claude"], agents["codex"], agents["mcode"], float64(total)/1e6, est)
 			if len(files) == 0 {
-				fmt.Fprintf(stderr, "분석할 세션 기록이 없다. 확인한 경로: %s, %s, %s\n", claudeDir(), codexDir(), sources.MinimaxDir())
+				fmt.Fprintf(stderr, lang.T("분석할 세션 기록이 없다. 확인한 경로: %s, %s, %s\n"), claudeDir(), codexDir(), sources.MinimaxDir())
 				return nil
 			}
 			var todo []sources.File
@@ -259,19 +263,19 @@ func auditCmd() *cobra.Command {
 					continue // the live record (with checkpoints and interventions) is kept
 				}
 				if _, err := db.SaveAnalysis(x.r, x.f.Size, x.f.MTime, Messages(x.r.Session.FirstPrompt)); err != nil {
-					return fmt.Errorf("원장 기록 실패 %s: %w", x.f.Path, err)
+					return fmt.Errorf(lang.T("원장 기록 실패 %s: %w"), x.f.Path, err)
 				}
 			}
 			if failed > 0 {
-				fmt.Fprintf(stderr, "읽지 못한 기록 %d개 (첫 오류: %v)\n", failed, firstErr)
+				fmt.Fprintf(stderr, lang.T("읽지 못한 기록 %d개 (첫 오류: %v)\n"), failed, firstErr)
 			}
 			rows, err := db.Sessions(t, agent, project)
 			if err != nil {
 				return err
 			}
 			rep, sums := aggregate(db, rows)
-			fmt.Fprintf(stderr, "분석 %d개 (새로 분석 %d개), %.1f초\n", len(rows), len(todo), time.Since(start).Seconds())
-			title := fmt.Sprintf("삼천포 소급 영수증 · 최근 %s · 세션 %d개", since, len(rows))
+			fmt.Fprintf(stderr, lang.T("분석 %d개 (새로 분석 %d개), %.1f초\n"), len(rows), len(todo), time.Since(start).Seconds())
+			title := fmt.Sprintf(lang.T("삼천포 소급 영수증 · 최근 %s · 세션 %d개"), since, len(rows))
 			rc := receipt.Build(receipt.Input{Title: title, Audit: true, Totals: rep, Grade: analyze.GradeEstimated})
 			w := cmd.OutOrStdout()
 			if out != "" {
@@ -281,17 +285,20 @@ func auditCmd() *cobra.Command {
 				}
 				defer fh.Close()
 				w = fh
+				if rate := usdRate(); rate > 0 {
+					w = &moneyWriter{w: fh, rate: rate}
+				}
 			}
 			return writeAudit(w, rc, sums, format)
 		},
 	}
-	c.Flags().StringVar(&since, "since", "30d", "분석 기간 (30d, 12h, 2026-10-01, all)")
+	c.Flags().StringVar(&since, "since", "30d", lang.T("분석 기간 (30d, 12h, 2026-10-01, all)"))
 	c.Flags().StringVar(&agent, "agent", "all", "claude | codex | mcode | all")
-	c.Flags().StringVar(&project, "project", "", "특정 프로젝트 경로만")
+	c.Flags().StringVar(&project, "project", "", lang.T("특정 프로젝트 경로만"))
 	c.Flags().StringVar(&format, "format", "text", "text | md | json")
-	c.Flags().StringVarP(&out, "output", "o", "", "출력 파일")
-	c.Flags().IntVar(&workers, "workers", runtime.NumCPU(), "동시 분석 수")
-	c.Flags().BoolVar(&refresh, "refresh", false, "바뀌지 않은 기록도 다시 분석")
+	c.Flags().StringVarP(&out, "output", "o", "", lang.T("출력 파일"))
+	c.Flags().IntVar(&workers, "workers", runtime.NumCPU(), lang.T("동시 분석 수"))
+	c.Flags().BoolVar(&refresh, "refresh", false, lang.T("바뀌지 않은 기록도 다시 분석"))
 	return c
 }
 
@@ -355,7 +362,7 @@ func writeAudit(w io.Writer, rc receipt.Receipt, sums []sessionSummary, format s
 		}
 	}
 	if formatFail > 0 {
-		rc.Notices = append(rc.Notices, fmt.Sprintf("형식 인식 실패 %d개 세션은 판정에서 제외", formatFail))
+		rc.Notices = append(rc.Notices, fmt.Sprintf(lang.T("형식 인식 실패 %d개 세션은 판정에서 제외"), formatFail))
 	}
 	switch format {
 	case "json":
@@ -379,19 +386,19 @@ func writeAudit(w io.Writer, rc receipt.Receipt, sums []sessionSummary, format s
 		return err
 	case "md":
 		fmt.Fprint(w, rc.Markdown())
-		fmt.Fprint(w, "\n### 헛짓 상위 세션\n\n| 세션 | 시작 | 헛짓 | 헛짓률 | 첫 요청 |\n| --- | --- | ---: | ---: | --- |\n")
+		fmt.Fprint(w, lang.T("\n### 헛짓 상위 세션\n\n| 세션 | 시작 | 헛짓 | 헛짓률 | 첫 요청 |\n| --- | --- | ---: | ---: | --- |\n"))
 		for _, s := range top {
 			fmt.Fprintf(w, "| `%s` | %s | %s | %s | %s |\n", short8(s.ID), s.Started.Local().Format("01-02 15:04"), amountOf(rc, s.Totals), cost.PercentageText(pctOf(s.Totals)), strings.ReplaceAll(s.Prompt, "|", "\\|"))
 		}
 		return nil
 	default:
 		fmt.Fprint(w, rc.Text())
-		fmt.Fprintln(w, "\n헛짓 상위 세션")
+		fmt.Fprintln(w, lang.T("\n헛짓 상위 세션"))
 		for _, s := range top {
-			fmt.Fprintf(w, "  %s  %s  %s  헛짓 %3.0f%%  %s\n", short8(s.ID), s.Started.Local().Format("01-02 15:04"),
+			fmt.Fprintf(w, lang.T("  %s  %s  %s  헛짓 %3.0f%%  %s\n"), short8(s.ID), s.Started.Local().Format("01-02 15:04"),
 				padL(amountOf(rc, s.Totals), 12), pctOf(s.Totals), trunc(s.Prompt, 40))
 		}
-		fmt.Fprintln(w, "\n세션 하나의 근거는 samcheonpo receipt <세션> --evidence")
+		fmt.Fprintln(w, lang.T("\n세션 하나의 근거는 samcheonpo receipt <세션> --evidence"))
 		return nil
 	}
 }
@@ -400,7 +407,7 @@ func amountOf(rc receipt.Receipt, t analyze.Totals) string {
 	if rc.Unit == "tokens" {
 		return receipt.HumanTokens(t.SymptomTokenTotal())
 	}
-	return contract.Comma(cost.Won(t.SymptomTotal())) + "원"
+	return contract.Comma(cost.Won(t.SymptomTotal())) + lang.T("원")
 }
 
 func pctOf(t analyze.Totals) float64 {
@@ -435,21 +442,21 @@ func trunc(s string, n int) string {
 	return string(r[:n]) + "…"
 }
 
-var errNoSource = errors.New("원본 기록 파일이 없다")
+var errNoSource = errors.New(lang.T("원본 기록 파일이 없다"))
 
 // reanalyze re-runs a stored session from its source.
 func reanalyze(db *ledger.DB, id string) (*analyze.Result, sources.File, error) {
 	full, src, agent, err := db.SourceOf(id)
 	if err != nil {
-		return nil, sources.File{}, fmt.Errorf("세션 %s를 원장에서 찾지 못했다. 먼저 samcheonpo audit을 실행한다: %w", id, err)
+		return nil, sources.File{}, fmt.Errorf(lang.T("세션 %s를 원장에서 찾지 못했다. 먼저 samcheonpo audit을 실행한다: %w"), id, err)
 	}
 	if src == "" {
-		return nil, sources.File{}, fmt.Errorf("세션 %s: %w", full, errNoSource)
+		return nil, sources.File{}, fmt.Errorf(lang.T("세션 %s: %w"), full, errNoSource)
 	}
 	st, err := os.Stat(src)
 	if err != nil {
 		if os.IsNotExist(err) {
-			return nil, sources.File{}, fmt.Errorf("세션 %s: %w", full, errNoSource)
+			return nil, sources.File{}, fmt.Errorf(lang.T("세션 %s: %w"), full, errNoSource)
 		}
 		return nil, sources.File{}, err
 	}
@@ -472,11 +479,11 @@ func receiptCmd() *cobra.Command {
 	var evidence, share bool
 	c := &cobra.Command{
 		Use:   "receipt <session-id>",
-		Short: "세션 하나의 영수증",
+		Short: lang.T("세션 하나의 영수증"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if !cost.ValidBillingKind(cost.BillingKind(billingKind)) {
-				return fmt.Errorf("billing: unknown, api, subscription 중 하나가 필요하다")
+				return fmt.Errorf("%s", lang.T("billing: unknown, api, subscription 중 하나가 필요하다"))
 			}
 			db, err := openDB()
 			if err != nil {
@@ -502,7 +509,7 @@ func receiptCmd() *cobra.Command {
 			}
 			if budget.Unknown || budget.Pending {
 				observation.UsageComplete = false
-				observation.Missing = append(observation.Missing, "감시 판정 비용 미확인: 완료되지 않은 예약을 무료로 계산하지 않는다")
+				observation.Missing = append(observation.Missing, lang.T("감시 판정 비용 미확인: 완료되지 않은 예약을 무료로 계산하지 않는다"))
 			}
 			if billingKind != "unknown" {
 				observation.Kind = cost.BillingKind(billingKind)
@@ -526,10 +533,13 @@ func receiptCmd() *cobra.Command {
 			rc := receipt.Build(receipt.Input{Title: receipt.SessionTitle(s.StartedAt, s.ID, s.Agent), Agent: s.Agent, Audit: s.Mode == "audit",
 				Totals: r.Totals, Grade: r.Grade, Verdicts: r.Verdicts, Seal: &sl, Billing: observation, Recoveries: recoveries, Criteria: criteria, Observation: r.Observation, Blocked: r.Blocked,
 				Estimate: estimateStoppedRepetitions(db, s, prices, time.Now())})
+			if n := missedSessions(dbPath()); n > 0 {
+				rc.Notices = append(rc.Notices, fmt.Sprintf(lang.T("훅이 데몬에 연결하지 못해 기록되지 않은 세션 %d개가 있습니다"), n))
+			}
 			if stored {
-				rc.Notices = append(rc.Notices, "원본 기록 없이 저장된 분석 결과를 표시합니다")
+				rc.Notices = append(rc.Notices, lang.T("원본 기록 없이 저장된 분석 결과를 표시합니다"))
 				if sl.Spec == "" {
-					rc.Notices = append(rc.Notices, "구버전 저장 기록: 계측 상태와 근거 사슬을 완전히 복원할 수 없어 봉인 검증은 지원하지 않습니다")
+					rc.Notices = append(rc.Notices, lang.T("구버전 저장 기록: 계측 상태와 근거 사슬을 완전히 복원할 수 없어 봉인 검증은 지원하지 않습니다"))
 				}
 				// The stored analysis says what was observed. It does not say
 				// the agent ended, and the close reason is what tells the
@@ -537,14 +547,14 @@ func receiptCmd() *cobra.Command {
 				if o, err := db.Observation(s.ID); err == nil {
 					switch o.CloseReason {
 					case ledger.ObservationDaemonLost:
-						rc.Notices = append(rc.Notices, "데몬이 사라져 관측이 끊겼다. 저장된 시점까지의 기록이며 에이전트 종료는 확인되지 않았다")
+						rc.Notices = append(rc.Notices, lang.T("데몬이 사라져 관측이 끊겼다. 저장된 시점까지의 기록이며 에이전트 종료는 확인되지 않았다"))
 					case ledger.ObservationIdleTimeout:
-						rc.Notices = append(rc.Notices, "무활동으로 관측이 중단됐다. 에이전트 종료는 확인되지 않았다")
+						rc.Notices = append(rc.Notices, lang.T("무활동으로 관측이 중단됐다. 에이전트 종료는 확인되지 않았다"))
 					}
 				}
 			}
 			if !r.FormatOK {
-				rc.Notices = append(rc.Notices, "형식 인식 실패: 판정을 중단하고 비용만 합산했다")
+				rc.Notices = append(rc.Notices, lang.T("형식 인식 실패: 판정을 중단하고 비용만 합산했다"))
 			}
 			if evidence && !share {
 				sm := map[int64]string{}
@@ -566,15 +576,15 @@ func receiptCmd() *cobra.Command {
 				fmt.Fprint(w, rc.Text())
 			}
 			if share && format != "json" && sl.Head != "" {
-				fmt.Fprintf(w, "\n이 숫자는 samcheonpo verify로 다시 계산할 수 있다 (봉인 %s).\n", sl.Short())
+				fmt.Fprintf(w, lang.T("\n이 숫자는 samcheonpo verify로 다시 계산할 수 있다 (봉인 %s).\n"), sl.Short())
 			}
 			return nil
 		},
 	}
 	c.Flags().StringVar(&format, "format", "text", "text | md | json")
-	c.Flags().BoolVar(&evidence, "evidence", false, "근거 이벤트 펼치기")
-	c.Flags().BoolVar(&share, "share", false, "코드, 경로, 프롬프트 없는 공유용")
-	c.Flags().StringVar(&billingKind, "billing", "unknown", "과금 유형을 명시: unknown | api | subscription (청구액 검증 아님)")
+	c.Flags().BoolVar(&evidence, "evidence", false, lang.T("근거 이벤트 펼치기"))
+	c.Flags().BoolVar(&share, "share", false, lang.T("코드, 경로, 프롬프트 없는 공유용"))
+	c.Flags().StringVar(&billingKind, "billing", "unknown", lang.T("과금 유형을 명시: unknown | api | subscription (청구액 검증 아님)"))
 	return c
 }
 
@@ -582,7 +592,7 @@ func sessionsCmd() *cobra.Command {
 	var since, agent string
 	c := &cobra.Command{
 		Use:   "sessions",
-		Short: "분석된 세션 목록과 헛짓률",
+		Short: lang.T("분석된 세션 목록과 헛짓률"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := ParseSince(since, time.Now())
 			if err != nil {
@@ -598,9 +608,9 @@ func sessionsCmd() *cobra.Command {
 				return err
 			}
 			w := cmd.OutOrStdout()
-			fmt.Fprintf(w, "%-8s  %-6s  %-11s  %12s  %6s  %s\n", "세션", "에이전트", "시작", "총 지출", "헛짓", "관측 상태 / 첫 요청")
+			fmt.Fprintf(w, "%-8s  %-6s  %-11s  %12s  %6s  %s\n", lang.T("세션"), lang.T("에이전트"), lang.T("시작"), lang.T("총 지출"), lang.T("헛짓"), lang.T("관측 상태 / 첫 요청"))
 			for _, r := range rows {
-				tot := contract.Comma(cost.Won(r.Micro)) + "원"
+				tot := contract.Comma(cost.Won(r.Micro)) + lang.T("원")
 				pct := 0.0
 				if r.Micro > 0 {
 					pct = float64(r.WasteMicro) / float64(r.Micro) * 100
@@ -609,7 +619,7 @@ func sessionsCmd() *cobra.Command {
 				}
 				started := r.Started.Local().Format("01-02 15:04")
 				if r.Started.IsZero() {
-					started = "기록 없음"
+					started = lang.T("기록 없음")
 				}
 				state := "unknown"
 				if observation, err := db.Observation(r.ID); err == nil {
@@ -620,28 +630,28 @@ func sessionsCmd() *cobra.Command {
 			return nil
 		},
 	}
-	c.Flags().StringVar(&since, "since", "7d", "기간")
-	c.Flags().StringVar(&agent, "agent", "all", "에이전트 필터: claude | codex | mcode | all")
+	c.Flags().StringVar(&since, "since", "7d", lang.T("기간"))
+	c.Flags().StringVar(&agent, "agent", "all", lang.T("에이전트 필터: claude | codex | mcode | all"))
 	return c
 }
 
 func priceCmd() *cobra.Command {
-	c := &cobra.Command{Use: "price", Short: "단가표와 환율"}
+	c := &cobra.Command{Use: "price", Short: lang.T("단가표와 환율")}
 	c.AddCommand(&cobra.Command{
 		Use:   "list",
-		Short: "단가표 출력",
+		Short: lang.T("단가표 출력"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			t, err := loadPrices()
 			if err != nil {
 				return err
 			}
 			w := cmd.OutOrStdout()
-			fmt.Fprintf(w, "단가표 버전 %s (USD / 1M 토큰)\n", t.Version[:12])
+			fmt.Fprintf(w, lang.T("단가표 버전 %s (USD / 1M 토큰)\n"), t.Version[:12])
 			for _, f := range t.FX {
-				fmt.Fprintf(w, "환율 %s부터 1 USD = %g원\n", f.ValidFrom.Format("2006-01-02"), f.USDKRW)
+				fmt.Fprintf(w, lang.T("환율 %s부터 1 USD = %g원\n"), f.ValidFrom.Format("2006-01-02"), f.USDKRW)
 			}
 			for _, p := range t.Models {
-				fmt.Fprintf(w, "%-20s 입력 %7.3f 출력 %7.3f 캐시쓰기 %7.3f 캐시읽기 %7.3f  %s부터  %s\n", p.Model, p.Input, p.Output, p.CacheWrite, p.CacheRead,
+				fmt.Fprintf(w, lang.T("%-20s 입력 %7.3f 출력 %7.3f 캐시쓰기 %7.3f 캐시읽기 %7.3f  %s부터  %s\n"), p.Model, p.Input, p.Output, p.CacheWrite, p.CacheRead,
 					p.ValidFrom.Format("2006-01-02"), p.Source)
 			}
 			return nil
@@ -650,16 +660,16 @@ func priceCmd() *cobra.Command {
 	var from string
 	setfx := &cobra.Command{
 		Use:   "set-fx RATE",
-		Short: "기간별 환율 추가 (~/.samcheonpo/prices.yml)",
+		Short: lang.T("기간별 환율 추가 (~/.samcheonpo/prices.yml)"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			rate, err := strconv.ParseFloat(args[0], 64)
 			if err != nil || rate <= 0 {
-				return fmt.Errorf("환율은 양수여야 한다: %s", args[0])
+				return fmt.Errorf(lang.T("환율은 양수여야 한다: %s"), args[0])
 			}
 			d, err := time.Parse("2006-01-02", from)
 			if err != nil {
-				return fmt.Errorf("--from은 2026-10-01 형식이어야 한다")
+				return fmt.Errorf("%s", lang.T("--from은 2026-10-01 형식이어야 한다"))
 			}
 			p := filepath.Join(config.Home(), "prices.yml")
 			if err := procgroup.MkdirAllPrivate(config.Home()); err != nil {
@@ -667,7 +677,7 @@ func priceCmd() *cobra.Command {
 			}
 			b, err := os.ReadFile(p)
 			if err != nil && !os.IsNotExist(err) {
-				return fmt.Errorf("단가표를 읽지 못해 환율을 추가하지 않았다: %w", err)
+				return fmt.Errorf(lang.T("단가표를 읽지 못해 환율을 추가하지 않았다: %w"), err)
 			}
 			s := string(b)
 			if !strings.Contains(s, "fx:") {
@@ -678,13 +688,13 @@ func priceCmd() *cobra.Command {
 				return err
 			}
 			if _, err := loadPrices(); err != nil {
-				return fmt.Errorf("추가한 환율로 단가표를 읽지 못했다: %w", err)
+				return fmt.Errorf(lang.T("추가한 환율로 단가표를 읽지 못했다: %w"), err)
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s부터 1 USD = %g원\n", from, rate)
+			fmt.Fprintf(cmd.OutOrStdout(), lang.T("%s부터 1 USD = %g원\n"), from, rate)
 			return nil
 		},
 	}
-	setfx.Flags().StringVar(&from, "from", time.Now().Format("2006-01-02"), "적용 시작일")
+	setfx.Flags().StringVar(&from, "from", time.Now().Format("2006-01-02"), lang.T("적용 시작일"))
 	c.AddCommand(setfx)
 	return c
 }
@@ -715,25 +725,25 @@ func writeAtomicMode(p string, b []byte, mode os.FileMode) error {
 func initCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "init",
-		Short: ".samcheonpo.yml 생성",
+		Short: lang.T(".samcheonpo.yml 생성"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			p := ".samcheonpo.yml"
 			if _, err := os.Stat(p); err == nil {
-				return fmt.Errorf("%s가 이미 있다", p)
+				return fmt.Errorf(lang.T("%s가 이미 있다"), p)
 			}
 			if err := os.WriteFile(p, []byte(config.Template), 0o644); err != nil {
 				return err
 			}
 			cands := contract.Candidates(".")
-			fmt.Fprintf(cmd.OutOrStdout(), "%s를 만들었다.\n", p)
+			fmt.Fprintf(cmd.OutOrStdout(), lang.T("%s를 만들었다.\n"), p)
 			switch added, err := ignoreStateDir(".gitignore"); {
 			case err != nil:
-				fmt.Fprintf(cmd.OutOrStdout(), ".gitignore를 고치지 못했다: %v. .samcheonpo/를 직접 넣어 둔다.\n", err)
+				fmt.Fprintf(cmd.OutOrStdout(), lang.T(".gitignore를 고치지 못했다: %v. .samcheonpo/를 직접 넣어 둔다.\n"), err)
 			case added:
-				fmt.Fprintln(cmd.OutOrStdout(), ".gitignore에 .samcheonpo/를 넣었다 (수락 기록과 통과 시점 기록이 커밋에 섞이지 않도록).")
+				fmt.Fprintln(cmd.OutOrStdout(), lang.T(".gitignore에 .samcheonpo/를 넣었다 (수락 기록과 통과 시점 기록이 커밋에 섞이지 않도록)."))
 			}
 			if len(cands) > 0 {
-				fmt.Fprintln(cmd.OutOrStdout(), "이 저장소에서 찾은 완료 조건 후보:")
+				fmt.Fprintln(cmd.OutOrStdout(), lang.T("이 저장소에서 찾은 완료 조건 후보:"))
 				for _, c := range cands {
 					fmt.Fprintf(cmd.OutOrStdout(), "  %-28s %s (%s)\n", c.Command, c.Kind, c.Source)
 				}
@@ -757,7 +767,7 @@ func exportCmd() *cobra.Command {
 	var redact, asOtel bool
 	c := &cobra.Command{
 		Use:   "export <session-id>",
-		Short: "경로와 명령을 가린 재현 묶음, 또는 OTLP/JSON 트레이스",
+		Short: lang.T("경로와 명령을 가린 재현 묶음, 또는 OTLP/JSON 트레이스"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if asOtel && redact {
@@ -792,7 +802,7 @@ func exportCmd() *cobra.Command {
 				return nil
 			}
 			if !redact {
-				return errors.New("--redact 묶음 또는 --otel 트레이스를 고른다")
+				return errors.New(lang.T("--redact 묶음 또는 --otel 트레이스를 고른다"))
 			}
 			db, err := openDB()
 			if err != nil {
@@ -827,20 +837,20 @@ func exportCmd() *cobra.Command {
 			if err := writeAtomic(out, data); err != nil {
 				return err
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), "%s (행 %d개, 봉인 %s)\n", out, len(rows), sl.Short())
+			fmt.Fprintf(cmd.OutOrStdout(), lang.T("%s (행 %d개, 봉인 %s)\n"), out, len(rows), sl.Short())
 			return nil
 		},
 	}
-	c.Flags().StringVarP(&out, "output", "o", "", "출력 파일")
-	c.Flags().BoolVar(&redact, "redact", false, "경로·명령·원문 제외 (묶음 또는 --otel과 함께 비식별 OTLP)")
-	c.Flags().BoolVar(&asOtel, "otel", false, "OpenTelemetry GenAI 트레이스(OTLP/JSON)로 내보내기 (정규화 명령과 경로 포함)")
+	c.Flags().StringVarP(&out, "output", "o", "", lang.T("출력 파일"))
+	c.Flags().BoolVar(&redact, "redact", false, lang.T("경로·명령·원문 제외 (묶음 또는 --otel과 함께 비식별 OTLP)"))
+	c.Flags().BoolVar(&asOtel, "otel", false, lang.T("OpenTelemetry GenAI 트레이스(OTLP/JSON)로 내보내기 (정규화 명령과 경로 포함)"))
 	return c
 }
 
 func verifyCmd() *cobra.Command {
 	return &cobra.Command{
 		Use:   "verify <session-id|bundle.json>",
-		Short: "재계산해 봉인 값과 대조",
+		Short: lang.T("재계산해 봉인 값과 대조"),
 		Args:  cobra.ExactArgs(1),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			w := cmd.OutOrStdout()
@@ -854,11 +864,11 @@ func verifyCmd() *cobra.Command {
 			defer db.Close()
 			full, _, _, err := db.SourceOf(args[0])
 			if err != nil {
-				return fmt.Errorf("세션을 찾지 못했다: %w", err)
+				return fmt.Errorf(lang.T("세션을 찾지 못했다: %w"), err)
 			}
 			stored, err := db.Seal(full)
 			if err != nil {
-				return fmt.Errorf("봉인이 없다: %w", err)
+				return fmt.Errorf(lang.T("봉인이 없다: %w"), err)
 			}
 			r, _, err := reanalyze(db, full)
 			if errors.Is(err, errNoSource) {
@@ -867,9 +877,9 @@ func verifyCmd() *cobra.Command {
 					return snapshotErr
 				}
 				if snapshotSeal.Spec == "" {
-					return errors.New("구버전 저장 기록은 근거 사슬을 완전히 복원할 수 없다. 원본 기록을 복구하고 다시 audit한다")
+					return errors.New(lang.T("구버전 저장 기록은 근거 사슬을 완전히 복원할 수 없다. 원본 기록을 복구하고 다시 audit한다"))
 				}
-				fmt.Fprintf(w, "일치: 저장 분석 봉인 %s, 행 %d개, 합계 %s원 (원본 기록 재분석 아님)\n", snapshotSeal.Short(), snapshotSeal.Rows, contract.Comma(cost.Won(snapshotSeal.TotalMicro)))
+				fmt.Fprintf(w, lang.T("일치: 저장 분석 봉인 %s, 행 %d개, 합계 %s원 (원본 기록 재분석 아님)\n"), snapshotSeal.Short(), snapshotSeal.Rows, contract.Comma(cost.Won(snapshotSeal.TotalMicro)))
 				return nil
 			}
 			if err != nil {
@@ -878,24 +888,24 @@ func verifyCmd() *cobra.Command {
 			got, _ := ledger.BuildSeal(r)
 			var diffs []string
 			if got.SourceHash != stored.SourceHash {
-				diffs = append(diffs, "원본 기록이 봉인 이후 바뀌었다")
+				diffs = append(diffs, lang.T("원본 기록이 봉인 이후 바뀌었다"))
 			}
 			if got.Evaluator != stored.Evaluator || got.PriceVersion != stored.PriceVersion || got.ConfigHash != stored.ConfigHash {
-				diffs = append(diffs, fmt.Sprintf("판정기·단가표·설정 버전이 다르다 (%s/%s/%s → %s/%s/%s)", stored.Evaluator, sh(stored.PriceVersion), sh(stored.ConfigHash), got.Evaluator, sh(got.PriceVersion), sh(got.ConfigHash)))
+				diffs = append(diffs, fmt.Sprintf(lang.T("판정기·단가표·설정 버전이 다르다 (%s/%s/%s → %s/%s/%s)"), stored.Evaluator, sh(stored.PriceVersion), sh(stored.ConfigHash), got.Evaluator, sh(got.PriceVersion), sh(got.ConfigHash)))
 			}
 			if got.Head != stored.Head {
-				diffs = append(diffs, fmt.Sprintf("근거 사슬 머리 값이 다르다 (%s → %s)", stored.Short(), got.Short()))
+				diffs = append(diffs, fmt.Sprintf(lang.T("근거 사슬 머리 값이 다르다 (%s → %s)"), stored.Short(), got.Short()))
 			}
 			if got.TotalMicro != stored.TotalMicro {
-				diffs = append(diffs, fmt.Sprintf("합계가 다르다 (%d → %d 마이크로원)", stored.TotalMicro, got.TotalMicro))
+				diffs = append(diffs, fmt.Sprintf(lang.T("합계가 다르다 (%d → %d 마이크로원)"), stored.TotalMicro, got.TotalMicro))
 			}
 			if len(diffs) > 0 {
 				for _, d := range diffs {
-					fmt.Fprintln(w, "불일치: "+d)
+					fmt.Fprintln(w, lang.T("불일치: ")+d)
 				}
-				return errors.New("검증 실패")
+				return errors.New(lang.T("검증 실패"))
 			}
-			fmt.Fprintf(w, "일치: 봉인 %s, 행 %d개, 합계 %s원\n", got.Short(), got.Rows, contract.Comma(cost.Won(got.TotalMicro)))
+			fmt.Fprintf(w, lang.T("일치: 봉인 %s, 행 %d개, 합계 %s원\n"), got.Short(), got.Rows, contract.Comma(cost.Won(got.TotalMicro)))
 			return nil
 		},
 	}
@@ -932,18 +942,18 @@ func verifyBundle(w io.Writer, p string) error {
 	}
 	var bd Bundle
 	if err := json.Unmarshal(b, &bd); err != nil {
-		return fmt.Errorf("묶음을 읽지 못했다: %w", err)
+		return fmt.Errorf(lang.T("묶음을 읽지 못했다: %w"), err)
 	}
 	if bd.Spec != seal.SpecVersion {
-		return fmt.Errorf("지원하지 않는 규격 %s", bd.Spec)
+		return fmt.Errorf(lang.T("지원하지 않는 규격 %s"), bd.Spec)
 	}
 	if i := seal.CheckChain(bd.Rows); i >= 0 {
-		fmt.Fprintf(w, "불일치: %d번째 행에서 근거 사슬이 끊겼다\n", i)
-		return errors.New("검증 실패")
+		fmt.Fprintf(w, lang.T("불일치: %d번째 행에서 근거 사슬이 끊겼다\n"), i)
+		return errors.New(lang.T("검증 실패"))
 	}
 	if seal.Head(bd.Rows) != bd.Seal.Head {
-		fmt.Fprintln(w, "불일치: 사슬 머리 값이 봉인과 다르다")
-		return errors.New("검증 실패")
+		fmt.Fprintln(w, lang.T("불일치: 사슬 머리 값이 봉인과 다르다"))
+		return errors.New(lang.T("검증 실패"))
 	}
 	t := &cost.Table{Models: bd.Prices, FX: bd.FX}
 	buckets := map[string]int64{}
@@ -963,23 +973,23 @@ func verifyBundle(w io.Writer, p string) error {
 			c, _ = t.MicroKRW(u, ts)
 		}
 		if c != e.Cost {
-			fmt.Fprintf(w, "불일치: 이벤트 %d의 비용 %d != 재계산 %d\n", e.Seq, e.Cost, c)
-			return errors.New("검증 실패")
+			fmt.Fprintf(w, lang.T("불일치: 이벤트 %d의 비용 %d != 재계산 %d\n"), e.Seq, e.Cost, c)
+			return errors.New(lang.T("검증 실패"))
 		}
 		buckets[e.Bucket] += c
 		total += c
 	}
 	if total != bd.Seal.TotalMicro {
-		fmt.Fprintf(w, "불일치: 합계 %d != 봉인 %d\n", total, bd.Seal.TotalMicro)
-		return errors.New("검증 실패")
+		fmt.Fprintf(w, lang.T("불일치: 합계 %d != 봉인 %d\n"), total, bd.Seal.TotalMicro)
+		return errors.New(lang.T("검증 실패"))
 	}
 	for k, v := range bd.Seal.BucketMicro {
 		if buckets[k] != v {
-			fmt.Fprintf(w, "불일치: 분류 %s 합계 %d != 봉인 %d\n", k, buckets[k], v)
-			return errors.New("검증 실패")
+			fmt.Fprintf(w, lang.T("불일치: 분류 %s 합계 %d != 봉인 %d\n"), k, buckets[k], v)
+			return errors.New(lang.T("검증 실패"))
 		}
 	}
-	fmt.Fprintf(w, "일치: 봉인 %s, 행 %d개, 합계 %s원\n", bd.Seal.Short(), len(bd.Rows), contract.Comma(cost.Won(total)))
+	fmt.Fprintf(w, lang.T("일치: 봉인 %s, 행 %d개, 합계 %s원\n"), bd.Seal.Short(), len(bd.Rows), contract.Comma(cost.Won(total)))
 	return nil
 }
 

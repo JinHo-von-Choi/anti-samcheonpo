@@ -3,32 +3,32 @@ package classify
 import "testing"
 
 func TestDeploy(t *testing.T) {
-	services := []string{"vellum.service"}
+	services := []string{"billing.service"}
 	for cmd, want := range map[string]bool{
-		"bash scripts/deploy.sh":                   true,
-		"cd /w && bash scripts/deploy.sh --no-e2e": true,
-		"./scripts/deploy.sh":                      true,
-		"make deploy":                              true,
-		"kubectl apply -f k8s/":                    true,
-		"kubectl rollout restart deploy/api":       true,
-		"helm upgrade api ./chart":                 true,
-		"terraform apply -auto-approve":            true,
-		"fly deploy":                               true,
-		"vercel --prod":                            true,
-		"sudo -n systemctl restart vellum.service": true,
-		"sudo systemctl stop vellum":               true,
-		"systemctl restart postgresql":             false, // not a production unit
-		"systemctl status vellum.service":          false,
-		"systemctl --user restart vellum.service":  false,
-		"terraform plan":                           false,
-		"kubectl apply --dry-run=client -f k8s/":   false,
-		"helm template ./chart":                    false,
-		"cat scripts/deploy.sh":                    false,
-		"bash scripts/e2e_prod.sh":                 false,
-		"sh -c 'bash scripts/deploy.sh'":           true,
-		"git log --oneline -- scripts/deploy.sh":   false,
-		"kubectl get pods":                         false,
-		"bash -c \"echo deploying\"":               false,
+		"bash scripts/deploy.sh":                    true,
+		"cd /w && bash scripts/deploy.sh --no-e2e":  true,
+		"./scripts/deploy.sh":                       true,
+		"make deploy":                               true,
+		"kubectl apply -f k8s/":                     true,
+		"kubectl rollout restart deploy/api":        true,
+		"helm upgrade api ./chart":                  true,
+		"terraform apply -auto-approve":             true,
+		"fly deploy":                                true,
+		"vercel --prod":                             true,
+		"sudo -n systemctl restart billing.service": true,
+		"sudo systemctl stop billing":               true,
+		"systemctl restart postgresql":              false, // not a production unit
+		"systemctl status billing.service":          false,
+		"systemctl --user restart billing.service":  false,
+		"terraform plan":                            false,
+		"kubectl apply --dry-run=client -f k8s/":    false,
+		"helm template ./chart":                     false,
+		"cat scripts/deploy.sh":                     false,
+		"bash scripts/e2e_prod.sh":                  false,
+		"sh -c 'bash scripts/deploy.sh'":            true,
+		"git log --oneline -- scripts/deploy.sh":    false,
+		"kubectl get pods":                          false,
+		"bash -c \"echo deploying\"":                false,
 	} {
 		if got := Deploy(cmd, nil, services); got != want {
 			t.Errorf("%q: %v want %v", cmd, got, want)
@@ -40,10 +40,10 @@ func TestDeploy(t *testing.T) {
 }
 
 func TestDataWrite(t *testing.T) {
-	vellum := "cd /home/u/w && set -a && source .env && set +a && psql \"${DATABASE_URL%%\\?*}\" -v ON_ERROR_STOP=1 <<'SQL'\nBEGIN;\nDELETE FROM vellum._sqlx_migrations WHERE version = 22;\nCOMMIT;\nSQL"
-	info := DataWrite(vellum)
+	billing := "cd /home/u/w && set -a && source .env && set +a && psql \"${DATABASE_URL%%\\?*}\" -v ON_ERROR_STOP=1 <<'SQL'\nBEGIN;\nDELETE FROM billing._sqlx_migrations WHERE version = 22;\nCOMMIT;\nSQL"
+	info := DataWrite(billing)
 	if !info.Write || !info.MigrationHistory || info.Explicit || info.Local || len(info.EnvFiles) != 1 || info.EnvFiles[0] != ".env" {
-		t.Fatalf("vellum %+v", info)
+		t.Fatalf("billing %+v", info)
 	}
 	for _, tc := range []struct {
 		cmd                     string

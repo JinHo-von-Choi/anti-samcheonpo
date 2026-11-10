@@ -21,7 +21,7 @@ Linux x86-64 example:
 
 ```sh
 sha256sum --ignore-missing -c SHA256SUMS
-tar -xzf samcheonpo_0.11.1_linux_amd64.tar.gz
+tar -xzf samcheonpo_0.12.0_linux_amd64.tar.gz
 mkdir -p ~/.local/bin
 cp samcheonpo samcheonpo-hook ~/.local/bin/
 export PATH="$HOME/.local/bin:$PATH"
@@ -33,8 +33,8 @@ Keep both executables in the **same directory** and add it to your shell's persi
 To install from source, use Go 1.27 or later and install both commands:
 
 ```sh
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.11.1
-go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.11.1
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo@v0.12.0
+go install github.com/JinHo-von-Choi/anti-samcheonpo/cmd/samcheonpo-hook@v0.12.0
 ```
 
 ## Start using it
@@ -101,6 +101,8 @@ samcheonpo interventions --session <session-id> --json
 The receipt shows usage, `evidence` shows requirements and check results, and `interventions` shows advice and blocks. Currency values estimate token usage at API prices.
 
 Records stay local by default. External judging and notifications are optional settings.
+
+In-session messages follow the language you write in (Korean or English; other languages get English). Amounts are shown in dollars in English sessions.
 
 ## Documentation
 

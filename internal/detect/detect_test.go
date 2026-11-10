@@ -30,6 +30,9 @@ type builder struct {
 func newB(t *testing.T, prompt string, c *contract.Contract) *builder {
 	cfg := config.Default()
 	cfg.Detectors.Overrides = map[string]int{}
+	// repeated whole-suite runs are the input of many rules here; the
+	// allowance has its own tests
+	cfg.Detectors.S1.FullChecksPerRequest = 0
 	return &builder{t: t, e: NewEngine(cfg, c, c != nil, "audit", "/w", "s", prompt), ts: time.Date(2026, 10, 1, 9, 0, 0, 0, time.UTC), ws: "ws0"}
 }
 

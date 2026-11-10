@@ -1,0 +1,2 @@
+{{if .issue}}The AI put {{if eq .issue "dead_target"}}{{.count}} links with nowhere to go{{else if eq .issue "filler_card"}}{{.count}} text-only info cards{{else}}{{.count}} buttons or links with the same text "{{.label}}"{{end}} on the screen ({{.path}}).{{else}}{{if .element}}The AI added {{.count}} of {{.element}} to the screen. {{.requested}} were requested ({{.path}}).{{else}}The AI added {{.count}} buttons or links to the screen that were not requested ({{.path}}).
+Too many unused buttons make it hard to know what to press.{{end}}{{end}}

@@ -1,0 +1,4 @@
+[samcheonpo] Observed: {{.other}}'s heavy test `{{.other_cmd}}` has been running in this working folder for {{.since}} min, and another heavy test `{{.cmd}}` is about to start.
+Evidence: event {{.evidence}}{{if .expect}}, last duration of the running test {{.expect}} min{{end}}. Two tests sharing CPU, disk or a test database cause timeouts and order-dependent failures that are not code defects.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. Overlapping heavy tests on one machine does not make checking faster.

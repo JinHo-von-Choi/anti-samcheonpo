@@ -14,11 +14,25 @@
 사용자 설정은 `~/.samcheonpo/config.yml`, 프로젝트 설정은 `.samcheonpo.yml`입니다. `samcheonpo init`은 프로젝트 설정 파일을 만듭니다. 기존 파일을 통째로 교체하지 말고 필요한 항목을 합치세요.
 
 ```yaml
+language: auto             # 기본값. 사용자가 쓴 언어에 맞춰 안내. ko 또는 en으로 고정 가능
+currency: auto             # 기본값. 한국어는 원, 영어는 달러. KRW 또는 USD로 고정 가능
 rollout:
   mode: recommend          # 기본값. shadow는 일반 경고를 기록만
   escalate_max_blocks: 3   # 반복 경고의 차단 상한. 0이면 이 상승 차단을 끔
 contract:
   draft: off               # 기본값. on이면 계약 초안 요청
+detectors:
+  s1_verify_treadmill:
+    full_checks_per_request: 1  # 요청당 전체 시험 횟수. 0이면 끔
+    full_check_commands: []     # 전체 시험으로 셀 프로젝트 검사 명령 일부
+quality:
+  enabled: true             # 범위 축소, 숨긴 잔여 작업, 미확인 화면에서 종료를 막음
+  critique:
+    enabled: false           # true면 코드 변경 뒤 samcheonpo critique 독립 검토를 요구. 사용자 설정에서만 켬
+    min_lines: 30            # 검토를 요구하는 최소 변경 줄 수
+    command: []              # 검토 명령. 비우면 작업 중인 에이전트의 기본 명령(claude, codex, mcode, agy, copilot, cursor)을 쓰고, 그 외에는 claude를 쓴다. {prompt}는 프롬프트 인자, {cwd}는 빈 폴더로 바뀐다
+trim:
+  enabled: false           # 기본값. true면 에이전트가 쓴 문서마다 덜어내기 단계를 요청당 한 번 안내
 ```
 
 보호 경로·수락한 예산은 반복 경고의 차단 상한과 별개입니다. 프로젝트가 바꿀 수 있는 범위는 [설정 권한](#설정-권한)을 참고하세요.
@@ -81,7 +95,7 @@ flowchart LR
 - 기본은 안내 모드(`rollout.mode: recommend`)다. `shadow`에서는 일반 판정을 기록하고 안내·복구 권고·자동 종료 검사를 생략한다. 수락한 보호 경로·예산과 오류 은폐·시험 약화·수락 범위 밖 수정·반복 되돌리기의 핵심 사전 차단은 유지한다.
 - 기록만 하는 규칙도 있다. 기본 목록은 `s1.verify_after_docs`, `s1.review_repeat`, `s1.explicit_waiting`, `s8.progress_stall`이다. 대기·정체 두 규칙은 사용자가 안내를 켜야 메시지를 보내며, 반복돼도 작업을 차단하지 않는다.
 - 반복 경고에 따른 차단은 같은 세션·목표 안에서 안내를 받은 뒤 같은 대상(파일 또는 명령)에 같은 행동을 반복할 때 적용한다.
-- 같은 검사 재실행, 실패 반복, 오류 숨기기, 시험 약화, 작은 변경 뒤 전체 시험 재실행, CI 실패 뒤 재배포, 배포 연타, 프로브 없는 장시간 실행, 거부당한 명령의 재실행, 같은 작업 폴더의 무거운 시험 겹침, 검사 없는 운영 배포(`s5.deploy_without_preflight`), 운영 데이터 쓰기, 마이그레이션 이력 수동 변경은 계약 없이도 차단까지 간다. 범위, 완료 조건, 검증 비율처럼 계약에 기대는 규칙은 수락한 계약이 있을 때만 차단한다.
+- 같은 검사 재실행, 실패 반복, 오류 숨기기, 시험 약화, 작은 변경 뒤 전체 시험 재실행, CI 실패 뒤 재배포, 배포 연타, 프로브 없는 장시간 실행, 거부당한 명령의 재실행, 같은 작업 폴더의 무거운 시험 겹침, 검사 없는 운영 배포(`s5.deploy_without_preflight`), 운영 데이터 쓰기, 마이그레이션 이력 수동 변경, 작업 경위를 적은 글의 커밋·푸시(`s5.artifact_meta`)는 계약 없이도 차단까지 간다. 답변 군더더기(`s5.answer_padding`)와 요청 없는 버튼·링크(`s3.unrequested_ui_action`)는 안내만 한다. 범위, 완료 조건, 검증 비율처럼 계약에 기대는 규칙은 수락한 계약이 있을 때만 차단한다.
 - 세션당 차단 상한은 `rollout.escalate_max_blocks`(기본 3, 0이면 끔)다.
 - `samcheonpo review`로 경고가 맞았는지 기록할 수 있다. 이 결과는 `accuracy`에서 규칙별로 확인한다.
 - 사용자가 수락한 보호 경로와 명시한 예산은 어느 단계에서도 지킨다.

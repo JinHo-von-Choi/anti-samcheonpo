@@ -1,0 +1,4 @@
+[samcheonpo] Observed: about to deploy to production with `{{.cmd}}` {{if eq .kind "ci_failed"}}after remote CI (`{{.ci_cmd}}`) failed, with no check passing locally{{else if eq .kind "ui_timing"}}while screen test `{{.failing_cmd}}` is left in a timing failure{{else}}with no check passing since the last code change{{end}}.
+Evidence: event {{.evidence}}.
+Cost: {{.cost_summary}}
+Contract: the goal is {{.goal}}. A failed deployment can turn rollback and migration reversal into an outage, so local checks should pass before deploying.

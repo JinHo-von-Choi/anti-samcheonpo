@@ -1,0 +1,2 @@
+Without finding why the test failed, the AI {{if eq .kind "retries"}}added retries{{else if eq .kind "timeout"}}raised the time limit{{else}}added a retry loop{{end}} ({{.path}}).
+If the cause remains, the same failure will come back in a production deployment.

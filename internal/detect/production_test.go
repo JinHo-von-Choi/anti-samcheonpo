@@ -9,7 +9,7 @@ import (
 
 const glPipeline = `curl -s -H "PRIVATE-TOKEN: $T" "https://git.example/api/v4/projects/59/pipelines/1627"`
 
-// TestDeployAfterFailedCI replays the Vellum sequence: CI read through the
+// TestDeployAfterFailedCI replays the Billing sequence: CI read through the
 // REST API failed, then the deploy script ran without a local check.
 func TestDeployAfterFailedCI(t *testing.T) {
 	b := newB(t, "배포까지 해", nil)
@@ -50,19 +50,19 @@ func TestDeployNeedsACheckAfterTheLastChange(t *testing.T) {
 }
 
 func TestDeployOfAContractService(t *testing.T) {
-	c := &contract.Contract{Goal: "x", Production: &contract.Production{Services: []string{"vellum.service"}}}
+	c := &contract.Contract{Goal: "x", Production: &contract.Production{Services: []string{"billing.service"}}}
 	b := newB(t, "배포", c)
 	b.write("src/a.go", "h", []string{"a"}, nil)
-	if s := b.pre("sudo -n systemctl restart vellum.service"); s == nil || s.Rule != "s5.deploy_without_preflight" {
+	if s := b.pre("sudo -n systemctl restart billing.service"); s == nil || s.Rule != "s5.deploy_without_preflight" {
 		t.Fatalf("restarting a production unit deploys the new build: %+v", s)
 	}
 }
 
-const vellumRevert = "cd /w && set -a && source .env && set +a && psql \"${DATABASE_URL%%\\?*}\" <<'SQL'\nBEGIN;\nDELETE FROM vellum._sqlx_migrations WHERE version = 22;\nCOMMIT;\nSQL"
+const billingRevert = "cd /w && set -a && source .env && set +a && psql \"${DATABASE_URL%%\\?*}\" <<'SQL'\nBEGIN;\nDELETE FROM billing._sqlx_migrations WHERE version = 22;\nCOMMIT;\nSQL"
 
 func TestMigrationHistoryWrite(t *testing.T) {
 	b := newB(t, "배포", nil)
-	if s := b.pre(vellumRevert); s == nil || s.Rule != "s3.migration_history_write" || s.Level != L1 {
+	if s := b.pre(billingRevert); s == nil || s.Rule != "s3.migration_history_write" || s.Level != L1 {
 		t.Fatalf("a hand-written migration history change is judged: %+v", s)
 	}
 	if s := b.pre(`psql postgres://app@127.0.0.1/app_test -c "DELETE FROM _sqlx_migrations"`); s != nil {

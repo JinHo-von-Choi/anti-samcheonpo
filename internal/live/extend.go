@@ -3,6 +3,7 @@ package live
 import (
 	"errors"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"strconv"
 	"strings"
 
@@ -24,11 +25,11 @@ func parseExtend(arg string) (hours float64, tokens int64, err error) {
 	for _, f := range fields {
 		m := extendArgRe.FindStringSubmatch(f)
 		if m == nil {
-			return 0, 0, fmt.Errorf("%q를 읽지 못했다. %s", f, extendUsage)
+			return 0, 0, fmt.Errorf(lang.T("%q를 읽지 못했다. %s"), f, extendUsage)
 		}
 		n, perr := strconv.ParseFloat(m[1], 64)
 		if perr != nil || n <= 0 {
-			return 0, 0, fmt.Errorf("%q를 읽지 못했다. %s", f, extendUsage)
+			return 0, 0, fmt.Errorf(lang.T("%q를 읽지 못했다. %s"), f, extendUsage)
 		}
 		switch m[2] {
 		case "h", "시간":
@@ -65,10 +66,10 @@ func (d *Daemon) extend(s *Session, arg string) (string, error) {
 	}
 	s.mu.Unlock()
 	if !ok {
-		return "설정된 세션 상한이 없다. 상한은 설정의 detectors.s8_cost.ceiling_hours·ceiling_tokens나 계약의 budget.minutes로 정한다.", nil
+		return lang.T("설정된 세션 상한이 없다. 상한은 설정의 detectors.s8_cost.ceiling_hours·ceiling_tokens나 계약의 budget.minutes로 정한다."), nil
 	}
 	if err := d.db.AddFeedback(verdict, s.ID, "s8.session_ceiling", "extend", strings.TrimSpace(arg), "", s.Root); err != nil {
 		return "", err
 	}
-	return fmt.Sprintf("세션 상한을 늘렸다. 지금 상한: %s. 다시 닿으면 같은 방식으로 멈춘다.", limit), nil
+	return fmt.Sprintf(lang.T("세션 상한을 늘렸다. 지금 상한: %s. 다시 닿으면 같은 방식으로 멈춘다."), limit), nil
 }

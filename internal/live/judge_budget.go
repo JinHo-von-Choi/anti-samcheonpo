@@ -2,6 +2,7 @@ package live
 
 import (
 	"errors"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
@@ -9,7 +10,7 @@ import (
 
 func (s *Session) saveJudgeBudget() error {
 	if s.db == nil {
-		return errors.New("판정 예산 원장이 없어 외부 호출을 허용하지 않는다")
+		return errors.New(lang.T("판정 예산 원장이 없어 외부 호출을 허용하지 않는다"))
 	}
 	return s.db.SaveJudgeBudget(s.Agent, s.ID, s.judgeBudget)
 }
@@ -30,10 +31,10 @@ func (s *Session) restoreJudgeBudget() error {
 		}
 	}
 	if s.judgeBudget.Unknown {
-		s.judgeBudgetReason = "이전 판정 비용 미확인: 재시작 후에도 추가 호출 중단"
+		s.judgeBudgetReason = lang.T("이전 판정 비용 미확인: 재시작 후에도 추가 호출 중단")
 	}
 	if s.judgeBudget.Overrun {
-		s.judgeBudgetReason = "이전 판정의 예약 초과로 추가 호출 중단"
+		s.judgeBudgetReason = lang.T("이전 판정의 예약 초과로 추가 호출 중단")
 	}
 	return nil
 }

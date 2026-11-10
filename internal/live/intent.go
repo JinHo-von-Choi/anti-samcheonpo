@@ -149,6 +149,7 @@ func (s *Session) goalCard(requested string) intent.Card {
 			}
 		}
 		card.Work = intent.DescribeWork(s.eng.LatestRequest(), events)
+		card.Output = intent.InferOutput(s.eng.RequestText())
 	}
 	return card
 }

@@ -3,6 +3,7 @@ package live
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/procscan"
 	"path/filepath"
 	"slices"
 	"strings"
@@ -15,15 +16,21 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intent"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/intervene"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/receipt"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/rules"
 )
 
 // HookInput is the common Claude Code hook payload.
+// scheduledRunEnd is the end reason of a run that has no next turn.
+const scheduledRunEnd = "scheduled_run_end"
+
 type HookInput struct {
 	AgentTranscriptPath string           `json:"agent_transcript_path,omitempty"`
 	AgentID             string           `json:"agent_id,omitempty"`
 	ChildStop           bool             `json:"-"`
+	PeerPID             int              `json:"-"`
+	Reason              string           `json:"reason,omitempty"`
 	Resources           []ResourceClaim  `json:"resources,omitempty"`
 	Cursor              *cursorEvidence  `json:"-"`
 	Copilot             *copilotEvidence `json:"-"`
@@ -86,7 +93,7 @@ func (d *Daemon) handleHook(agent, name string, in HookInput) (json.RawMessage, 
 	if err != nil || s == nil || len(out) == 0 {
 		return out, err
 	}
-	if s.queueRejected.Load() > 0 {
+	if s.queueRejected.Load() > 0 && !s.budgetDeny.Swap(false) {
 		return nil, nil // incomplete evidence must not authorize intervention
 	}
 	s.mu.Lock()
@@ -240,7 +247,7 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 		closed := s.closed
 		s.mu.Unlock()
 		if closed {
-			return nil, s, fmt.Errorf("이미 종료된 세션이다")
+			return nil, s, fmt.Errorf("%s", lang.T("이미 종료된 세션이다"))
 		}
 	}
 	s.mu.Lock()
@@ -334,6 +341,11 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 	case "SessionEnd":
 		s.flushTurn()
 		s.closeBackground()
+		if in.Reason == scheduledRunEnd {
+			s.mu.Lock()
+			s.censorUndelivered()
+			s.mu.Unlock()
+		}
 		if in.Cursor != nil {
 			s.mu.Lock()
 			ev := &event.Event{Kind: event.KindSessionEnd, TS: time.Now(), Summary: "cursor session end: " + cursorEndStatus(in.Cursor.EndStatus), Basis: "live"}
@@ -375,7 +387,7 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 		}
 		d.drop(in.SessionID)
 		if p != "" {
-			return hookOut(map[string]any{"systemMessage": "삼천포 영수증: " + p}), s, nil
+			return hookOut(map[string]any{"systemMessage": s.pick("삼천포 영수증: ", "samcheonpo receipt: ") + p}), s, nil
 		}
 		return nil, s, nil
 	}
@@ -421,6 +433,10 @@ func (s *Session) onPrompt(in HookInput) json.RawMessage {
 		s.firstPrompt = in.Prompt
 		s.eng.FirstPrompt = in.Prompt
 	}
+	if l := lang.Detect(in.Prompt); l != "" && s.fixedLanguage() == "" {
+		s.lang.Store(l)
+	}
+	lang.SetCurrent(s.language())
 	s.stopBlocks = 0
 	s.loadContract()
 	needDraft := newTask && (s.c == nil || s.acc.State == contract.StateDone) && s.acc.State != contract.StateSkipped
@@ -449,9 +465,9 @@ func (s *Session) onPrompt(in HookInput) json.RawMessage {
 	if s.Cfg.Rollout.Mode != "shadow" && needDraft && change.Kind != intent.Ignored && (s.Cfg.Contract.Draft == "on" || s.c != nil) {
 		// The card and its command menu are for the user; the agent only gets
 		// the draft request, so it never stops to wait for an acceptance.
-		draft := contract.DraftRequest(contract.Candidates(s.Root), in.Prompt) + "\n" + draftContinueNote
+		draft := contract.DraftRequestIn(s.language(), contract.Candidates(s.Root), in.Prompt) + "\n" + s.pick(draftContinueNote, draftContinueNoteEnglish)
 		if card.RequestedGoal != "" {
-			draft = "사용자 요청(초안에 반영할 내용): " + card.RequestedGoal + "\n" + draft
+			draft = s.pick("사용자 요청(초안에 반영할 내용): ", "User request (to reflect in the draft): ") + card.RequestedGoal + "\n" + draft
 		}
 		s.mu.Lock()
 		if s.caps.PromptInject {
@@ -476,6 +492,8 @@ func (s *Session) onPrompt(in HookInput) json.RawMessage {
 }
 
 // draftContinueNote keeps the agent on the requested work after drafting.
+const draftContinueNoteEnglish = "After writing the draft, continue the requested work right away without waiting for the user to accept or choose. The user accepts separately."
+
 const draftContinueNote = "초안을 쓴 뒤 사용자의 수락이나 선택을 기다리지 말고 요청받은 작업을 바로 이어서 한다. 수락은 사용자가 따로 한다."
 
 func (s *Session) buildTool(in HookInput) *event.Event {
@@ -608,12 +626,12 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 		s.mu.Unlock()
 		s.enqueue(ev, 0)
 		if !blockPre {
-			return hookOut(additional("PreToolUse", userOnlyReason))
+			return hookOut(additional("PreToolUse", s.pick(userOnlyReason, userOnlyReasonEnglish)))
 		}
 		return hookOut(map[string]any{"hookSpecificOutput": map[string]any{
 			"hookEventName":            "PreToolUse",
 			"permissionDecision":       "deny",
-			"permissionDecisionReason": userOnlyReason,
+			"permissionDecisionReason": s.pick(userOnlyReason, userOnlyReasonEnglish),
 		}})
 	}
 	if ev.Category == event.CatProduce {
@@ -730,6 +748,7 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	// stopped. A session in the control arm runs the same pipeline as any
 	// other: the finding is judged, and the call is refused or the advice is
 	// delivered as the rollout stage requires.
+	s.locateMetaLines(&v)
 	reason := intervene.Agent(v, ctx, v.Arm)
 	if reason == "" {
 		reason = receipt.Describe(v)
@@ -770,7 +789,7 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	}
 	if escalated {
 		s.noteEscalation(in.Ack)
-		reason = escalationNote + "\n" + reason
+		reason = s.pick(escalationNote, escalationNoteEnglish) + "\n" + reason
 	}
 	if time.Now().After(deadline) {
 		s.preLate.Add(1)
@@ -782,6 +801,9 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	}
 	s.noteIntervention(in.Ack, v.ID)
 	s.blocks++
+	// counting whole-suite runs needs no complete record of the session: a
+	// lost observation only undercounts
+	s.budgetDeny.Store(v.Rule == detect.RuleFullBudget)
 	if v.Level >= detect.L3 {
 		s.unresolved = &v
 	}
@@ -978,7 +1000,7 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 	}
 	if l3 != nil && l3.Level == detect.L4 {
 		if p := s.handoffDoc(receipt.Describe(*l3)); p != "" {
-			user = strings.TrimSpace(user + "\n인수인계 문서: " + p)
+			user = strings.TrimSpace(user + s.pick("\n인수인계 문서: ", "\nHandoff document: ") + p)
 		}
 	}
 	s.mu.Unlock()
@@ -989,7 +1011,7 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 			reason = intervene.User(*l3, s.msgContext())
 		}
 		if escalatedStop {
-			reason = escalationNote + "\n" + reason
+			reason = s.pick(escalationNote, escalationNoteEnglish) + "\n" + reason
 		}
 		endTurnPost := s.caps.EndTurnPost
 		s.mu.Unlock()
@@ -1025,7 +1047,7 @@ func (s *Session) onContractWritten() json.RawMessage {
 		for _, e := range errs {
 			lines = append(lines, e.Error())
 		}
-		return hookOut(additional("PostToolUse", "[삼천포] .samcheonpo/contract.yml 검증 결과: "+strings.Join(lines, "; ")+". 이 항목을 고치면 계약으로 쓸 수 있다."))
+		return hookOut(additional("PostToolUse", s.pick("[삼천포] .samcheonpo/contract.yml 검증 결과: ", "[samcheonpo] .samcheonpo/contract.yml validation: ")+strings.Join(lines, "; ")+s.pick(". 이 항목을 고치면 계약으로 쓸 수 있다.", ". Fix these items to use it as a contract.")))
 	}
 	s.mu.Lock()
 	acc := contract.Acceptance{State: contract.StateDraft}
@@ -1039,7 +1061,7 @@ func (s *Session) onContractWritten() json.RawMessage {
 	}
 	card := s.goalCard("")
 	s.mu.Unlock()
-	note := "[삼천포] 계약 초안을 받았다. 사용자가 /samcheonpo:accept로 수락하면 진척 판정 기준이 된다. 수락 전에는 검사를 자동 실행하지 않으니 원래 작업을 이어서 하면 된다."
+	note := s.pick("[삼천포] 계약 초안을 받았다. 사용자가 /samcheonpo:accept로 수락하면 진척 판정 기준이 된다. 수락 전에는 검사를 자동 실행하지 않으니 원래 작업을 이어서 하면 된다.", "[samcheonpo] Contract draft received. It becomes the standard for progress once the user accepts it with /samcheonpo:accept. Checks do not run automatically before that, so continue the original work.")
 	if !need {
 		return hookOut(additional("PostToolUse", note))
 	}
@@ -1054,8 +1076,10 @@ func (s *Session) onContractWritten() json.RawMessage {
 }
 
 func (s *Session) onStop(in HookInput) json.RawMessage {
+	started := time.Now()
 	s.flushTurn()
 	s.pollUsage()
+	flushed := time.Now()
 	s.mu.Lock()
 	shadow := s.Cfg.Rollout.Mode == "shadow"
 	stopRoute, stopEscalated := s.routeFor(detect.Signal{Rule: "s5.stop_unmet"})
@@ -1063,6 +1087,7 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 	s.mu.Unlock()
 	var unmet []string
 	var stopChecks []CheckResult
+	checksFrom := time.Now()
 	if !shadow {
 		results := s.checkpoint(false)
 		stopChecks = results
@@ -1072,6 +1097,7 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 			}
 		}
 	}
+	checksDone := time.Now()
 	s.mu.Lock()
 	text := in.LastMessage
 	if text == "" && s.usage != nil {
@@ -1079,7 +1105,9 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 	}
 	msg := &event.Event{Kind: event.KindMessage, TS: time.Now(), Summary: "message", Text: text, Basis: "live", Priced: true}
 	s.parser.AddEvent(msg)
+	s.hostPID = procscan.HostPID(in.PeerPID)
 	s.leftoverAtStop(msg)
+	scanned := time.Now()
 	s.mu.Unlock()
 	s.enqueue(msg, time.Second)
 	s.mu.Lock()
@@ -1090,10 +1118,19 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 		sigs = slices.DeleteFunc(sigs, func(v detect.Signal) bool { return v.Rule == hold.Rule && v.Seq == hold.Seq })
 	}
 	s.deliver(sigs)
+	var quality *detect.Signal
+	if hold == nil && !shadow && s.caps.BlockStop && s.Cfg.Quality.Enabled {
+		quality = s.eng.QualityNext(text, s.Cfg.Quality.Critique.Enabled, s.Cfg.Quality.Critique.MinLines)
+	}
+	s.queueTrimPass()
+	s.noteSlowStop(msg, stopPhases{flush: flushed.Sub(started), checks: checksDone.Sub(checksFrom), scan: scanned.Sub(checksDone), total: time.Since(started)})
 	blocks := s.stopBlocks
 	s.mu.Unlock()
 	if hold != nil {
 		return s.holdStop(*hold, in)
+	}
+	if quality != nil {
+		return s.blockStopForQuality(*quality, msg.Seq)
 	}
 	route := "Stop"
 	if canBlock && len(unmet) > 0 && blocks < s.Cfg.Levels.MaxStopBlocks && !in.StopHookActive {
@@ -1116,7 +1153,7 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 		}
 		if stopEscalated {
 			s.escalations++
-			reason = escalationNote + "\n" + reason
+			reason = s.pick(escalationNote, escalationNoteEnglish) + "\n" + reason
 		}
 		s.mu.Unlock()
 		if nudge != "" {
@@ -1133,7 +1170,7 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 		s.mu.Lock()
 		met, total := s.criteria()
 		s.mu.Unlock()
-		user = strings.TrimSpace(user + fmt.Sprintf("\nAI가 끝났다고 했지만 완료 조건 %d개 중 %d개가 실패한 상태입니다.", total, total-met))
+		user = strings.TrimSpace(user + fmt.Sprintf(s.pick("\nAI가 끝났다고 했지만 완료 조건 %d개 중 %d개가 실패한 상태입니다.", "\nThe AI said it was finished, but %[2]d of %[1]d completion criteria are failing."), total, total-met))
 	}
 	s.mu.Lock()
 	notice := s.stopNotice
@@ -1143,7 +1180,7 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 		} else {
 			// These hosts have no user-message field in their Stop response.
 			// Use the existing user-configured notification channel instead.
-			s.notifier.Send("삼천포", notice)
+			s.notifier.Send(s.pick("삼천포", "samcheonpo"), notice)
 		}
 		s.stopNotice = ""
 	}
@@ -1168,6 +1205,12 @@ func (s *Session) onUsage(in HookInput) {
 	}
 	s.mu.Lock()
 	defer s.mu.Unlock()
+	if s.parser.Session.Model == "" && in.Model != "" {
+		s.parser.Session.Model = in.Model
+		if s.db != nil {
+			s.recordStorageError(s.db.UpsertLive(s.ID, s.Agent, s.Root, s.Transcript, in.Model))
+		}
+	}
 	cur := event.Usage{In: in.Usage.In, Out: in.Usage.Out, CacheRead: in.Usage.CacheRead, CacheWrite: in.Usage.CacheWrite, Model: in.Model}
 	targets, known := s.usageTargets[in.MessageID]
 	if !known {

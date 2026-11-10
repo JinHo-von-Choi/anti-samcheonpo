@@ -1,6 +1,8 @@
 package detect
 
 import (
+	"path"
+	"regexp"
 	"sort"
 	"strings"
 	"sync/atomic"
@@ -355,7 +357,7 @@ func (e *Engine) smuggling(ev *event.Event, sigs *[]Signal) {
 	if ev.Text == "" {
 		return
 	}
-	kind, ok := ScanSmuggling(ev.Text)
+	kind, ok := ScanSmuggling(smugglingText(ev))
 	if !ok {
 		return
 	}
@@ -366,6 +368,113 @@ func (e *Engine) smuggling(ev *event.Event, sigs *[]Signal) {
 	// Text the agent writes itself is judged by smugglingPatch.
 	e.add(sigs, Signal{Detector: "S9", Rule: ruleForKind(kind), Confidence: 0.5, Level: L0, Evidence: []int64{ev.Seq},
 		Facts: map[string]any{"kind": kind, "source": sourceOf(ev)}})
+}
+
+// smugglingText is the part of an event's text that can carry an
+// instruction: a prompt without the fixed text the host puts before it, and
+// of a source file only the comments. The string literals and word lists of a
+// program are data, and a program that detects instructions is full of them.
+func smugglingText(ev *event.Event) string {
+	switch {
+	case ev.Kind == event.KindPrompt:
+		return stripHostTemplate(ev.Text)
+	case ev.Kind == event.KindTool && readsOnlySource(ev):
+		return sourceComments(ev.Text)
+	}
+	return ev.Text
+}
+
+// The fixed block Hermes puts before the prompt of a scheduled job.
+const (
+	hermesCronStart  = "[IMPORTANT: You are running as a scheduled cron job."
+	hermesCronToken  = "[SILENT]"
+	hermesCronEnd    = "]\n\n"
+	hermesCronMaxLen = 4000
+)
+
+// hermesSkillInstruction introduces the block when the job runs a skill: the
+// skill's text comes first, and it is still read.
+const hermesSkillInstruction = "The user has provided the following instruction alongside the skill invocation: "
+
+// stripHostTemplate removes the block a host writes before a user's prompt.
+// Only a block that opens the text, or follows the host's sentence for a skill
+// run, and holds the host's control token is removed; everything else is read.
+func stripHostTemplate(text string) string {
+	start := -1
+	if strings.HasPrefix(strings.TrimLeft(text, " \t\r\n"), hermesCronStart) {
+		start = strings.Index(text, hermesCronStart)
+	} else if i := strings.Index(text, hermesSkillInstruction+hermesCronStart); i >= 0 {
+		start = i + len(hermesSkillInstruction)
+	}
+	if start < 0 {
+		return text
+	}
+	block := text[start:]
+	end := strings.Index(block[:min(len(block), hermesCronMaxLen)], hermesCronEnd)
+	if end < 0 || !strings.Contains(block[:end], hermesCronToken) {
+		return text
+	}
+	return text[:start] + block[end+len(hermesCronEnd):]
+}
+
+// programExt lists the program files whose string literals are data. Documents,
+// configuration and markup are read in full.
+var programExt = map[string]bool{".go": true, ".rs": true, ".ts": true, ".tsx": true, ".js": true, ".jsx": true, ".mjs": true, ".py": true, ".rb": true,
+	".java": true, ".kt": true, ".swift": true, ".c": true, ".h": true, ".cc": true, ".cpp": true, ".cs": true, ".php": true, ".lua": true}
+
+var (
+	shellStepRe   = regexp.MustCompile(`;|&&|\|\||\||\n`)
+	fileReaderCmd = map[string]bool{"cat": true, "sed": true, "head": true, "tail": true, "nl": true, "bat": true, "cd": true}
+	lineNumberRe  = regexp.MustCompile(`^\s*\d+(?:[\t:|]|→)`)
+)
+
+// readsOnlySource reports whether a tool call does nothing but print program
+// files.
+func readsOnlySource(ev *event.Event) bool {
+	var names []string
+	switch ev.Tool {
+	case event.ToolRead:
+		names = ev.Paths
+	case event.ToolShell:
+		for _, step := range shellStepRe.Split(cmdOf(ev), -1) {
+			fields := strings.Fields(step)
+			if len(fields) == 0 {
+				continue
+			}
+			if !fileReaderCmd[fields[0]] {
+				return false
+			}
+			if fields[0] == "cd" {
+				continue
+			}
+			for _, f := range fields[1:] {
+				if path.Ext(f) != "" && !strings.HasPrefix(f, "-") {
+					names = append(names, f)
+				}
+			}
+		}
+	}
+	if len(names) == 0 {
+		return false
+	}
+	for _, n := range names {
+		if !programExt[strings.ToLower(path.Ext(n))] {
+			return false
+		}
+	}
+	return true
+}
+
+// sourceComments keeps the comment lines of printed source.
+func sourceComments(text string) string {
+	var b strings.Builder
+	for _, line := range strings.Split(text, "\n") {
+		if m := commentLineRe.FindStringSubmatch(lineNumberRe.ReplaceAllString(line, "")); m != nil {
+			b.WriteString(strings.TrimSpace(m[1]))
+			b.WriteByte('\n')
+		}
+	}
+	return b.String()
 }
 
 // stashSmuggling keeps a hit, up to the session's limit.

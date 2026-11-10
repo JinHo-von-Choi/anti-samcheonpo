@@ -32,13 +32,13 @@ func RolloutRoute(mode, rule string, evidence map[string]string) string {
 
 // AdviceOnly rules cannot block, even with an operator evaluation digest.
 func AdviceOnly(rule string) bool {
-	return rulepack.IsLearned(rule) || rule == "s3.drift" || rule == "s1.explicit_waiting" || rule == "s8.progress_stall" || rule == "s2.behavior_loop" || rule == "s4.research_repeat" || rule == "s1.delegation_loop" || rule == "s1.linked_loop" || rule == "s5.partial_done" || rule == "s3.requirement_substitution" || rule == "s3.repeated_permission" || rule == "s1.verify_streak" || rule == "s8.host_resource" || rule == "s5.flake_masking" || rule == "s1.revert_reverify" || rule == "s8.leftover_process"
+	return rulepack.IsLearned(rule) || rule == "s3.drift" || rule == "s1.explicit_waiting" || rule == "s8.progress_stall" || rule == "s2.behavior_loop" || rule == "s4.research_repeat" || rule == "s1.delegation_loop" || rule == "s1.linked_loop" || rule == "s5.partial_done" || rule == "s3.requirement_substitution" || rule == "s3.repeated_permission" || rule == "s1.verify_streak" || rule == "s8.host_resource" || rule == "s5.flake_masking" || rule == "s1.revert_reverify" || rule == "s8.leftover_process" || rule == "s5.answer_padding" || rule == "s3.unrequested_ui_action"
 }
 
 // ExplicitGuardrail reports rules that enforce a limit the user set: a
 // protected path, a budget, a session ceiling. They are not experiments.
 func ExplicitGuardrail(rule string) bool {
-	return rule == "s3.protected_path" || rule == "s8.budget" || rule == "s8.session_ceiling" || rule == "s10.grader_access" || rule == "s3.production_guard" || rule == "s8.host_budget"
+	return rule == "s1.full_suite_budget" || rule == "s1.no_change_rerun" || rule == "s1.test_growth" || rule == "s3.protected_path" || rule == "s8.budget" || rule == "s8.session_ceiling" || rule == "s10.grader_access" || rule == "s3.production_guard" || rule == "s8.host_budget"
 }
 
 // Escalate turns advice into a block when the same rule was already advised
@@ -79,6 +79,11 @@ func Escalable(rule, kind string, contractAccepted bool) bool {
 		return kind == "unchanged_rerun"
 	case "s5.stop_unmet", "s5.false_done", "s3.out_of_scope", "s3.config_bypass", "s1.verify_ratio", "s2.whack_a_mole", "s1.evidence_rerun":
 		return contractAccepted
+	case "s5.artifact_meta":
+		// the sentences are in the text being published; after the advice a
+		// commit or push that still carries them repeats the same thing; a
+		// deletion candidate in a document is advice only
+		return kind != "filler"
 	case "s9.instruction_smuggling", "s9.unverified_claim_request":
 		// a deception instruction in the assembled context is an
 		// observable fact, so it may block without a contract

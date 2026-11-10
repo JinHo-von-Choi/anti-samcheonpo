@@ -3,6 +3,7 @@ package live
 import (
 	"encoding/json"
 	"fmt"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"strings"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter"
@@ -31,17 +32,17 @@ func hookShape(name string, in HookInput) string {
 		return ""
 	}
 	if in.SessionID == "" {
-		return name + ": session_id 없음"
+		return name + lang.T(": session_id 없음")
 	}
 	if in.ToolName == "" {
-		return name + ": tool_name 없음"
+		return name + lang.T(": tool_name 없음")
 	}
 	if in.ToolUseID == "" {
-		return name + ": tool_use_id 없음"
+		return name + lang.T(": tool_use_id 없음")
 	}
 	var input map[string]json.RawMessage
 	if err := json.Unmarshal(in.ToolInput, &input); err != nil || input == nil {
-		return fmt.Sprintf("%s(%s): tool_input이 객체가 아님", name, in.ToolName)
+		return fmt.Sprintf(lang.T("%s(%s): tool_input이 객체가 아님"), name, in.ToolName)
 	}
 	str := func(keys ...string) bool {
 		for _, k := range keys {
@@ -55,19 +56,19 @@ func hookShape(name string, in HookInput) string {
 	switch {
 	case in.ToolName == "apply_patch":
 		if !str("command", "input", "patch") {
-			return name + "(apply_patch): 패치 본문 없음"
+			return name + lang.T("(apply_patch): 패치 본문 없음")
 		}
 	case claude.NormalizeTool(in.ToolName) == event.ToolShell && in.ToolName != "BashOutput":
 		if !str("command", "cmd") {
-			return fmt.Sprintf("%s(%s): 셸 명령 없음", name, in.ToolName)
+			return fmt.Sprintf(lang.T("%s(%s): 셸 명령 없음"), name, in.ToolName)
 		}
 	case in.ToolName == "Write" || in.ToolName == "Edit" || in.ToolName == "MultiEdit" || in.Cursor != nil && in.ToolName == "Delete":
 		if !str("file_path", "path") {
-			return fmt.Sprintf("%s(%s): 파일 경로 없음", name, in.ToolName)
+			return fmt.Sprintf(lang.T("%s(%s): 파일 경로 없음"), name, in.ToolName)
 		}
 	}
 	if name == "PostToolUse" && len(strings.TrimSpace(string(in.ToolResponse))) == 0 && in.Error == "" {
-		return fmt.Sprintf("PostToolUse(%s): tool_response 없음", in.ToolName)
+		return fmt.Sprintf(lang.T("PostToolUse(%s): tool_response 없음"), in.ToolName)
 	}
 	return ""
 }
