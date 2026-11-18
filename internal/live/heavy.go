@@ -37,6 +37,61 @@ func (r *heavyRun) live(now time.Time) bool {
 type heavyRegistry struct {
 	mu   sync.Mutex
 	runs map[string][]*heavyRun // workspace key -> runs
+	// baselines are the baseline comparisons running per workspace. They are
+	// samcheonpo's own runs: no agent run conflicts with them, and an agent's
+	// heavy run stops them.
+	baselines map[string]map[chan struct{}]bool
+	// baselinesOff is set at shutdown: a comparison held after it stops at once
+	baselinesOff bool
+}
+
+// holdBaseline records a baseline comparison; the channel closes when an
+// agent starts a heavy run in the workspace, and release drops the record.
+func (h *heavyRegistry) holdBaseline(key string) (stop <-chan struct{}, release func()) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	if h.baselines == nil {
+		h.baselines = map[string]map[chan struct{}]bool{}
+	}
+	if h.baselines[key] == nil {
+		h.baselines[key] = map[chan struct{}]bool{}
+	}
+	ch := make(chan struct{})
+	if h.baselinesOff {
+		close(ch)
+		return ch, func() {}
+	}
+	h.baselines[key][ch] = true
+	return ch, func() {
+		h.mu.Lock()
+		defer h.mu.Unlock()
+		if h.baselines[key][ch] {
+			delete(h.baselines[key], ch)
+		}
+	}
+}
+
+// stopBaselines stops every baseline comparison running in the workspace.
+func (h *heavyRegistry) stopBaselines(key string) {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	for ch := range h.baselines[key] {
+		close(ch)
+		delete(h.baselines[key], ch)
+	}
+}
+
+// stopAllBaselines stops the comparisons of every workspace, at shutdown.
+func (h *heavyRegistry) stopAllBaselines() {
+	h.mu.Lock()
+	defer h.mu.Unlock()
+	h.baselinesOff = true
+	for key, chs := range h.baselines {
+		for ch := range chs {
+			close(ch)
+		}
+		delete(h.baselines, key)
+	}
 }
 
 // conflict returns the oldest run still running in the workspace that is
@@ -161,6 +216,9 @@ func (s *Session) holdHeavy(ev *event.Event) {
 	if !heavy {
 		return
 	}
+	// the agent's own run comes first: a baseline comparison would compete
+	// with it for the machine
+	s.daemon.heavy.stopBaselines(s.heavyKey())
 	s.daemon.heavy.hold(s.heavyKey(), &heavyRun{session: s.ID, callID: ev.CallID, cmd: ev.CmdNorm, started: time.Now(), expect: last})
 }
 

@@ -305,3 +305,20 @@ func TestReplayedHarnessNotificationIsNotARequest(t *testing.T) {
 		t.Fatalf("requests %q", b.e.Requests)
 	}
 }
+
+// A completion claimed on a check whose tests also pass with the change
+// undone is not backed by them; a later check without that finding is.
+func TestFalseDoneBaselinePass(t *testing.T) {
+	b := newB(t, "뺄셈 버그 고쳐 줘", nil)
+	b.write("calc.go", "a", []string{"func Sub(a, b int) int { return a - b }"}, nil)
+	b.verify("go test ./...", 0, nil)
+	b.e.NoteBaseline(b.e.St.lastVerify.Seq, "baseline_pass", []string{"calc_test.go"})
+	v := fired(b.msg("고쳤습니다. 시험이 모두 통과합니다."), "s5.false_done")
+	if v == nil || v.Facts["kind"] != "baseline_pass" || v.Facts["tests"] != "calc_test.go" {
+		t.Fatalf("baseline pass: %+v", v)
+	}
+	b.verify("go test ./...", 0, nil)
+	if v := fired(b.msg("고쳤습니다. 시험이 모두 통과합니다."), "s5.false_done"); v != nil {
+		t.Fatalf("a later check without a baseline finding flagged: %+v", v)
+	}
+}

@@ -113,7 +113,8 @@ var kindNames = map[string]string{
 	"mock_substituted": "시험의 실제 외부 서비스를 가짜로 대체", "stale_goal": "이전 목표의 경로로 되돌아감", "guessed": "요청에서 추정한 범위 밖",
 	"bypass_monitor": "감시 우회 지시", "hide_report": "보고 은폐 지시", "fake_result": "미수행 검사 보고 지시",
 	"failing_left": "마지막 검사가 실패한 채로 남아 있다", "no_check_after_change": "마지막 코드 변경 뒤에 실행한 검사가 없다",
-	"unmet_left": "완료 조건 일부가 실패한 채로 남아 있다",
+	"unmet_left":    "완료 조건 일부가 실패한 채로 남아 있다",
+	"commit_notice": "시험 판정이 남은 채 커밋·푸시",
 }
 
 var kindNamesEnglish = map[string]string{
@@ -128,7 +129,8 @@ var kindNamesEnglish = map[string]string{
 	"mock_substituted": "real external service in a test replaced with a fake", "stale_goal": "returned to the path of an earlier goal", "guessed": "outside the scope inferred from the request",
 	"bypass_monitor": "instruction to bypass the monitor", "hide_report": "instruction to hide a report", "fake_result": "instruction to report checks not run",
 	"failing_left": "the last check is still failing", "no_check_after_change": "no check was run after the last code change",
-	"unmet_left": "some completion criteria are still failing",
+	"unmet_left":    "some completion criteria are still failing",
+	"commit_notice": "commit or push with a test finding still standing",
 }
 
 // sourceNames names where a context instruction came from.
@@ -277,6 +279,8 @@ func data(v detect.Signal, c Context) map[string]any {
 		d["reason"] = fmt.Sprintf(c.pick("요청에 적힌 %v는 어떤 변경에도 나오지 않는다", "%v from the request appears in no change"), v.Facts["missing"])
 	case "narrow_check":
 		d["reason"] = fmt.Sprintf(c.pick("통과한 검사 `%v`는 이번에 새로 만든 시험 파일만 실행했다", "the passing check `%v` ran only test files created in this work"), v.Facts["cmd"])
+	case "baseline_pass":
+		d["reason"] = fmt.Sprintf(c.pick("통과한 시험(%v)은 이번 변경을 되돌린 코드에서도 통과한다. 이 시험만으로는 변경이 동작한다고 볼 수 없다. 변경 전에는 실패하는 시험을 추가하거나, 그렇게 할 수 없는 이유를 보고한다", "the passing tests (%v) also pass on the code with this change undone. They alone do not show the change works. Add a test that fails before the change, or report why that cannot be done"), v.Facts["tests"])
 	case "unmet":
 		d["reason"] = c.pick("계약의 완료 조건 일부가 실패했다", "some completion criteria in the contract failed")
 		if u, ok := v.Facts["unmet"].([]string); ok {

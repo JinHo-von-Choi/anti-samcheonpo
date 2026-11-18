@@ -1,4 +1,7 @@
-[samcheonpo] Observed: {{.kindname}} found in test file {{.path}}.
+{{if eq .kind "commit_notice"}}[samcheonpo] Observed: a commit or push runs while a test finding ({{.path}}) is still standing.
+Evidence: event {{.evidence}}.
+Cost: a test with a standing finding is no evidence the feature works, even when it passes.
+Contract: the goal is {{.goal}}.{{else}}[samcheonpo] Observed: {{.kindname}} found in test file {{.path}}.
 Evidence: the change in event {{.evidence}}.
 Cost: a weakened test gives no evidence the feature works, even when it passes.
-Contract: the goal is {{.goal}}. Existing tests are the standard for whether the feature works.
+Contract: the goal is {{.goal}}. Existing tests are the standard for whether the feature works.{{end}}

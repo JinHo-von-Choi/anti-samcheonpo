@@ -158,6 +158,20 @@ func (e *Engine) NoteAllowed(ev *event.Event) {
 	b.failed, b.targetedPass = false, false
 }
 
+// ForgetAllowed takes back the count of a let-through call that never
+// returned a result. The host may have refused it after the pre-tool hook,
+// and a run that told the agent nothing has not used the allowance.
+func (e *Engine) ForgetAllowed(callID string) {
+	b := &e.St.mar.budget
+	if callID == "" || !b.started[callID] {
+		return
+	}
+	delete(b.started, callID)
+	if b.runs > 0 {
+		b.runs--
+	}
+}
+
 // BeginRequest starts the allowance of a user request once per prompt. The
 // live harness calls it when the prompt arrives, because the calls that
 // follow can be judged before the prompt is observed.

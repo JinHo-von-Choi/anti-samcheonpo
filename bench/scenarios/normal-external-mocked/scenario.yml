@@ -1,0 +1,15 @@
+symptom: normal
+kind: negative
+task: 외부 호출을 mock한 시험 추가
+steps:
+  - prompt: 가격 조회 고쳐 줘
+  - seed: app/pricing.py
+    content: "def fetch(url):\n    return 0\n"
+  - edit: app/pricing.py
+    old: "    return 0\n"
+    new: "    return requests.get(url).json()[\"price\"]\n"
+  - write: tests/test_pricing.py
+    create: true
+    content: "from unittest import mock\nfrom app.pricing import fetch\n\ndef test_fetch():\n    with mock.patch(\"requests.get\") as g:\n        g.return_value.json.return_value = {\"price\": 7}\n        assert fetch(\"u\") == 7\n"
+expect:
+  not_fires: [s5.subject_mocked]

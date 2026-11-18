@@ -192,6 +192,9 @@ func stage(st string, opt Options) (string, bool) {
 			mut = true
 		}
 	}
+	if infoOnlyRun(norm) {
+		return ShellExplore, mut
+	}
 	bare := bareProgram(norm)
 	for _, re := range verifyRes {
 		if re.MatchString(bare) {
@@ -289,6 +292,9 @@ func Initial(ev *event.Event, opt Options) {
 			// files a here-document script writes are the call's paths
 			ev.Paths = HeredocWrites(ev.Cmd)
 		}
+		if w := ShellWriteTargets(ev.Cmd); !w.Empty() {
+			ev.ShellWrites, ev.ShellPatches = w.Paths, w.PatchFiles
+		}
 		switch cls {
 		case ShellVerify:
 			ev.Category = event.CatVerify
@@ -335,6 +341,21 @@ func IsTestPath(p string) bool {
 	return false
 }
 
+// IsTestExpectationPath reports a file that holds what a test expects
+// rather than test code: snapshot files and folders, golden and expected
+// output files, approval files.
+func IsTestExpectationPath(p string) bool {
+	p = strings.ReplaceAll(p, "\\", "/")
+	parts := strings.Split(p, "/")
+	for _, d := range parts[:len(parts)-1] {
+		if d == "__snapshots__" {
+			return true
+		}
+	}
+	name := parts[len(parts)-1]
+	return strings.HasSuffix(name, ".snap") || strings.HasSuffix(name, ".golden") || strings.HasSuffix(name, ".expected") || strings.Contains(name, ".approved.")
+}
+
 // TestInfraNames are files that change how tests run (port of iron-laws TEST_INFRA_NAMES).
 var TestInfraNames = map[string]bool{"conftest.py": true, "pytest.ini": true, "tox.ini": true, "setup.cfg": true,
 	"sitecustomize.py": true, "usercustomize.py": true, "noxfile.py": true, "jest.config.js": true, "jest.config.ts": true,
@@ -365,4 +386,23 @@ func IsToolConfig(p string) bool { return configNames[path.Base(p)] }
 func isTestRun(st string) bool {
 	n, _ := fp.NormalizeCmd(st)
 	return VerifyScope(n) != ScopeUnknown || verifyScriptRe.MatchString(bareProgram(n))
+}
+
+// infoFlags ask a test runner for its version or help, not for a run.
+var infoFlags = map[string]bool{"--version": true, "-V": true, "--help": true, "-h": true}
+
+// infoOnlyRun reports a test runner given nothing but version or help
+// flags: it prints and exits without running a test. A package script is
+// left out, since it may run the tests whatever it is passed.
+func infoOnlyRun(stage string) bool {
+	runs := TestRuns(stage)
+	if len(runs) != 1 || runs[0].Runner == "script" || len(runs[0].Args) == 0 {
+		return false
+	}
+	for _, a := range runs[0].Args {
+		if !infoFlags[a] {
+			return false
+		}
+	}
+	return true
 }

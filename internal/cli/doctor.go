@@ -6,6 +6,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
 	"os"
 	"runtime"
+	"strings"
 	"time"
 
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/adapter"
@@ -14,6 +15,7 @@ import (
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hostlimit"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/ledger"
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/mutants"
 	"github.com/spf13/cobra"
 )
 
@@ -105,10 +107,23 @@ func diagnose(agent, project, exe, db string, probe func(string) string, ping fu
 		add("completion", "warning", lang.T("완료 조건을 읽을 수 없음; 원문을 출력하지 않았고 검사를 실행하지 않았음"))
 	case k == nil:
 		add("completion", "warning", lang.T("완료 미확인: 계약 없음. contract show로 후보를 확인하고 사용자 수락 후 체크포인트로 확인"))
-	case contract.CurrentState(project, k, raw).State != contract.StateAccepted:
+	case contract.CurrentStateWithPins(project, k, raw).State != contract.StateAccepted:
 		add("completion", "warning", lang.T("완료 미확인: 현재 조건이 수락되지 않았음. contract show로 초안·수락 상태 확인"))
 	default:
 		add("completion", "ok", fmt.Sprintf(lang.T("수락된 완료 조건 %d개; 수락은 통과 증거가 아님. 실제 체크포인트 결과로 완료 확인"), len(k.Done)))
+	}
+	if k != nil {
+		for _, d := range k.Done {
+			if !strings.Contains(d.Check, "samcheonpo mutants") {
+				continue
+			}
+			for _, l := range mutants.ProjectLangs(project) {
+				if !mutants.Available(project, l) {
+					add("mutants", "warning", fmt.Sprintf(lang.T("완료 조건의 변이 시험에 쓸 %s가 없음. 설치: %s"), mutants.Tools[l], lang.T(mutants.Install[l])))
+				}
+			}
+			break
+		}
 	}
 	caps, tested := adapter.Resolve(agent, version)
 	switch {

@@ -1,0 +1,4 @@
+[samcheonpo] Observed: after a check failed, the tests' expected output was regenerated while the feature code stayed the same{{if .path}} ({{.path}}){{end}}.
+Evidence: event {{.evidence}}.
+Cost: regenerating expected output from the current output passes whatever the cause of the failure, so passing is no evidence the feature works.
+Contract: the goal is {{.goal}}.

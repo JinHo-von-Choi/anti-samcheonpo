@@ -8,6 +8,7 @@ import (
 	"regexp"
 	"strings"
 	"testing"
+	"time"
 )
 
 // The messages a session delivers switch with the language the user writes in.
@@ -72,5 +73,16 @@ func TestFullSuiteBudgetIsEnforcedBeforeTheRun(t *testing.T) {
 	}
 	if out := h.shell("f", "sh scripts/check-conformance.sh", "ok", 0); !denied(out) {
 		t.Fatalf("a project gate named in the settings counts: %v", out)
+	}
+	// the host refused a whole run after the hook let it through: it never
+	// returned a result, so it used none of the allowance
+	h.send("UserPromptSubmit", map[string]any{"prompt": "문구 하나 더 고쳐 줘"})
+	h.send("PreToolUse", map[string]any{"tool_name": "Bash", "tool_use_id": "g", "tool_input": map[string]any{"command": "cat > a.txt <<'EOF'\nx\nEOF\ngo test ./..."}})
+	time.Sleep(5 * time.Millisecond)
+	h.shell("h", "ls", "a.txt", 0)
+	time.Sleep(5 * time.Millisecond)
+	h.shell("i", "ls", "a.txt", 0)
+	if out := h.shell("j", "go test ./...", "ok", 0); denied(out) {
+		t.Fatalf("a refused run that returned nothing does not use the allowance: %v", out)
 	}
 }

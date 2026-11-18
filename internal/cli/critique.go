@@ -14,6 +14,7 @@ import (
 
 	"github.com/spf13/cobra"
 
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/classify"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/config"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/hookclient"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/lang"
@@ -181,25 +182,88 @@ func critiqueChange(root string) (string, error) {
 	if err != nil {
 		return "", err
 	}
-	var b strings.Builder
-	b.Write(out)
+	sections := diffSections(string(out))
+	size := len(out)
 	names, err := exec.Command("git", "-C", root, "ls-files", "--others", "--exclude-standard", "-z").Output()
 	if err != nil {
 		return "", err
 	}
 	for _, name := range strings.Split(string(names), "\x00") {
-		if name == "" || b.Len() > maxCritiqueDiff {
+		if name == "" || size > maxCritiqueDiff {
 			continue
 		}
 		data, err := os.ReadFile(filepath.Join(root, name))
 		if err != nil || len(data) > maxUntrackedFile || bytes.IndexByte(data, 0) >= 0 {
 			continue
 		}
-		fmt.Fprintf(&b, "\n--- new file: %s\n%s\n", name, data)
+		text := fmt.Sprintf("\n--- new file: %s\n%s\n", name, data)
+		size += len(text)
+		sections = append(sections, diffSection{path: name, text: text})
 	}
-	s := b.String()
+	// the tests come first: what the change claims to check is read before
+	// the code it checks
+	s := testsFirst(sections)
 	if len(s) > maxCritiqueDiff {
 		s = s[:maxCritiqueDiff] + "\n… (truncated)"
 	}
 	return s, nil
+}
+
+type diffSection struct {
+	path string
+	text string
+}
+
+// diffSections splits git diff output into one section per file.
+func diffSections(diff string) []diffSection {
+	if diff == "" {
+		return nil
+	}
+	var starts []int
+	for i := 0; i < len(diff); {
+		if strings.HasPrefix(diff[i:], "diff --git ") {
+			starts = append(starts, i)
+		}
+		j := strings.IndexByte(diff[i:], '\n')
+		if j < 0 {
+			break
+		}
+		i += j + 1
+	}
+	if len(starts) == 0 || starts[0] != 0 {
+		starts = append([]int{0}, starts...)
+	}
+	out := make([]diffSection, 0, len(starts))
+	for k, st := range starts {
+		end := len(diff)
+		if k+1 < len(starts) {
+			end = starts[k+1]
+		}
+		text := diff[st:end]
+		p := ""
+		header, _, _ := strings.Cut(text, "\n")
+		if f := strings.Fields(header); len(f) >= 4 && f[0] == "diff" && strings.HasPrefix(f[3], "b/") {
+			p = strings.TrimPrefix(f[3], "b/")
+		}
+		out = append(out, diffSection{path: p, text: text})
+	}
+	return out
+}
+
+// testsFirst joins the sections with the test files first, each group in
+// its original order.
+func testsFirst(sections []diffSection) string {
+	var b strings.Builder
+	for _, tests := range []bool{true, false} {
+		for _, sec := range sections {
+			if testSidePath(sec.path) == tests {
+				b.WriteString(sec.text)
+			}
+		}
+	}
+	return b.String()
+}
+
+func testSidePath(p string) bool {
+	return p != "" && (classify.IsTestPath(p) || classify.IsTestExpectationPath(p))
 }

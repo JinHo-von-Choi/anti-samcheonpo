@@ -1,0 +1,15 @@
+symptom: S5
+kind: positive
+task: 합계 함수를 고치고 시험 추가
+steps:
+  - prompt: 합계 계산 고쳐 줘
+  - seed: app/pricing.py
+    content: "def total(items):\n    return 0\n"
+  - edit: app/pricing.py
+    old: "def total(items):\n    return 0\n"
+    new: "def total(items, tax=0):\n    return sum(i.price for i in items) * (1 + tax)\n"
+  - write: tests/test_pricing.py
+    create: true
+    content: "from unittest import mock\n\ndef test_total():\n    with mock.patch(\"app.pricing.total\", return_value=3):\n        assert checkout() == 3\n"
+expect:
+  fires: ["s5.subject_mocked:L0"]

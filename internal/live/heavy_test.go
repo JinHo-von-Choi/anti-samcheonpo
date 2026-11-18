@@ -212,3 +212,28 @@ func TestMigrationHistoryWriteIsAdvisedBeforeItRuns(t *testing.T) {
 		t.Fatalf("advice before the run: %s", out)
 	}
 }
+
+func TestAgentHeavyRunStopsABaselineComparison(t *testing.T) {
+	root := t.TempDir()
+	d, ss := heavyDaemon(t, root)
+	stop, release := d.heavy.holdBaseline(ss[0].heavyKey())
+	defer release()
+	done := make(chan bool, 1)
+	go func() {
+		_, _, _, _, stopped := runGroupUntil(root, "sleep 30", time.Minute, stop)
+		done <- stopped
+	}()
+	time.Sleep(100 * time.Millisecond)
+	heavyCall(t, d, ss[0], "PreToolUse", "a1", "cargo test --workspace", nil)
+	select {
+	case stopped := <-done:
+		if !stopped {
+			t.Fatal("the comparison ended without being stopped")
+		}
+	case <-time.After(10 * time.Second):
+		t.Fatal("the agent's heavy run did not stop the comparison")
+	}
+	if c := d.heavy.conflict(ss[0].heavyKey(), "other", time.Now()); c == nil || c.session != ss[0].ID {
+		t.Fatalf("the agent's run is held, the comparison is not: %+v", c)
+	}
+}

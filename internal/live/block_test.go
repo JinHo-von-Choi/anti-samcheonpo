@@ -11,6 +11,7 @@ import (
 	"testing"
 	"time"
 
+	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/contract"
 	"github.com/JinHo-von-Choi/anti-samcheonpo/internal/event"
 )
 
@@ -287,5 +288,131 @@ func TestUnsupportedHostDowngradesTheRefusal(t *testing.T) {
 	}
 	if blocked != 0 {
 		t.Fatalf("a call that ran was recorded as blocked: %d", blocked)
+	}
+}
+
+// A test silenced through a shell edit cannot be read before the command
+// runs, so the change is judged from the file's two states afterwards.
+func TestShellEditOfATestIsJudged(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	root := s.Root
+	if err := os.MkdirAll(filepath.Join(root, "tests"), 0o755); err != nil {
+		t.Fatal(err)
+	}
+	test := filepath.Join(root, "tests", "test_a.py")
+	if err := os.WriteFile(test, []byte("def test_a():\n    assert total() == 3\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	in := shellHook(t, "sed", `sed -i 's/    assert total() == 3/    assert True/' tests/test_a.py`)
+	if d, _ := decision(t, preOut(t, s.onPreTool(in))); d == "deny" {
+		t.Fatal("a shell edit without a contract was stopped before it ran")
+	}
+	if err := os.WriteFile(test, []byte("def test_a():\n    assert True\n"), 0o644); err != nil {
+		t.Fatal(err)
+	}
+	s.onPostTool(in, false)
+	waitVerdict(t, s, "s5.test_weakening")
+	s.mu.Lock()
+	defer s.mu.Unlock()
+	for _, v := range s.eng.Verdicts {
+		if v.Rule == "s5.test_weakening" && v.Facts["path"] == "tests/test_a.py" {
+			return
+		}
+	}
+	t.Fatalf("the verdict does not name the edited test: %+v", s.eng.Verdicts)
+}
+
+// The tests an accepted done check runs are fixed: a write to one, by tool
+// or shell, and a new collection file next to them are refused; other code
+// is not. A change the hooks never saw makes the acceptance stale.
+func TestPinnedTestsAreRefused(t *testing.T) {
+	s, _ := reliabilitySession(t)
+	root := s.Root
+	write := func(rel, body string) {
+		t.Helper()
+		p := filepath.Join(root, rel)
+		if err := os.MkdirAll(filepath.Dir(p), 0o755); err != nil {
+			t.Fatal(err)
+		}
+		if err := os.WriteFile(p, []byte(body), 0o644); err != nil {
+			t.Fatal(err)
+		}
+	}
+	write("tests/test_a.py", "def test_a():\n    assert f() == 2\n")
+	write(".samcheonpo/contract.yml", "goal: f를 고친다\ndone:\n  - check: \"pytest tests\"\n")
+	c, raw, err := contract.Load(root)
+	if err != nil {
+		t.Fatal(err)
+	}
+	if _, err := contract.Accept(root, c, raw, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	s.mu.Lock()
+	s.loadContract()
+	s.mu.Unlock()
+	refused := []HookInput{
+		writeHook(t, "w1", "tests/test_a.py", "def test_a():\n    assert f() == 3\n"),
+		shellHook(t, "w2", `sed -i 's/2/3/' tests/test_a.py`),
+		writeHook(t, "w3", "tests/conftest.py", "collect_ignore = ['test_a.py']\n"),
+		shellHook(t, "w5", `sed -i 's/2/3/' tests/test_a.py && pytest tests`),
+	}
+	for _, in := range refused {
+		out := preOut(t, s.onPreTool(in))
+		if d, _ := decision(t, out); d != "deny" {
+			t.Errorf("%s ran: %s", in.ToolUseID, out)
+		}
+	}
+	if d, _ := decision(t, preOut(t, s.onPreTool(writeHook(t, "w4", "src/f.py", "def f():\n    return 2\n")))); d == "deny" {
+		t.Fatal("a code write was refused")
+	}
+	write("tests/test_a.py", "def test_a():\n    assert True\n")
+	s.mu.Lock()
+	s.pinCheck.at = time.Time{}
+	s.loadContract()
+	state := s.acc.State
+	s.mu.Unlock()
+	if state != contract.StateStale {
+		t.Fatalf("a fixed test changed outside the hooks left the contract %s", state)
+	}
+	accept := func(body string) {
+		t.Helper()
+		write(".samcheonpo/contract.yml", body)
+		c, raw, err := contract.Load(root)
+		if err != nil {
+			t.Fatal(err)
+		}
+		if _, err := contract.Accept(root, c, raw, time.Now()); err != nil {
+			t.Fatal(err)
+		}
+		s.mu.Lock()
+		s.pinCheck.at = time.Time{}
+		s.loadContract()
+		s.mu.Unlock()
+	}
+	// accepting again takes the changed test as the new criterion
+	accept("goal: f를 고친다\ndone:\n  - check: \"pytest tests\"\n")
+	if s.acc.State != contract.StateAccepted {
+		t.Fatalf("a contract accepted again stays %s", s.acc.State)
+	}
+	// simplify_tests allows simpler tests, not a different criterion
+	accept("goal: f를 고친다\nsimplify_tests: true\ndone:\n  - check: \"pytest tests\"\n")
+	if d, _ := decision(t, preOut(t, s.onPreTool(writeHook(t, "w6", "tests/test_a.py", "def test_a():\n    pass\n")))); d != "deny" {
+		t.Fatal("simplify_tests let a fixed test change")
+	}
+	accept("goal: f를 고친다\npin_tests: none\ndone:\n  - check: \"pytest tests\"\n")
+	if d, _ := decision(t, preOut(t, s.onPreTool(writeHook(t, "w7", "tests/test_a.py", "def test_a():\n    pass\n")))); d == "deny" {
+		t.Fatal("pin_tests: none still fixed the test")
+	}
+	// a Go package: a new test file defining TestMain changes how the fixed
+	// tests run
+	write("go.mod", "module example.com/m\n\ngo 1.21\n")
+	write("calc/calc_test.go", "package calc\n\nimport \"testing\"\n\nfunc TestAdd(t *testing.T) {}\n")
+	accept("goal: f를 고친다\ndone:\n  - check: \"go test ./calc -run TestAdd\"\n")
+	main := "package calc\n\nimport (\n\t\"os\"\n\t\"testing\"\n)\n\nfunc TestMain(m *testing.M) { os.Exit(0) }\n"
+	if d, _ := decision(t, preOut(t, s.onPreTool(writeHook(t, "w8", "calc/main_test.go", main)))); d != "deny" {
+		t.Fatal("a new TestMain next to a fixed Go test ran")
+	}
+	if d, _ := decision(t, preOut(t, s.onPreTool(writeHook(t, "w9", "calc/calc.go", "package calc\n")))); d == "deny" {
+		t.Fatal("a code write next to a fixed Go test was refused")
 	}
 }

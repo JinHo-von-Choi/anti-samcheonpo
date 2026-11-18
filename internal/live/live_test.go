@@ -607,6 +607,63 @@ func TestProtectedPathDenied(t *testing.T) {
 	}
 }
 
+func TestShellTestEditDenied(t *testing.T) {
+	h := startDaemon(t)
+	h.declareTestRules("s3.protected_path")
+	_ = os.MkdirAll(filepath.Join(h.proj, "tests"), 0o755)
+	_ = os.WriteFile(filepath.Join(h.proj, "tests", "a_test.py"), []byte("def test_a():\n    assert f() == 2\n"), 0o644)
+	_ = os.WriteFile(filepath.Join(h.proj, "fix.patch"), []byte("--- a/tests/a_test.py\n+++ b/tests/a_test.py\n@@ -1 +1 @@\n"), 0o644)
+	_ = os.MkdirAll(contract.Dir(h.proj), 0o755)
+	_ = os.WriteFile(contract.Path(h.proj), []byte("goal: x\ndone:\n  - check: \"true\"\nforbid: [\"테스트 수정\"]\n"), 0o644)
+	c, raw, _ := contract.Load(h.proj)
+	if _, err := contract.Accept(h.proj, c, raw, time.Now()); err != nil {
+		t.Fatal(err)
+	}
+	h.send("UserPromptSubmit", map[string]any{"prompt": "버그 고쳐 줘"})
+	denied := []string{
+		`sed -i 's/2/3/' tests/a_test.py`,
+		`sed -i 's/2/3/' tests/a_test.py && pytest tests`,
+		`perl -pi -e 's/2/3/' ` + filepath.Join(h.proj, "tests", "a_test.py"),
+		`echo 'def test_a(): pass' > tests/a_test.py`,
+		`cp /tmp/x.py tests/a_test.py`,
+		`git checkout -- tests/a_test.py`,
+		`git apply fix.patch`,
+		`rm tests/a_test.py`,
+		`sed -i 's/2/3/' tests/*_test.py`,
+		"cat > tests/a_test.py <<'EOF'\ndef test_a(): pass\nEOF",
+		`echo 'x = 1' >> tests/a_test.py`,
+		`printf x | tee tests/a_test.py`,
+		`mv tests/a_test.py tests/old.py`,
+		`install -m 644 /tmp/x.py tests/a_test.py`,
+		`truncate -s 0 tests/a_test.py`,
+		`dd if=/dev/null of=tests/a_test.py`,
+		`git restore tests/a_test.py`,
+		`patch -p1 < fix.patch`,
+		`ruby -i -pe 'gsub(/2/, "3")' tests/a_test.py`,
+		`python3 -c "open('tests/a_test.py', 'w').write('')"`,
+		`node -e "require('fs').writeFileSync('tests/a_test.py', '')"`,
+	}
+	for i, cmd := range denied {
+		out := h.send("PreToolUse", map[string]any{"tool_name": "Bash", "tool_use_id": fmt.Sprintf("d%d", i), "tool_input": map[string]any{"command": cmd}})
+		hs, _ := out["hookSpecificOutput"].(map[string]any)
+		if hs == nil || hs["permissionDecision"] != "deny" {
+			t.Errorf("%q must be denied: %v", cmd, out)
+		}
+	}
+	allowed := []string{
+		`cat tests/a_test.py`,
+		`grep -n assert tests/a_test.py`,
+		`cp tests/a_test.py /tmp/`,
+		`sed -i 's/a/b/' /tmp/scratch_test.py`,
+	}
+	for i, cmd := range allowed {
+		out := h.send("PreToolUse", map[string]any{"tool_name": "Bash", "tool_use_id": fmt.Sprintf("a%d", i), "tool_input": map[string]any{"command": cmd}})
+		if hs, _ := out["hookSpecificOutput"].(map[string]any); hs != nil && hs["permissionDecision"] == "deny" {
+			t.Errorf("%q must not be denied: %v", cmd, out)
+		}
+	}
+}
+
 func TestConcurrentHooks(t *testing.T) {
 	h := startDaemon(t)
 	var wg sync.WaitGroup

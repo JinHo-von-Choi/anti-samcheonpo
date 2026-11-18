@@ -160,6 +160,11 @@ type Event struct {
 	Text string `json:"-"`
 	// Patch is transient (added lines of a write/edit), used by S5 rules.
 	Patch []PatchFile `json:"-"`
+	// ShellWrites and ShellPatches are transient: the files a shell command
+	// names as written, and the patch files it applies, as written in the
+	// command (relative to Dir or absolute, possibly glob patterns).
+	ShellWrites  []string `json:"-"`
+	ShellPatches []string `json:"-"`
 }
 
 // Execution records process completion independently of tool transport output.

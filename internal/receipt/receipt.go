@@ -63,16 +63,19 @@ type Estimate struct {
 
 // Receipt is the renderable model.
 type Receipt struct {
-	Billing       cost.Measurement `json:"billing"`
-	Action        ActionSummary    `json:"action"`
-	Title         string           `json:"title"`
-	Notices       []string         `json:"notices"`
-	Unit          string           `json:"unit"` // won | tokens | unknown
-	PriceCoverage float64          `json:"price_coverage"`
-	Minutes       int              `json:"minutes"`
-	Total         Line             `json:"total"`
-	Lines         []Line           `json:"lines"`
-	Estimated     *Line            `json:"estimated,omitempty"`
+	Billing cost.Measurement `json:"billing"`
+	Action  ActionSummary    `json:"action"`
+	Title   string           `json:"title"`
+	// Tests describe what the session did to the tests and what the
+	// passing tests show; shown first.
+	Tests         []string `json:"tests,omitempty"`
+	Notices       []string `json:"notices"`
+	Unit          string   `json:"unit"` // won | tokens | unknown
+	PriceCoverage float64  `json:"price_coverage"`
+	Minutes       int      `json:"minutes"`
+	Total         Line     `json:"total"`
+	Lines         []Line   `json:"lines"`
+	Estimated     *Line    `json:"estimated,omitempty"`
 	// Estimate is the labelled estimate of the stopped repetitions. It is
 	// empty when the observation was cut short, because a cut short
 	// observation cannot carry an estimate.
@@ -117,13 +120,15 @@ type Input struct {
 	// semantic judge's budget because they carried low risk. It is a
 	// report of budget saved, not a count of defects.
 	JudgeSkippedLowRisk int
+	// Tests is the test changes section (TestSection); empty leaves it out.
+	Tests []string
 }
 
 // Build creates a receipt model.
 func Build(in Input) Receipt {
 	t := in.Totals
 	billing := cost.Measure(in.Billing, t.Micro, t.Tokens, t.UnpricedTokens)
-	r := Receipt{Title: in.Title, PriceCoverage: billing.PriceCoverage, Minutes: t.Minutes, Grade: in.Grade, Billing: billing, Action: SummarizeAction(in)}
+	r := Receipt{Title: in.Title, Tests: in.Tests, PriceCoverage: billing.PriceCoverage, Minutes: t.Minutes, Grade: in.Grade, Billing: billing, Action: SummarizeAction(in)}
 	r.Action.Unknowns = append(r.Action.Unknowns, billing.Missing...)
 	r.Unit = "won"
 	if r.PriceCoverage < 1 {
@@ -511,6 +516,8 @@ func Describe(v detect.Signal) string {
 			return lang.T("요청에 적힌 대상을 바꾸지 않고 완료 선언")
 		case "narrow_check":
 			return lang.T("새로 만든 시험만 실행하고 완료 선언")
+		case "baseline_pass":
+			return lang.T("변경을 되돌려도 통과하는 시험으로 완료 선언")
 		}
 	case "s3.fixation":
 		return lang.T("한 항목에 몰린 채 요청한 다른 대상을 방치")
@@ -525,6 +532,17 @@ func Describe(v detect.Signal) string {
 		}
 	case "s5.answer_copy":
 		return lang.T("시험의 기대값을 기능 코드에 그대로 넣음")
+	case "s5.test_edit_to_pass":
+		return lang.T("실패한 시험을 시험 쪽만 고쳐 통과시킴 (") + short(str("path"), 40) + ")"
+	case "s5.subject_mocked":
+		return lang.T("시험이 이번에 고친 코드를 mock으로 대체 (") + short(str("path"), 40) + ")"
+	case "s5.test_special_case":
+		if str("kind") == "test_env_branch" {
+			return lang.T("기능 코드에 시험 중일 때만 다른 분기 (") + short(str("path"), 40) + ")"
+		}
+		return lang.T("기능 코드에 시험 입력에만 맞춘 분기 (") + short(str("path"), 40) + ")"
+	case "s5.snapshot_regenerated":
+		return lang.T("실패 뒤 기능 코드 변경 없이 기대 출력을 다시 만듦")
 	case "s7.memory_rot":
 		return fmt.Sprintf(lang.T("대화 압축 %d회, 같은 파일 재열람 %d회"), num("compactions"), num("rereads"))
 	case "s8.velocity":
@@ -578,6 +596,8 @@ func kindName(k string) string {
 		return lang.T("|| true로 실패 무시")
 	case "test_infra_changed":
 		return lang.T("시험 실행 설정 변경")
+	case "commit_notice":
+		return lang.T("시험 판정이 남은 채 커밋·푸시")
 	}
 	return k
 }
@@ -651,6 +671,12 @@ func HumanTokens(n int64) string {
 func (r Receipt) Text() string {
 	var b strings.Builder
 	b.WriteString(r.Title + "\n")
+	if len(r.Tests) > 0 {
+		b.WriteString(lang.T("시험 변경\n"))
+		for _, l := range r.Tests {
+			b.WriteString("  " + l + "\n")
+		}
+	}
 	for _, n := range r.Notices {
 		b.WriteString(n + "\n")
 	}
@@ -721,6 +747,13 @@ func sortedKeys(m map[string][]Evidence) []string {
 func (r Receipt) Markdown() string {
 	var b strings.Builder
 	b.WriteString("## " + r.Title + "\n\n")
+	if len(r.Tests) > 0 {
+		b.WriteString(lang.T("### 시험 변경\n\n"))
+		for _, l := range r.Tests {
+			b.WriteString("- " + mdEsc(l) + "\n")
+		}
+		b.WriteString("\n")
+	}
 	for _, n := range r.Notices {
 		b.WriteString("- " + n + "\n")
 	}

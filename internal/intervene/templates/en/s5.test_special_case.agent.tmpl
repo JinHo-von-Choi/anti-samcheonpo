@@ -1,0 +1,4 @@
+[samcheonpo] Observed: feature code {{.path}} gained {{if eq .kind "test_env_branch"}}a branch that asks whether a test is running{{else}}a branch that returns test {{.test}}'s expected value for that test's own input{{end}}.
+Evidence: event {{.evidence}}.
+Cost: code that behaves differently under a test is no evidence it works in real use, even when the test passes.
+Contract: the goal is {{.goal}}.

@@ -37,6 +37,7 @@ type Config struct {
 	Checkpoint     Checkpoint  `yaml:"checkpoint" json:"checkpoint"`
 	Rollout        Rollout     `yaml:"rollout" json:"rollout"`
 	Swarm          Swarm       `yaml:"swarm" json:"swarm"`
+	Verify         VerifyCfg   `yaml:"verify" json:"verify"`
 	// IronLaws links the iron-laws checker (path empty: look it up on PATH).
 	IronLaws struct {
 		Enabled bool   `yaml:"enabled" json:"enabled"`
@@ -242,12 +243,23 @@ type Checkpoint struct {
 	TimeoutSec int `yaml:"timeout_sec" json:"timeout_sec"`
 }
 
+// VerifyCfg tunes how passing checks are judged.
+type VerifyCfg struct {
+	// Baseline reruns a passing test command on the code with the session's
+	// feature changes undone: off, contract (only done checks marked pure
+	// or isolation: worktree) or auto (any test command, without network
+	// access). A project file can lower it, never raise it.
+	Baseline string `yaml:"baseline" json:"baseline"`
+}
+
 // Default returns the initial configuration.
 func Default() Config {
 	c := Config{Language: "auto", Currency: "auto"}
+	c.Verify.Baseline = "contract"
 	c.Rollout.Mode = "recommend"
 	c.Rollout.EscalateMaxBlocks = 3
-	c.Rollout.ShadowRules = []string{"s1.verify_after_docs", "s1.review_repeat", "s1.verify_streak", "s1.explicit_waiting", "s8.progress_stall", "s2.behavior_loop", "s4.research_repeat", "s1.delegation_loop", "s1.linked_loop", "s5.partial_done", "s3.requirement_substitution", "s3.repeated_permission", "s5.short_circuit"}
+	c.Rollout.ShadowRules = []string{"s1.verify_after_docs", "s1.review_repeat", "s1.verify_streak", "s1.explicit_waiting", "s8.progress_stall", "s2.behavior_loop", "s4.research_repeat", "s1.delegation_loop", "s1.linked_loop", "s5.partial_done", "s3.requirement_substitution", "s3.repeated_permission", "s5.short_circuit",
+		"s5.test_edit_to_pass", "s5.subject_mocked", "s5.test_special_case", "s5.snapshot_regenerated"}
 	c.Detectors.S1.ExplicitWaitingRepeats = 3
 	c.Detectors.S8.StallFailures = 3
 	c.Detectors.S8.StallToolEvents = 5
@@ -330,6 +342,7 @@ func Load(projectDir string) (Config, string, error) {
 		userShadow := append([]string(nil), c.Rollout.ShadowRules...)
 		userRecommend := append([]string(nil), c.Rollout.RecommendRules...)
 		userTreeKRW := c.Swarm.TreeKRW
+		userBaseline := c.Verify.Baseline
 		userRules := make(map[string]string, len(c.Rollout.ValidatedRules))
 		for rule, digest := range c.Rollout.ValidatedRules {
 			userRules[rule] = digest
@@ -346,7 +359,8 @@ func Load(projectDir string) (Config, string, error) {
 			if err := yaml.Unmarshal(b, &declared); err != nil {
 				return c, "", fmt.Errorf("%s: %w", p, err)
 			}
-			for _, rule := range []string{"s1.explicit_waiting", "s8.progress_stall", "s2.behavior_loop", "s4.research_repeat", "s1.delegation_loop", "s1.linked_loop", "s3.requirement_substitution", "s3.repeated_permission", "s5.partial_done", "s5.short_circuit"} {
+			for _, rule := range []string{"s1.explicit_waiting", "s8.progress_stall", "s2.behavior_loop", "s4.research_repeat", "s1.delegation_loop", "s1.linked_loop", "s3.requirement_substitution", "s3.repeated_permission", "s5.partial_done", "s5.short_circuit",
+				"s5.test_edit_to_pass", "s5.subject_mocked", "s5.test_special_case", "s5.snapshot_regenerated"} {
 				if slices.Contains(c.Rollout.RecommendRules, rule) {
 					if declared.Rollout.ShadowRules == nil {
 						c.Rollout.ShadowRules = slices.DeleteFunc(c.Rollout.ShadowRules, func(r string) bool { return r == rule })
@@ -393,6 +407,12 @@ func Load(projectDir string) (Config, string, error) {
 			if c.Rollout.EscalateMaxBlocks > userEscalate {
 				c.Rollout.EscalateMaxBlocks = userEscalate
 			}
+			// running more commands is the user's choice; a repository can
+			// only run fewer
+			baselineRank := map[string]int{"off": 0, "contract": 1, "auto": 2}
+			if r, ok := baselineRank[c.Verify.Baseline]; !ok || r > baselineRank[userBaseline] {
+				c.Verify.Baseline = userBaseline
+			}
 			// A repository may tighten the shared budget, never widen it.
 			if userTreeKRW > 0 && (c.Swarm.TreeKRW <= 0 || c.Swarm.TreeKRW > userTreeKRW) {
 				c.Swarm.TreeKRW = userTreeKRW
@@ -411,6 +431,9 @@ func Load(projectDir string) (Config, string, error) {
 	}
 	if c.Rollout.Mode != "shadow" && c.Rollout.Mode != "recommend" && c.Rollout.Mode != "validated" {
 		return c, "", fmt.Errorf("rollout.mode must be shadow, recommend, or validated")
+	}
+	if c.Verify.Baseline != "off" && c.Verify.Baseline != "contract" && c.Verify.Baseline != "auto" {
+		return c, "", fmt.Errorf("verify.baseline must be off, contract, or auto")
 	}
 	if c.Contract.Draft != "on" && c.Contract.Draft != "off" {
 		return c, "", fmt.Errorf("contract.draft must be on or off")

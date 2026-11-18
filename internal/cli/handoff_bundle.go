@@ -131,7 +131,7 @@ func receiverKeys(b handoff.Bundle, root string) (map[string]verification.Key, e
 	if err != nil {
 		return nil, err
 	}
-	if c == nil || c.Goal != b.Contract.Goal || c.ChecksHash() != b.Contract.ChecksHash() || contract.CurrentState(root, c, raw).State != contract.StateAccepted {
+	if c == nil || c.Goal != b.Contract.Goal || c.ChecksHash() != b.Contract.ChecksHash() || contract.CurrentStateWithPins(root, c, raw).State != contract.StateAccepted {
 		return nil, errors.New(lang.T("수신 환경에서 같은 계약을 별도로 수락해야 지문을 확인할 수 있다"))
 	}
 	ws := live.NewWorkspace(root)

@@ -269,6 +269,13 @@ func (r *Runner) one(c contract.Check) CheckResult {
 // runGroup runs a shell command in its own process group and kills the whole
 // group on timeout. Output is used only for fingerprints, then discarded.
 func runGroup(dir, command string, timeout time.Duration) (int, string, bool, bool) {
+	code, out, timedOut, truncated, _ := runGroupUntil(dir, command, timeout, nil)
+	return code, out, timedOut, truncated
+}
+
+// runGroupUntil is runGroup that also kills the group when stop closes; the
+// last result reports that it was stopped.
+func runGroupUntil(dir, command string, timeout time.Duration, stop <-chan struct{}) (int, string, bool, bool, bool) {
 	if timeout <= 0 {
 		timeout = 30 * time.Second
 	}
@@ -283,7 +290,7 @@ func runGroup(dir, command string, timeout time.Duration) (int, string, bool, bo
 	// with it the check, open after the shell is gone
 	cmd.WaitDelay = 2 * time.Second
 	if err := procgroup.Start(cmd); err != nil {
-		return 127, err.Error(), false, false
+		return 127, err.Error(), false, false, false
 	}
 	defer procgroup.Release(cmd)
 	done := make(chan error, 1)
@@ -301,11 +308,15 @@ func runGroup(dir, command string, timeout time.Duration) (int, string, bool, bo
 		case err != nil:
 			code = 1
 		}
-		return code, buf.String(), false, lw.truncated
+		return code, buf.String(), false, lw.truncated, false
 	case <-time.After(timeout):
 		_ = procgroup.Kill(cmd)
 		<-done
-		return -1, buf.String(), true, lw.truncated
+		return -1, buf.String(), true, lw.truncated, false
+	case <-stop:
+		_ = procgroup.Kill(cmd)
+		<-done
+		return -1, buf.String(), false, lw.truncated, true
 	}
 }
 

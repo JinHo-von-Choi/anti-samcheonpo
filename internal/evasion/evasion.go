@@ -170,6 +170,14 @@ func (st Step) event(seq int, ts time.Time, ws string) (*event.Event, error) {
 		ev.FailedTests = st.Failed
 		ev.ErrFPs = nil
 		ev.ResultFP = fp.ResultFP(ev.ExitCode, ev.ErrFPs, ev.FailedTests)
+		if st.Category != "" {
+			ev.Category = event.Category(st.Category)
+		}
+		if st.Path != "" && (len(st.Added) > 0 || len(st.Removed) > 0) {
+			// a file the command changed, read from its two states
+			ev.Mutating = true
+			ev.Patch = []event.PatchFile{{Path: st.Path, Added: st.Added, Removed: st.Removed}}
+		}
 	case "message":
 		ev.Kind = event.KindMessage
 	default:

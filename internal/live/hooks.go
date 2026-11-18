@@ -362,12 +362,15 @@ func (d *Daemon) dispatch(agent, name string, in HookInput) (json.RawMessage, *S
 		}
 		s.mu.Lock()
 		endBudget := s.caps.SessionEndBudget
+		comparing := s.baseline.running
 		s.mu.Unlock()
-		if endBudget < 10*time.Second {
-			// short hook budget (Codex): answer now, write the receipt after
+		if endBudget < 10*time.Second || comparing {
+			// short hook budget (Codex), or a comparison whose result belongs
+			// in the receipt still running: answer now, write the receipt after
 			d.ending.Add(1)
 			go func() {
 				defer d.ending.Done()
+				s.baselineWG.Wait()
 				if _, err := s.Finalize(); err != nil {
 					s.mu.Lock()
 					s.recordStorageError(err)
@@ -555,7 +558,8 @@ func (s *Session) flushTurn() {
 
 // flushAwaiting finalizes earlier calls that never received a post-tool hook:
 // they are kept for cost but marked as not executed, so they count neither as
-// writes nor as checks. A late result for a flushed call is ignored.
+// writes nor as checks, nor against the whole-suite allowance. A late result
+// for a flushed call is ignored.
 func (s *Session) flushAwaiting(stale func(id string, ev *event.Event) bool) []*event.Event {
 	var out []*event.Event
 	for id, ev := range s.awaiting {
@@ -565,7 +569,9 @@ func (s *Session) flushAwaiting(stale func(id string, ev *event.Event) bool) []*
 		delete(s.awaiting, id)
 		s.flushed[id] = true
 		delete(s.shell, id)
+		delete(s.shellBefore, id)
 		s.releaseHeavy(id, false)
+		s.eng.ForgetAllowed(id)
 		x := -1
 		ev.ExitCode = &x
 		if s.Agent == "cursor" {
@@ -653,6 +659,7 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	}
 	s.awaiting[ev.CallID] = ev
 	s.byTool[ev.CallID] = ev
+	s.noteStartWrite(ev)
 	if cur, fresh := s.ws.Current(); fresh {
 		ev.WSBefore = cur
 	}
@@ -666,6 +673,8 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	} else if g := s.eng.ProtectedCheck(ev); g != nil {
 		// a protected path needs no workspace fingerprint: a read before the
 		// watcher is ready is still a read of the grader
+		deny, sig = true, g
+	} else if g := s.eng.ContractPathCheck(ev); g != nil {
 		deny, sig = true, g
 	}
 	if !deny && s.queueRejected.Load() == 0 {
@@ -715,6 +724,7 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 	}
 	if !deny {
 		s.mu.Lock()
+		s.snapshotShellTests(ev)
 		s.holdHeavy(ev)
 		// the result of this run may be observed after the next call is
 		// judged, so the request's whole-suite allowance is spent now
@@ -972,7 +982,11 @@ func (s *Session) onPostTool(in HookInput, failure bool) json.RawMessage {
 	if !started.IsZero() && ev.DurationMS == 0 {
 		ev.DurationMS = ev.TS.Sub(started).Milliseconds()
 	}
+	if ev.Tool == event.ToolShell {
+		s.shellTestPatch(ev)
+	}
 	s.noteVerify(ev)
+	s.maybeBaseline(ev)
 	contractWrite := false
 	for _, p := range ev.Paths {
 		if p == ".samcheonpo/contract.yml" || strings.HasSuffix(p, "/.samcheonpo/contract.yml") || filepath.Clean(p) == contract.Path(s.Root) {

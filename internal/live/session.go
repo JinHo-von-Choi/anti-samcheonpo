@@ -128,25 +128,34 @@ type Session struct {
 	drifts          int // consecutive drift judgements
 	toolsSinceJudge int
 	cx              *codex.Tracker
-	sinceTokens     []*event.Event            // calls since the last usage record (codex, plugins)
-	usageTargets    map[string][]*event.Event // plugin message id -> calls its usage belongs to
-	usageSeen       map[string]event.Usage    // plugin message id -> usage already attributed
-	awaiting        map[string]*event.Event   // pre-tool events still waiting for a result
-	flushed         map[string]bool           // calls closed at a turn boundary without a result
-	shell           map[string]bool           // running shell tool ids
-	pending         []string                  // nudges waiting for the next hook response
-	pendingDraft    string                    // latest draft awaiting capability confirmation
-	anchorDue       bool                      // a compaction happened; the next readable response repeats the contract anchor
-	userMsg         []string                  // user messages waiting (systemMessage)
-	stopBlocks      int
-	heldStops       map[string]bool // evidence keys a stop hold already answered
-	stopHolds       int             // holds since the work last changed
-	stopHoldWrite   int64           // the production write those holds answered
-	stopPassOnce    bool            // the user let the next held turn end through
-	stopNotice      string          // why a held turn end was let through, for the user
-	holdReason      string          // the last stop hold reason, until a prompt echoes it
-	lastResultAt    time.Time       // the latest post-tool result
-	preWrites       sync.WaitGroup  // pre-tool verdicts stored after the answer
+	sinceTokens     []*event.Event                  // calls since the last usage record (codex, plugins)
+	usageTargets    map[string][]*event.Event       // plugin message id -> calls its usage belongs to
+	usageSeen       map[string]event.Usage          // plugin message id -> usage already attributed
+	awaiting        map[string]*event.Event         // pre-tool events still waiting for a result
+	flushed         map[string]bool                 // calls closed at a turn boundary without a result
+	shell           map[string]bool                 // running shell tool ids
+	shellBefore     map[string]map[string]fileState // test files a running shell call writes, before it ran
+	baseline        baselineState                   // baseline comparisons of passing checks
+	baselineWG      sync.WaitGroup                  // comparisons still running, awaited by the receipt
+	pinCheck        struct {
+		accepted time.Time
+		gen      uint64
+		at       time.Time
+		drift    string // first fixed file found changed ("" none)
+	}
+	pending       []string // nudges waiting for the next hook response
+	pendingDraft  string   // latest draft awaiting capability confirmation
+	anchorDue     bool     // a compaction happened; the next readable response repeats the contract anchor
+	userMsg       []string // user messages waiting (systemMessage)
+	stopBlocks    int
+	heldStops     map[string]bool // evidence keys a stop hold already answered
+	stopHolds     int             // holds since the work last changed
+	stopHoldWrite int64           // the production write those holds answered
+	stopPassOnce  bool            // the user let the next held turn end through
+	stopNotice    string          // why a held turn end was let through, for the user
+	holdReason    string          // the last stop hold reason, until a prompt echoes it
+	lastResultAt  time.Time       // the latest post-tool result
+	preWrites     sync.WaitGroup  // pre-tool verdicts stored after the answer
 	// advised holds escalation keys (revision, rule, pattern, target) whose
 	// advice reached the agent; released holds rules the user marked as false
 	// positives. Both drive policy.Escalate.
@@ -283,6 +292,7 @@ func newSession(id, agent, root, transcript string, db *ledger.DB, prices *cost.
 		s.censorRecoveries("session_restarted_before_effect_observation")
 	}
 	s.eng = detect.NewEngine(cfg, s.engineContract(), s.acc.State == contract.StateAccepted, "live", root, id, "")
+	s.applyPins()
 	s.loadCandidatePack()
 	s.eng.FirstPrompt = s.firstPrompt
 	if err := s.restoreRequests(); err != nil {
@@ -425,7 +435,38 @@ func (s *Session) loadContract() {
 		s.setContract(nil, contract.Acceptance{State: contract.StateDraft})
 		return
 	}
-	s.setContract(c, contract.CurrentState(s.Root, c, raw))
+	s.setContract(c, s.withPinDrift(contract.CurrentState(s.Root, c, raw)))
+}
+
+// pinCheckEvery bounds how often fixed test files are hashed again when the
+// workspace watcher reports no change.
+const pinCheckEvery = 5 * time.Second
+
+// withPinDrift marks an accepted contract stale when a test file fixed at
+// acceptance changed without passing through a hook (an edit while the
+// daemon was down, another tool), or a collection file appeared next to
+// one. The files are hashed again only after the workspace changed.
+func (s *Session) withPinDrift(a contract.Acceptance) contract.Acceptance {
+	if a.State != contract.StateAccepted || (len(a.Pins) == 0 && len(a.PinDirs) == 0) {
+		return a
+	}
+	var gen uint64
+	if s.ws != nil {
+		gen = s.ws.Generation()
+	}
+	pc := &s.pinCheck
+	if !pc.at.IsZero() && pc.accepted.Equal(a.AcceptedAt) && pc.gen == gen && time.Since(pc.at) < pinCheckEvery {
+		if pc.drift != "" {
+			a.State = contract.StateStale
+		}
+		return a
+	}
+	pc.accepted, pc.gen, pc.at, pc.drift = a.AcceptedAt, gen, time.Now(), ""
+	if d := contract.PinDrift(s.Root, a); len(d) > 0 {
+		pc.drift = d[0]
+		a.State = contract.StateStale
+	}
+	return a
 }
 
 // setContract updates all contract consumers under s.mu (or before startup).
@@ -462,6 +503,7 @@ func (s *Session) setContract(c *contract.Contract, acc contract.Acceptance) {
 	}
 	if s.eng != nil {
 		s.eng.Contract, s.eng.Accepted = s.engineContract(), accepted
+		s.applyPins()
 		s.eng.ScopeChanged()
 	}
 	if s.ws != nil {
@@ -470,6 +512,27 @@ func (s *Session) setContract(c *contract.Contract, acc contract.Acceptance) {
 			scope = c.Scope.Allow
 		}
 		s.ws.SetScope(scope)
+	}
+}
+
+// applyPins gives the engine the test files fixed by the accepted contract;
+// called with s.mu held (or before startup).
+func (s *Session) applyPins() {
+	s.eng.Pinned, s.eng.PinDirs = nil, nil
+	if s.c == nil || s.acc.State != contract.StateAccepted {
+		return
+	}
+	if len(s.acc.Pins) > 0 {
+		s.eng.Pinned = make(map[string]bool, len(s.acc.Pins))
+		for _, p := range s.acc.Pins {
+			s.eng.Pinned[p.Path] = true
+		}
+	}
+	if len(s.acc.PinDirs) > 0 {
+		s.eng.PinDirs = make(map[string]bool, len(s.acc.PinDirs))
+		for _, d := range s.acc.PinDirs {
+			s.eng.PinDirs[d] = true
+		}
 	}
 }
 
@@ -1477,7 +1540,7 @@ func (s *Session) finalize(reason string) (string, error) {
 	}
 	rc := receipt.Build(receipt.Input{Title: receipt.SessionTitle(sess.StartedAt, s.ID, s.Agent), Agent: s.Agent, Totals: res.Totals, Grade: res.Grade,
 		Verdicts: res.Verdicts, Seal: &sl, Criteria: [2]int{res.Criteria.Met, res.Criteria.Total}, Billing: billing, Recoveries: s.recoveries,
-		Observation: res.Observation, Blocked: res.Blocked, JudgeSkippedLowRisk: int(s.judgeLowRisk.Load())})
+		Observation: res.Observation, Blocked: res.Blocked, JudgeSkippedLowRisk: int(s.judgeLowRisk.Load()), Tests: s.testSection()})
 	dir := filepath.Join(config.Home(), "receipts")
 	if err := procgroup.MkdirAllPrivate(dir); err != nil {
 		return "", err

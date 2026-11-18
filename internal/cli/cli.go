@@ -63,7 +63,7 @@ func Root() *cobra.Command {
 	root.PersistentFlags().StringVar(&flagClaudeDir, "claude-dir", "", lang.T("Claude Code projects 경로"))
 	root.PersistentFlags().StringVar(&flagCodexDir, "codex-dir", "", lang.T("Codex sessions 경로"))
 	root.PersistentFlags().StringVar(&sources.McodeDir, "mcode-dir", "", lang.T("MiniMax Code sessions 경로 (기본 ~/.minimax/v2/sessions)"))
-	root.AddCommand(auditCmd(), trimCmd(), critiqueCmd(), uiCheckCmd(), restraintEvalCmd(), evidenceCmd(), gapsCmd(), interventionsCmd(), outcomesCmd(), accuracyCmd(), reviewCmd(), provenanceCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(), forkCmd(),
+	root.AddCommand(auditCmd(), trimCmd(), mutantsCmd(), critiqueCmd(), uiCheckCmd(), restraintEvalCmd(), evidenceCmd(), gapsCmd(), interventionsCmd(), outcomesCmd(), accuracyCmd(), reviewCmd(), provenanceCmd(), receiptCmd(), sessionsCmd(), priceCmd(), initCmd(), verifyCmd(), exportCmd(), forkCmd(),
 		labelCmd(), evalCmd(), benchCmd(), evasionCmd(), lineageCmd(), detectionTimingCmd(), surfaceCmd(), debugCmd(), contractCmd(), specCmd(), importOtelCmd(), rulesCmd(), handoffCmd(), reportCmd(), taskCoverageCmd(), diagnosticCmd("why"), diagnosticCmd("coverage"), compactCmd())
 	root.AddCommand(liveCommands()...)
 	root.AddCommand(dashboardCmd())

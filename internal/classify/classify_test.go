@@ -14,6 +14,11 @@ func TestShell(t *testing.T) {
 	}{
 		{"pytest -x tests", ShellVerify, false},
 		{"python3 -m pytest", ShellVerify, false},
+		{"python3 -m pytest --version", ShellExplore, false},
+		{"go test -h", ShellExplore, false},
+		{"cargo test --help", ShellExplore, false},
+		{"npm test -- --version", ShellVerify, false},
+		{"pytest -V tests/test_a.py", ShellVerify, false},
 		{"python3 -m unittest -v", ShellVerify, false},
 		{"python3 -I -m unittest test_app.py", ShellVerify, false},
 		{"python -m doctest README.md", ShellVerify, false},

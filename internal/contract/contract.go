@@ -87,6 +87,10 @@ type Contract struct {
 	// a production database and a deploy are judged against it. Absent
 	// fields keep the digest of contracts accepted before they existed.
 	Production *Production `yaml:"production,omitempty" json:"production,omitempty"`
+	// PinTests chooses the test files fixed at acceptance. Absent, the tests
+	// the done checks run are fixed; the field is left out of the digest of
+	// contracts that do not set it.
+	PinTests *PinTests `yaml:"pin_tests,omitempty" json:"pin_tests,omitempty"`
 }
 
 // Production is the production side of a project as the user states it.
@@ -139,6 +143,13 @@ type Acceptance struct {
 	AcceptedAt    time.Time `json:"accepted_at"`
 	// SideEffect lists check ids that changed the workspace and are excluded from automatic runs.
 	SideEffect []string `json:"side_effect,omitempty"`
+	// Pins are the test files and collection settings fixed at acceptance,
+	// with their content hashes; PinDirs are the folders those tests run
+	// from, where a new collection file would change the run. PinUnknown
+	// lists checks whose tests could not be told from the command.
+	Pins       []Pin    `json:"pins,omitempty"`
+	PinDirs    []string `json:"pin_dirs,omitempty"`
+	PinUnknown []string `json:"pin_unknown,omitempty"`
 	// MAC is keyed by a secret in the user's samcheonpo home, so a state file
 	// written by an agent or copied from another project grants nothing.
 	MAC string `json:"mac,omitempty"`
@@ -214,6 +225,13 @@ func Parse(b []byte) (*Contract, []ValidationError) {
 			errs = append(errs, ValidationError{f + ".id", lang.T("중복 id")})
 		}
 		ids[d.ID] = true
+	}
+	if c.PinTests != nil {
+		for i, g := range c.PinTests.Globs {
+			if g == "" || filepath.IsAbs(g) || strings.HasPrefix(g, "../") || !doublestar.ValidatePattern(g) {
+				errs = append(errs, ValidationError{fmt.Sprintf("pin_tests[%d]", i), lang.T("잘못된 글롭: ") + g})
+			}
+		}
 	}
 	for i, g := range append(append([]string{}, c.Scope.Allow...), c.Scope.Protect...) {
 		if !doublestar.ValidatePattern(g) {
@@ -537,6 +555,7 @@ func Accept(project string, c *Contract, raw []byte, now time.Time) (Acceptance,
 		return Acceptance{}, fmt.Errorf("%s", lang.T("목표 변경 요청이 아직 계약에 반영되지 않았다. 초안을 고친 뒤 수락해야 한다"))
 	}
 	a := Acceptance{State: StateAccepted, ChecksHash: c.ChecksHash(), AuthorityHash: AuthorityDigest(c), FileHash: fileHash(raw), AcceptedAt: now}
+	a.Pins, a.PinDirs, a.PinUnknown = ComputePins(project, c)
 	return a, SaveAcceptance(project, a)
 }
 

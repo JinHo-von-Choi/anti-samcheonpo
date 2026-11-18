@@ -75,7 +75,12 @@ type Engine struct {
 	Accepted  bool
 	Mode      string // live | audit
 	Root      string
-	Session   string
+	// Pinned are the test files and collection settings the accepted done
+	// checks run, fixed at acceptance; PinDirs are the folders they run
+	// from.
+	Pinned  map[string]bool
+	PinDirs map[string]bool
+	Session string
 	// FirstPrompt is used to infer scope in audit mode.
 	FirstPrompt string
 	// Requests are the user's later requests for the same task, oldest
@@ -163,12 +168,16 @@ type State struct {
 	uiFlagged map[string]int
 	// uiNet holds what the writes since request uiNetRequests added to
 	// each screen file, for requests that numbered the click targets.
-	uiNet                map[string]int
-	uiNetRequests        int
-	compacted            bool
-	allowGuess           []string
-	scopeKnown           bool
-	lastVerify           *event.Event
+	uiNet         map[string]int
+	uiNetRequests int
+	compacted     bool
+	allowGuess    []string
+	scopeKnown    bool
+	lastVerify    *event.Event
+	// baseline is the latest baseline comparison of a passing check.
+	baseline *baselineNote
+	// trust is the state of the rules that judge whether tests check the change.
+	trust                *testTrust
 	verifyStreak         []int64 // consecutive distinct passing verifications with no progress in between
 	lastWriteSeq         int64
 	lastCodeWriteSeq     int64
@@ -425,6 +434,11 @@ func (e *Engine) tool(ev *event.Event, sigs *[]Signal) {
 	if ev.Tool == event.ToolShell && ev.Mutating && ev.Category != event.CatVerify {
 		st.lastMutating = ev.Seq
 	}
+	if ev.Tool == event.ToolShell && len(ev.Patch) > 0 && ev.Category != event.CatProduce && !(ev.Category == event.CatVerify && ev.Mutating && len(ev.Paths) > 0) {
+		// test files a shell command changed, read after it ran
+		e.bypass(ev, sigs)
+	}
+	e.testTrustObserve(ev, sigs)
 	switch ev.Category {
 	case event.CatVerify:
 		if ev.Tool == event.ToolShell && ev.Mutating && len(ev.Paths) > 0 {
@@ -1254,7 +1268,7 @@ func (e *Engine) bypass(ev *event.Event, sigs *[]Signal) {
 	for _, pf := range ev.Patch {
 		p := pf.Path
 		isTest := classify.IsTestPath(p)
-		if isTest && classify.TestInfraNames[path.Base(p)] {
+		if testInfraChange(pf) {
 			e.add(sigs, Signal{Detector: "S5", Rule: "s5.test_weakening", Confidence: 0.7, Level: L1, Evidence: []int64{ev.Seq},
 				Facts: map[string]any{"path": p, "kind": string(KindTestInfraChanged)}})
 		}
@@ -1277,7 +1291,16 @@ func (e *Engine) bypass(ev *event.Event, sigs *[]Signal) {
 				e.add(sigs, Signal{Detector: "S5", Rule: "s5.test_weakening", Confidence: 0.75, Level: L1, Evidence: []int64{ev.Seq},
 					Facts: map[string]any{"path": p, "kind": string(KindMockSubstituted)}})
 			}
-			for _, k := range TestChange(pf.Added, pf.Removed) {
+			kinds := TestChange(pf.Added, pf.Removed)
+			if len(kinds) == 0 && ev.Tool == event.ToolShell && !(e.Contract != nil && e.Accepted && e.Contract.SimplifyTests) {
+				// a shell edit could not be read before it ran, so the
+				// assertion guard judges it after the fact
+				if v := e.guard.InspectPatch(p, pf.Added, pf.Removed); v.Blocked {
+					e.add(sigs, Signal{Detector: "S5", Rule: "s5.test_weakening", Confidence: 0.8, Level: L1, Evidence: []int64{ev.Seq},
+						Facts: map[string]any{"path": p, "kind": string(v.Kind), "reason": v.Reason, "shell": true}})
+				}
+			}
+			for _, k := range kinds {
 				if k == KindLiteralReplaced && e.createdCode(ev) {
 					// the expectation follows a feature the session added (a
 					// registry count growing with a new parser and its test)
@@ -1633,6 +1656,12 @@ func (e *Engine) TurnEnd(msg *event.Event, unmet []string) []Signal {
 				e.add(&sigs, *s)
 				return e.combine(msg, sigs)
 			}
+			if b := st.baseline; b != nil && b.seq == lv.Seq && b.outcome == "baseline_pass" {
+				// the tests that passed pass as well with the change undone
+				e.add(&sigs, Signal{Detector: "S5", Rule: RuleFalseDone, Confidence: 0.7, Level: L1, Evidence: []int64{lv.Seq, msg.Seq},
+					Facts: map[string]any{"kind": "baseline_pass", "cmd": lv.CmdNorm, "tests": strings.Join(b.tests, ", ")}})
+				return e.combine(msg, sigs)
+			}
 		}
 	}
 	if s := e.abandonedVerification(msg, unmet); s != nil {
@@ -1653,6 +1682,57 @@ func (e *Engine) ProtectedCheck(ev *event.Event) *Signal {
 	}
 	return &Signal{Detector: "S10", Rule: RuleGraderAccess, Confidence: 1.0, Level: L3, Evidence: []int64{ev.Seq},
 		Facts: map[string]any{"path": p, "blocked": true}}
+}
+
+// ContractPathCheck stops a write to a path the accepted contract protects,
+// or to a test file when the contract forbids test changes. A shell command
+// that edits a file and runs the tests in one line is classified as a check,
+// so the written paths are judged, not the category. The decision needs no
+// workspace fingerprint: it is the user's own boundary.
+func (e *Engine) ContractPathCheck(ev *event.Event) *Signal {
+	if e.Contract == nil || !e.Accepted {
+		return nil
+	}
+	for _, p := range e.WrittenPaths(ev) {
+		if e.Pinned[p] || e.pinnedCollection(ev, p) {
+			// the done checks run this file; changing it changes the
+			// accepted completion criterion, whatever simplify_tests says
+			return &Signal{Detector: "S3", Rule: "s3.protected_path", Confidence: 1.0, Level: L3, Facts: map[string]any{"path": p, "pinned": true}}
+		}
+		if e.Contract.Protected(p) || (classify.IsTestPath(p) && e.Contract.ForbidsTestChanges()) {
+			return &Signal{Detector: "S3", Rule: "s3.protected_path", Confidence: 1.0, Level: L3, Facts: map[string]any{"path": p}}
+		}
+	}
+	return nil
+}
+
+// pinnedCollection reports a new collection file (conftest.py, a runner
+// config, a Go test file defining TestMain) in a folder a pinned test runs
+// from, or above one: it changes how the pinned tests run without changing
+// them.
+func (e *Engine) pinnedCollection(ev *event.Event, p string) bool {
+	if len(e.PinDirs) == 0 {
+		return false
+	}
+	dir := path.Dir(p)
+	near := false
+	for d := range e.PinDirs {
+		if d == dir || dir == "." || strings.HasPrefix(d, dir+"/") {
+			near = true
+			break
+		}
+	}
+	if !near {
+		return false
+	}
+	return contract.IsCollectionFile(p, func() string {
+		for _, pf := range ev.Patch {
+			if pf.Path == p {
+				return strings.Join(pf.Added, "\n")
+			}
+		}
+		return ""
+	})
 }
 
 // PreCheck is the live PreToolUse decision: it returns a deny reason when the
@@ -1723,16 +1803,8 @@ func (e *Engine) PreCheck(ev *event.Event) (deny bool, sig *Signal) {
 	if s := e.hidingPre(ev); s != nil {
 		return true, s
 	}
-	if e.Contract != nil && e.Accepted {
-		for _, p := range ev.Paths {
-			if e.Contract.Protected(p) || (classify.IsTestPath(p) && e.Contract.ForbidsTestChanges() && (ev.Category == event.CatProduce)) {
-				if ev.Category != event.CatProduce && ev.Tool != event.ToolWrite && ev.Tool != event.ToolEdit {
-					continue
-				}
-				s := Signal{Detector: "S3", Rule: "s3.protected_path", Confidence: 1.0, Level: L3, Facts: map[string]any{"path": p}}
-				return true, &s
-			}
-		}
+	if s := e.ContractPathCheck(ev); s != nil {
+		return true, s
 	}
 	// S3: a write outside the scope the user accepted is stopped before it
 	// lands. The scope is the user's own boundary, so this is a decision

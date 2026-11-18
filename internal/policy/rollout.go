@@ -62,7 +62,11 @@ func EscalationKey(revision uint64, rule, kind, target string) string {
 // judge scope, budgets or completion need an accepted contract; estimated
 // or model-judged rules and replaced expectations never escalate.
 func Escalable(rule, kind string, contractAccepted bool) bool {
-	if kind == "literal_replaced" {
+	if kind == "literal_replaced" || kind == "baseline_pass" || kind == "commit_notice" {
+		// a replaced expectation follows a changed specification as often
+		// as a weakened test; a test passing without the change has not yet
+		// been measured against labels; the commit notice is told once and
+		// never stops the commit
 		return false
 	}
 	switch rule {

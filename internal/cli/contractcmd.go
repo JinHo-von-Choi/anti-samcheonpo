@@ -31,7 +31,7 @@ func contractCmd() *cobra.Command {
 				}
 				return nil
 			}
-			st := contract.CurrentState(wd, k, raw)
+			st := contract.CurrentStateWithPins(wd, k, raw)
 			fmt.Fprint(cmd.OutOrStdout(), intent.GoalCard(k, st, "", nil).Text())
 			return nil
 		},
@@ -48,10 +48,12 @@ func contractCmd() *cobra.Command {
 			if k == nil {
 				return fmt.Errorf(lang.T("%s가 없다"), contract.Path(wd))
 			}
-			if _, err := contract.Accept(wd, k, raw, time.Now()); err != nil {
+			acc, err := contract.Accept(wd, k, raw, time.Now())
+			if err != nil {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), lang.T("수락했다: %s (기계 검증 조건 %d개)\n"), k.Goal, len(k.MachineChecks()))
+			fmt.Fprint(cmd.OutOrStdout(), contract.PinSummary(acc))
 			return nil
 		},
 	})

@@ -182,6 +182,9 @@ func Run(dbPath string, idle time.Duration) error {
 	// for them first would block shutdown for as long as the reader stays idle
 	close(d.done)
 	d.serving.Wait()
+	// a receipt waiting for a comparison is written with the comparison cut
+	// short rather than holding shutdown for minutes
+	d.heavy.stopAllBaselines()
 	d.ending.Wait()
 	d.mu.Lock()
 	var sessions []*Session
@@ -243,6 +246,16 @@ const defaultWatchBudget = 32
 //
 // The caller must hold d.mu. The daemon takes d.mu before s.mu everywhere
 // else, and this follows the same order.
+// stopping reports a daemon that has begun to shut down.
+func (d *Daemon) stopping() bool {
+	select {
+	case <-d.done:
+		return true
+	default:
+		return false
+	}
+}
+
 func (d *Daemon) reclaimWatchers() {
 	budget := watchBudget()
 	type candidate struct {
@@ -607,6 +620,7 @@ func (d *Daemon) session(id, agent, root, transcript string) (*Session, error) {
 	}
 	s.hostVersion = d.versions[agent]
 	s.daemon = d
+	go s.recordSessionStart()
 	s.observeCause = cause
 	d.sessions[id] = s
 	if parent, err := s.db.SessionParent(agent, id, intent.ProjectID(s.Root)); err == nil {
@@ -772,6 +786,9 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 			return "", err
 		}
 		s.setContract(c, acc)
+		// a contract accepted during the session starts the comparisons from
+		// the state it was accepted in
+		go s.recordSessionStart()
 		s.recordStorageError(s.recordIntentCommand(intent.Change{Kind: intent.Confirmed, Goal: c.Goal}))
 		if d.db != nil {
 			s.recordStorageError(d.db.RecordContract(s.ID, c.ChecksHash(), "accepted"))
@@ -779,7 +796,7 @@ func (d *Daemon) command(in CommandInput) (string, error) {
 		if s.storageErr != nil {
 			return "", s.storageErr
 		}
-		return s.pick("계약을 수락했다. 이제 진척은 이 계약의 완료 조건으로 잰다.\n", "Contract accepted. Progress is now measured by this contract's completion criteria.\n") + strings.TrimSuffix(contract.PlainSummary(c), lang.T("\n[/samcheonpo:accept 맞아요]  [/samcheonpo:edit 고칠래요]  [/samcheonpo:skip 계약 없이 진행]")), nil
+		return s.pick("계약을 수락했다. 이제 진척은 이 계약의 완료 조건으로 잰다.\n", "Contract accepted. Progress is now measured by this contract's completion criteria.\n") + contract.PinSummary(acc) + strings.TrimSuffix(contract.PlainSummary(c), lang.T("\n[/samcheonpo:accept 맞아요]  [/samcheonpo:edit 고칠래요]  [/samcheonpo:skip 계약 없이 진행]")), nil
 	case "edit":
 		s.mu.Lock()
 		defer s.mu.Unlock()
@@ -946,6 +963,10 @@ func (s *Session) plainSummary() string {
 	}
 	if s.judgeBudgetReason != "" {
 		fmt.Fprintf(&b, s.pick("감시 판정: %s\n", "Monitor verdict: %s\n"), s.judgeBudgetReason)
+	}
+	b.WriteString(s.pick("시험 변경:\n", "Test changes:\n"))
+	for _, l := range s.testSection() {
+		b.WriteString("- " + l + "\n")
 	}
 	b.WriteString(s.requestVsNow())
 	met, total := s.criteria()

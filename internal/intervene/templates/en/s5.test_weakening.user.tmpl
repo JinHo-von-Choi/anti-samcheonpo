@@ -1,2 +1,2 @@
-The AI weakened a test: {{.kindname}} ({{.path}}).
-A pass will no longer tell you whether it really works.
+{{if eq .kind "commit_notice"}}The AI commits or pushes while a test finding is still standing ({{.path}}).{{else}}The AI weakened a test: {{.kindname}} ({{.path}}).
+A pass will no longer tell you whether it really works.{{end}}
