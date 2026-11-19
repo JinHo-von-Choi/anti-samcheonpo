@@ -32,13 +32,16 @@ func RolloutRoute(mode, rule string, evidence map[string]string) string {
 
 // AdviceOnly rules cannot block, even with an operator evaluation digest.
 func AdviceOnly(rule string) bool {
-	return rulepack.IsLearned(rule) || rule == "s3.drift" || rule == "s1.explicit_waiting" || rule == "s8.progress_stall" || rule == "s2.behavior_loop" || rule == "s4.research_repeat" || rule == "s1.delegation_loop" || rule == "s1.linked_loop" || rule == "s5.partial_done" || rule == "s3.requirement_substitution" || rule == "s3.repeated_permission" || rule == "s1.verify_streak" || rule == "s8.host_resource" || rule == "s5.flake_masking" || rule == "s1.revert_reverify" || rule == "s8.leftover_process" || rule == "s5.answer_padding" || rule == "s3.unrequested_ui_action"
+	return rulepack.IsLearned(rule) || rule == "s3.drift" || rule == "s1.explicit_waiting" || rule == "s8.progress_stall" || rule == "s2.behavior_loop" || rule == "s4.research_repeat" || rule == "s1.delegation_loop" || rule == "s1.linked_loop" || rule == "s5.partial_done" || rule == "s3.requirement_substitution" || rule == "s3.repeated_permission" || rule == "s1.verify_streak" || rule == "s8.host_resource" || rule == "s5.flake_masking" || rule == "s1.revert_reverify" || rule == "s8.leftover_process" || rule == "s5.answer_padding" || rule == "s3.unrequested_ui_action" || rule == "s8.job_overrun"
 }
 
 // ExplicitGuardrail reports rules that enforce a limit the user set: a
 // protected path, a budget, a session ceiling. They are not experiments.
 func ExplicitGuardrail(rule string) bool {
-	return rule == "s1.full_suite_budget" || rule == "s1.no_change_rerun" || rule == "s1.test_growth" || rule == "s3.protected_path" || rule == "s8.budget" || rule == "s8.session_ceiling" || rule == "s10.grader_access" || rule == "s3.production_guard" || rule == "s8.host_budget"
+	return rule == "s1.full_suite_budget" || rule == "s1.no_change_rerun" || rule == "s1.test_growth" || rule == "s3.protected_path" || rule == "s8.budget" || rule == "s8.session_ceiling" || rule == "s10.grader_access" || rule == "s3.production_guard" || rule == "s8.host_budget" ||
+		// a correction rule the user approved, and a budget the user set for a
+		// scheduled job
+		rule == "s5.correction_repeat" || rule == "s8.job_budget"
 }
 
 // Escalate turns advice into a block when the same rule was already advised

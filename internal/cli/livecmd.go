@@ -241,12 +241,16 @@ func codexHome() string {
 func benchHookCmd() *cobra.Command {
 	var p95Max, handlingMax time.Duration
 	var n, maxTimeouts int
+	var input string
 	c := &cobra.Command{
 		Use:   "bench-hook",
 		Short: lang.T("PreToolUse 훅 왕복 시간 측정"),
 		RunE: func(cmd *cobra.Command, args []string) error {
 			if n < 1 || n > 10000 {
 				return fmt.Errorf("%s", lang.T("n은 1~10000이어야 한다"))
+			}
+			if input != "read" && input != "tree" && input != "corrections" {
+				return fmt.Errorf(lang.T("알 수 없는 입력 %q (read | tree | corrections)"), input)
 			}
 			exe, err := os.Executable()
 			if err != nil {
@@ -318,6 +322,15 @@ func benchHookCmd() *cobra.Command {
 				return err
 			}
 			fmt.Fprintf(cmd.OutOrStdout(), lang.T("콜드 스타트: %v, 상태 %s, 타임아웃 %t\n"), cold, first.Status, first.TimedOut)
+			tool, toolInput, prompts, err := benchInput(input, project)
+			if err != nil {
+				return err
+			}
+			for _, p := range prompts {
+				if _, _, err := run("UserPromptSubmit", map[string]any{"session_id": session, "cwd": project, "prompt": p}, false); err != nil {
+					return err
+				}
+			}
 			// Warm measurements must not include the one-time version subprocess.
 			for deadline := time.Now().Add(time.Second); time.Now().Before(deadline); time.Sleep(5 * time.Millisecond) {
 				text, _, ok := hookclient.Query("AgentStatus", map[string]string{"agent": "claude"}, time.Second)
@@ -330,7 +343,7 @@ func benchHookCmd() *cobra.Command {
 			var handling, overhead []time.Duration
 			timeouts, failures, responses, noResponse := 0, 0, 0, 0
 			for i := 0; i < n; i++ {
-				elapsed, outcome, err := run("PreToolUse", map[string]any{"session_id": session, "cwd": project, "tool_name": "Read", "tool_input": map[string]string{"file_path": "README.md"}, "tool_use_id": fmt.Sprintf("t%d", i)}, false)
+				elapsed, outcome, err := run("PreToolUse", map[string]any{"session_id": session, "cwd": project, "tool_name": tool, "tool_input": toolInput, "tool_use_id": fmt.Sprintf("t%d", i)}, false)
 				if err != nil {
 					return err
 				}
@@ -369,12 +382,26 @@ func benchHookCmd() *cobra.Command {
 				sort.Slice(overhead, func(i, j int) bool { return overhead[i] < overhead[j] })
 				fmt.Fprintf(cmd.OutOrStdout(), lang.T("구간 진단: 입력/소켓/출력 처리 p95 %v, 프로세스 시작·종료/부모 대기 p95 %v (각각의 분포; 합산 불가)\n"), handling[int(.95*float64(n-1))], overhead[int(.95*float64(n-1))])
 			}
-			fmt.Fprintf(cmd.OutOrStdout(), lang.T("응답 %d/%d, 타임아웃 %d, 실패 %d, 첫 요청 수신 %t, 도구 수신 %d/%d, 큐 누락 %d\n"), responses, n, timeouts, failures, observed.Prompts == 1, observed.ToolCalls, n, observed.QueueRejected)
+			fmt.Fprintf(cmd.OutOrStdout(), lang.T("응답 %d/%d, 타임아웃 %d, 실패 %d, 첫 요청 수신 %t, 도구 수신 %d/%d, 큐 누락 %d\n"), responses, n, timeouts, failures, observed.Prompts == 1+len(prompts), observed.ToolCalls, n, observed.QueueRejected)
+			if input != "read" {
+				// a long completion report at the turn end: the claims, the
+				// deliverables and the language are read there
+				var stops []time.Duration
+				for i := 0; i < 20; i++ {
+					_, outcome, err := run("Stop", map[string]any{"session_id": session, "cwd": project, "last_assistant_message": benchLongReport}, false)
+					if err != nil {
+						return err
+					}
+					stops = append(stops, time.Duration(outcome.HandlingNS))
+				}
+				sort.Slice(stops, func(i, j int) bool { return stops[i] < stops[j] })
+				fmt.Fprintf(cmd.OutOrStdout(), lang.T("긴 완료 보고 Stop 20회: 처리 p50 %v, p95 %v\n"), stops[10], stops[18])
+			}
 			// A cold start that outran the first hook's deadline is the agent
 			// proceeding while the daemon boots, by design; it still counts
 			// when the daemon recorded that first prompt. Any other failure
 			// is not a latency pass.
-			coldLate := first.TimedOut && observed.Prompts == 1
+			coldLate := first.TimedOut && observed.Prompts >= 1
 			if coldLate {
 				fmt.Fprintln(cmd.OutOrStdout(), lang.T("콜드 스타트가 첫 훅의 기한을 넘겼지만 데몬이 그 요청을 기록했다 (기동 중 통과는 설계된 동작)"))
 			}
@@ -386,7 +413,7 @@ func benchHookCmd() *cobra.Command {
 				FastFailures: failures - timeouts, NoResponse: noResponse,
 				FirstOK: first.Status == "ok", FirstResponse: first.ResponseReceived,
 				ColdLate:      coldLate,
-				Prompts:       observed.Prompts,
+				Prompts:       observed.Prompts - len(prompts),
 				ToolCalls:     observed.ToolCalls,
 				QueueRejected: observed.QueueRejected,
 			}
@@ -422,6 +449,7 @@ func benchHookCmd() *cobra.Command {
 		},
 	}
 	c.Flags().IntVar(&n, "n", 200, lang.T("반복 횟수"))
+	c.Flags().StringVar(&input, "input", "read", lang.T("반복 입력: read(파일 읽기), tree(큰 트리의 시험 명령), corrections(교정 규칙 여러 개가 걸린 명령)"))
 	c.Flags().IntVar(&maxTimeouts, "max-timeouts", -1, lang.T("허용할 타임아웃 횟수 (-1이면 반복 횟수의 1%, 최소 1회; 0이면 느린 기동도 한 번도 허용하지 않는다)"))
 	c.Flags().DurationVar(&p95Max, "p95-max", 10*time.Millisecond, lang.T("p95 상한 (0이면 검사하지 않음; 처리 구간 분포가 있으면 그 p95에, 없으면 기동을 포함한 전체 왕복에 적용)"))
 	c.Flags().DurationVar(&handlingMax, "handling-p95-max", 0, lang.T("입력/소켓/출력 처리 구간 p95 상한 (0이면 검사하지 않음; 러너 부하에 덜 흔들리는 회귀 기준)"))
@@ -565,4 +593,39 @@ func InterventionReport(db *ledger.DB) (InterventionsReport, error) {
 func installOpencode(cmd *cobra.Command, exe string) error {
 	w := cmd.OutOrStdout()
 	return install.InstallOpencode(exe, install.OpencodePluginPath(), func(s string) { fmt.Fprintln(w, s) })
+}
+
+// benchLongReport is a long completion report with claims to read.
+var benchLongReport = strings.Repeat("변경을 반영했습니다. 테스트를 모두 통과했습니다. `docs/old.md`를 지웠고 `internal/new.go`를 만들었습니다.\n", 40)
+
+// benchInput is the call the bench repeats, the project it needs and the
+// requests sent before it. tree runs a test command in a large tree;
+// corrections repeats a command checked against several correction rules.
+func benchInput(input, project string) (tool string, toolInput map[string]string, prompts []string, err error) {
+	switch input {
+	case "tree":
+		if err := os.WriteFile(filepath.Join(project, "go.mod"), []byte("module bench\n\ngo 1.22\n"), 0o600); err != nil {
+			return "", nil, nil, err
+		}
+		for i := 0; i < 400; i++ {
+			dir := filepath.Join(project, fmt.Sprintf("pkg%03d", i))
+			if err := os.MkdirAll(dir, 0o700); err != nil {
+				return "", nil, nil, err
+			}
+			for _, f := range []string{"a.go", "a_test.go", "README.md"} {
+				if err := os.WriteFile(filepath.Join(dir, f), []byte("package p\n"), 0o600); err != nil {
+					return "", nil, nil, err
+				}
+			}
+		}
+		// a selected run: a whole-suite run is refused after the first by
+		// the request's allowance, and a refused call is not the path
+		// measured here
+		return "Bash", map[string]string{"command": "go test -run TestA ./pkg001/..."}, []string{"고쳐 줘"}, nil
+	case "corrections":
+		return "Bash", map[string]string{"command": "git status --short"}, []string{
+			"앞으로 PR 만들지 마", "앞으로 전체 시험 돌리지 마", "앞으로 푸시하지 마", "앞으로 새 브랜치 만들지 마",
+			"앞으로 `/mnt/backup` 쓰지 마", "앞으로 문서만 바꿨으면 시험 돌리지 마", "앞으로 한국어로 답하라고", "앞으로 배포하지 마"}, nil
+	}
+	return "Read", map[string]string{"file_path": "README.md"}, nil, nil
 }

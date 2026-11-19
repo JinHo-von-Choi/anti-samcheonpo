@@ -12,6 +12,7 @@ import (
 	"path"
 	"path/filepath"
 	"regexp"
+	"slices"
 	"sort"
 	"strings"
 
@@ -32,8 +33,54 @@ type Selection struct {
 	Infra []string
 	// Dirs are the folders whose new collection files would change the run.
 	Dirs []string
+	// Filters are the arguments that select tests inside those files: Go's
+	// -run and -skip, pytest's -k, -m and node ids, jest's -t, cargo's name
+	// filter. Two runs of the same files with different filters run
+	// different tests.
+	Filters []string
 	// Known is false when the command's tests could not be told.
 	Known bool
+}
+
+// Same reports whether two selections run the same tests: the same files,
+// collection files and filters.
+func (s Selection) Same(o Selection) bool {
+	return s.Known && o.Known && slices.Equal(s.Files, o.Files) && slices.Equal(s.Infra, o.Infra) && slices.Equal(s.Filters, o.Filters)
+}
+
+// filterFlags are, per runner, the flags whose value selects tests.
+var filterFlags = map[string]map[string]bool{
+	"go":     {"-run": true, "-skip": true, "-test.run": true, "-test.skip": true, "--run": true},
+	"pytest": {"-k": true, "-m": true},
+	"jest":   {"-t": true, "--testNamePattern": true, "--testPathPattern": true},
+	"vitest": {"-t": true, "--testNamePattern": true},
+	"script": {"-t": true, "--testNamePattern": true},
+	"cargo":  {"--test": true, "--lib": true, "--bin": true},
+}
+
+// filters reads the test-selecting arguments of one run.
+func filters(runner string, args []string) []string {
+	flags := filterFlags[runner]
+	var out []string
+	for i := 0; i < len(args); i++ {
+		a := args[i]
+		name, value, eq := strings.Cut(a, "=")
+		switch {
+		case flags[name] && eq:
+			out = append(out, name+"="+value)
+		case flags[name] && i+1 < len(args) && !strings.HasPrefix(args[i+1], "-"):
+			out = append(out, name+"="+args[i+1])
+			i++
+		case flags[name]:
+			out = append(out, name)
+		case runner == "pytest" && strings.Contains(a, "::"):
+			out = append(out, a)
+		case runner == "cargo" && a == "--":
+			out = append(out, args[i:]...)
+			i = len(args)
+		}
+	}
+	return out
 }
 
 // skipDirs are never walked: dependencies, build output and tool state.
@@ -68,6 +115,7 @@ func Resolve(root, cmd string) Selection {
 				base = filepath.Join(root, r.Dir)
 			}
 		}
+		sel.Filters = append(sel.Filters, filters(r.Runner, r.Args)...)
 		ok := false
 		switch r.Runner {
 		case "go":
@@ -84,6 +132,7 @@ func Resolve(root, cmd string) Selection {
 		}
 	}
 	sel.Files, sel.Infra, sel.Dirs = sorted(files), sorted(infra), sorted(dirs)
+	slices.Sort(sel.Filters)
 	if len(sel.Files) == 0 {
 		sel.Known = false
 	}

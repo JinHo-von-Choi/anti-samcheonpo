@@ -16,7 +16,9 @@ var rules = []string{"s1.explicit_waiting", "s8.progress_stall", "s1.identical_r
 	"s5.false_done", "s5.abandoned_verification", "s3.fixation", "s5.answer_copy", "s7.memory_rot", "s8.velocity", "s8.budget", "s8.idle_spend", "s8.forced_no_progress", "s5.stop_unmet", "s6.capability_limit", "s3.drift",
 	"s2.semantic_oscillation", "s1.full_suite_local_change", "s1.concurrent_heavy_check", "s5.deploy_without_preflight", "s3.production_write", "s3.production_guard", "s3.migration_history_write", "s8.host_resource", "s8.host_budget", "s5.flake_masking", "s5.artifact_meta", "s5.answer_padding", "s3.unrequested_ui_action", "s1.revert_reverify", "s8.leftover_process", "s1.unprobed_long_run", "s4.serial_triage", "s2.verifier_deadlock", "s5.release_without_preflight",
 	"s5.release_rate", "s2.flaky_ui_race", "s8.session_long", "s8.session_ceiling",
-	"s9.instruction_smuggling", "s9.unverified_claim_request", "s10.grader_access"}
+	"s9.instruction_smuggling", "s9.unverified_claim_request", "s10.grader_access",
+	"s5.deliverable_missing", "s5.forbidden_action", "s5.unrequested_external", "s5.claim_contradiction", "s5.answer_language", "s5.correction_repeat",
+	"s1.known_result", "s1.duplicate_running", "s8.job_overrun"}
 
 // TestVocabulary checks every agent template against the directive word list.
 func TestVocabulary(t *testing.T) {

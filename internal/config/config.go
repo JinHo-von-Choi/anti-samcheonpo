@@ -17,9 +17,12 @@ import (
 
 // Config is the merged configuration (defaults < ~/.samcheonpo/config.yml < project .samcheonpo.yml).
 type Config struct {
-	Language                 string    `yaml:"language" json:"language"`
-	Currency                 string    `yaml:"currency" json:"currency"`
-	Levels                   Levels    `yaml:"levels" json:"levels"`
+	Language string `yaml:"language" json:"language"`
+	Currency string `yaml:"currency" json:"currency"`
+	Levels   Levels `yaml:"levels" json:"levels"`
+	// Jobs are the limits a user sets for scheduled jobs. Without one, an
+	// unusually large run is only reported.
+	Jobs                     Jobs      `yaml:"jobs" json:"jobs"`
 	Detectors                Detectors `yaml:"detectors" json:"detectors"`
 	VerifyCommands           []string  `yaml:"verify_commands" json:"verify_commands"`
 	NondeterministicCommands []string  `yaml:"nondeterministic_commands" json:"nondeterministic_commands"`
@@ -252,6 +255,15 @@ type VerifyCfg struct {
 	Baseline string `yaml:"baseline" json:"baseline"`
 }
 
+// Jobs limits a scheduled job's run. Zero means no limit.
+type Jobs struct {
+	// BudgetTokens stops a run that used more tokens than this.
+	BudgetTokens int64 `yaml:"budget_tokens" json:"budget_tokens"`
+	// StopRatio stops a run that used more than this many times the median
+	// of the job's past runs.
+	StopRatio float64 `yaml:"stop_ratio" json:"stop_ratio"`
+}
+
 // Default returns the initial configuration.
 func Default() Config {
 	c := Config{Language: "auto", Currency: "auto"}
@@ -259,7 +271,11 @@ func Default() Config {
 	c.Rollout.Mode = "recommend"
 	c.Rollout.EscalateMaxBlocks = 3
 	c.Rollout.ShadowRules = []string{"s1.verify_after_docs", "s1.review_repeat", "s1.verify_streak", "s1.explicit_waiting", "s8.progress_stall", "s2.behavior_loop", "s4.research_repeat", "s1.delegation_loop", "s1.linked_loop", "s5.partial_done", "s3.requirement_substitution", "s3.repeated_permission", "s5.short_circuit",
-		"s5.test_edit_to_pass", "s5.subject_mocked", "s5.test_special_case", "s5.snapshot_regenerated"}
+		"s5.test_edit_to_pass", "s5.subject_mocked", "s5.test_special_case", "s5.snapshot_regenerated",
+		// compared with what the user asked for and what the record shows;
+		// raised one kind at a time after a replay evaluation
+		"s5.deliverable_missing", "s5.forbidden_action", "s5.unrequested_external", "s5.claim_contradiction",
+		"s1.known_result", "s1.duplicate_running"}
 	c.Detectors.S1.ExplicitWaitingRepeats = 3
 	c.Detectors.S8.StallFailures = 3
 	c.Detectors.S8.StallToolEvents = 5

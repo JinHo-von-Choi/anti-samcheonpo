@@ -69,6 +69,7 @@ type Receipt struct {
 	// Tests describe what the session did to the tests and what the
 	// passing tests show; shown first.
 	Tests         []string `json:"tests,omitempty"`
+	Outcome       *Outcome `json:"outcome,omitempty"`
 	Notices       []string `json:"notices"`
 	Unit          string   `json:"unit"` // won | tokens | unknown
 	PriceCoverage float64  `json:"price_coverage"`
@@ -122,13 +123,15 @@ type Input struct {
 	JudgeSkippedLowRisk int
 	// Tests is the test changes section (TestSection); empty leaves it out.
 	Tests []string
+	// Outcome is what the user went through; nil reads as not observed.
+	Outcome *Outcome
 }
 
 // Build creates a receipt model.
 func Build(in Input) Receipt {
 	t := in.Totals
 	billing := cost.Measure(in.Billing, t.Micro, t.Tokens, t.UnpricedTokens)
-	r := Receipt{Title: in.Title, Tests: in.Tests, PriceCoverage: billing.PriceCoverage, Minutes: t.Minutes, Grade: in.Grade, Billing: billing, Action: SummarizeAction(in)}
+	r := Receipt{Title: in.Title, Tests: in.Tests, Outcome: in.Outcome, PriceCoverage: billing.PriceCoverage, Minutes: t.Minutes, Grade: in.Grade, Billing: billing, Action: SummarizeAction(in)}
 	r.Action.Unknowns = append(r.Action.Unknowns, billing.Missing...)
 	r.Unit = "won"
 	if r.PriceCoverage < 1 {
@@ -671,6 +674,9 @@ func HumanTokens(n int64) string {
 func (r Receipt) Text() string {
 	var b strings.Builder
 	b.WriteString(r.Title + "\n")
+	if r.Outcome != nil {
+		b.WriteString(r.Outcome.Line() + "\n")
+	}
 	if len(r.Tests) > 0 {
 		b.WriteString(lang.T("시험 변경\n"))
 		for _, l := range r.Tests {
@@ -747,6 +753,9 @@ func sortedKeys(m map[string][]Evidence) []string {
 func (r Receipt) Markdown() string {
 	var b strings.Builder
 	b.WriteString("## " + r.Title + "\n\n")
+	if r.Outcome != nil {
+		r.Outcome.markdown(&b)
+	}
 	if len(r.Tests) > 0 {
 		b.WriteString(lang.T("### 시험 변경\n\n"))
 		for _, l := range r.Tests {
@@ -794,6 +803,9 @@ func (r Receipt) Markdown() string {
 	}
 	if r.Seal != "" {
 		b.WriteString(lang.T("- 봉인 `") + r.Seal + "`\n")
+	}
+	if r.Outcome != nil {
+		r.Outcome.candidatesMarkdown(&b)
 	}
 	for _, k := range sortedKeys(r.Evidence) {
 		b.WriteString(lang.T("\n### 근거 · ") + SymptomNameOr(k) + "\n\n")

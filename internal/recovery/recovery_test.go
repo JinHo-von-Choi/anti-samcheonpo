@@ -19,7 +19,7 @@ func TestEnvironmentDoesNotPrescribeMoreCodeChanges(t *testing.T) {
 func TestBoundedRecoveryAndUnknownDelivery(t *testing.T) {
 	now := time.Now()
 	a := Attempt{Version: "recovery/1", ID: "a", Agent: "claude", SessionID: "s", Revision: 1, CauseKey: "error", VerdictID: "v", Prescription: For(Code), CreatedAt: now, Stage: Proposed}
-	if _, ok := Select(Code, "error", 1, []Attempt{a}); ok {
+	if _, why := Select(Code, "error", "", 1, []Attempt{a}); why != RefusedOpen {
 		t.Fatal("repeated pending prescription")
 	}
 	if err := a.Advance(Delivered, now); err == nil {
@@ -38,21 +38,25 @@ func TestBoundedRecoveryAndUnknownDelivery(t *testing.T) {
 	if err := a.Advance(EffectObserved, now); err != nil {
 		t.Fatal(err)
 	}
-	p, ok := Select(Code, "error", 1, []Attempt{a})
-	if !ok || !p.Handoff {
+	p, why := Select(Code, "error", "", 1, []Attempt{a})
+	if why != "" || !p.Handoff {
 		t.Fatal("failed approach repeated instead of handoff")
 	}
 	b := a
 	b.ID = "b"
 	b.Prescription = p
 	b.Stage = Censored
-	if _, ok := Select(Code, "error", 1, []Attempt{a, b}); ok {
+	if _, why := Select(Code, "error", "", 1, []Attempt{a, b}); why != RefusedHandoff {
 		t.Fatal("handoff loop")
 	}
-	if _, ok := Select(Code, "new", 1, []Attempt{a, b, a}); ok {
+	if _, why := Select(Code, "new", "", 1, []Attempt{a, b, a}); why != RefusedBudget {
 		t.Fatal("revision limit exceeded")
 	}
-	if _, ok := Select(Code, "error", 2, []Attempt{a, b}); !ok {
+	// a rule that used its budget does not silence another rule
+	if _, why := Select(Code, "new", "s3.out_of_scope", 1, []Attempt{a, b, a}); why != "" {
+		t.Fatalf("another rule's first finding was refused: %s", why)
+	}
+	if _, why := Select(Code, "error", "", 2, []Attempt{a, b}); why != "" {
 		t.Fatal("explicit revision cannot start new attempt")
 	}
 }

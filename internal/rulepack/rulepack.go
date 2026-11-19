@@ -35,6 +35,9 @@ const (
 	// EvidenceDerivedExecution means the rules were learned from spans an
 	// independent grader judged.
 	EvidenceDerivedExecution = "derived_execution"
+	// EvidenceUserReproach means the rules were learned from spans the
+	// user scolded with a matching theme. It is the weakest tier.
+	EvidenceUserReproach = "user_reproach"
 )
 
 type Pack struct {
@@ -144,7 +147,7 @@ func LoadWithState(path string) LoadReport {
 		return LoadReport{Pack: p, State: LoadInvalid, Err: errors.New("invalid advisory pack")}
 	}
 	switch p.EvidenceTier {
-	case "", EvidenceHumanLabeled, EvidenceDerivedExecution:
+	case "", EvidenceHumanLabeled, EvidenceDerivedExecution, EvidenceUserReproach:
 	default:
 		return LoadReport{Pack: p, State: LoadInvalid, Err: errors.New("invalid evidence tier")}
 	}

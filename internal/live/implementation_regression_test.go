@@ -101,15 +101,15 @@ func TestRecoveryNewInputsPermitIndependentProbe(t *testing.T) {
 	zero := 0
 	s.eng.St.Events = []*event.Event{{Seq: 1, Kind: event.KindTool, Tool: event.ToolShell, WSBefore: "old", ExecFP: "check", ExitCode: &zero}}
 	v := detect.Signal{ID: "old-input", Seq: 1, Rule: "s2.stuck_error", Detector: "S2", Level: detect.L1, Facts: map[string]any{}}
-	a, _, ok := s.proposeRecovery(v)
-	if !ok {
+	a, _, refused := s.proposeRecovery(v)
+	if refused != "" {
 		t.Fatal("first probe missing")
 	}
 	s.eng.St.Events = append(s.eng.St.Events, &event.Event{Seq: 2, Kind: event.KindTool, Tool: event.ToolShell, WSBefore: "new", ExecFP: "check", ExitCode: &zero})
 	v.Seq = 2
 	v.ID = "new-input"
-	b, _, ok := s.proposeRecovery(v)
-	if !ok || a.CauseKey == b.CauseKey {
+	b, _, refused := s.proposeRecovery(v)
+	if refused != "" || a.CauseKey == b.CauseKey {
 		t.Fatal("new observed inputs suppressed")
 	}
 	if exposed(recovery.Attempt{Arm: "none", PolicyVersion: "intervention-policy/2"}) {

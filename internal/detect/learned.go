@@ -25,8 +25,11 @@ func (e *Engine) ConfigureCandidates(pack rulepack.Pack) error {
 // not the same claim, and a reader that cannot tell them apart reads the
 // weaker one as the stronger one.
 func (e *Engine) candidateSource() string {
-	if e.learnedTier == rulepack.EvidenceDerivedExecution {
+	switch e.learnedTier {
+	case rulepack.EvidenceDerivedExecution:
 		return "derived_candidate"
+	case rulepack.EvidenceUserReproach:
+		return "reproach_candidate"
 	}
 	return "labeled_candidate"
 }

@@ -38,6 +38,11 @@ type Evaluation struct {
 	Passed bool `json:"passed"`
 	// DerivedPassed is the derived-label gate.
 	DerivedPassed bool `json:"derived_passed"`
+	// ReproachScores count against labels inferred from the user's
+	// scolding. They carry a promotion only when neither stronger grade
+	// passed.
+	ReproachScores []Score `json:"reproach_scores,omitempty"`
+	ReproachPassed bool    `json:"reproach_passed"`
 	// EvidenceTier says which grade of evidence carries the promotion.
 	// It is empty when neither grade passed.
 	EvidenceTier string `json:"evidence_tier,omitempty"`
@@ -123,13 +128,15 @@ func EvaluateWithProbe(p Proposal, split eval.Split, labels []eval.Label, data m
 	// The two grades are kept apart from here on. A label a person made
 	// and a label a grader derived answer the same question, but they do
 	// not carry the same trust, so they are counted apart.
-	var human, derived []eval.Label
+	var human, derived, reproached []eval.Label
 	for _, l := range heldLabels {
 		switch l.Tier() {
 		case eval.LabelSourceHuman:
 			human = append(human, l)
 		case eval.LabelSourceDerived:
 			derived = append(derived, l)
+		case eval.LabelSourceReproach:
+			reproached = append(reproached, l)
 		}
 	}
 	r.Passed = split.Purpose == "preregistered_holdout"
@@ -150,11 +157,22 @@ func EvaluateWithProbe(p Proposal, split eval.Split, labels []eval.Label, data m
 	for _, sc := range r.DerivedScores {
 		r.DerivedPassed = r.DerivedPassed && sc.Passed
 	}
+	reproachScores, err := scoreTier(p.Definitions, eval.LabelSourceReproach, split.Holdout, reproached, data, find, gate)
+	if err != nil {
+		return r, err
+	}
+	r.ReproachScores = reproachScores
+	r.ReproachPassed = len(r.ReproachScores) == len(p.Definitions) && len(r.ReproachScores) > 0
+	for _, sc := range r.ReproachScores {
+		r.ReproachPassed = r.ReproachPassed && sc.Passed
+	}
 	switch {
 	case r.Passed:
 		r.EvidenceTier = rulepack.EvidenceHumanLabeled
 	case r.DerivedPassed:
 		r.EvidenceTier = rulepack.EvidenceDerivedExecution
+	case r.ReproachPassed:
+		r.EvidenceTier = rulepack.EvidenceUserReproach
 	}
 	if err := r.check(); err != nil {
 		return r, err
@@ -176,9 +194,10 @@ func EvaluateWithProbe(p Proposal, split eval.Split, labels []eval.Label, data m
 // carry, and that is recorded by the caller.
 func scoreTier(defs []rulepack.Definition, tier string, holdout []string, held []eval.Label, data map[string][]*event.Event, find func(string) string, gate Gate) ([]Score, error) {
 	// One person must not decide a span alone. A grader stands outside
-	// the task, so its single verdict is not the same claim.
+	// the task, so its single verdict is not the same claim; a scolding is
+	// the user's own reaction to the span and is counted once as well.
 	minVotes := 2
-	if tier == eval.LabelSourceDerived {
+	if tier == eval.LabelSourceDerived || tier == eval.LabelSourceReproach {
 		minVotes = 1
 	}
 	var out []Score
@@ -303,6 +322,9 @@ func (r Evaluation) check() error {
 	if r.DerivedPassed && !r.Passed && r.EvidenceTier != rulepack.EvidenceDerivedExecution {
 		return errors.New("derived evaluation without the derived evidence tier")
 	}
+	if r.ReproachPassed && !r.Passed && !r.DerivedPassed && r.EvidenceTier != rulepack.EvidenceUserReproach {
+		return errors.New("reproach evaluation without the reproach evidence tier")
+	}
 	if r.Probe != nil {
 		if err := r.Probe.Validate(); err != nil {
 			return err
@@ -326,11 +348,16 @@ func Promote(p Proposal, r Evaluation) (rulepack.Pack, error) {
 	scores := r.Scores
 	tier := rulepack.EvidenceHumanLabeled
 	if !r.Passed {
-		if !r.DerivedPassed {
+		switch {
+		case r.DerivedPassed:
+			scores = r.DerivedScores
+			tier = rulepack.EvidenceDerivedExecution
+		case r.ReproachPassed:
+			scores = r.ReproachScores
+			tier = rulepack.EvidenceUserReproach
+		default:
 			return pack, errors.New("independent candidate gates not passed")
 		}
-		scores = r.DerivedScores
-		tier = rulepack.EvidenceDerivedExecution
 	}
 	if len(scores) != len(p.Definitions) {
 		return pack, errors.New("independent candidate gates not passed")

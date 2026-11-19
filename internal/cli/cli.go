@@ -289,6 +289,9 @@ func auditCmd() *cobra.Command {
 					w = &moneyWriter{w: fh, rate: rate}
 				}
 			}
+			if rep, err := db.ReproachSummary(t); err == nil {
+				rc.Notices = append(rc.Notices, reproachNotices(rep)...)
+			}
 			return writeAudit(w, rc, sums, format)
 		},
 	}
@@ -532,7 +535,7 @@ func receiptCmd() *cobra.Command {
 			}
 			rc := receipt.Build(receipt.Input{Title: receipt.SessionTitle(s.StartedAt, s.ID, s.Agent), Agent: s.Agent, Audit: s.Mode == "audit",
 				Totals: r.Totals, Grade: r.Grade, Verdicts: r.Verdicts, Seal: &sl, Billing: observation, Recoveries: recoveries, Criteria: criteria, Observation: r.Observation, Blocked: r.Blocked,
-				Estimate: estimateStoppedRepetitions(db, s, prices, time.Now())})
+				Estimate: estimateStoppedRepetitions(db, s, prices, time.Now()), Outcome: storedOutcome(db, s.ID)})
 			if n := missedSessions(dbPath()); n > 0 {
 				rc.Notices = append(rc.Notices, fmt.Sprintf(lang.T("훅이 데몬에 연결하지 못해 기록되지 않은 세션 %d개가 있습니다"), n))
 			}
@@ -611,6 +614,15 @@ func sessionsCmd() *cobra.Command {
 			fmt.Fprintf(w, "%-8s  %-6s  %-11s  %12s  %6s  %s\n", lang.T("세션"), lang.T("에이전트"), lang.T("시작"), lang.T("총 지출"), lang.T("헛짓"), lang.T("관측 상태 / 첫 요청"))
 			for _, r := range rows {
 				tot := contract.Comma(cost.Won(r.Micro)) + lang.T("원")
+				switch {
+				case r.Tokens == 0:
+					tot = lang.T("미확인")
+				case r.Unpriced > 0 && r.Micro == 0:
+					// no price: the tokens, not a zero amount
+					tot = receipt.HumanTokens(r.Tokens) + lang.T("(가격 미설정)")
+				case r.Unpriced > 0:
+					tot += lang.T("+단가 미확인")
+				}
 				pct := 0.0
 				if r.Micro > 0 {
 					pct = float64(r.WasteMicro) / float64(r.Micro) * 100
@@ -653,6 +665,21 @@ func priceCmd() *cobra.Command {
 			for _, p := range t.Models {
 				fmt.Fprintf(w, lang.T("%-20s 입력 %7.3f 출력 %7.3f 캐시쓰기 %7.3f 캐시읽기 %7.3f  %s부터  %s\n"), p.Model, p.Input, p.Output, p.CacheWrite, p.CacheRead,
 					p.ValidFrom.Format("2006-01-02"), p.Source)
+			}
+			// the models that ran without a price: their tokens are counted
+			// apart, never as zero won
+			if db, err := openDB(); err == nil {
+				defer db.Close()
+				if rows, err := db.UnpricedModels(time.Now().AddDate(0, 0, -30)); err == nil && len(rows) > 0 {
+					fmt.Fprintln(w, lang.T("\n최근 30일 가격 미설정 모델 (~/.samcheonpo/prices.yml에 단가를 넣으면 금액으로 합산한다)"))
+					for _, r := range rows {
+						name := r.Model
+						if name == "" {
+							name = lang.T("(모델 이름 없음)")
+						}
+						fmt.Fprintf(w, lang.T("%-8s %-28s 세션 %d개  토큰 %s\n"), r.Agent, name, r.Sessions, receipt.HumanTokens(r.Tokens))
+					}
+				}
 			}
 			return nil
 		},

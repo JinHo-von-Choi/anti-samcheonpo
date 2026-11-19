@@ -62,6 +62,13 @@ var causeByRule = map[string]Cause{
 	"s3.unrequested_ui_action":     Scope,
 	"s8.leftover_process":          Process,
 	"s8.host_resource":             Environment,
+	// a result the user asked for, and a report the record contradicts
+	"s5.deliverable_missing":  Verification,
+	"s5.claim_contradiction":  Verification,
+	"s5.forbidden_action":     Scope,
+	"s5.unrequested_external": Scope,
+	"s5.correction_repeat":    Scope,
+	"s5.answer_language":      Writing,
 }
 
 // Diagnose needs a failed execution before interpreting an environmental
@@ -280,26 +287,47 @@ func (a *Attempt) Advance(next Stage, now time.Time) error {
 	return nil
 }
 
-// Select imposes one prescription per cause and three proposals per revision.
-// Once one attempt exists, a single handoff may replace further prescriptions.
-// Proposals reserve the budget even if delivery remains unknown.
-func Select(cause Cause, key string, revision uint64, history []Attempt) (Prescription, bool) {
+// Reasons Select gives for proposing nothing. They are recorded as the
+// verdict's delivery decision, so each names one cause.
+const (
+	// RefusedOpen: a prescription for the same cause is still open.
+	RefusedOpen = "recovery_open"
+	// RefusedBudget: the rule already used its proposals in this revision.
+	RefusedBudget = "recovery_budget"
+	// RefusedHandoff: the cause already got its handoff.
+	RefusedHandoff = "recovery_handoff"
+)
+
+// RuleBudget is the number of proposals one rule gets per revision.
+const RuleBudget = 3
+
+// Select imposes one prescription per cause and RuleBudget proposals per rule
+// and revision. Once one attempt exists, a single handoff may replace further
+// prescriptions. Proposals reserve the budget even if delivery remains
+// unknown. The budget is per rule: a rule that used its proposals does not
+// silence a different rule's first finding. On refusal it returns why.
+func Select(cause Cause, key, rule string, revision uint64, history []Attempt) (Prescription, string) {
 	count, same, handoff := 0, 0, false
 	for _, a := range history {
 		if a.Revision != revision {
 			continue
 		}
-		count++
+		if a.Rule == rule {
+			count++
+		}
 		if a.CauseKey == key {
 			same++
 			handoff = handoff || a.Prescription.Handoff
 		}
 		if a.CauseKey == key && (a.Stage == Proposed || a.Stage == Emitted || a.Stage == Delivered || a.Stage == Acknowledged) {
-			return Prescription{}, false
+			return Prescription{}, RefusedOpen
 		}
 	}
-	if count >= 3 || handoff {
-		return Prescription{}, false
+	if handoff {
+		return Prescription{}, RefusedHandoff
+	}
+	if count >= RuleBudget {
+		return Prescription{}, RefusedBudget
 	}
 	p := For(cause)
 	if same > 0 {
@@ -307,5 +335,5 @@ func Select(cause Cause, key string, revision uint64, history []Attempt) (Prescr
 		p.Action = HandoffAction
 		p.StopCondition = HandoffStop
 	}
-	return p, true
+	return p, ""
 }

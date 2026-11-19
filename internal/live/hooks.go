@@ -432,6 +432,7 @@ func (s *Session) onPrompt(in HookInput) json.RawMessage {
 	if !ev.Forced {
 		// the calls that follow may be judged before this prompt is observed
 		s.eng.BeginRequest(ev)
+		s.noteRequest(ev)
 	}
 	s.prompts++
 	cancelled := s.intentRevision != nil && s.intentRevision.Kind == intent.Cancelled
@@ -709,6 +710,31 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 			deny, sig = true, pre
 		}
 	}
+	if !deny {
+		if pre := s.jobPre(); pre != nil {
+			deny, sig = true, pre
+		}
+	}
+	if !deny {
+		if pre := s.correctionPre(ev); pre != nil {
+			if pre.Level == detect.L0 {
+				// a rule the user has not approved is counted, not told
+				s.deliver(s.eng.Emit(ev, []detect.Signal{*pre}))
+			} else {
+				deny, sig = true, pre
+			}
+		}
+	}
+	if !deny {
+		if pre := s.outcomePre(ev); pre != nil {
+			deny, sig = true, pre
+		}
+	}
+	if !deny {
+		if pre := s.knownResultPre(ev); pre != nil {
+			deny, sig = true, pre
+		}
+	}
 	ctx := s.msgContext()
 	seq, tool, execFP, certain, norm := ev.Seq, ev.Tool, ev.ExecFP, ev.ExecCertain, ev.CmdNorm
 	s.mu.Unlock()
@@ -788,7 +814,11 @@ func (s *Session) onPreToolOnce(in HookInput) json.RawMessage {
 			s.noteAdvice(in.Ack, s.adviceKey(v))
 			s.noteIntervention(in.Ack, v.ID)
 		}
-		s.holdHeavy(ev) // the call runs
+		// the call runs: its tests are compared and its whole-suite
+		// allowance is spent as for an unjudged call
+		s.snapshotShellTests(ev)
+		s.holdHeavy(ev)
+		s.eng.NoteAllowed(ev)
 		s.mu.Unlock()
 		recorded := route
 		s.storeAfterAnswer(func() {
@@ -1133,15 +1163,29 @@ func (s *Session) onStop(in HookInput) json.RawMessage {
 	s.enqueue(msg, time.Second)
 	s.mu.Lock()
 	sigs := s.eng.TurnEnd(msg, unmet)
+	alreadyFalse := slices.ContainsFunc(sigs, func(v detect.Signal) bool { return v.Rule == detect.RuleFalseDone })
+	sigs = append(sigs, s.eng.Emit(msg, append(s.outcomeAtStop(msg, alreadyFalse), s.correctionsAtStop(msg)...))...)
 	s.settleCompletion(sigs)
 	hold := s.stopHold(sigs, unmet, shadow, stopChecks)
+	if hold == nil && !shadow && len(unmet) == 0 {
+		hold = s.outcomeHold(sigs, in.StopHookActive)
+	}
 	if hold != nil {
 		sigs = slices.DeleteFunc(sigs, func(v detect.Signal) bool { return v.Rule == hold.Rule && v.Seq == hold.Seq })
+	}
+	var language *detect.Signal
+	if hold == nil && !shadow && s.caps.BlockStop && s.Cfg.Quality.Enabled {
+		if language = s.languageGate(sigs); language != nil {
+			sigs = slices.DeleteFunc(sigs, func(v detect.Signal) bool { return v.Rule == RuleAnswerLanguage })
+		}
 	}
 	s.deliver(sigs)
 	var quality *detect.Signal
 	if hold == nil && !shadow && s.caps.BlockStop && s.Cfg.Quality.Enabled {
 		quality = s.eng.QualityNext(text, s.Cfg.Quality.Critique.Enabled, s.Cfg.Quality.Critique.MinLines)
+		if quality == nil {
+			quality = language
+		}
 	}
 	s.queueTrimPass()
 	s.noteSlowStop(msg, stopPhases{flush: flushed.Sub(started), checks: checksDone.Sub(checksFrom), scan: scanned.Sub(checksDone), total: time.Since(started)})
@@ -1272,4 +1316,5 @@ func (s *Session) onUsage(in HookInput) {
 			s.recordStorageError(s.db.UpdateLiveCost(s.ID, ev))
 		}
 	}
+	s.checkJob()
 }

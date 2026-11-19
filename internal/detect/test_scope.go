@@ -345,3 +345,14 @@ func suggestTargeted(suite string, paths []string) string {
 	}
 	return ""
 }
+
+// IsFullCheck reports a call that runs the whole test suite or a project
+// gate, for checks outside the engine (an approved correction rule).
+func (e *Engine) IsFullCheck(ev *event.Event) bool { return e.fullCheck(ev) }
+
+// CheckTests returns the test commands a shell call runs and the key that
+// names them through any wrapper, or nil when it runs none.
+func (e *Engine) CheckTests(ev *event.Event) (key string, tests []string) {
+	c := e.checkOf(ev)
+	return c.key, c.tests
+}

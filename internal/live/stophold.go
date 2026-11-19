@@ -187,7 +187,7 @@ func (s *Session) holdStop(v detect.Signal, in HookInput) json.RawMessage {
 	if reason == "" {
 		reason = receipt.Describe(v)
 	}
-	if a, prescription, ok := s.proposeRecovery(v); ok {
+	if a, prescription, refused := s.proposeRecovery(v); refused == "" {
 		reason = armMessage(v, reason, a, prescription)
 	}
 	s.mu.Unlock()

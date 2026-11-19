@@ -417,6 +417,13 @@ func stripHostTemplate(text string) string {
 	return text[:start] + block[end+len(hermesCronEnd):]
 }
 
+// ScheduledBody returns the prompt of a scheduled job without the block the
+// host puts before it, and whether the text was a scheduled job's.
+func ScheduledBody(text string) (string, bool) {
+	body := stripHostTemplate(text)
+	return body, body != text
+}
+
 // programExt lists the program files whose string literals are data. Documents,
 // configuration and markup are read in full.
 var programExt = map[string]bool{".go": true, ".rs": true, ".ts": true, ".tsx": true, ".js": true, ".jsx": true, ".mjs": true, ".py": true, ".rb": true,

@@ -28,7 +28,15 @@ const (
 	// LabelSourceDerived is a label derived from an independent grader.
 	// Its evidence is a run and its verdict, not a person's judgement.
 	LabelSourceDerived = "derived"
+	// LabelSourceReproach is a label inferred from the user scolding the
+	// agent in the span, matched to the rule by the scolding's theme. It
+	// is weaker than a grader's verdict: the user reacted, but did not
+	// judge the verdict itself.
+	LabelSourceReproach = "user_reproach"
 )
+
+// DerivationReproach is the derivation method of a reproach label.
+const DerivationReproach = "reproach_theme"
 
 // Derivation records how a machine-derived label was produced.
 //
@@ -94,6 +102,10 @@ func (l Label) ValidateSource() error {
 	case LabelSourceDerived:
 		if l.Derivation == nil || l.Derivation.Method == "" {
 			return errors.New(lang.T("파생 라벨에는 파생 방법이 필요하다"))
+		}
+	case LabelSourceReproach:
+		if l.Derivation == nil || l.Derivation.Method != DerivationReproach {
+			return errors.New(lang.T("질책 라벨에는 질책 주제 파생 기록이 필요하다"))
 		}
 	default:
 		return fmt.Errorf(lang.T("알 수 없는 라벨 출처 %q"), l.Source)

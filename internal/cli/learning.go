@@ -98,6 +98,8 @@ func evidenceTierLabel(tier string) string {
 	switch tier {
 	case rulepack.EvidenceDerivedExecution:
 		return lang.T("실행 기반 파생")
+	case rulepack.EvidenceUserReproach:
+		return lang.T("사용자 질책")
 	default:
 		return lang.T("사람 라벨")
 	}
@@ -124,7 +126,11 @@ func learningCmds() []*cobra.Command {
 	propose.Flags().Float64Var(&fpr, "fpr-max", .05, lang.T("사전 지정 오탐률 신뢰구간 상한"))
 	var evLabels, evSplit, evOut string
 	var check bool
-	evaluate := &cobra.Command{Use: "evaluate <proposal.json>", Short: lang.T("고정 규칙을 독립 holdout 사람 라벨로 평가"), Args: cobra.ExactArgs(1), SilenceUsage: true, RunE: func(cmd *cobra.Command, args []string) error {
+	var funnelDays int
+	evaluate := &cobra.Command{Use: "evaluate [proposal.json]", Short: lang.T("인자가 없으면 규칙별 판정·전달·효과 단계 수를, 있으면 고정 규칙을 독립 holdout 사람 라벨로 평가"), Args: cobra.MaximumNArgs(1), SilenceUsage: true, RunE: func(cmd *cobra.Command, args []string) error {
+		if len(args) == 0 {
+			return printFunnel(cmd, funnelDays, evOut)
+		}
 		p, err := loadProposal(args[0])
 		if err != nil {
 			return err
@@ -149,6 +155,7 @@ func learningCmds() []*cobra.Command {
 	evaluate.Flags().StringVar(&evSplit, "split", "", lang.T("고정 split/2"))
 	evaluate.Flags().StringVar(&evOut, "out", "", lang.T("평가 보고서"))
 	evaluate.Flags().BoolVar(&check, "check", false, lang.T("보류·미충족이면 실패 종료"))
+	evaluate.Flags().IntVar(&funnelDays, "days", 30, lang.T("단계 수를 셀 기간(일), 인자가 없을 때만"))
 	var promoteLabels, promoteSplit, promoteOut string
 	var install bool
 	promote := &cobra.Command{Use: "promote <proposal.json>", Short: lang.T("독립 평가를 재계산한 뒤 규칙 팩 생성·선택 설치 (기본 기록 전용)"), Args: cobra.ExactArgs(1), SilenceUsage: true, RunE: func(cmd *cobra.Command, args []string) error {

@@ -64,13 +64,44 @@ type Session struct {
 	linkedSeen                    map[string]bool
 	linkedScope                   string
 	assessmentCache               *hudAssessmentCache
-	task                          *intent.Task
-	intentRevision                *intent.Revision
-	taskLink                      *intent.SessionLink
-	recoveries                    []recovery.Attempt
-	ID, Agent, Root, Transcript   string
-	Cfg                           config.Config
-	CfgHash                       string
+	// lateDecisions holds delivery decisions for events not observed yet
+	lateDecisions map[int64][]event.Decision
+	// lastRequestSeq and requestSeqs mark user requests; scoldings are the
+	// requests that scolded the agent; userPrompts counts the requests.
+	lastRequestSeq int64
+	requestSeqs    []int64
+	scoldings      []scolding
+	userPrompts    int
+	// book holds the deliverables the user asked for or forbade;
+	// lastRequestText is the latest request, kept in memory only;
+	// outcomeHeld are the outcome verdicts that already held a turn end.
+	book            alignment.Book
+	lastRequestText string
+	outcomeHeld     []string
+	// passes are the last passes of each check; corrections are the
+	// project's candidate and approved correction rules.
+	passes      map[string]passMark
+	corrections []ledger.CorrectionRow
+	// correctionRepeats counts corrections the user gave again
+	correctionRepeats int
+	// jobID names the scheduled job of the session; jobMedian and jobRuns
+	// are its baseline; jobNoticed and jobStop are what the run triggered.
+	jobID      string
+	jobMedian  int64
+	jobRuns    int
+	jobNoticed bool
+	jobStop    *detect.Signal
+	// languageHeld is the request whose English answer was sent back
+	languageHeld int64
+	// shadowNoted are the marks a recorded-only rule already recorded
+	shadowNoted                 map[string]bool
+	task                        *intent.Task
+	intentRevision              *intent.Revision
+	taskLink                    *intent.SessionLink
+	recoveries                  []recovery.Attempt
+	ID, Agent, Root, Transcript string
+	Cfg                         config.Config
+	CfgHash                     string
 
 	mu               sync.Mutex
 	parser           *claude.Parser
@@ -628,6 +659,9 @@ func (s *Session) observe(ev *event.Event) []detect.Signal {
 	}
 	lastProgress := s.eng.St.LastProgress
 	sigs := s.eng.Observe(ev)
+	s.observeOutcome(ev)
+	s.notePass(ev)
+	s.checkJob()
 	s.observeVerification(ev)
 	s.annotateRequirements(ev)
 	sigs = append(sigs, s.groundedClaimSignals(ev)...)
@@ -639,6 +673,7 @@ func (s *Session) observe(ev *event.Event) []detect.Signal {
 		s.sinceTokens = append(s.sinceTokens, ev)
 	}
 	s.persistEvent(ev)
+	s.takeLateDecisions(ev)
 	s.trackOutcomes(ev)
 	s.trackAttempts(ev)
 	s.deliver(sigs)
@@ -748,9 +783,9 @@ func (s *Session) deliver(sigs []detect.Signal) {
 		if v.Level >= detect.L2 {
 			s.unresolved = &cp
 		}
-		attempt, prescription, proposed := s.proposeRecovery(v)
-		if !proposed {
-			s.recordDecision(v, "recovery_unavailable")
+		attempt, prescription, refused := s.proposeRecovery(v)
+		if refused != "" {
+			s.recordDecision(v, refused)
 			continue
 		}
 		if !policy.FactOnly(v.Arm) {
@@ -1526,12 +1561,17 @@ func (s *Session) finalize(reason string) (string, error) {
 		s.finalized = true
 		return "", nil
 	}
+	outcome := s.settleReproaches(res.Verdicts, s.eng.St.Events)
 	if err := analyze.CheckInvariant(sess, res.Totals); err != nil {
 		return "", err
 	}
 	sl, err := s.db.SaveAnalysis(res, 0, 0, nil)
 	if err != nil {
 		return "", err
+	}
+	if s.jobID != "" {
+		// the analysis rewrites the session row
+		s.recordStorageError(s.db.SetJobID(s.ID, s.jobID))
 	}
 	billing := cost.ObserveSession(sess, s.prices.Version)
 	if s.judgeBudget.Unknown {
@@ -1540,7 +1580,7 @@ func (s *Session) finalize(reason string) (string, error) {
 	}
 	rc := receipt.Build(receipt.Input{Title: receipt.SessionTitle(sess.StartedAt, s.ID, s.Agent), Agent: s.Agent, Totals: res.Totals, Grade: res.Grade,
 		Verdicts: res.Verdicts, Seal: &sl, Criteria: [2]int{res.Criteria.Met, res.Criteria.Total}, Billing: billing, Recoveries: s.recoveries,
-		Observation: res.Observation, Blocked: res.Blocked, JudgeSkippedLowRisk: int(s.judgeLowRisk.Load()), Tests: s.testSection()})
+		Observation: res.Observation, Blocked: res.Blocked, JudgeSkippedLowRisk: int(s.judgeLowRisk.Load()), Tests: s.testSection(), Outcome: outcome})
 	dir := filepath.Join(config.Home(), "receipts")
 	if err := procgroup.MkdirAllPrivate(dir); err != nil {
 		return "", err

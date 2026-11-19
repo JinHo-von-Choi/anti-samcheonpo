@@ -18,7 +18,7 @@ func recoveryMarker(id string) string { return intervene.RecoveryMarker(id) }
 
 // proposeRecovery is called under s.mu. It reserves a bounded proposal before
 // queueing, so repeated warnings cannot create a self-perpetuating nudge loop.
-func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bool) {
+func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, string) {
 	var target *event.Event
 	var failed bool
 	var errorText string
@@ -55,9 +55,9 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 		}
 	}
 	key := fp.Hash(string(cause), v.Rule, strings.Join(signatures, "|"), behaviorTarget, input, environment, command)
-	p, ok := recovery.Select(cause, key, s.contractRevision, s.recoveries)
-	if !ok {
-		return recovery.Attempt{}, "", false
+	p, refused := recovery.Select(cause, key, v.Rule, s.contractRevision, s.recoveries)
+	if refused != "" {
+		return recovery.Attempt{}, "", refused
 	}
 	switch v.Rule {
 	case "s1.concurrent_shared_resource":
@@ -114,7 +114,6 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 	}
 	if decision.Route == "observe" {
 		a.DeliveryReason = s.observeDeliveryCause()
-		s.recordDecision(v, "unsupported_route")
 	}
 	s.recoveries = append(s.recoveries, a)
 	s.saveRecovery(a)
@@ -123,7 +122,8 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 		_ = a.Advance(recovery.Censored, now)
 		s.recoveries[len(s.recoveries)-1] = a
 		s.saveRecovery(a)
-		return a, "", false
+		// the host gives this phase no channel: the cause names why
+		return a, "", "unsupported_route:" + a.DeliveryReason
 	}
 	message := intervene.Recovery(a, s.language())
 	if !policy.FactOnly(v.Arm) {
@@ -131,7 +131,7 @@ func (s *Session) proposeRecovery(v detect.Signal) (recovery.Attempt, string, bo
 			message += s.pick("\n관측 유형: "+kind+". 새 입력·환경이 확인되면 좁은 재검사를 하고, 같으면 기존 결과와 남은 조건을 사용한다.", "\nObservation type: "+kind+". If new input or environment is confirmed run a narrow recheck; otherwise use the existing result and remaining criteria.")
 		}
 	}
-	return a, message, true
+	return a, message, ""
 }
 
 func (s *Session) saveRecovery(a recovery.Attempt) {

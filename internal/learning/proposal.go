@@ -28,8 +28,11 @@ type Proposal struct {
 // they are not the same grade of evidence, and a pack that held both could
 // not say what it was holding.
 func evidenceTier(source string) string {
-	if source == eval.LabelSourceDerived {
+	switch source {
+	case eval.LabelSourceDerived:
 		return rulepack.EvidenceDerivedExecution
+	case eval.LabelSourceReproach:
+		return rulepack.EvidenceUserReproach
 	}
 	return rulepack.EvidenceHumanLabeled
 }
@@ -165,7 +168,7 @@ func (p Proposal) Validate() error {
 		return errors.New("invalid frozen proposal")
 	}
 	switch p.EvidenceTier {
-	case "", rulepack.EvidenceHumanLabeled, rulepack.EvidenceDerivedExecution:
+	case "", rulepack.EvidenceHumanLabeled, rulepack.EvidenceDerivedExecution, rulepack.EvidenceUserReproach:
 	default:
 		return errors.New("invalid proposal evidence tier")
 	}
