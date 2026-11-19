@@ -21,11 +21,14 @@ func (j *issueTestJudge) Judge(_ context.Context, in judge.Input) (judge.Verdict
 }
 func TestDraftSemanticJudgeIsBudgetedGroundedAndCannotBlock(t *testing.T) {
 	s, _ := budgetSession(t)
+	// accepting the contract started work that reads these under the lock
+	s.mu.Lock()
 	s.c = nil
 	s.acc = contract.Acceptance{State: contract.StateDraft}
 	s.firstPrompt = "요청한 두 기능 구현"
 	j := &issueTestJudge{}
 	s.judge = j
+	s.mu.Unlock()
 	s.eng.Observe(&event.Event{Seq: 17, Kind: event.KindMessage, Text: "한 기능 구현을 완료했습니다.", Summary: "message"})
 	s.runJudge()
 	if j.calls != 1 || !slices.Contains(j.in.EvidenceIDs, int64(17)) || slices.Contains(j.in.EvidenceIDs, int64(999)) {

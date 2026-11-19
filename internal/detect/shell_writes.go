@@ -78,14 +78,21 @@ func (e *Engine) shellBase(ev *event.Event) string {
 	if ev.Dir == "" {
 		return e.Root
 	}
-	if filepath.IsAbs(ev.Dir) || e.Root == "" {
+	if rooted(ev.Dir) || e.Root == "" {
 		return filepath.Clean(ev.Dir)
 	}
 	return filepath.Join(e.Root, ev.Dir)
 }
 
+// rooted reports a path a shell resolves from the top of the file system,
+// not from its folder: a POSIX shell on Windows reads "/tmp/x" this way,
+// though it has no drive letter.
+func rooted(p string) bool {
+	return filepath.IsAbs(p) || strings.HasPrefix(p, "/") || strings.HasPrefix(p, `\`)
+}
+
 func (e *Engine) shellAbs(ev *event.Event, p string) string {
-	if filepath.IsAbs(p) {
+	if rooted(p) {
 		return filepath.Clean(p)
 	}
 	base := e.shellBase(ev)
@@ -101,7 +108,7 @@ func (e *Engine) shellAbs(ev *event.Event, p string) string {
 func (e *Engine) projectRel(ev *event.Event, p string) string {
 	abs := e.shellAbs(ev, p)
 	if e.Root == "" {
-		if filepath.IsAbs(p) || pathnorm.IsTempPath(p) {
+		if rooted(p) || pathnorm.IsTempPath(p) {
 			return ""
 		}
 		return filepath.ToSlash(filepath.Clean(p))

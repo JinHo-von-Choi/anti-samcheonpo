@@ -7,6 +7,7 @@ import (
 	"encoding/json"
 	"fmt"
 	"os"
+	"path"
 	"path/filepath"
 	"sort"
 	"strconv"
@@ -154,7 +155,7 @@ func Render(s Scenario, root string) []byte {
 				}
 				tool("Bash", map[string]any{"command": st.Bash}, text, isErr, map[string]any{"stdout": st.Out, "stderr": "", "interrupted": false}, st.Tokens)
 			case st.Read != "":
-				tool("Read", map[string]any{"file_path": filepath.Join(root, st.Read)}, files[st.Read], false, nil, st.Tokens)
+				tool("Read", map[string]any{"file_path": path.Join(root, st.Read)}, files[st.Read], false, nil, st.Tokens)
 			case st.Grep != "":
 				tool("Grep", map[string]any{"pattern": st.Grep, "path": root}, "", false, nil, st.Tokens)
 			case st.Write != "":
@@ -167,13 +168,13 @@ func Render(s Scenario, root string) []byte {
 					orig = o
 				}
 				files[st.Write] = st.Content
-				tool("Write", map[string]any{"file_path": filepath.Join(root, st.Write), "content": st.Content}, "File written", false,
-					map[string]any{"type": typ, "filePath": filepath.Join(root, st.Write), "content": st.Content, "originalFile": orig}, st.Tokens)
+				tool("Write", map[string]any{"file_path": path.Join(root, st.Write), "content": st.Content}, "File written", false,
+					map[string]any{"type": typ, "filePath": path.Join(root, st.Write), "content": st.Content, "originalFile": orig}, st.Tokens)
 			case st.Edit != "":
 				orig := files[st.Edit]
 				files[st.Edit] = strings.Replace(orig, st.Old, st.New, 1)
-				tool("Edit", map[string]any{"file_path": filepath.Join(root, st.Edit), "old_string": st.Old, "new_string": st.New}, "The file has been updated",
-					false, map[string]any{"filePath": filepath.Join(root, st.Edit), "oldString": st.Old, "newString": st.New, "originalFile": orig, "replaceAll": false}, st.Tokens)
+				tool("Edit", map[string]any{"file_path": path.Join(root, st.Edit), "old_string": st.Old, "new_string": st.New}, "The file has been updated",
+					false, map[string]any{"filePath": path.Join(root, st.Edit), "oldString": st.Old, "newString": st.New, "originalFile": orig, "replaceAll": false}, st.Tokens)
 			case st.Msg != "":
 				emit(map[string]any{"type": "assistant", "uuid": id("u"), "message": map[string]any{"id": id("msg"), "model": model, "role": "assistant",
 					"content": []any{map[string]any{"type": "text", "text": st.Msg}}, "usage": usage(st.Tokens)}})

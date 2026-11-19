@@ -252,7 +252,10 @@ func snapshotTree(ctx context.Context, root string) (string, error) {
 		if !filepath.IsAbs(p) {
 			p = filepath.Join(root, p)
 		}
-		if b, err := os.ReadFile(p); err == nil && os.WriteFile(idx, b, 0o600) == nil {
+		// the copy keeps the index's own time: git rehashes a file changed
+		// in the same tick as the index was written only by comparing the
+		// two, and a newer copy would trust its stale stats
+		if b, err := os.ReadFile(p); err == nil && os.WriteFile(idx, b, 0o600) == nil && keepTime(p, idx) == nil {
 			if _, err := runGit(ctx, root, env, "add", "-A", "--", "."); err == nil {
 				if tree, err := runGit(ctx, root, env, "write-tree"); err == nil {
 					return tree, nil
@@ -270,6 +273,15 @@ func snapshotTree(ctx context.Context, root string) (string, error) {
 		return "", err
 	}
 	return runGit(ctx, root, env, "write-tree")
+}
+
+// keepTime gives dst the modification time of src.
+func keepTime(src, dst string) error {
+	fi, err := os.Stat(src)
+	if err != nil {
+		return err
+	}
+	return os.Chtimes(dst, fi.ModTime(), fi.ModTime())
 }
 
 // changedFiles lists the paths that differ between two trees.
