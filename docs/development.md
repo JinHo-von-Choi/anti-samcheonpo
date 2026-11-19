@@ -95,7 +95,7 @@ python3 scripts/probe_native_hooks.py run \
 현재 플랫폼의 패키지만 만들 때는 버전과 새 출력 폴더를 지정합니다.
 
 ```sh
-sh scripts/package-release.sh 0.12.0 ./release-out
+sh scripts/package-release.sh 0.13.0 ./release-out
 ```
 
 패키지에는 실행 파일과 배포용 자료를 담습니다. 개인 원장과 인증 자료는 작업 환경에 보관합니다.
